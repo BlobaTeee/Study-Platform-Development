@@ -1,0 +1,37 @@
+{
+  "best_model": "logreg",
+  "selection_metric": "accuracy_at_1",
+  "selection_split": "validation",
+  "validation_comparison": {
+    "logreg": {
+      "f1": 0.7866948257655755,
+      "roc_auc": 0.9295955992165426,
+      "pr_auc": 0.8650674608106722,
+      "accuracy_at_1": 0.9222096956031567
+    },
+    "linsvc": {
+      "f1": 0.7861333333333334,
+      "roc_auc": 0.9298972548909951,
+      "pr_auc": 0.8637713181059103,
+      "accuracy_at_1": 0.9210822998872604
+    },
+    "rf": {
+      "f1": 0.8396946564885496,
+      "roc_auc": 0.9424096102752736,
+      "pr_auc": 0.890164866764713,
+      "accuracy_at_1": 0.8940248027057497
+    }
+  },
+  "test_metrics": {
+    "f1": 0.785154208050183,
+    "roc_auc": 0.9234853487165837,
+    "pr_auc": 0.8658197586564129,
+    "accuracy_at_1": 0.9061085972850679
+  },
+  "baselines": {
+    "random_at_1": 0.25,
+    "support_overlap_at_1": 0.8190045248868778,
+    "dummy_f1": 0.24985867721876767,
+    "dummy_roc_auc": 0.49981146304675717
+  }
+}
