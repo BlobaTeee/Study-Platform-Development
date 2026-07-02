@@ -1,0 +1,25 @@
+# Environment variables
+.env*.local
+backend/.env
+
+# Dependencies and build
+node_modules
+.next/
+.vercel/
+backend/venv/
+
+# Python
+__pycache__/
+*.pyc
+backend/db.sqlite3
+backend/media/
+ml_pipeline/.venv/
+ml_pipeline/outputs/
+**/.ipynb_checkpoints/
+
+# ML pipeline regenerable artifacts
+ml_pipeline/models/*.joblib
+datasets/processed/*.parquet
+
+# OS
+.DS_Store
