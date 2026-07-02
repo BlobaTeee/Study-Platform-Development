@@ -1,12 +1,18 @@
 {
   "model": "logreg",
-  "trained_at": "2026-07-03T01:37:46",
+  "trained_at": "2026-07-03T01:51:16",
   "sklearn_version": "1.9.0",
   "test_metrics": {
     "f1": 0.785154208050183,
     "roc_auc": 0.9234853487165837,
     "pr_auc": 0.8658197586564129,
-    "accuracy_at_1": 0.9095022624434389
+    "accuracy_at_1": 0.9061085972850679
+  },
+  "baselines": {
+    "random_at_1": 0.25,
+    "support_overlap_at_1": 0.8190045248868778,
+    "dummy_f1": 0.24985867721876767,
+    "dummy_roc_auc": 0.49981146304675717
   },
   "features": [
     "cand_support_cos",

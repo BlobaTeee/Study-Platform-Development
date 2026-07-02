@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sklearn
+from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (average_precision_score, confusion_matrix,
@@ -18,7 +19,7 @@ from sklearn.svm import LinearSVC
 
 from . import config
 from .answer_scorer import AnswerScorer
-from .features.answer_features import FeatureBuilder, expand_candidates
+from .features.answer_features import FeatureBuilder, expand_candidates, token_overlap
 
 
 def _candidates():
@@ -44,6 +45,35 @@ def accuracy_at_1(scorer: AnswerScorer, long_df: pd.DataFrame) -> float:
     return float(np.mean(hits))
 
 
+def compute_baselines(train_long: pd.DataFrame, eval_long: pd.DataFrame) -> dict:
+    """Reference floors: random chance, the support-overlap heuristic, and a
+    stratified Dummy classifier — so the trained model's lift is quantified."""
+    # Support-overlap-only ranker: pick the candidate most present in support.
+    ov = [token_overlap(c, s)
+          for c, s in zip(eval_long["candidate"], eval_long["support"])]
+    tmp = eval_long.assign(_ov=ov)
+    hits = [int(g.loc[g["_ov"].idxmax()]["is_correct"] == 1)
+            for _, g in tmp.groupby("question_id")]
+    support_overlap_at_1 = float(np.mean(hits))
+
+    # Random selection among the candidates of each question.
+    random_at_1 = float(1.0 / eval_long.groupby("question_id").size().mean())
+
+    # Stratified Dummy classifier for candidate-level context.
+    dummy = DummyClassifier(strategy="stratified", random_state=config.RANDOM_SEED)
+    dummy.fit(np.zeros((len(train_long), 1)), train_long["is_correct"].to_numpy())
+    y = eval_long["is_correct"].to_numpy()
+    dprob = dummy.predict_proba(np.zeros((len(eval_long), 1)))[:, 1]
+    dpred = (dprob >= 0.5).astype(int)
+    return {
+        "random_at_1": round(random_at_1, 4),
+        "support_overlap_at_1": support_overlap_at_1,
+        "dummy_f1": float(f1_score(y, dpred, zero_division=0)),
+        "dummy_roc_auc": (float(roc_auc_score(y, dprob))
+                          if len(set(y)) > 1 else float("nan")),
+    }
+
+
 def evaluate(scorer: AnswerScorer, test_long: pd.DataFrame) -> dict:
     probs = scorer.predict_proba(test_long)
     preds = (probs >= 0.5).astype(int)
@@ -56,7 +86,7 @@ def evaluate(scorer: AnswerScorer, test_long: pd.DataFrame) -> dict:
     }
 
 
-def _save_reports(best_name, best_scorer, val_comparison, test_metrics, test_long):
+def _save_reports(best_name, best_scorer, val_comparison, test_metrics, baselines, test_long):
     config.ensure_dirs()
     (config.REPORTS_DIR / "metrics.json").write_text(json.dumps({
         "best_model": best_name,
@@ -64,6 +94,7 @@ def _save_reports(best_name, best_scorer, val_comparison, test_metrics, test_lon
         "selection_split": "validation",
         "validation_comparison": val_comparison,
         "test_metrics": test_metrics,
+        "baselines": baselines,
     }, indent=2))
     pd.DataFrame(val_comparison).T.to_csv(config.REPORTS_DIR / "model_comparison.csv")
 
@@ -93,6 +124,7 @@ def _save_reports(best_name, best_scorer, val_comparison, test_metrics, test_lon
         "trained_at": dt.datetime.now().isoformat(timespec="seconds"),
         "sklearn_version": sklearn.__version__,
         "test_metrics": test_metrics,
+        "baselines": baselines,
         "features": FeatureBuilder.FEATURE_NAMES,
     }, indent=2))
 
@@ -122,18 +154,21 @@ def train_all(sciq_df: pd.DataFrame | None = None, save: bool = True) -> dict:
     best_name = max(val_comparison, key=lambda n: val_comparison[n]["accuracy_at_1"])
     best_scorer = scorers[best_name]
 
-    # 3. Score the winner ONCE on the held-out test split.
+    # 3. Score the winner ONCE on the held-out test split, next to the baselines.
     test_metrics = evaluate(best_scorer, final_split)
+    baselines = compute_baselines(train_long, final_split)
 
     if save:
         best_scorer.save(config.MODELS_DIR / "answer_scorer.joblib")
-        _save_reports(best_name, best_scorer, val_comparison, test_metrics, final_split)
+        _save_reports(best_name, best_scorer, val_comparison, test_metrics,
+                      baselines, final_split)
 
     return {
         "best_model": best_name,
         "selection_metric": "accuracy_at_1",
         "validation_comparison": val_comparison,
         "test_metrics": test_metrics,
+        "baselines": baselines,
     }
 
 

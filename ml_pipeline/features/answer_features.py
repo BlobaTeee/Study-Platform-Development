@@ -10,15 +10,24 @@ from .. import config
 _DISTRACTORS = ["distractor1", "distractor2", "distractor3"]
 
 
-def expand_candidates(sciq_df: pd.DataFrame) -> pd.DataFrame:
-    """One row per candidate answer; is_correct=1 for the correct answer."""
+def expand_candidates(sciq_df: pd.DataFrame, shuffle: bool = True) -> pd.DataFrame:
+    """One row per candidate answer; is_correct=1 for the correct answer.
+
+    Candidates are shuffled within each question (seeded) so that answer
+    position carries no information — otherwise a tie in ranking scores would
+    leak the label via the correct answer's fixed position.
+    """
+    rng = np.random.RandomState(config.RANDOM_SEED)
     records = []
     for qid, row in enumerate(sciq_df.itertuples(index=False)):
         base = {"question_id": qid, "question": row.question,
                 "support": row.support, "split": row.split}
-        records.append({**base, "candidate": row.correct_answer, "is_correct": 1})
+        group = [{**base, "candidate": row.correct_answer, "is_correct": 1}]
         for col in _DISTRACTORS:
-            records.append({**base, "candidate": getattr(row, col), "is_correct": 0})
+            group.append({**base, "candidate": getattr(row, col), "is_correct": 0})
+        if shuffle:
+            rng.shuffle(group)
+        records.extend(group)
     return pd.DataFrame.from_records(records)
 
 
@@ -26,11 +35,16 @@ def _tokens(text: str) -> set:
     return set(str(text).lower().split())
 
 
-def _overlap(candidate: str, context: str) -> float:
+def token_overlap(candidate: str, context: str) -> float:
+    """Fraction of candidate tokens that also appear in the context."""
     cand = _tokens(candidate)
     if not cand:
         return 0.0
     return len(cand & _tokens(context)) / len(cand)
+
+
+# Backwards-compatible private alias used internally by FeatureBuilder.
+_overlap = token_overlap
 
 
 def _row_cosine(a_vecs, b_vecs) -> np.ndarray:
