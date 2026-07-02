@@ -19,7 +19,13 @@ ml_pipeline/outputs/
 
 # ML pipeline regenerable artifacts
 ml_pipeline/models/*.joblib
-datasets/processed/*.parquet
+# Note: datasets/processed/*.parquet ARE committed (small, portable outputs) — see datasets/README.md
+
+# Large raw dataset kept out of git (137 MB, regenerable from source — see datasets/README.md)
+datasets/raw/AI Flashcards/*.csv
+
+# IDE parquet-viewer artifacts
+*.parquet.as.json
 
 # OS
 .DS_Store
