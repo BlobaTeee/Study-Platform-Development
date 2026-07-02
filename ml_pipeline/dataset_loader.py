@@ -29,3 +29,36 @@ def load_raw_sciq() -> pd.DataFrame:
     frames = [clean_sciq(pd.read_csv(path), split=split)
               for split, path in config.SCIQ_FILES.items()]
     return pd.concat(frames, ignore_index=True)
+
+
+AIF_KEEP_COLUMNS = [
+    "subject", "topic", "subtopic", "difficulty",
+    "source_text", "summary", "question", "answer",
+]
+
+
+def load_raw_ai_flashcards() -> pd.DataFrame:
+    """Read and concatenate the AI Flashcards CSV parts (raw)."""
+    paths = sorted(glob.glob(str(config.AIF_DIR / config.AIF_GLOB)))
+    if not paths:
+        raise FileNotFoundError(f"No AI Flashcards parts under {config.AIF_DIR}")
+    return pd.concat([pd.read_csv(p) for p in paths], ignore_index=True)
+
+
+def clean_ai_flashcards(df: pd.DataFrame) -> pd.DataFrame:
+    """English-only content rows, de-duplicated, content columns only."""
+    out = df[df["language"] == "en"].copy()
+    out = out[AIF_KEEP_COLUMNS].drop_duplicates().reset_index(drop=True)
+    return out
+
+
+def build_topic_hierarchy(df: pd.DataFrame) -> pd.DataFrame:
+    """Unique subject/topic/subtopic triples with occurrence counts."""
+    hier = (
+        df.groupby(["subject", "topic", "subtopic"])
+        .size()
+        .reset_index(name="count")
+        .sort_values(["subject", "topic", "subtopic"])
+        .reset_index(drop=True)
+    )
+    return hier
