@@ -62,3 +62,25 @@ def build_topic_hierarchy(df: pd.DataFrame) -> pd.DataFrame:
         .reset_index(drop=True)
     )
     return hier
+
+
+def write_processed(sciq_df, flashcards_df, hierarchy_df) -> dict:
+    """Persist the three processed frames as parquet."""
+    config.ensure_dirs()
+    sciq_df.to_parquet(config.PROCESSED_FILES["sciq"], index=False)
+    flashcards_df.to_parquet(config.PROCESSED_FILES["flashcards"], index=False)
+    hierarchy_df.to_parquet(config.PROCESSED_FILES["topic_hierarchy"], index=False)
+    return dict(config.PROCESSED_FILES)
+
+
+def build_processed_datasets() -> dict:
+    """Full raw -> cleaned -> parquet pipeline."""
+    sciq_df = load_raw_sciq()
+    flashcards_df = clean_ai_flashcards(load_raw_ai_flashcards())
+    hierarchy_df = build_topic_hierarchy(flashcards_df)
+    return write_processed(sciq_df, flashcards_df, hierarchy_df)
+
+
+def load_processed(name: str) -> pd.DataFrame:
+    """Load a processed parquet by logical name."""
+    return pd.read_parquet(config.PROCESSED_FILES[name])
