@@ -17,9 +17,11 @@ class AnswerScorer:
     """Bundles a fitted TF-IDF feature builder + scaler + classifier."""
 
     def __init__(self, classifier=None):
-        self.classifier = classifier or LogisticRegression(
-            class_weight="balanced", max_iter=1000,
-            random_state=config.RANDOM_SEED)
+        if classifier is None:
+            classifier = LogisticRegression(
+                class_weight="balanced", max_iter=1000,
+                random_state=config.RANDOM_SEED)
+        self.classifier = classifier
         self.feature_builder = FeatureBuilder()
         self.scaler = StandardScaler()
 

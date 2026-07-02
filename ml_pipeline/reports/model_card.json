@@ -1,0 +1,21 @@
+{
+  "model": "logreg",
+  "trained_at": "2026-07-03T01:37:46",
+  "sklearn_version": "1.9.0",
+  "test_metrics": {
+    "f1": 0.785154208050183,
+    "roc_auc": 0.9234853487165837,
+    "pr_auc": 0.8658197586564129,
+    "accuracy_at_1": 0.9095022624434389
+  },
+  "features": [
+    "cand_support_cos",
+    "cand_question_cos",
+    "cand_support_overlap",
+    "cand_question_overlap",
+    "cand_len_tokens",
+    "cand_len_chars",
+    "cand_is_numeric",
+    "support_len_tokens"
+  ]
+}
