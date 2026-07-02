@@ -13,8 +13,20 @@ SCIQ_COLUMNS = [
 ]
 
 
+def _require_columns(df: pd.DataFrame, columns, dataset: str) -> None:
+    """Fail loudly (and usefully) if a raw file's schema has drifted."""
+    missing = [c for c in columns if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"{dataset} is missing expected column(s) {missing}. "
+            f"Present columns: {list(df.columns)}. "
+            "The raw data schema may have changed — see datasets/README.md."
+        )
+
+
 def clean_sciq(df: pd.DataFrame, split: str) -> pd.DataFrame:
     """Normalize SciQ columns, drop empty-support rows, tag the split."""
+    _require_columns(df, SCIQ_COLUMNS, "SciQ")
     out = df.copy()
     out = out[SCIQ_COLUMNS]
     support = out["support"].fillna("").astype(str).str.strip()
@@ -41,12 +53,19 @@ def load_raw_ai_flashcards() -> pd.DataFrame:
     """Read and concatenate the AI Flashcards CSV parts (raw)."""
     paths = sorted(glob.glob(str(config.AIF_DIR / config.AIF_GLOB)))
     if not paths:
-        raise FileNotFoundError(f"No AI Flashcards parts under {config.AIF_DIR}")
+        raise FileNotFoundError(
+            f"No AI Flashcards CSV parts under {config.AIF_DIR}. "
+            "This raw dataset is not committed to git (137 MB); download it "
+            "from the source listed in datasets/README.md. The processed "
+            "outputs (flashcards.parquet, topic_hierarchy.parquet) are committed, "
+            "so this is only needed to regenerate them from scratch."
+        )
     return pd.concat([pd.read_csv(p) for p in paths], ignore_index=True)
 
 
 def clean_ai_flashcards(df: pd.DataFrame) -> pd.DataFrame:
     """English-only content rows, de-duplicated, content columns only."""
+    _require_columns(df, AIF_KEEP_COLUMNS + ["language"], "AI Flashcards")
     out = df[df["language"] == "en"].copy()
     out = out[AIF_KEEP_COLUMNS].drop_duplicates().reset_index(drop=True)
     return out
