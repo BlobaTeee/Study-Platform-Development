@@ -10,6 +10,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from functools import lru_cache
 
+import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from .. import config
@@ -63,9 +64,11 @@ class TopicIndex:
         rows, corpus = [], []
         for r in hierarchy_df.itertuples(index=False):
             key = (r.subject, r.topic, r.subtopic)
+            raw_count = getattr(r, "count", 0)
+            count = 0 if pd.isna(raw_count) else int(raw_count)
             rows.append(TopicRow(
                 subject=r.subject, topic=r.topic, subtopic=r.subtopic,
-                count=int(getattr(r, "count", 0) or 0),
+                count=count,
                 difficulty=diff_map.get(key, "medium"),
             ))
             corpus.append(f"{r.subject} {r.topic} {r.subtopic} {q_map.get(key, '')}".strip())

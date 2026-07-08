@@ -40,3 +40,13 @@ def test_default_subject_is_highest_total_coverage(guidance_hierarchy_df, guidan
     idx = TopicIndex.from_frames(guidance_hierarchy_df, guidance_flashcards_df)
     # Mathematics total = 100, Physics = 40
     assert idx.default_subject() == "Mathematics"
+
+
+def test_nan_count_defaults_to_zero(guidance_flashcards_df):
+    import pandas as pd
+    hierarchy = pd.DataFrame([
+        {"subject": "Mathematics", "topic": "Calculus", "subtopic": "Limits", "count": float("nan")},
+    ])
+    idx = TopicIndex.from_frames(hierarchy, guidance_flashcards_df)
+    rows = idx.rows_for_subject("Mathematics")
+    assert rows and rows[0].count == 0
