@@ -46,3 +46,47 @@ def test_empty_profile_is_valid(guidance_hierarchy_df, guidance_flashcards_df):
     eng = _engine(guidance_hierarchy_df, guidance_flashcards_df)
     profile = eng.build_performance_profile(flashcards=[], quiz_attempts=[])
     assert profile == {"by_topic": {}, "overall_accuracy": None}
+
+
+def test_warm_path_ranks_relevant_subtopic_top(guidance_hierarchy_df, guidance_flashcards_df):
+    eng = _engine(guidance_hierarchy_df, guidance_flashcards_df)
+    recs = eng.recommend_from_text("continuity of a function", performance_by_topic={}, n=3)
+    assert recs
+    assert recs[0]["subtopic"] == "Continuity"
+    assert set(recs[0]) == {
+        "subject", "topic", "subtopic", "label",
+        "priority", "recommended_difficulty", "reason",
+    }
+    assert recs[0]["recommended_difficulty"] in {"easy", "medium", "hard"}
+
+
+def test_cold_path_returns_coverage_order(guidance_hierarchy_df, guidance_flashcards_df):
+    eng = _engine(guidance_hierarchy_df, guidance_flashcards_df)
+    recs = eng.recommend_from_text("", performance_by_topic={}, n=2)
+    assert [r["subtopic"] for r in recs] == ["Limits", "Kinematics"]  # counts 50, 40
+    assert all("Foundational" in r["reason"] for r in recs)
+
+
+def test_weakness_weighting_boosts_priority(guidance_hierarchy_df, guidance_flashcards_df):
+    eng = _engine(guidance_hierarchy_df, guidance_flashcards_df)
+
+    def poly_priority(recs):
+        return next(r["priority"] for r in recs if r["subtopic"] == "Polynomials")
+
+    neutral = eng.recommend_from_text("", performance_by_topic={}, n=4)
+    # Algebra (Polynomials' parent topic) is weak -> Polynomials should be boosted.
+    weak = {"by_topic": {"algebra": {"n": 5, "accuracy": 0.1}}, "overall_accuracy": 0.1}
+    boosted = eng.recommend_from_text("", performance_by_topic=weak, n=4)
+
+    assert poly_priority(boosted) > poly_priority(neutral)
+    poly = next(r for r in boosted if r["subtopic"] == "Polynomials")
+    assert "scoring lower" in poly["reason"]
+
+
+def test_recommend_empty_when_index_has_no_rows():
+    import pandas as pd
+    from ml_pipeline.services.topic_index import TopicIndex
+    empty = TopicIndex.from_frames(
+        pd.DataFrame(columns=["subject", "topic", "subtopic", "count"]), pd.DataFrame())
+    eng = RecommendationEngine(index=empty)
+    assert eng.recommend_from_text("anything", performance_by_topic={}, n=5) == []
