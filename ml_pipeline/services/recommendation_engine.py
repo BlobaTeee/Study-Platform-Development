@@ -44,10 +44,10 @@ class RecommendationEngine:
             score = getattr(qa, "score", None)
             if score is None:
                 continue
-            frac = score / 100.0 if score > 1 else float(score)
+            frac = max(0.0, min(1.0, score / 100.0))
             quiz = getattr(qa, "quiz", None)
             topic = getattr(getattr(quiz, "topic", None), "name", None)
-            _add(topic, max(0.0, min(1.0, frac)))
+            _add(topic, frac)
 
         return {
             "by_topic": {

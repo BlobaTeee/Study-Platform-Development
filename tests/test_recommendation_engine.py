@@ -35,6 +35,13 @@ def test_profile_includes_quiz_scores(guidance_hierarchy_df, guidance_flashcards
     assert profile["by_topic"]["mechanics"]["accuracy"] == 0.4
 
 
+def test_low_percentage_quiz_score_is_treated_as_percent(guidance_hierarchy_df, guidance_flashcards_df):
+    eng = _engine(guidance_hierarchy_df, guidance_flashcards_df)
+    attempts = [_Attempt(score=5.0, quiz=_Quiz(topic=_Topic("Mechanics")))]  # 5% -> 0.05
+    profile = eng.build_performance_profile(flashcards=[], quiz_attempts=attempts)
+    assert profile["by_topic"]["mechanics"]["accuracy"] == 0.05
+
+
 def test_empty_profile_is_valid(guidance_hierarchy_df, guidance_flashcards_df):
     eng = _engine(guidance_hierarchy_df, guidance_flashcards_df)
     profile = eng.build_performance_profile(flashcards=[], quiz_attempts=[])
