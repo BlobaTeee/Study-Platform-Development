@@ -90,3 +90,15 @@ def test_recommend_empty_when_index_has_no_rows():
         pd.DataFrame(columns=["subject", "topic", "subtopic", "count"]), pd.DataFrame())
     eng = RecommendationEngine(index=empty)
     assert eng.recommend_from_text("anything", performance_by_topic={}, n=5) == []
+
+
+def test_warm_query_with_no_lexical_match_falls_back_to_coverage(guidance_hierarchy_df, guidance_flashcards_df):
+    eng = _engine(guidance_hierarchy_df, guidance_flashcards_df)
+    recs = eng.recommend_from_text("zzzznomatch qqqjunk", performance_by_topic={}, n=3)
+    assert recs, "a no-match warm query should still return coverage-based recs"
+    assert all("Foundational" in r["reason"] for r in recs)
+
+
+def test_negative_n_returns_empty(guidance_hierarchy_df, guidance_flashcards_df):
+    eng = _engine(guidance_hierarchy_df, guidance_flashcards_df)
+    assert eng.recommend_from_text("continuity", performance_by_topic={}, n=-1) == []

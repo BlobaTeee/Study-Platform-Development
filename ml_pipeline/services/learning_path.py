@@ -30,6 +30,7 @@ class LearningPathEngine:
 
     def get_learning_path(self, subject=None, mastered_subtopics=None, limit: int = 15) -> list[dict]:
         idx = self.index
+        limit = max(0, limit)
         subject = subject or idx.default_subject()
         if not subject:
             return []

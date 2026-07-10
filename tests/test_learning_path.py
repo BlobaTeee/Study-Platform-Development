@@ -53,3 +53,8 @@ def test_learning_path_respects_limit(guidance_hierarchy_df, guidance_flashcards
 def test_learning_path_empty_for_unknown_subject(guidance_hierarchy_df, guidance_flashcards_df):
     eng = _engine(guidance_hierarchy_df, guidance_flashcards_df)
     assert eng.get_learning_path(subject="Chemistry", mastered_subtopics=set(), limit=5) == []
+
+
+def test_negative_limit_returns_empty(guidance_hierarchy_df, guidance_flashcards_df):
+    eng = _engine(guidance_hierarchy_df, guidance_flashcards_df)
+    assert eng.get_learning_path(subject="Mathematics", mastered_subtopics=set(), limit=-1) == []

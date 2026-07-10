@@ -59,13 +59,17 @@ class RecommendationEngine:
 
     def recommend_from_text(self, study_text: str, performance_by_topic: dict = None, n: int = 5) -> list[dict]:
         idx = self.index
+        n = max(0, n)
         by_topic = (performance_by_topic or {}).get("by_topic", {})
         k = max(1, n) * CANDIDATE_MULTIPLIER
 
         warm = bool(study_text and study_text.strip())
-        if warm:
-            candidates = list(idx.search(study_text, k))              # [(row, relevance)]
-        else:
+        candidates = list(idx.search(study_text, k)) if warm else []  # [(row, relevance)]
+        if not candidates:
+            # Empty text OR a warm query with no lexical match (the common case,
+            # given the taxonomy gap) -> fall back to coverage. Reason then reads
+            # as the cold "Foundational" path. Still returns [] if the index is empty.
+            warm = False
             rows = idx.top_by_coverage(k)
             max_count = max((r.count for r in rows), default=1) or 1
             candidates = [(r, r.count / max_count) for r in rows]
