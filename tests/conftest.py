@@ -45,3 +45,31 @@ def aif_raw_df():
         {**base, "subtopic": "Limits", "language": "en", "source_text": "Limits in Calculus."},
     ]
     return pd.DataFrame([{"id": i, **r} for i, r in enumerate(rows)])
+
+
+@pytest.fixture
+def guidance_hierarchy_df():
+    """Tiny topic hierarchy: 2 subjects, 4 subtopics with coverage counts."""
+    return pd.DataFrame([
+        {"subject": "Mathematics", "topic": "Calculus", "subtopic": "Continuity", "count": 30},
+        {"subject": "Mathematics", "topic": "Calculus", "subtopic": "Limits", "count": 50},
+        {"subject": "Mathematics", "topic": "Algebra", "subtopic": "Polynomials", "count": 20},
+        {"subject": "Physics", "topic": "Mechanics", "subtopic": "Kinematics", "count": 40},
+    ])
+
+
+@pytest.fixture
+def guidance_flashcards_df():
+    """Tiny flashcards frame with difficulty labels + question text per subtopic."""
+    return pd.DataFrame([
+        {"subject": "Mathematics", "topic": "Calculus", "subtopic": "Continuity",
+         "difficulty": "hard", "question": "What is continuity of a function?"},
+        {"subject": "Mathematics", "topic": "Calculus", "subtopic": "Continuity",
+         "difficulty": "hard", "question": "Define a continuous limit at a point."},
+        {"subject": "Mathematics", "topic": "Calculus", "subtopic": "Limits",
+         "difficulty": "easy", "question": "What is the limit of a sequence?"},
+        {"subject": "Mathematics", "topic": "Algebra", "subtopic": "Polynomials",
+         "difficulty": "medium", "question": "What is the degree of a polynomial?"},
+        {"subject": "Physics", "topic": "Mechanics", "subtopic": "Kinematics",
+         "difficulty": "medium", "question": "What is velocity in kinematics?"},
+    ])
