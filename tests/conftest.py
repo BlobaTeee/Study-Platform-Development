@@ -73,3 +73,53 @@ def guidance_flashcards_df():
         {"subject": "Physics", "topic": "Mechanics", "subtopic": "Kinematics",
          "difficulty": "medium", "question": "What is velocity in kinematics?"},
     ])
+
+
+# Generation fixtures (ContentExtractor, generators)
+from ml_pipeline.services.content_extractor import Candidate
+
+
+@pytest.fixture
+def sample_candidates():
+    """Deterministic Candidates for generator unit tests (no spaCy needed)."""
+    return [
+        Candidate(sentence="Mitochondria are the powerhouse of the cell.",
+                  term="powerhouse", label="NOUN_CHUNK", score=3.0),
+        Candidate(sentence="Albert Einstein developed the theory of relativity.",
+                  term="Albert Einstein", label="PERSON", score=2.5),
+        Candidate(sentence="Photosynthesis converts sunlight into chemical energy.",
+                  term="Photosynthesis", label="NOUN_CHUNK", score=2.0),
+        Candidate(sentence="Water boils at 100 degrees Celsius at sea level.",
+                  term="100 degrees Celsius", label="QUANTITY", score=1.5),
+    ]
+
+
+class FakeExtractor:
+    """Returns a fixed candidate list, ignoring the text."""
+    def __init__(self, candidates):
+        self._candidates = candidates
+
+    def extract_candidates(self, text, max_candidates):
+        return list(self._candidates)[:max_candidates]
+
+
+class FakeScorer:
+    """Deterministic AnswerScorer stub. Ranks `winner` first if present."""
+    def __init__(self, winner=None):
+        self.winner = winner
+
+    def rank(self, question, candidates, support):
+        cands = list(candidates)
+        if self.winner in cands:
+            cands = [self.winner] + [c for c in cands if c != self.winner]
+        return [(c, 1.0 - i * 0.1) for i, c in enumerate(cands)]
+
+
+@pytest.fixture
+def fake_extractor_factory():
+    return FakeExtractor
+
+
+@pytest.fixture
+def fake_scorer_factory():
+    return FakeScorer
