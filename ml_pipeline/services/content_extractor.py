@@ -106,7 +106,8 @@ class ContentExtractor:
     @staticmethod
     def _pick_term(sent, idf, vocab):
         """Prefer an answerable named entity; else the highest-IDF noun chunk
-        (determiners stripped)."""
+        (leading determiner stripped), skipping chunks whose text can't be
+        matched back to the sentence (e.g. spacing around clitics)."""
         for ent in sent.ents:
             if ent.label_ in ANSWERABLE_ENT_LABELS and ent.text.strip():
                 return ent.text.strip(), ent.label_
@@ -115,8 +116,11 @@ class ContentExtractor:
             root = chunk.root
             if root.is_stop or root.pos_ == "PRON":
                 continue
-            phrase = " ".join(t.text for t in chunk if t.pos_ != "DET").strip()
-            if not phrase:
+            # Strip a leading determiner, then slice the ORIGINAL text so spacing
+            # around clitics (possessive "'s") is preserved.
+            start = chunk[1] if (len(chunk) > 1 and chunk[0].pos_ == "DET") else chunk[0]
+            phrase = sent.doc.text[start.idx:chunk[-1].idx + len(chunk[-1].text)].strip()
+            if not phrase or phrase not in sent.text:
                 continue
             w = idf[vocab[root.text.lower()]] if root.text.lower() in vocab else 0.0
             if w > best_w:

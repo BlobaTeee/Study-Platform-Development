@@ -1,5 +1,5 @@
 from ml_pipeline.services.content_extractor import (
-    Candidate, ContentExtractor, difficulty_for, DEFINITIONAL_LABELS,
+    Candidate, ContentExtractor, difficulty_for, NOUN_CHUNK_LABEL,
 )
 
 
@@ -21,7 +21,7 @@ def test_extract_falls_back_to_noun_chunk_when_no_entity():
     assert cands
     c = cands[0]
     assert c.term and c.term in c.sentence
-    assert c.label  # some label assigned
+    assert c.label == NOUN_CHUNK_LABEL
 
 
 def test_extract_dedupes_and_respects_max():
@@ -41,7 +41,24 @@ def test_extract_empty_or_thin_text_returns_empty():
     assert ext.extract_candidates("x y z", max_candidates=0) == []
 
 
-def test_difficulty_for_returns_valid_bucket():
-    c = Candidate(sentence="The cat sat on the mat.", term="cat",
-                  label="NOUN_CHUNK", score=1.0)
-    assert difficulty_for(c) in {"easy", "medium", "hard"}
+def _cand(sentence):
+    return Candidate(sentence=sentence, term="x", label=NOUN_CHUNK_LABEL, score=1.0)
+
+
+def test_difficulty_buckets_by_reading_ease():
+    # ease values verified with textstat.flesch_reading_ease
+    assert difficulty_for(_cand("The cat sat on the mat.")) == "easy"  # ease ~116
+    assert difficulty_for(_cand(
+        "The utilization of heterogeneous methodologies necessitates comprehensive "
+        "interdisciplinary collaboration among numerous institutional stakeholders."
+    )) == "hard"  # ease ~-132
+    assert difficulty_for(_cand(
+        "Mitochondria are the powerhouse of the cell.")) == "medium"  # ease ~42.6
+
+
+def test_extract_handles_possessive_terms():
+    ext = ContentExtractor()
+    cands = ext.extract_candidates(
+        "The cell's nucleus contains genetic material essential for life.", max_candidates=5)
+    assert cands, "a possessive sentence must not be silently dropped"
+    assert all(c.term in c.sentence for c in cands)
