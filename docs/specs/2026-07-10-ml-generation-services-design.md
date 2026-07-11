@@ -99,14 +99,17 @@ production (the guidance-subsystem pattern):
 
 `generate(text, count, title) -> list[dict]`:
 1. `candidates = extractor.extract_candidates(text, count * OVERSAMPLE)`.
-2. Per candidate, choose the card style from the candidate's `label` (deterministic):
-   - **Definitional** when `label` is a named-entity type (an answerable entity):
-     stem by label — `PERSON → "Who is {term}?"`, `GPE/LOC → "What is {term}?"`,
-     `DATE/EVENT → "What happened: {term}?"`, default `"What is {term}?"`; `answer` = the
-     support sentence.
-   - **Cloze** when `label == "NOUN_CHUNK"` (common-noun terms, where "What is {term}?"
-     usually reads awkwardly): `question` = the support sentence with the term replaced by
-     `"______"`, `answer` = the term.
+2. Per candidate, choose the card style from the candidate's `label` (deterministic).
+   spaCy `en_core_web_sm` mislabels study terms (verified: "Mitochondria" → `PERSON`), so
+   the definitional stem is the **generic `"What is {term}?"`** — never label-specific
+   Who/When/Where, which would produce "Who is Mitochondria?".
+   - **Definitional** when `label` is a nominal entity type (`DEFINITIONAL_LABELS` =
+     `{PERSON, ORG, GPE, LOC, NORP, FAC, EVENT, WORK_OF_ART, PRODUCT, LAW, LANGUAGE}`):
+     `question = "What is {term}?"`, `answer` = the support sentence.
+   - **Cloze** otherwise — noun chunks and numeric/temporal labels (`DATE, TIME, PERCENT,
+     MONEY, QUANTITY, ORDINAL, CARDINAL`), where a definitional stem reads awkwardly:
+     `question` = the support sentence with the term replaced by `"______"`,
+     `answer` = the term.
 3. Attach `difficulty` (§5.4).
 4. Dedupe by answer/term; take up to `count`. Fewer candidates → fewer cards; none → `[]`.
    Output rows exactly `{question, answer, difficulty}`.
