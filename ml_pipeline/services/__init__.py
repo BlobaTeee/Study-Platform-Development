@@ -1,9 +1,12 @@
-"""Guidance services for the ML pipeline (recommendations + learning path).
-
-Note: generation services (flashcard/quiz) are a later spec and are imported
-lazily by the Django adapter, so they are intentionally not re-exported here.
-"""
+"""Service modules for the ML pipeline (guidance + generation)."""
+from .flashcard_generator import FlashcardGenerator
 from .learning_path import LearningPathEngine
+from .quiz_generator import QuizGenerator
 from .recommendation_engine import RecommendationEngine
 
-__all__ = ["RecommendationEngine", "LearningPathEngine"]
+__all__ = [
+    "RecommendationEngine",
+    "LearningPathEngine",
+    "FlashcardGenerator",
+    "QuizGenerator",
+]
