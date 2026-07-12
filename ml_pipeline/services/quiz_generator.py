@@ -62,3 +62,39 @@ class QuizGenerator:
             return list(terms)
         order = sorted(range(len(terms)), key=lambda i: (-sims[i], terms[i]))
         return [terms[i] for i in order]
+
+    def generate(self, text: str, question_count: int, title: str = "") -> dict:
+        question_count = max(0, question_count)
+        result = {
+            "title": title or "Quiz",
+            "description": f"Generated from {title}" if title else "Generated quiz",
+            "questions": [],
+        }
+        if question_count == 0:
+            return result
+
+        candidates = self.extractor.extract_candidates(text, question_count * OVERSAMPLE)
+        rng = random.Random(config.RANDOM_SEED)
+        questions = []
+        for c in candidates:
+            distractors = self._distractors(c, candidates)
+            if len(distractors) < N_DISTRACTORS:
+                continue
+            options = [c.term] + distractors[:N_DISTRACTORS]
+            stem = c.sentence.replace(c.term, BLANK, 1)
+            ranked = self.scorer.rank(stem, options, c.sentence)
+            if not ranked or ranked[0][0] != c.term:
+                continue  # AnswerScorer gate: correct answer must rank #1
+            shuffled = list(options)
+            rng.shuffle(shuffled)
+            questions.append({
+                "question_text": stem,
+                "question_type": "multiple_choice",
+                "options": shuffled,
+                "correct_answer": c.term,
+                "explanation": c.sentence,
+            })
+            if len(questions) >= question_count:
+                break
+        result["questions"] = questions
+        return result
