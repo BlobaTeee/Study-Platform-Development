@@ -61,14 +61,16 @@ def difficulty_for(candidate: "Candidate") -> str:
 
 
 def blank_term(sentence: str, term: str, blank: str) -> str:
-    """Replace the first *standalone* occurrence of `term` with `blank`.
+    """Replace *every* standalone occurrence of `term` with `blank`.
 
-    Word-boundary aware, so a term like "cell" is not blanked inside an earlier
-    "cellular". Falls back to a plain first-occurrence replace when no
-    boundaried match exists (e.g. terms with leading/trailing non-word chars).
+    Blanks all occurrences so a term that repeats in its sentence is never left
+    visible in the stem (which would leak the answer and let the scorer trivially
+    pass the question). Word-boundary aware, so a term like "cell" is not blanked
+    inside "cellular". Falls back to a plain replace when no boundaried match
+    exists (e.g. terms with leading/trailing non-word chars).
     """
-    replaced = re.sub(rf"\b{re.escape(term)}\b", blank, sentence, count=1)
-    return replaced if replaced != sentence else sentence.replace(term, blank, 1)
+    replaced = re.sub(rf"\b{re.escape(term)}\b", blank, sentence)
+    return replaced if replaced != sentence else sentence.replace(term, blank)
 
 
 class ContentExtractor:

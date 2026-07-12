@@ -64,6 +64,9 @@ class QuizGenerator:
         return [terms[i] for i in order]
 
     def generate(self, text: str, question_count: int, title: str = "") -> dict:
+        """Build up to `question_count` cloze MCQs from `text`, keeping only
+        questions whose correct answer the AnswerScorer ranks #1 (quality over
+        quantity). Returns `{title, description, questions}`."""
         question_count = max(0, question_count)
         result = {
             "title": title or "Quiz",

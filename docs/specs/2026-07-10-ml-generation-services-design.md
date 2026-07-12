@@ -136,9 +136,11 @@ production (the guidance-subsystem pattern):
 
 ### 5.4 Difficulty (shared heuristic)
 
-Per item, combine: answer-term rarity (IDF/TF-IDF weight — rarer → harder) and support
-readability (`textstat.flesch_reading_ease` — lower → harder). Bucket into
-`{easy, medium, hard}` via named thresholds. Transparent heuristic, not a predictor.
+Per item, bucket by support-sentence **readability** (`textstat.flesch_reading_ease` —
+lower → harder) into `{easy, medium, hard}` via named thresholds. A transparent heuristic,
+not a predictor. (Readability alone is a defensible proxy for a cosmetic label; folding in
+answer-term rarity would require plumbing the term's IDF onto `Candidate` and is deferred
+as not worth the coupling — revisit if difficulty becomes product-critical.)
 
 ## 6. Data flow
 

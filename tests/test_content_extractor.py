@@ -72,6 +72,14 @@ def test_blank_term_respects_word_boundary():
 
 
 def test_blank_term_falls_back_when_no_boundary_match():
-    # No standalone "cat" (only inside "category") -> plain first-occurrence replace.
+    # No standalone "cat" (only inside "category") -> plain replace.
     out = blank_term("The category matters.", "cat", "___")
     assert out == "The ___egory matters."
+
+
+def test_blank_term_blanks_all_occurrences_so_answer_is_not_leaked():
+    # A term repeated in its sentence must be fully removed, or the stem leaks
+    # the answer (and lets the scorer trivially pass the question).
+    out = blank_term("The cell membrane surrounds the cell.", "cell", "___")
+    assert out == "The ___ membrane surrounds the ___."
+    assert "cell" not in out
