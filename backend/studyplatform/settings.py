@@ -107,9 +107,15 @@ REST_FRAMEWORK = {
     ],
 }
 
+# Comma-separated list of allowed frontend origins. Defaults to local dev;
+# set CORS_ALLOWED_ORIGINS in the environment to your production origin(s).
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
+    origin.strip()
+    for origin in config(
+        'CORS_ALLOWED_ORIGINS',
+        default='http://localhost:3000,http://127.0.0.1:3000',
+    ).split(',')
+    if origin.strip()
 ]
 
 def build_database_config():
