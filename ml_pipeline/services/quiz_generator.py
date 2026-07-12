@@ -8,7 +8,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 from .. import config
 from ..answer_scorer import AnswerScorer
-from .content_extractor import ContentExtractor
+from .content_extractor import ContentExtractor, blank_term
 
 OVERSAMPLE = 4
 N_DISTRACTORS = 3
@@ -81,7 +81,7 @@ class QuizGenerator:
             if len(distractors) < N_DISTRACTORS:
                 continue
             options = [c.term] + distractors[:N_DISTRACTORS]
-            stem = c.sentence.replace(c.term, BLANK, 1)
+            stem = blank_term(c.sentence, c.term, BLANK)
             ranked = self.scorer.rank(stem, options, c.sentence)
             if not ranked or ranked[0][0] != c.term:
                 continue  # AnswerScorer gate: correct answer must rank #1

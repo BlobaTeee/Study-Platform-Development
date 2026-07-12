@@ -1,5 +1,5 @@
 from ml_pipeline.services.content_extractor import (
-    Candidate, ContentExtractor, difficulty_for, NOUN_CHUNK_LABEL,
+    Candidate, ContentExtractor, blank_term, difficulty_for, NOUN_CHUNK_LABEL,
 )
 
 
@@ -62,3 +62,16 @@ def test_extract_handles_possessive_terms():
         "The cell's nucleus contains genetic material essential for life.", max_candidates=5)
     assert cands, "a possessive sentence must not be silently dropped"
     assert all(c.term in c.sentence for c in cands)
+
+
+def test_blank_term_respects_word_boundary():
+    # "cell" must NOT be blanked inside the earlier "Cellular"; the standalone
+    # "cell" is the one replaced, so the real term is not left visible.
+    out = blank_term("Cellular structures surround the cell membrane.", "cell", "___")
+    assert out == "Cellular structures surround the ___ membrane."
+
+
+def test_blank_term_falls_back_when_no_boundary_match():
+    # No standalone "cat" (only inside "category") -> plain first-occurrence replace.
+    out = blank_term("The category matters.", "cat", "___")
+    assert out == "The ___egory matters."

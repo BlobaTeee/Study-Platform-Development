@@ -1,7 +1,9 @@
 """Flashcard generation from source text (classical, local; no LLM)."""
 from __future__ import annotations
 
-from .content_extractor import ContentExtractor, DEFINITIONAL_LABELS, difficulty_for
+from .content_extractor import (
+    ContentExtractor, DEFINITIONAL_LABELS, blank_term, difficulty_for,
+)
 
 OVERSAMPLE = 3
 BLANK = "______"
@@ -25,7 +27,7 @@ class FlashcardGenerator:
             if c.label in DEFINITIONAL_LABELS:
                 question, answer = f"What is {c.term}?", c.sentence
             else:
-                question, answer = c.sentence.replace(c.term, BLANK, 1), c.term
+                question, answer = blank_term(c.sentence, c.term, BLANK), c.term
             cards.append({"question": question, "answer": answer,
                           "difficulty": difficulty_for(c)})
             if len(cards) >= count:

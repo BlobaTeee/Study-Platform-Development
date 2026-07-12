@@ -5,6 +5,7 @@ Framework-free; no LLM/network.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -57,6 +58,17 @@ def difficulty_for(candidate: "Candidate") -> str:
     if ease <= HARD_READING_EASE:
         return "hard"
     return "medium"
+
+
+def blank_term(sentence: str, term: str, blank: str) -> str:
+    """Replace the first *standalone* occurrence of `term` with `blank`.
+
+    Word-boundary aware, so a term like "cell" is not blanked inside an earlier
+    "cellular". Falls back to a plain first-occurrence replace when no
+    boundaried match exists (e.g. terms with leading/trailing non-word chars).
+    """
+    replaced = re.sub(rf"\b{re.escape(term)}\b", blank, sentence, count=1)
+    return replaced if replaced != sentence else sentence.replace(term, blank, 1)
 
 
 class ContentExtractor:

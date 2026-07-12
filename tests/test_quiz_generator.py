@@ -55,3 +55,11 @@ def test_quality_over_quantity_returns_fewer(fake_extractor_factory, fake_scorer
 def test_zero_count_returns_empty_questions(fake_extractor_factory, fake_scorer_factory):
     gen = _gen(_cands(), "powerhouse", fake_extractor_factory, fake_scorer_factory)
     assert gen.generate("ignored", question_count=0)["questions"] == []
+
+
+def test_quiz_generation_is_deterministic(fake_extractor_factory, fake_scorer_factory):
+    a = _gen(_cands(), "powerhouse", fake_extractor_factory, fake_scorer_factory)
+    b = _gen(_cands(), "powerhouse", fake_extractor_factory, fake_scorer_factory)
+    out_a = a.generate("ignored", question_count=4)
+    out_b = b.generate("ignored", question_count=4)
+    assert out_a == out_b  # seeded shuffle -> identical options order
