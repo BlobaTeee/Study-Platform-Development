@@ -16,6 +16,10 @@ backend/media/
 ml_pipeline/.venv/
 ml_pipeline/outputs/
 **/.ipynb_checkpoints/
+*.egg-info/
+
+# Build caches
+tsconfig.tsbuildinfo
 
 # ML pipeline regenerable artifacts
 ml_pipeline/models/*.joblib
