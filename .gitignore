@@ -21,6 +21,9 @@ ml_pipeline/outputs/
 # Build caches
 tsconfig.tsbuildinfo
 
+# Local editor settings
+.vscode/
+
 # ML pipeline regenerable artifacts
 ml_pipeline/models/*.joblib
 # Note: datasets/processed/*.parquet ARE committed (small, portable outputs) — see datasets/README.md
