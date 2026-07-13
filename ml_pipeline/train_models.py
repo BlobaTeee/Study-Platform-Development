@@ -131,8 +131,8 @@ def _save_reports(best_name, best_scorer, val_comparison, test_metrics, baseline
 
 def train_all(sciq_df: pd.DataFrame | None = None, save: bool = True) -> dict:
     if sciq_df is None:
-        from .dataset_loader import load_processed
-        sciq_df = load_processed("sciq")
+        from .dataset_loader import load_scorer_training_data
+        sciq_df = load_scorer_training_data()
 
     long = expand_candidates(sciq_df)
     train_long = long[long["split"] == "train"]

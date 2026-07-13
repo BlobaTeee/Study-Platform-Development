@@ -37,3 +37,26 @@ def test_train_all_writes_artifacts(tmp_path, monkeypatch):
     assert (tmp_path / "models" / "answer_scorer.joblib").exists()
     assert (tmp_path / "reports" / "metrics.json").exists()
     assert (tmp_path / "reports" / "model_comparison.csv").exists()
+
+
+def test_train_all_defaults_to_scorer_training_pool(monkeypatch):
+    # When no frame is passed, train_all pulls from the pooled "qa" datasets,
+    # NOT directly from a single sciq parquet.
+    from ml_pipeline import dataset_loader
+
+    called = {"pool": False}
+
+    def fake_pool():
+        called["pool"] = True
+        return _toy_sciq()
+
+    def boom(name):  # the old path must no longer be used
+        raise AssertionError(f"load_processed({name!r}) should not be called")
+
+    monkeypatch.setattr(dataset_loader, "load_scorer_training_data", fake_pool)
+    monkeypatch.setattr(dataset_loader, "load_processed", boom)
+
+    result = train_models.train_all(save=False)
+
+    assert called["pool"] is True
+    assert "best_model" in result

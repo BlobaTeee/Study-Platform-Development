@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import glob
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
 
 import pandas as pd
 
@@ -84,7 +87,7 @@ def build_topic_hierarchy(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def write_processed(sciq_df, flashcards_df, hierarchy_df) -> dict:
-    """Persist the three processed frames as parquet."""
+    """Persist the three processed frames as parquet (legacy convenience)."""
     config.ensure_dirs()
     sciq_df.to_parquet(config.PROCESSED_FILES["sciq"], index=False)
     flashcards_df.to_parquet(config.PROCESSED_FILES["flashcards"], index=False)
@@ -92,14 +95,88 @@ def write_processed(sciq_df, flashcards_df, hierarchy_df) -> dict:
     return dict(config.PROCESSED_FILES)
 
 
+# --- Dataset registry -------------------------------------------------------
+# Adding a future dataset is a small, isolated change: write its build function
+# and register a DatasetSpec. Datasets of kind "qa" (question / correct_answer /
+# distractors / support / split) are pooled into the answer-scorer's training
+# data; "guidance" datasets feed the topic hierarchy and recommendations.
+
+# Columns a "qa" dataset must expose to join the scorer training pool.
+SCORER_TRAINING_COLUMNS = SCIQ_COLUMNS + ["split"]
+
+
+@dataclass(frozen=True)
+class DatasetSpec:
+    """Self-contained descriptor for one raw dataset.
+
+    build:   returns the cleaned, tidy frame for this dataset.
+    derived: secondary processed outputs computed from the cleaned frame,
+             as ((logical_name, fn(cleaned) -> frame), ...).
+    """
+    name: str
+    kind: str
+    build: Callable[[], pd.DataFrame]
+    derived: tuple[tuple[str, Callable[[pd.DataFrame], pd.DataFrame]], ...] = ()
+
+
+DATASET_REGISTRY: dict[str, DatasetSpec] = {}
+
+
+def register_dataset(spec: DatasetSpec) -> None:
+    """Add (or replace) a dataset in the registry."""
+    DATASET_REGISTRY[spec.name] = spec
+
+
+def registered_datasets(kind: str | None = None) -> list[DatasetSpec]:
+    """All registered specs, optionally filtered by kind."""
+    return [s for s in DATASET_REGISTRY.values() if kind is None or s.kind == kind]
+
+
+def processed_path(name: str) -> Path:
+    """Processed parquet path for a logical dataset name."""
+    return config.PROCESSED_DIR / f"{name}.parquet"
+
+
 def build_processed_datasets() -> dict:
-    """Full raw -> cleaned -> parquet pipeline."""
-    sciq_df = load_raw_sciq()
-    flashcards_df = clean_ai_flashcards(load_raw_ai_flashcards())
-    hierarchy_df = build_topic_hierarchy(flashcards_df)
-    return write_processed(sciq_df, flashcards_df, hierarchy_df)
+    """Full raw -> cleaned -> parquet pipeline, driven by the registry."""
+    config.ensure_dirs()
+    written: dict[str, Path] = {}
+    for spec in DATASET_REGISTRY.values():
+        cleaned = spec.build()
+        path = processed_path(spec.name)
+        cleaned.to_parquet(path, index=False)
+        written[spec.name] = path
+        for derived_name, derive in spec.derived:
+            derived_path = processed_path(derived_name)
+            derive(cleaned).to_parquet(derived_path, index=False)
+            written[derived_name] = derived_path
+    return written
 
 
 def load_processed(name: str) -> pd.DataFrame:
     """Load a processed parquet by logical name."""
-    return pd.read_parquet(config.PROCESSED_FILES[name])
+    path = config.PROCESSED_FILES.get(name) or processed_path(name)
+    return pd.read_parquet(path)
+
+
+def load_scorer_training_data() -> pd.DataFrame:
+    """Pool every registered "qa" dataset into one scorer-training frame."""
+    frames = []
+    for spec in registered_datasets(kind="qa"):
+        df = load_processed(spec.name)
+        _require_columns(df, SCORER_TRAINING_COLUMNS, spec.name)
+        frames.append(df[SCORER_TRAINING_COLUMNS])
+    if not frames:
+        raise ValueError("No 'qa' datasets registered for scorer training.")
+    return pd.concat(frames, ignore_index=True)
+
+
+# Built-in datasets. SciQ trains the answer scorer; AI Flashcards supplies the
+# topic hierarchy (and is the "guidance" source for recommendations).
+register_dataset(DatasetSpec(name="sciq", kind="qa", build=load_raw_sciq))
+register_dataset(DatasetSpec(
+    name="flashcards",
+    kind="guidance",
+    build=lambda: clean_ai_flashcards(load_raw_ai_flashcards()),
+    derived=(("topic_hierarchy", build_topic_hierarchy),),
+))
