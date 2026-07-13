@@ -95,6 +95,12 @@ def generate_flashcards_for_sources(sources, user, count: int = 10) -> list[Flas
     source_ids = [s.id for s in sources]
     tag = combined_source_tag(source_ids)
 
+    # Validate + guard against thin sources up front, for every provider, so the
+    # user gets one clear message instead of empty output or a silent fallback.
+    text = _sources_text(sources)
+    from ml_pipeline.source_guard import check_source_text, MIN_WORDS_FLASHCARDS
+    check_source_text(text, kind='flashcard set', min_words=MIN_WORDS_FLASHCARDS)
+
     if _use_ml_primary():
         try:
             return _generate_flashcards_ml(sources, user, count, tag)
@@ -102,7 +108,6 @@ def generate_flashcards_for_sources(sources, user, count: int = 10) -> list[Flas
             if not _use_local_fallback():
                 raise GeminiGenerationError(f'ML flashcard generation failed: {exc}') from exc
 
-    text = _sources_text(sources)
     label = _titles_label(sources)
     doc_note = 'multiple documents' if len(sources) > 1 else 'this document'
 
@@ -142,6 +147,12 @@ def generate_quiz_for_sources(sources, user, question_count: int = 8) -> Quiz:
     source_ids = [s.id for s in sources]
     tag = combined_source_tag(source_ids)
 
+    # Validate + guard against thin sources up front, for every provider, so the
+    # user gets one clear message instead of empty output or a silent fallback.
+    text = _sources_text(sources)
+    from ml_pipeline.source_guard import check_source_text, MIN_WORDS_QUIZ
+    check_source_text(text, kind='quiz', min_words=MIN_WORDS_QUIZ)
+
     if _use_ml_primary():
         try:
             return _generate_quiz_ml(sources, user, question_count, tag)
@@ -149,7 +160,6 @@ def generate_quiz_for_sources(sources, user, question_count: int = 8) -> Quiz:
             if not _use_local_fallback():
                 raise GeminiGenerationError(f'ML quiz generation failed: {exc}') from exc
 
-    text = _sources_text(sources)
     label = _titles_label(sources)
     doc_note = 'multiple documents' if len(sources) > 1 else 'this document'
 

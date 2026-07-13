@@ -1,16 +1,13 @@
-"""Django adapter for the ml_pipeline package."""
+"""Django adapter for the ml_pipeline package.
+
+`ml_pipeline` is installed into the backend env (see backend/requirements.txt:
+`-e ..`), so it imports like any other package — no sys.path manipulation.
+"""
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from flashcards.models import Flashcard  # noqa: E402
-from quizzes.models import Quiz, Question  # noqa: E402
+from flashcards.models import Flashcard
+from quizzes.models import Quiz, Question
 
 
 def _combined_text(sources) -> str:
