@@ -163,11 +163,13 @@ def generate_quiz_for_sources(sources, user, question_count: int = 8) -> Quiz:
     label = _titles_label(sources)
     doc_note = 'multiple documents' if len(sources) > 1 else 'this document'
 
-    prompt = f"""Create a quiz with {question_count} questions from {doc_note}.
-Draw from all documents; include cross-document questions when useful.
+    prompt = f"""Create a quiz with {question_count} multiple-choice questions from {doc_note}.
+For each question give: the question, the single correct answer, and exactly 3
+plausible but incorrect answers (distractors) on the same topic. Do NOT put the
+correct answer in the distractors, and make the distractors distinct.
 
-Return ONLY valid JSON:
-{{"title": "...", "description": "...", "questions": [{{"question_text": "...", "question_type": "multiple_choice|true_false", "options": ["..."], "correct_answer": "...", "explanation": "..."}}]}}
+Return ONLY valid JSON in exactly this shape:
+{{"title": "...", "description": "...", "questions": [{{"question_text": "...", "correct_answer": "...", "distractors": ["...", "...", "..."], "explanation": "..."}}]}}
 
 Sources: {label}
 Text:
@@ -210,30 +212,23 @@ Text:
     quiz.description = (quiz.description or '') + tag_note
     quiz.save(update_fields=['description'])
 
+    import random
+    from .quiz_shaping import shape_quiz_question
+    rng = random.Random(42)
+
     order = 0
     for q in questions_data[:question_count]:
-        qtext = (q.get('question_text') or '').strip()
-        qtype = (q.get('question_type') or 'multiple_choice').strip()
-        options = q.get('options') or []
-        correct = (q.get('correct_answer') or '').strip()
-        explanation = (q.get('explanation') or '').strip()
-
-        if not qtext or not correct:
-            continue
-        if qtype not in ('multiple_choice', 'true_false', 'short_answer'):
-            qtype = 'multiple_choice'
-        if qtype == 'true_false' and not options:
-            options = ['True', 'False']
-        if qtype == 'multiple_choice' and len(options) < 2:
-            continue
+        shaped = shape_quiz_question(q, rng)
+        if shaped is None:
+            continue  # unanswerable (no question/answer/distractor) -> skip
 
         Question.objects.create(
             quiz=quiz,
-            question_text=qtext,
-            question_type=qtype,
-            options=options if isinstance(options, list) else [],
-            correct_answer=correct,
-            explanation=explanation or None,
+            question_text=shaped['question_text'],
+            question_type=shaped['question_type'],
+            options=shaped['options'],
+            correct_answer=shaped['correct_answer'],
+            explanation=shaped['explanation'],
             order=order,
         )
         order += 1
