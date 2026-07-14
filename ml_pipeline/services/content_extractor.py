@@ -27,6 +27,16 @@ MIN_SENT_TOKENS = 5
 MAX_SENT_TOKENS = 40
 MAX_TEXT_CHARS = 100_000
 
+# Light/filler nouns that make poor cloze answers ("takes ___ place" -> "place").
+# Matched on the noun-chunk root lemma, so plurals are covered. Used only to
+# *deprioritize*: a light noun is still chosen if it's the sole option.
+LIGHT_NOUNS = frozenset({
+    "place", "part", "kind", "sort", "type", "way", "thing", "number",
+    "amount", "case", "example", "fact", "point", "side", "use", "result",
+    "means", "variety", "range", "lot", "bit", "piece", "area", "member",
+    "name", "form",
+})
+
 # Difficulty thresholds on Flesch reading-ease (higher = easier to read).
 EASY_READING_EASE = 60.0
 HARD_READING_EASE = 30.0
@@ -126,6 +136,7 @@ class ContentExtractor:
             if ent.label_ in ANSWERABLE_ENT_LABELS and ent.text.strip():
                 return ent.text.strip(), ent.label_
         best, best_w = None, -1.0
+        fallback, fallback_w = None, -1.0  # light-noun fallback (used only if no better term)
         for chunk in sent.noun_chunks:
             root = chunk.root
             if root.is_stop or root.pos_ == "PRON":
@@ -137,6 +148,11 @@ class ContentExtractor:
             if not phrase or phrase not in sent.text:
                 continue
             w = idf[vocab[root.text.lower()]] if root.text.lower() in vocab else 0.0
+            if root.lemma_.lower() in LIGHT_NOUNS:
+                if w > fallback_w:
+                    fallback, fallback_w = phrase, w
+                continue
             if w > best_w:
                 best, best_w = phrase, w
-        return (best, NOUN_CHUNK_LABEL) if best else None
+        chosen = best if best is not None else fallback
+        return (chosen, NOUN_CHUNK_LABEL) if chosen else None
