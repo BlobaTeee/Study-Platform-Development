@@ -74,8 +74,28 @@ def test_hard_stretches_only_slightly_and_lowers_ease():
     assert s.ease_factor == pytest.approx(2.35)
 
 
-def test_hard_never_collapses_the_interval_below_a_day():
-    assert _step("hard", interval=1).interval == 1
+def test_hard_always_buys_at_least_one_more_day():
+    # Hard means recalled-but-with-effort, so the gap must grow. Multiplying
+    # alone cannot deliver that from a short interval: int(1 * 1.2) == 1, which
+    # pinned a card to a daily appearance no amount of remembering could end.
+    assert _step("hard", interval=1).interval == 2
+    assert _step("hard", interval=2).interval == 3
+
+
+def test_repeated_hard_reviews_still_lengthen_the_gap():
+    s = sm2.INITIAL
+    intervals = []
+    for _ in range(5):
+        s = sm2.next_schedule("hard", interval=s.interval,
+                              ease_factor=s.ease_factor, repetitions=s.repetitions)
+        intervals.append(s.interval)
+    assert intervals == [2, 3, 4, 5, 6]
+
+
+def test_hard_still_grows_slower_than_good():
+    hard = _step("hard", interval=10, ease_factor=2.5, repetitions=3)
+    good = _step("good", interval=10, ease_factor=2.5, repetitions=3)
+    assert hard.interval < good.interval
 
 
 @pytest.mark.parametrize("result", ["again", "hard"])

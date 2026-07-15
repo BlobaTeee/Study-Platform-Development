@@ -56,8 +56,11 @@ def next_schedule(result: str, *, interval: int, ease_factor: float,
         return Schedule(1, max(MIN_EASE_FACTOR, ease_factor - 0.2), 0)
 
     if result == HARD:
-        # Recalled, but with effort: stretch the gap barely at all.
-        return Schedule(max(1, int(interval * 1.2)),
+        # Recalled, but with effort: stretch the gap barely at all — yet stretch
+        # it. Multiplying alone cannot, since int(1 * 1.2) is 1, which trapped a
+        # short-interval card at a daily appearance that remembering could never
+        # end. Only forgetting outright should hold a card at one day.
+        return Schedule(max(interval + 1, int(interval * 1.2)),
                         max(MIN_EASE_FACTOR, ease_factor - 0.15),
                         repetitions)
 
