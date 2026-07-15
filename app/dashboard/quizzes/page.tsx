@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import useSWR from 'swr'
-import { analyticsAPI, quizzesAPI } from '@/lib/api'
+import { quizzesAPI } from '@/lib/api'
 import { parseSourceIdsParam, quizMatchesSourceTag } from '@/lib/source-utils'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { SourceRequired } from '@/components/source-required'
@@ -151,14 +151,7 @@ function QuizzesStudy() {
     if (qIndex >= questions.length - 1) {
       if (attemptId) {
         try {
-          const completeRes = await quizzesAPI.completeQuiz(attemptId, {})
-          const pct = Math.round(completeRes.data?.score ?? (score / questions.length) * 100)
-          await analyticsAPI.createStudySession({
-            duration_minutes: Math.max(1, Math.ceil(questions.length * 1.5)),
-            material_studied: quiz?.title ?? 'Quiz',
-            notes: `Score: ${pct}% (${questions.length} questions)`,
-            mood_after: pct >= 70 ? 'good' : 'neutral',
-          }).catch(() => {})
+          await quizzesAPI.completeQuiz(attemptId, {})
         } catch {
           /* ignore */
         }

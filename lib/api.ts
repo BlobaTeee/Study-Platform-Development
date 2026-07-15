@@ -110,22 +110,9 @@ export const notebooksAPI = {
 
 export const analyticsAPI = {
   getSummary: () => api.get('/analytics/sessions/summary/'),
-  getStudySessions: (params?: Record<string, unknown>) =>
-    api.get('/analytics/sessions/', { params }),
-  getRecommendations: (params?: { text?: string; limit?: number }) =>
+  // Weak cards + per-document recall, derived from the user's own review record.
+  getRecommendations: (params?: { limit?: number }) =>
     api.get('/analytics/sessions/recommendations/', { params }),
-  getLearningPath: (params?: { subject?: string; limit?: number }) =>
-    api.get('/analytics/sessions/learning_path/', { params }),
-  getSubjects: () => api.get('/analytics/sessions/subjects/'),
-  createStudySession: (data: {
-    duration_minutes: number
-    material_studied?: string
-    notes?: string
-    mood_before?: string
-    mood_after?: string
-  }) => api.post('/analytics/sessions/', data),
-  updateStudySession: (id: number, data: Record<string, unknown>) =>
-    api.put(`/analytics/sessions/${id}/`, data),
 }
 
 
