@@ -1,3 +1,5 @@
+import logging
+
 from django.conf import settings
 from flashcards.models import Flashcard
 from quizzes.models import Quiz, Question
@@ -10,7 +12,28 @@ from .gemini_client import (
 from .ai_provider import get_ai_provider
 from . import fallback
 
+logger = logging.getLogger(__name__)
+
 SOURCE_TAG_PREFIX = 'source:'
+
+# Values reported back as `generated_by`, so a silent fallback is visible.
+BY_EXTRACTIVE_ML = 'extractive-ml'
+BY_EXTRACTIVE_FALLBACK = 'extractive-fallback'
+
+
+def _mark(meta, provider: str, reason: str = ''):
+    """Record which generator actually produced the content."""
+    if meta is not None:
+        meta['provider'] = provider
+        if reason:
+            meta['reason'] = reason
+    return meta
+
+
+def _fell_back(meta, exc, kind: str):
+    """Log + record that we degraded to the extractive pipeline."""
+    logger.warning('%s generation fell back to the extractive ML pipeline: %s', kind, exc)
+    return _mark(meta, BY_EXTRACTIVE_FALLBACK, str(exc))
 
 
 def _use_local_fallback() -> bool:
@@ -90,7 +113,9 @@ def _save_flashcards_from_json(
     return created
 
 
-def generate_flashcards_for_sources(sources, user, count: int = 10) -> list[Flashcard]:
+def generate_flashcards_for_sources(sources, user, count: int = 10,
+                                    meta: dict | None = None) -> list[Flashcard]:
+    """Generate flashcards. Pass `meta` to learn which generator was used."""
     count = max(3, min(count, 20))
     source_ids = [s.id for s in sources]
     tag = combined_source_tag(source_ids)
@@ -103,7 +128,9 @@ def generate_flashcards_for_sources(sources, user, count: int = 10) -> list[Flas
 
     if _use_ml_primary():
         try:
-            return _generate_flashcards_ml(sources, user, count, tag)
+            cards = _generate_flashcards_ml(sources, user, count, tag)
+            _mark(meta, BY_EXTRACTIVE_ML)
+            return cards
         except Exception as exc:
             if not _use_local_fallback():
                 raise GeminiGenerationError(f'ML flashcard generation failed: {exc}') from exc
@@ -125,24 +152,31 @@ Text:
     try:
         provider = get_ai_provider()
         data = provider.generate_json(prompt)
-        return _save_flashcards_from_json(data, user, source_ids, count)
-    except GeminiNotConfiguredError:
+        cards = _save_flashcards_from_json(data, user, source_ids, count)
+        _mark(meta, provider.name)
+        return cards
+    except GeminiNotConfiguredError as exc:
         if _use_local_fallback():
+            _fell_back(meta, exc, 'Flashcard')
             return fallback.generate_flashcards_fallback_multi(sources, user, count, tag)
         raise
     except (GeminiQuotaError, GeminiGenerationError) as exc:
         if _use_local_fallback() and (isinstance(exc, GeminiQuotaError) or is_quota_error(exc)):
+            _fell_back(meta, exc, 'Flashcard')
             return fallback.generate_flashcards_fallback_multi(sources, user, count, tag)
         if isinstance(exc, GeminiQuotaError):
             raise
         raise GeminiGenerationError(f'Flashcard generation failed: {exc}') from exc
     except Exception as exc:
         if _use_local_fallback():
+            _fell_back(meta, exc, 'Flashcard')
             return fallback.generate_flashcards_fallback_multi(sources, user, count, tag)
         raise GeminiGenerationError(f'Content generation failed: {exc}') from exc
 
 
-def generate_quiz_for_sources(sources, user, question_count: int = 8) -> Quiz:
+def generate_quiz_for_sources(sources, user, question_count: int = 8,
+                              meta: dict | None = None) -> Quiz:
+    """Generate a quiz. Pass `meta` to learn which generator was used."""
     question_count = max(4, min(question_count, 15))
     source_ids = [s.id for s in sources]
     tag = combined_source_tag(source_ids)
@@ -155,7 +189,9 @@ def generate_quiz_for_sources(sources, user, question_count: int = 8) -> Quiz:
 
     if _use_ml_primary():
         try:
-            return _generate_quiz_ml(sources, user, question_count, tag)
+            quiz = _generate_quiz_ml(sources, user, question_count, tag)
+            _mark(meta, BY_EXTRACTIVE_ML)
+            return quiz
         except Exception as exc:
             if not _use_local_fallback():
                 raise GeminiGenerationError(f'ML quiz generation failed: {exc}') from exc
@@ -179,18 +215,22 @@ Text:
     try:
         provider = get_ai_provider()
         data = provider.generate_json(prompt)
-    except GeminiNotConfiguredError:
+        _mark(meta, provider.name)
+    except GeminiNotConfiguredError as exc:
         if _use_local_fallback():
+            _fell_back(meta, exc, 'Quiz')
             return fallback.generate_quiz_fallback_multi(sources, user, question_count, tag)
         raise
     except (GeminiQuotaError, GeminiGenerationError) as exc:
         if _use_local_fallback() and (isinstance(exc, GeminiQuotaError) or is_quota_error(exc)):
+            _fell_back(meta, exc, 'Quiz')
             return fallback.generate_quiz_fallback_multi(sources, user, question_count, tag)
         if isinstance(exc, GeminiQuotaError):
             raise
         raise GeminiGenerationError(f'Quiz generation failed: {exc}') from exc
     except Exception as exc:
         if _use_local_fallback():
+            _fell_back(meta, exc, 'Quiz')
             return fallback.generate_quiz_fallback_multi(sources, user, question_count, tag)
         raise GeminiGenerationError(f'Content generation failed: {exc}') from exc
 

@@ -96,8 +96,9 @@ class NotebookViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'One or more sources not found in this notebook.'}, status=400)
 
         count = int(request.data.get('count', 10))
+        meta = {}
         try:
-            cards = generate_flashcards_for_sources(sources, request.user, count=count)
+            cards = generate_flashcards_for_sources(sources, request.user, count=count, meta=meta)
         except GeminiNotConfiguredError as exc:
             return Response({'detail': str(exc)}, status=503)
         except (GeminiGenerationError, ValueError) as exc:
@@ -108,6 +109,8 @@ class NotebookViewSet(viewsets.ModelViewSet):
             'message': f'Created {len(cards)} flashcards',
             'count': len(cards),
             'source_ids': source_ids,
+            'generated_by': meta.get('provider'),
+            'fallback_reason': meta.get('reason'),
             'flashcards': serializer.data,
         }, status=201)
 
@@ -129,8 +132,10 @@ class NotebookViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'One or more sources not found in this notebook.'}, status=400)
 
         question_count = int(request.data.get('question_count', 8))
+        meta = {}
         try:
-            quiz = generate_quiz_for_sources(sources, request.user, question_count=question_count)
+            quiz = generate_quiz_for_sources(
+                sources, request.user, question_count=question_count, meta=meta)
         except GeminiNotConfiguredError as exc:
             return Response({'detail': str(exc)}, status=503)
         except (GeminiGenerationError, ValueError) as exc:
@@ -140,6 +145,8 @@ class NotebookViewSet(viewsets.ModelViewSet):
         return Response({
             'message': f'Created quiz with {quiz.questions.count()} questions',
             'source_ids': source_ids,
+            'generated_by': meta.get('provider'),
+            'fallback_reason': meta.get('reason'),
             'quiz': serializer.data,
         }, status=201)
 

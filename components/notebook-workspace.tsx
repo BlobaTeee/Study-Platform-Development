@@ -41,6 +41,13 @@ type SourceItem = {
   gemini_summary: string
 }
 
+// Shown when the local AI model was unreachable and generation silently
+// degraded to the basic fill-in-the-blank pipeline.
+const FALLBACK_NOTICE = (kind: string) =>
+  `The local AI model was unavailable, so these ${kind} came from the basic ` +
+  `fill-in-the-blank fallback (lower quality). Check that Ollama is running ` +
+  `— "brew services start ollama" — then generate again.`
+
 export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const router = useRouter()
   const [generating, setGenerating] = useState<'flashcards' | 'quiz' | null>(null)
@@ -49,6 +56,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  // Set when generation silently degraded to the extractive fallback, so a
+  // lower-quality result is never mistaken for the real generator's output.
+  const [warning, setWarning] = useState('')
   const [deletingSourceId, setDeletingSourceId] = useState<number | null>(null)
   const [loadingSource, setLoadingSource] = useState(false)
   const [sourceDetail, setSourceDetail] = useState<{
@@ -200,12 +210,17 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     }
     setGenerating('flashcards')
     setError('')
+    setWarning('')
     try {
-      await notebooksAPI.generateFlashcardsFromSources(
+      const res = await notebooksAPI.generateFlashcardsFromSources(
         notebookId,
         generationSourceIds
       )
       mutate(['/flashcards/'])
+      if (res.data.generated_by === 'extractive-fallback') {
+        setWarning(FALLBACK_NOTICE('flashcards'))
+        return  // stay put so the downgrade is seen, not silently navigated past
+      }
       router.push(`/dashboard/flashcards?source=${studyQuery}`)
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { detail?: string } } }
@@ -222,12 +237,17 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     }
     setGenerating('quiz')
     setError('')
+    setWarning('')
     try {
       const res = await notebooksAPI.generateQuizFromSources(
         notebookId,
         generationSourceIds
       )
       mutate(['/quizzes/'])
+      if (res.data.generated_by === 'extractive-fallback') {
+        setWarning(FALLBACK_NOTICE('quiz questions'))
+        return  // stay put so the downgrade is seen, not silently navigated past
+      }
       const quizId = res.data.quiz?.id
       router.push(
         quizId
@@ -320,6 +340,13 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
         <div className="mx-5 md:mx-6 mt-4 flex gap-3 rounded-lg bg-red-50 p-3 border border-red-200 shrink-0">
           <AlertCircle className="size-5 text-mode-danger shrink-0" />
           <p className="text-base text-red-700">{error}</p>
+        </div>
+      )}
+
+      {warning && (
+        <div className="mx-5 md:mx-6 mt-4 flex gap-3 rounded-lg bg-amber-50 p-3 border border-amber-200 shrink-0">
+          <AlertCircle className="size-5 text-amber-600 shrink-0" />
+          <p className="text-base text-amber-800">{warning}</p>
         </div>
       )}
 
