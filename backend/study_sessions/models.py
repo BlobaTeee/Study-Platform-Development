@@ -175,5 +175,5 @@ class CardReview(models.Model):
             ease_factor=self.ease_factor,
             repetitions=self.repetitions,
         )
-        self.next_review_date = timezone.now().date() + td(days=self.interval)
+        self.next_review_date = timezone.localdate() + td(days=self.interval)
         self.save()

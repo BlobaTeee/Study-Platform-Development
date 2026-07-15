@@ -125,3 +125,24 @@ def rank_due_cards(cards: list[dict], schedule: dict[int, date], today: date,
     due.sort(key=lambda c: c["overdue_days"], reverse=True)
     new.sort(key=lambda c: c["id"])
     return (due + new)[:limit]
+
+
+def due_counts(cards: list[dict], schedule: dict[int, date], today: date) -> dict[str, int]:
+    """How much study is owed right now: due, of which overdue, and new.
+
+    Deliberately counts rather than names. Showing a card's question outside the
+    study page hands the learner a free look at it minutes before they grade
+    their own recall, which inflates the grade and so corrupts the very schedule
+    this exists to report. `due + new` is exactly the size of the queue
+    rank_due_cards would hand back.
+    """
+    counts = {"due": 0, "overdue": 0, "new": 0}
+    for card in cards:
+        next_date = schedule.get(card["id"])
+        if next_date is None:
+            counts["new"] += 1
+        elif next_date <= today:
+            counts["due"] += 1
+            if next_date < today:
+                counts["overdue"] += 1
+    return counts

@@ -74,7 +74,10 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+# Spaced repetition turns on where the day boundary falls: a card due "today"
+# must mean the learner's today, not UTC's. Timestamps are still stored in UTC
+# (USE_TZ), so this only decides how a date is read back.
+TIME_ZONE = config('TIME_ZONE', default='Asia/Ho_Chi_Minh')
 USE_I18N = True
 USE_TZ = True
 

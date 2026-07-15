@@ -120,9 +120,9 @@ export const notebooksAPI = {
 
 export const analyticsAPI = {
   getSummary: () => api.get('/analytics/sessions/summary/'),
-  // Weak cards + per-document recall, derived from the user's own review record.
-  getRecommendations: (params?: { limit?: number }) =>
-    api.get('/analytics/sessions/recommendations/', { params }),
+  // How much study is owed, plus per-document mastery — both derived from the
+  // user's own record. Returns counts, never card questions.
+  getRecommendations: () => api.get('/analytics/sessions/recommendations/'),
 }
 
 

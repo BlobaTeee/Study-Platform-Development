@@ -222,8 +222,48 @@ def test_due_ranking_is_deterministic_on_ties():
 
 
 def test_due_ranking_keeps_the_callers_card_fields():
-    # The study page needs the whole card; analytics passes only id + question.
+    # The study page needs the whole card, and is the only caller that should
+    # ever see a question's text before it is graded.
     card = {"id": 1, "question": "Q?", "answer": "A", "difficulty": "easy"}
     out = sm2.rank_due_cards([card], {}, TODAY, limit=5)
     assert out[0]["answer"] == "A"
     assert out[0]["difficulty"] == "easy"
+
+
+# ---- due_counts ------------------------------------------------------------
+# What a summary is allowed to know: how much is owed, never which cards.
+
+def test_counts_a_never_studied_card_as_new():
+    assert sm2.due_counts([_card(1)], {}, TODAY) == {"due": 0, "overdue": 0, "new": 1}
+
+
+def test_counts_a_card_scheduled_today_as_due_but_not_overdue():
+    assert sm2.due_counts([_card(1)], {1: TODAY}, TODAY) == {
+        "due": 1, "overdue": 0, "new": 0
+    }
+
+
+def test_counts_a_late_card_as_both_due_and_overdue():
+    # Overdue is a subset of due: it is owed, and it is being forgotten.
+    assert sm2.due_counts([_card(1)], {1: TODAY - timedelta(days=2)}, TODAY) == {
+        "due": 1, "overdue": 1, "new": 0
+    }
+
+
+def test_counts_ignore_cards_scheduled_ahead():
+    assert sm2.due_counts([_card(1)], {1: TODAY + timedelta(days=9)}, TODAY) == {
+        "due": 0, "overdue": 0, "new": 0
+    }
+
+
+def test_counts_with_no_cards_are_all_zero():
+    assert sm2.due_counts([], {}, TODAY) == {"due": 0, "overdue": 0, "new": 0}
+
+
+def test_counts_agree_with_the_queue_they_summarise():
+    # The number on the summary must match what pressing Study actually gives.
+    schedule = {1: TODAY - timedelta(days=2), 2: TODAY, 3: TODAY + timedelta(days=5)}
+    cards = [_card(1), _card(2), _card(3), _card(4)]
+    counts = sm2.due_counts(cards, schedule, TODAY)
+    queue = sm2.rank_due_cards(cards, schedule, TODAY, limit=100)
+    assert counts["due"] + counts["new"] == len(queue)

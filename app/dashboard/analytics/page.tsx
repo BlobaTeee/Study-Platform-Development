@@ -1,11 +1,13 @@
 'use client'
 
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import useSWR from 'swr'
 import { analyticsAPI } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import {
+  ArrowRight,
   BarChart3,
   BookMarked,
   FileText,
@@ -26,18 +28,22 @@ type Summary = {
   flashcard_accuracy: number | null
 }
 
-type DueCard = {
-  id: number
-  question: string
-  status: 'due' | 'new'
-  overdue_days: number
+/** How much study the schedule says is owed. Counts only — the questions
+ *  themselves belong on the study page, since reading one here would be a free
+ *  look at a card minutes before you grade your own recall of it. */
+type Due = {
+  due: number
+  overdue: number
+  new: number
 }
 
-/** Why a card is in the queue, in the terms the schedule reasons about. */
-function dueRecord(c: DueCard): string {
-  if (c.status === 'new') return 'New'
-  if (c.overdue_days === 0) return 'Due today'
-  return `${c.overdue_days} day${c.overdue_days === 1 ? '' : 's'} overdue`
+/** What the ready-to-study number is made of, worst news first. */
+function dueBreakdown(d: Due): string {
+  const parts: string[] = []
+  if (d.overdue) parts.push(`${d.overdue} overdue`)
+  if (d.due) parts.push(`${d.due} due`)
+  if (d.new) parts.push(`${d.new} new`)
+  return parts.join(' · ')
 }
 
 type WeakSource = {
@@ -64,11 +70,12 @@ export default function AnalyticsPage() {
   const { data: summaryRes } = useSWR(['/analytics/summary'], () => analyticsAPI.getSummary())
   const { data: recsRes, isLoading: recsLoading } = useSWR(
     ['/analytics/recommendations'],
-    () => analyticsAPI.getRecommendations({ limit: 5 })
+    () => analyticsAPI.getRecommendations()
   )
 
   const summary: Summary | undefined = summaryRes?.data
-  const dueCards: DueCard[] = recsRes?.data?.due_cards ?? []
+  const due: Due = recsRes?.data?.due ?? { due: 0, overdue: 0, new: 0 }
+  const ready = due.due + due.new
   const weakSources: WeakSource[] = recsRes?.data?.weak_sources ?? []
 
   const stats = [
@@ -100,7 +107,8 @@ export default function AnalyticsPage() {
           Your progress
         </h1>
         <p className="text-lg text-slate-500 mt-2 text-pretty">
-          What to review next, and where you&apos;re weakest — from your own recall record.
+          What your schedule says is due, and where you&apos;re weakest — from your own
+          study record.
         </p>
       </div>
 
@@ -123,53 +131,52 @@ export default function AnalyticsPage() {
         })}
       </dl>
 
-      {/* Review next — the page's primary action */}
+      {/* Review next — the page's one action. A count and a button: there is
+          nothing to decide between cards, and showing their questions here would
+          be a free look at what you're about to be tested on. */}
       <Card className="rise border-slate-200 shadow-sheet p-6" style={{ animationDelay: '120ms' }}>
-        <div className="flex items-center justify-between gap-3 mb-1">
-          <div className="flex items-center gap-2">
-            <Target className="size-5 text-mode-flashcards" />
-            <h2 className="text-xl font-semibold text-slate-900">Review next</h2>
-          </div>
-          <Link
-            href="/dashboard/flashcards?due=1"
-            className="text-sm font-medium text-mode-flashcards hover:underline shrink-0"
-          >
-            Study these →
-          </Link>
-        </div>
-        <p className="text-sm text-slate-500 mb-4">
-          What your review schedule says is owed today. Cards you still know are held
-          back until their date comes round.
-        </p>
-
         {recsLoading ? (
-          <div className="flex items-center gap-2 text-slate-500 py-6">
+          <div className="flex items-center gap-2 text-slate-500 py-2">
             <Loader2 className="size-4 animate-spin" /> Loading…
           </div>
-        ) : dueCards.length === 0 ? (
-          <p className="text-slate-500 py-6 text-center">
-            Nothing due — you&apos;re caught up. New cards appear here as soon as you
-            generate them.
-          </p>
+        ) : ready === 0 ? (
+          <div className="flex items-center gap-3 py-2">
+            <Target className="size-5 text-mode-analytics shrink-0" />
+            <p className="text-lg text-slate-700">
+              Caught up — nothing is due. Cards return as their dates come round.
+            </p>
+          </div>
         ) : (
-          <ol className="divide-y divide-slate-100">
-            {dueCards.map((c, i) => (
-              <li key={c.id} className="flex items-start gap-3 py-3">
-                <span className="font-mono text-sm text-slate-400 tabular-nums pt-0.5 shrink-0">
-                  {i + 1}
-                </span>
-                <p className="text-base text-slate-800 flex-1 min-w-0">{c.question}</p>
-                <span
+          <div className="flex flex-wrap items-center justify-between gap-5">
+            <div className="flex items-baseline gap-4 min-w-0">
+              <span className="font-mono text-5xl font-semibold text-slate-900 tabular-nums">
+                {ready}
+              </span>
+              <div className="min-w-0">
+                <p className="text-lg text-slate-900">
+                  card{ready === 1 ? '' : 's'} ready to study
+                </p>
+                <p
                   className={cn(
-                    'font-mono text-xs tabular-nums shrink-0 pt-1',
-                    c.status === 'due' && c.overdue_days > 0 ? 'text-red-700' : 'text-slate-500'
+                    'font-mono text-sm tabular-nums',
+                    due.overdue > 0 ? 'text-red-700' : 'text-slate-500'
                   )}
                 >
-                  {dueRecord(c)}
-                </span>
-              </li>
-            ))}
-          </ol>
+                  {dueBreakdown(due)}
+                </p>
+              </div>
+            </div>
+            <Button
+              asChild
+              size="lg"
+              className="bg-mode-flashcards hover:bg-mode-flashcards-hover text-white h-12 px-8 text-lg shrink-0"
+            >
+              <Link href="/dashboard/flashcards?due=1">
+                Study now
+                <ArrowRight className="size-5 ml-2" />
+              </Link>
+            </Button>
+          </div>
         )}
       </Card>
 

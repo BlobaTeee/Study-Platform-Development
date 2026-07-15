@@ -11,8 +11,6 @@ from study_sessions import scheduling
 from study_sessions.models import CardReview
 from . import insights
 
-DUE_CARDS_LIMIT = 20
-
 
 def _review_tallies(user):
     """Per-card correct/incorrect counts from the user's own review record.
@@ -62,28 +60,31 @@ class AnalyticsViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def recommendations(self, request):
-        """What is due to study now, and which documents you're weakest on."""
+        """How much study is owed now, and which documents you're weakest on.
+
+        Question text is never fetched here, let alone returned: this endpoint
+        reports on the schedule, and the study page is the only place a prompt
+        should be seen.
+        """
         user = request.user
-        limit = min(int(request.query_params.get('limit', 5)), DUE_CARDS_LIMIT)
 
         cards = insights.attach_review_counts(
-            list(Flashcard.objects.filter(user=user).values('id', 'question', 'tags')),
+            list(Flashcard.objects.filter(user=user).values('id', 'tags')),
             _review_tallies(user),
         )
         titles = dict(
             Source.objects.filter(notebook__user=user).values_list('id', 'title')
         )
 
-        # What to study now comes from the SM-2 schedule the reviews built, so
-        # this page and the study page cannot disagree about what is due.
+        # How much is owed comes from the SM-2 schedule the reviews built, so
+        # this page and the study page cannot disagree about what is due. Counts
+        # only: naming the cards here would show their questions minutes before
+        # they are graded, inflating the grade and skewing the schedule.
         schedule = scheduling.latest_schedule(
             list(CardReview.objects.filter(user=user)
                  .values('flashcard_id', 'next_review_date', 'review_date'))
         )
-        due_cards = scheduling.rank_due_cards(
-            [{'id': c['id'], 'question': c['question']} for c in cards],
-            schedule, timezone.now().date(), limit=limit,
-        )
+        due = scheduling.due_counts(cards, schedule, timezone.localdate())
 
         # Per-document mastery draws on every mode that grades an item against a
         # source. Flashcards alone would ignore the quiz answers on record, which
@@ -96,6 +97,6 @@ class AnalyticsViewSet(viewsets.ViewSet):
         )
 
         return Response({
-            'due_cards': due_cards,
+            'due': due,
             'weak_sources': insights.per_source_mastery(events, titles),
         })

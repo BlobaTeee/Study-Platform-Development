@@ -111,7 +111,7 @@ class StudySessionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def today(self, request):
         """Get today's sessions."""
-        today = timezone.now().date()
+        today = timezone.localdate()
         tomorrow = today + timedelta(days=1)
         sessions = self.get_queryset().filter(
             scheduled_start__date=today
@@ -140,7 +140,7 @@ class StudySessionViewSet(viewsets.ModelViewSet):
     def _update_streak(self, user):
         """Update study streak after session completion."""
         streak, created = StudyStreak.objects.get_or_create(user=user)
-        today = timezone.now().date()
+        today = timezone.localdate()
         
         # Add session duration to total
         completed_today = StudySession.objects.filter(
@@ -214,14 +214,14 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
         cards = list(Flashcard.objects.filter(user=user)
                      .values('id', 'question', 'answer', 'difficulty', 'tags'))
         return Response(
-            scheduling.rank_due_cards(cards, schedule, timezone.now().date(), limit=limit)
+            scheduling.rank_due_cards(cards, schedule, timezone.localdate(), limit=limit)
         )
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
         """Get review statistics."""
         user = request.user
-        today = timezone.now().date()
+        today = timezone.localdate()
         week_ago = today - timedelta(days=7)
 
         total_reviews = CardReview.objects.filter(user=user).count()
