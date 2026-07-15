@@ -1,4 +1,5 @@
 from django.db.models import Avg, F
+from django.utils import timezone
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -6,10 +7,11 @@ from rest_framework.response import Response
 from flashcards.models import Flashcard
 from notebooks.models import Notebook, Source
 from quizzes.models import Answer, Question, Quiz, QuizAttempt
+from study_sessions import scheduling
 from study_sessions.models import CardReview
 from . import insights
 
-WEAK_CARDS_LIMIT = 20
+DUE_CARDS_LIMIT = 20
 
 
 def _review_tallies(user):
@@ -60,9 +62,9 @@ class AnalyticsViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def recommendations(self, request):
-        """What to review next, and which documents you're weakest on."""
+        """What is due to study now, and which documents you're weakest on."""
         user = request.user
-        limit = min(int(request.query_params.get('limit', 5)), WEAK_CARDS_LIMIT)
+        limit = min(int(request.query_params.get('limit', 5)), DUE_CARDS_LIMIT)
 
         cards = insights.attach_review_counts(
             list(Flashcard.objects.filter(user=user).values('id', 'question', 'tags')),
@@ -70,6 +72,17 @@ class AnalyticsViewSet(viewsets.ViewSet):
         )
         titles = dict(
             Source.objects.filter(notebook__user=user).values_list('id', 'title')
+        )
+
+        # What to study now comes from the SM-2 schedule the reviews built, so
+        # this page and the study page cannot disagree about what is due.
+        schedule = scheduling.latest_schedule(
+            list(CardReview.objects.filter(user=user)
+                 .values('flashcard_id', 'next_review_date', 'review_date'))
+        )
+        due_cards = scheduling.rank_due_cards(
+            [{'id': c['id'], 'question': c['question']} for c in cards],
+            schedule, timezone.now().date(), limit=limit,
         )
 
         # Per-document mastery draws on every mode that grades an item against a
@@ -83,6 +96,6 @@ class AnalyticsViewSet(viewsets.ViewSet):
         )
 
         return Response({
-            'weak_cards': insights.rank_weak_cards(cards, limit=limit),
+            'due_cards': due_cards,
             'weak_sources': insights.per_source_mastery(events, titles),
         })

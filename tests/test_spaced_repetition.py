@@ -5,6 +5,7 @@ It had never run once before now — the app had no self-grading UI, so no revie
 ever reached it.
 """
 import importlib.util
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -133,3 +134,96 @@ def test_analytics_grades_the_same_way_the_scheduler_does():
     ins = _load_insights()
     assert ins.CORRECT_RESULTS == sm2.CORRECT_RESULTS
     assert ins.CORRECT_RESULTS | ins.INCORRECT_RESULTS == set(sm2.RESULT_VALUES)
+
+
+# ---- latest_schedule -------------------------------------------------------
+# A card's schedule lives on its most recent review; older rows are history.
+
+TODAY = date(2026, 7, 16)
+
+
+def _row(card_id, next_review_date, reviewed_at):
+    return {"flashcard_id": card_id, "next_review_date": next_review_date,
+            "review_date": reviewed_at}
+
+
+def test_latest_schedule_takes_the_most_recent_review():
+    rows = [_row(1, date(2026, 7, 17), datetime(2026, 7, 10, 9, 0)),
+            _row(1, date(2026, 8, 1), datetime(2026, 7, 15, 9, 0))]
+    assert sm2.latest_schedule(rows) == {1: date(2026, 8, 1)}
+
+
+def test_latest_schedule_does_not_depend_on_row_order():
+    newest = _row(1, date(2026, 8, 1), datetime(2026, 7, 15, 9, 0))
+    oldest = _row(1, date(2026, 7, 17), datetime(2026, 7, 10, 9, 0))
+    assert sm2.latest_schedule([newest, oldest]) == sm2.latest_schedule([oldest, newest])
+
+
+def test_latest_schedule_keeps_cards_apart():
+    rows = [_row(1, date(2026, 7, 17), datetime(2026, 7, 15, 9, 0)),
+            _row(2, date(2026, 9, 1), datetime(2026, 7, 15, 9, 0))]
+    assert sm2.latest_schedule(rows) == {1: date(2026, 7, 17), 2: date(2026, 9, 1)}
+
+
+def test_latest_schedule_of_no_reviews_is_empty():
+    assert sm2.latest_schedule([]) == {}
+
+
+# ---- rank_due_cards --------------------------------------------------------
+
+def _card(cid, question="Q?"):
+    return {"id": cid, "question": question}
+
+
+def test_a_card_scheduled_for_the_future_is_not_due():
+    # The whole point of spaced repetition: do not study what you still know.
+    out = sm2.rank_due_cards([_card(1)], {1: TODAY + timedelta(days=17)}, TODAY, limit=5)
+    assert out == []
+
+
+def test_a_card_scheduled_for_today_is_due():
+    out = sm2.rank_due_cards([_card(1)], {1: TODAY}, TODAY, limit=5)
+    assert out[0]["status"] == sm2.STATUS_DUE
+    assert out[0]["overdue_days"] == 0
+
+
+def test_an_overdue_card_reports_how_late_it_is():
+    out = sm2.rank_due_cards([_card(1)], {1: TODAY - timedelta(days=3)}, TODAY, limit=5)
+    assert out[0]["overdue_days"] == 3
+
+
+def test_a_never_studied_card_is_new():
+    out = sm2.rank_due_cards([_card(1)], {}, TODAY, limit=5)
+    assert out[0]["status"] == sm2.STATUS_NEW
+    assert out[0]["overdue_days"] == 0
+
+
+def test_most_overdue_card_comes_first():
+    schedule = {1: TODAY - timedelta(days=1), 2: TODAY - timedelta(days=9)}
+    out = sm2.rank_due_cards([_card(1), _card(2)], schedule, TODAY, limit=5)
+    assert [c["id"] for c in out] == [2, 1]
+
+
+def test_cards_at_risk_come_before_cards_never_seen():
+    # An overdue card is being forgotten now; a new card is only an opportunity.
+    out = sm2.rank_due_cards([_card(1), _card(2)], {2: TODAY}, TODAY, limit=5)
+    assert [c["id"] for c in out] == [2, 1]
+    assert out[1]["status"] == sm2.STATUS_NEW
+
+
+def test_due_ranking_respects_the_limit():
+    cards = [_card(i) for i in range(1, 6)]
+    assert len(sm2.rank_due_cards(cards, {}, TODAY, limit=2)) == 2
+
+
+def test_due_ranking_is_deterministic_on_ties():
+    out = sm2.rank_due_cards([_card(3), _card(1), _card(2)], {}, TODAY, limit=5)
+    assert [c["id"] for c in out] == [1, 2, 3]
+
+
+def test_due_ranking_keeps_the_callers_card_fields():
+    # The study page needs the whole card; analytics passes only id + question.
+    card = {"id": 1, "question": "Q?", "answer": "A", "difficulty": "easy"}
+    out = sm2.rank_due_cards([card], {}, TODAY, limit=5)
+    assert out[0]["answer"] == "A"
+    assert out[0]["difficulty"] == "easy"

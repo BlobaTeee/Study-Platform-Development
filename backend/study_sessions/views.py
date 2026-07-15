@@ -3,7 +3,6 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
-from django.db.models import Q
 from datetime import timedelta
 
 from . import scheduling
@@ -13,6 +12,9 @@ from .serializers import (
     CardReviewSerializer, StudyStreakSerializer
 )
 from flashcards.models import Flashcard
+
+DUE_CARDS_DEFAULT = 50
+DUE_CARDS_LIMIT = 200
 
 
 def resolve_review_request(request):
@@ -194,12 +196,26 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def due_today(self, request):
-        """Get cards due for review today."""
-        today = timezone.now().date()
-        reviews = self.get_queryset().filter(
-            Q(next_review_date__lte=today) | Q(next_review_date__isnull=True)
-        ).select_related('flashcard')[:20]
-        return Response(CardReviewSerializer(reviews, many=True).data)
+        """The flashcards ready to study: scheduled for today or earlier, plus
+        cards never reviewed.
+
+        This returns cards rather than reviews. Reading review rows could not
+        answer the question: a card has one row per review, so a card would
+        appear once per time it was studied, and a card never reviewed has no
+        row at all and so could never be offered.
+        """
+        user = request.user
+        limit = min(int(request.query_params.get('limit', DUE_CARDS_DEFAULT)),
+                    DUE_CARDS_LIMIT)
+        schedule = scheduling.latest_schedule(
+            list(CardReview.objects.filter(user=user)
+                 .values('flashcard_id', 'next_review_date', 'review_date'))
+        )
+        cards = list(Flashcard.objects.filter(user=user)
+                     .values('id', 'question', 'answer', 'difficulty', 'tags'))
+        return Response(
+            scheduling.rank_due_cards(cards, schedule, timezone.now().date(), limit=limit)
+        )
 
     @action(detail=False, methods=['get'])
     def stats(self, request):

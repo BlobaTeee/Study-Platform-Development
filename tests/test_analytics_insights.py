@@ -18,56 +18,10 @@ def _load():
 ins = _load()
 
 
-def _card(cid, correct=0, incorrect=0, tags="source:1", question="Q?"):
-    return {"id": cid, "question": question, "correct_count": correct,
-            "incorrect_count": incorrect, "tags": tags}
-
-
-# ---- card_priority ---------------------------------------------------------
-
-def test_never_reviewed_card_sits_mid_priority():
-    # Unknown mastery -> 0.5, worth testing but not above known-weak cards.
-    assert ins.card_priority(0, 0) == pytest.approx(0.5)
-
-
-def test_always_wrong_is_higher_priority_than_never_reviewed():
-    assert ins.card_priority(0, 4) > ins.card_priority(0, 0)
-
-
-def test_always_correct_is_lower_priority_than_never_reviewed():
-    assert ins.card_priority(4, 0) < ins.card_priority(0, 0)
-
-
-def test_priority_stays_within_zero_and_one():
-    for c, i in [(0, 0), (99, 0), (0, 99), (5, 5)]:
-        assert 0.0 < ins.card_priority(c, i) < 1.0
-
-
-# ---- rank_weak_cards -------------------------------------------------------
-
-def test_ranks_weakest_first_and_respects_limit():
-    cards = [_card(1, correct=9, incorrect=0),   # strong -> low priority
-             _card(2, correct=0, incorrect=9),   # weak   -> high priority
-             _card(3, correct=0, incorrect=0)]   # unknown-> mid
-    out = ins.rank_weak_cards(cards, limit=2)
-    assert [c["id"] for c in out] == [2, 3]
-    assert out[0]["priority"] > out[1]["priority"]
-
-
-def test_rank_includes_review_counts_for_display():
-    out = ins.rank_weak_cards([_card(1, correct=2, incorrect=3)], limit=5)
-    assert out[0]["correct_count"] == 2
-    assert out[0]["incorrect_count"] == 3
-    assert out[0]["question"] == "Q?"
-
-
-def test_rank_empty_returns_empty():
-    assert ins.rank_weak_cards([], limit=5) == []
-
-
-def test_rank_is_deterministic_on_ties():
-    cards = [_card(2), _card(1)]  # identical priority -> stable by id
-    assert [c["id"] for c in ins.rank_weak_cards(cards, limit=5)] == [1, 2]
+# What to study next is answered by the SM-2 schedule (study_sessions.
+# scheduling.rank_due_cards), not by ranking cards on how often they were
+# failed: that ignored the schedule and could call up a card the algorithm had
+# deliberately set aside for weeks.
 
 
 # ---- parse_source_ids ------------------------------------------------------
@@ -247,11 +201,13 @@ def test_attach_keeps_the_original_card_fields():
     assert out[0]["tags"] == "source:2"
 
 
-def test_attached_counts_feed_the_existing_ranking():
-    # The two halves must compose: reviews -> counts -> weakest-first ranking.
-    cards = [{"id": 1, "question": "strong", "tags": "source:1"},
-             {"id": 2, "question": "weak", "tags": "source:1"}]
+def test_attached_counts_reach_per_document_mastery():
+    # The chain must compose: reviews -> counts -> events -> document accuracy.
+    cards = [{"id": 1, "question": "recalled", "tags": "source:1"},
+             {"id": 2, "question": "forgotten", "tags": "source:1"}]
     reviews = [_review(1, "good"), _review(1, "good"),
                _review(2, "again"), _review(2, "again")]
     scored = ins.attach_review_counts(cards, ins.tally_reviews(reviews))
-    assert [c["id"] for c in ins.rank_weak_cards(scored, limit=2)] == [2, 1]
+    out = ins.per_source_mastery(ins.flashcard_events(scored), {1: "Doc"})
+    assert out[0]["accuracy"] == pytest.approx(50.0)
+    assert out[0]["cards"] == 2

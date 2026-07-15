@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import useSWR from 'swr'
 import { analyticsAPI } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import {
   BarChart3,
   BookMarked,
@@ -25,12 +26,18 @@ type Summary = {
   flashcard_accuracy: number | null
 }
 
-type WeakCard = {
+type DueCard = {
   id: number
   question: string
-  correct_count: number
-  incorrect_count: number
-  priority: number
+  status: 'due' | 'new'
+  overdue_days: number
+}
+
+/** Why a card is in the queue, in the terms the schedule reasons about. */
+function dueRecord(c: DueCard): string {
+  if (c.status === 'new') return 'New'
+  if (c.overdue_days === 0) return 'Due today'
+  return `${c.overdue_days} day${c.overdue_days === 1 ? '' : 's'} overdue`
 }
 
 type WeakSource = {
@@ -61,7 +68,7 @@ export default function AnalyticsPage() {
   )
 
   const summary: Summary | undefined = summaryRes?.data
-  const weakCards: WeakCard[] = recsRes?.data?.weak_cards ?? []
+  const dueCards: DueCard[] = recsRes?.data?.due_cards ?? []
   const weakSources: WeakSource[] = recsRes?.data?.weak_sources ?? []
 
   const stats = [
@@ -81,13 +88,6 @@ export default function AnalyticsPage() {
     },
     { label: 'Quizzes taken', value: summary?.quiz_attempts_completed ?? '—', icon: FileText, color: 'text-mode-quizzes' },
   ]
-
-  // A card's recall record, phrased for a human rather than as a raw score.
-  const cardRecord = (c: WeakCard) => {
-    const reviews = c.correct_count + c.incorrect_count
-    if (reviews === 0) return 'Not reviewed yet'
-    return `${Math.round((c.correct_count / reviews) * 100)}% recalled · ${c.correct_count}/${reviews}`
-  }
 
   return (
     <div className="space-y-8 max-w-5xl">
@@ -131,34 +131,41 @@ export default function AnalyticsPage() {
             <h2 className="text-xl font-semibold text-slate-900">Review next</h2>
           </div>
           <Link
-            href="/dashboard/flashcards"
+            href="/dashboard/flashcards?due=1"
             className="text-sm font-medium text-mode-flashcards hover:underline shrink-0"
           >
-            Go to flashcards →
+            Study these →
           </Link>
         </div>
         <p className="text-sm text-slate-500 mb-4">
-          Ranked by how often you get each card wrong. Cards you haven&apos;t tested yet sit in the middle.
+          What your review schedule says is owed today. Cards you still know are held
+          back until their date comes round.
         </p>
 
         {recsLoading ? (
           <div className="flex items-center gap-2 text-slate-500 py-6">
             <Loader2 className="size-4 animate-spin" /> Loading…
           </div>
-        ) : weakCards.length === 0 ? (
+        ) : dueCards.length === 0 ? (
           <p className="text-slate-500 py-6 text-center">
-            No flashcards yet — generate some from a notebook to start tracking recall.
+            Nothing due — you&apos;re caught up. New cards appear here as soon as you
+            generate them.
           </p>
         ) : (
           <ol className="divide-y divide-slate-100">
-            {weakCards.map((c, i) => (
+            {dueCards.map((c, i) => (
               <li key={c.id} className="flex items-start gap-3 py-3">
                 <span className="font-mono text-sm text-slate-400 tabular-nums pt-0.5 shrink-0">
                   {i + 1}
                 </span>
                 <p className="text-base text-slate-800 flex-1 min-w-0">{c.question}</p>
-                <span className="font-mono text-xs text-slate-500 tabular-nums shrink-0 pt-1">
-                  {cardRecord(c)}
+                <span
+                  className={cn(
+                    'font-mono text-xs tabular-nums shrink-0 pt-1',
+                    c.status === 'due' && c.overdue_days > 0 ? 'text-red-700' : 'text-slate-500'
+                  )}
+                >
+                  {dueRecord(c)}
                 </span>
               </li>
             ))}

@@ -57,36 +57,6 @@ def attach_review_counts(cards: list[dict], tallies: dict[int, dict[str, int]]) 
     ]
 
 
-def card_priority(correct: int, incorrect: int) -> float:
-    """How urgently a card needs reviewing, in (0, 1) — higher means sooner.
-
-    Laplace-smoothed error rate, which handles all three cases with one formula:
-    often-wrong cards score high, never-reviewed cards land at 0.5 (unknown
-    mastery, worth testing), and reliably-correct cards score low.
-    """
-    return (incorrect + 1) / (correct + incorrect + 2)
-
-
-def rank_weak_cards(cards: list[dict], limit: int) -> list[dict]:
-    """The `limit` cards most worth reviewing, weakest first."""
-    scored = [
-        {
-            "id": c["id"],
-            "question": c.get("question", ""),
-            "correct_count": c.get("correct_count", 0),
-            "incorrect_count": c.get("incorrect_count", 0),
-            "priority": round(
-                card_priority(c.get("correct_count", 0), c.get("incorrect_count", 0)), 4
-            ),
-        }
-        for c in cards
-    ]
-    # Sort by id first so equal priorities keep a stable, predictable order.
-    scored.sort(key=lambda c: c["id"])
-    scored.sort(key=lambda c: c["priority"], reverse=True)
-    return scored[:limit]
-
-
 # The tag may be a field of its own (flashcards store a bare ``source:1,2``) or
 # buried in prose (quizzes append ``[source:13]`` to their description), so this
 # looks for it anywhere. Stopping at the first non-word character keeps the

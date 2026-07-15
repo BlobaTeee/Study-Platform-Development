@@ -43,18 +43,16 @@ function FlashcardsStudy() {
   const searchParams = useSearchParams()
   const sourceParam = searchParams.get('source')
   const sourceIds = useMemo(() => parseSourceIdsParam(sourceParam), [sourceParam])
+  // Two ways to study, both legitimate: work through a document before an exam,
+  // or clear what the schedule says is owed today.
+  const dueMode = searchParams.get('due') === '1'
 
   const { data, isLoading } = useSWR(
-    sourceParam ? ['/flashcards/', sourceParam] : null,
-    () => flashcardsAPI.getFlashcards()
+    dueMode ? ['/flashcards/due'] : sourceParam ? ['/flashcards/', sourceParam] : null,
+    () => (dueMode ? flashcardsAPI.getDueCards() : flashcardsAPI.getFlashcards())
   )
 
   const allCards: Flashcard[] = data?.data?.results ?? data?.data ?? []
-  const flashcards = useMemo(() => {
-    if (sourceIds.length === 0) return []
-    return allCards.filter((f) => flashcardMatchesSourceTag(f.tags, sourceIds))
-  }, [allCards, sourceIds])
-
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -62,7 +60,27 @@ function FlashcardsStudy() {
   const [lastReview, setLastReview] = useState<{ label: string; interval: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const flashcards = useMemo(() => {
+    // The backend already picked the due cards; a source filter still applies if
+    // one is present. Grading a card settles its debt, so it leaves the queue —
+    // otherwise wrapping round would review it twice and corrupt its schedule.
+    if (dueMode) {
+      const scoped = sourceIds.length
+        ? allCards.filter((f) => flashcardMatchesSourceTag(f.tags, sourceIds))
+        : allCards
+      return scoped.filter((f) => !graded.has(f.id))
+    }
+    if (sourceIds.length === 0) return []
+    return allCards.filter((f) => flashcardMatchesSourceTag(f.tags, sourceIds))
+  }, [allCards, sourceIds, dueMode, graded])
+
   const total = flashcards.length
+
+  // The due queue shrinks under the cursor; fall back to the top of what's left.
+  useEffect(() => {
+    if (index >= total && total > 0) setIndex(0)
+  }, [index, total])
+
   const goPrev = useCallback(() => {
     setFlipped(false)
     setIndex((i) => (i > 0 ? i - 1 : total - 1))
@@ -81,12 +99,15 @@ function FlashcardsStudy() {
       setError(null)
       try {
         const res = await flashcardsAPI.recordReview(card.id, value)
-        setGraded((g) => new Set(g).add(card.id))
         setLastReview({
           label: GRADES.find((g) => g.value === value)!.label,
           interval: res.data.interval,
         })
-        goNext()
+        setGraded((g) => new Set(g).add(card.id))
+        // In due mode the card drops out of the queue and the next one slides
+        // into this slot, so only the browse mode needs to advance.
+        if (dueMode) setFlipped(false)
+        else goNext()
       } catch {
         // Stay on the card so the grade isn't silently lost.
         setError('Could not save that review. Is the backend running?')
@@ -94,7 +115,7 @@ function FlashcardsStudy() {
         setSaving(false)
       }
     },
-    [flashcards, index, saving, goNext]
+    [flashcards, index, saving, goNext, dueMode]
   )
 
   // Keyboard: space/enter flips, arrows move, 1-4 grade a revealed card.
@@ -117,7 +138,8 @@ function FlashcardsStudy() {
     return () => window.removeEventListener('keydown', onKey)
   }, [total, goNext, goPrev, flipped, grade])
 
-  if (!sourceParam || sourceIds.length === 0) {
+  // Studying the due queue needs no document chosen — the schedule already knows.
+  if (!dueMode && (!sourceParam || sourceIds.length === 0)) {
     return <SourceRequired type="flashcards" />
   }
 
@@ -129,15 +151,25 @@ function FlashcardsStudy() {
     return (
       <div className="text-center py-20 max-w-md mx-auto">
         <Zap className="size-16 text-slate-300 mx-auto mb-4" />
-        <p className="text-xl text-slate-600 mb-6">No flashcards for this selection yet.</p>
+        <p className="text-xl text-slate-600 mb-6">
+          {dueMode
+            ? graded.size > 0
+              ? `Caught up — ${graded.size} card${graded.size === 1 ? '' : 's'} reviewed. Nothing else is due.`
+              : 'Nothing due right now. Cards come back as their dates arrive.'
+            : 'No flashcards for this selection yet.'}
+        </p>
         <Button asChild size="lg" className="bg-mode-library hover:bg-mode-library-hover h-12 text-lg">
-          <Link href="/dashboard/notebooks">Go to Notebooks</Link>
+          <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
+            {dueMode ? 'Back to progress' : 'Go to Notebooks'}
+          </Link>
         </Button>
       </div>
     )
   }
 
-  const card = flashcards[index]
+  // The clamping effect above runs after this render, so on the frame a graded
+  // card leaves the queue the index can still point past the end.
+  const card = flashcards[index] ?? flashcards[0]
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
@@ -150,15 +182,19 @@ function FlashcardsStudy() {
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-flashcards">
             Flashcards
           </p>
-          <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">Study session</h1>
+          <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">
+            {dueMode ? 'Due today' : 'Study session'}
+          </h1>
           <p className="font-mono text-sm text-slate-500 mt-1 tabular-nums">
-            {String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
+            {dueMode
+              ? `${total} left${graded.size > 0 ? ` · ${graded.size} done` : ''}`
+              : `${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`}
           </p>
         </div>
         <Button asChild variant="outline" size="lg" className="text-lg h-11">
-          <Link href="/dashboard/notebooks">
+          <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
             <ChevronLeft className="size-5 mr-1" />
-            Notebooks
+            {dueMode ? 'Progress' : 'Notebooks'}
           </Link>
         </Button>
       </div>
@@ -166,7 +202,13 @@ function FlashcardsStudy() {
       <div className="rise h-1.5 rounded-full bg-slate-100 overflow-hidden" style={{ animationDelay: '60ms' }}>
         <div
           className="h-full bg-mode-flashcards transition-all duration-300"
-          style={{ width: `${((index + 1) / total) * 100}%` }}
+          style={{
+            // Browsing tracks position in the deck; the due queue tracks the
+            // debt cleared, since its cards leave as they are graded.
+            width: dueMode
+              ? `${(graded.size / (graded.size + total)) * 100}%`
+              : `${((index + 1) / total) * 100}%`,
+          }}
         />
       </div>
 

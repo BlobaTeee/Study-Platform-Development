@@ -60,6 +60,9 @@ export const flashcardsAPI = {
   // this is what analytics counts. No study session needed.
   recordReview: (flashcardId: number, result: ReviewGrade) =>
     api.post('/study/card-reviews/record/', { flashcard_id: flashcardId, result }),
+  // Cards the SM-2 schedule says are owed today, plus ones never studied.
+  // Cards scheduled ahead are deliberately withheld.
+  getDueCards: () => api.get('/study/card-reviews/due_today/'),
 }
 
 export const quizzesAPI = {
