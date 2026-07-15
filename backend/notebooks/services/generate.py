@@ -10,7 +10,7 @@ from .gemini_client import (
     is_quota_error,
 )
 from .ai_provider import get_ai_provider
-from . import fallback
+from . import dedupe, fallback
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +128,16 @@ def _save_flashcards_from_json(
         raise GeminiGenerationError('No flashcards were generated.')
 
     tag = combined_source_tag(source_ids)
+    # Generating again appends, so without this the same fact reaches two cards
+    # with two schedules and gets reviewed twice. Scoped to this exact source
+    # selection — the set the caller asked to generate from.
+    existing = list(
+        Flashcard.objects.filter(user=user, tags=tag).values_list('question', flat=True)
+    )
+    fresh = dedupe.new_flashcards(items[:count], existing)
+
     created = []
-    for item in items[:count]:
+    for item in fresh:
         question = (item.get('question') or '').strip()
         answer = (item.get('answer') or '').strip()
         difficulty = (item.get('difficulty') or 'medium').lower()
@@ -147,8 +155,11 @@ def _save_flashcards_from_json(
         )
         created.append(card)
 
-    if not created:
+    if fresh and not created:
         raise GeminiGenerationError('No valid flashcards could be saved.')
+    # Nothing fresh is a document with nothing left to add, not a failure — and
+    # must not raise, or the caller would fall back to the extractive generator
+    # and produce the very duplicates this just removed.
     return created
 
 

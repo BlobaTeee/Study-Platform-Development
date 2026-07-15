@@ -14,11 +14,13 @@ from .services.document_extract import file_type_from_filename, title_from_filen
 from .services.ingest import process_source
 from .services.gemini_client import GeminiNotConfiguredError, GeminiGenerationError
 from .services.generate import (
+    combined_source_tag,
     generate_flashcards_for_sources,
     generate_quiz_for_sources,
     generate_flashcards_for_source,
     generate_quiz_for_source,
 )
+from flashcards.models import Flashcard
 from flashcards.serializers import FlashcardSerializer
 from quizzes.serializers import QuizSerializer
 
@@ -113,6 +115,27 @@ class NotebookViewSet(viewsets.ModelViewSet):
             'fallback_reason': meta.get('reason'),
             'flashcards': serializer.data,
         }, status=201)
+
+    @action(detail=True, methods=['get'])
+    def material_counts(self, request, pk=None):
+        """How many flashcards this exact source selection already has.
+
+        Generating appends, so without this the page gives no sign that a
+        document already holds cards and the count quietly climbs with every
+        press. Keyed on the same combined tag that generation writes and that
+        duplicate-checking compares against, so this is the number the next
+        press adds to. Counts only — no card text is loaded.
+        """
+        self.get_object()  # 404s unless the notebook belongs to this user
+        raw = request.query_params.get('source_ids', '')
+        source_ids = sorted({int(i) for i in raw.split(',') if i.strip().isdigit()})
+        if not source_ids:
+            return Response({'flashcards': 0})
+        return Response({
+            'flashcards': Flashcard.objects.filter(
+                user=request.user, tags=combined_source_tag(source_ids)
+            ).count(),
+        })
 
     @action(detail=True, methods=['post'])
     def generate_quiz(self, request, pk=None):

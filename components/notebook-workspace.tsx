@@ -99,6 +99,18 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
   const studyQuery = formatSourceIdsForQuery(generationSourceIds)
 
+  // Counted server-side on the exact combined tag, which is the same set the
+  // backend checks for duplicates — so the number shown is always the number a
+  // press adds to. Counting here instead would use flashcardMatchesSourceTag,
+  // whose substring test reports a "source:13" card as belonging to source 1.
+  const { data: countsRes } = useSWR(
+    generationSourceIds.length > 0
+      ? ['/notebooks/material_counts', notebookId, studyQuery]
+      : null,
+    () => notebooksAPI.getMaterialCounts(notebookId, generationSourceIds)
+  )
+  const existingCards: number = countsRes?.data?.flashcards ?? 0
+
   const hasFlashcardsForSources = useMemo(() => {
     if (generationSourceIds.length === 0) return false
     const list = flashcardsData?.data?.results ?? flashcardsData?.data ?? []
@@ -612,6 +624,15 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                           ? 'From all selected sources'
                           : 'About 10 cards from selection'}
                       </p>
+                      {/* Generating appends. Saying so, with the running total,
+                          is the only thing standing between a press and a deck
+                          that has quietly grown to dozens of cards. */}
+                      {existingCards > 0 && (
+                        <p className="font-mono text-sm text-slate-600 tabular-nums">
+                          {existingCards} card{existingCards === 1 ? '' : 's'} already ·
+                          adds ~10 more
+                        </p>
+                      )}
                       <Button
                         onClick={handleGenerateFlashcards}
                         disabled={!canGenerate || generating !== null}
@@ -626,7 +647,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                         ) : (
                           <>
                             <Sparkles className="size-4" />
-                            Generate flashcards
+                            {existingCards > 0 ? 'Generate 10 more' : 'Generate flashcards'}
                           </>
                         )}
                       </Button>
