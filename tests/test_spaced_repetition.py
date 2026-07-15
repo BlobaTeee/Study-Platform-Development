@@ -280,6 +280,32 @@ def test_counts_with_no_cards_are_all_zero():
     assert sm2.due_counts([], {}, TODAY) == {"due": 0, "overdue": 0, "new": 0}
 
 
+# ---- next_due_batch --------------------------------------------------------
+# An empty queue is the algorithm working, but silence makes that look identical
+# to a broken one. Saying when cards return is what tells the two apart.
+
+def test_next_due_batch_finds_the_soonest_return():
+    schedule = {1: TODAY + timedelta(days=3), 2: TODAY + timedelta(days=1)}
+    assert sm2.next_due_batch(schedule, TODAY) == (TODAY + timedelta(days=1), 1)
+
+
+def test_next_due_batch_counts_everything_returning_that_day():
+    soon = TODAY + timedelta(days=1)
+    schedule = {1: soon, 2: soon, 3: TODAY + timedelta(days=9)}
+    assert sm2.next_due_batch(schedule, TODAY) == (soon, 2)
+
+
+def test_next_due_batch_ignores_cards_already_owed():
+    # Those are due now, not returning later; the queue speaks for them.
+    schedule = {1: TODAY, 2: TODAY - timedelta(days=4), 3: TODAY + timedelta(days=2)}
+    assert sm2.next_due_batch(schedule, TODAY) == (TODAY + timedelta(days=2), 1)
+
+
+def test_next_due_batch_reports_nothing_when_no_card_is_scheduled():
+    assert sm2.next_due_batch({}, TODAY) == (None, 0)
+    assert sm2.next_due_batch({1: TODAY}, TODAY) == (None, 0)
+
+
 def test_counts_agree_with_the_queue_they_summarise():
     # The number on the summary must match what pressing Study actually gives.
     schedule = {1: TODAY - timedelta(days=2), 2: TODAY, 3: TODAY + timedelta(days=5)}

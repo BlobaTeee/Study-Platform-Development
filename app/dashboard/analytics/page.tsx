@@ -35,6 +35,27 @@ type Due = {
   due: number
   overdue: number
   new: number
+  next_date: string | null
+  next_count: number
+}
+
+/** An empty queue is the schedule working. Saying only "nothing due" makes that
+ *  read exactly like a schedule that's broken, so name the day cards return. */
+function caughtUpMessage(d: Due): string {
+  if (!d.next_date || d.next_count === 0) {
+    return 'Nothing to study yet — generate flashcards from a notebook to start.'
+  }
+  const when = new Date(`${d.next_date}T00:00:00`)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const days = Math.round((when.getTime() - today.getTime()) / 86_400_000)
+  const label =
+    days === 1
+      ? 'tomorrow'
+      : `on ${when.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
+  return `Caught up — nothing due today. ${d.next_count} card${
+    d.next_count === 1 ? '' : 's'
+  } return ${label}.`
 }
 
 /** What the ready-to-study number is made of, worst news first. */
@@ -74,7 +95,13 @@ export default function AnalyticsPage() {
   )
 
   const summary: Summary | undefined = summaryRes?.data
-  const due: Due = recsRes?.data?.due ?? { due: 0, overdue: 0, new: 0 }
+  const due: Due = recsRes?.data?.due ?? {
+    due: 0,
+    overdue: 0,
+    new: 0,
+    next_date: null,
+    next_count: 0,
+  }
   const ready = due.due + due.new
   const weakSources: WeakSource[] = recsRes?.data?.weak_sources ?? []
 
@@ -142,9 +169,7 @@ export default function AnalyticsPage() {
         ) : ready === 0 ? (
           <div className="flex items-center gap-3 py-2">
             <Target className="size-5 text-mode-analytics shrink-0" />
-            <p className="text-lg text-slate-700">
-              Caught up — nothing is due. Cards return as their dates come round.
-            </p>
+            <p className="text-lg text-slate-700">{caughtUpMessage(due)}</p>
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-5">

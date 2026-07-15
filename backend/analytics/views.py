@@ -84,7 +84,12 @@ class AnalyticsViewSet(viewsets.ViewSet):
             list(CardReview.objects.filter(user=user)
                  .values('flashcard_id', 'next_review_date', 'review_date'))
         )
-        due = scheduling.due_counts(cards, schedule, timezone.localdate())
+        today = timezone.localdate()
+        due = scheduling.due_counts(cards, schedule, today)
+        # An empty queue means the schedule is working. Without a return date it
+        # reads exactly like a broken one, so the date travels with the counts.
+        next_date, next_count = scheduling.next_due_batch(schedule, today)
+        due = {**due, 'next_date': next_date, 'next_count': next_count}
 
         # Per-document mastery draws on every mode that grades an item against a
         # source. Flashcards alone would ignore the quiz answers on record, which

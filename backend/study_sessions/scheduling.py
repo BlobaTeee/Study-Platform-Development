@@ -130,6 +130,20 @@ def rank_due_cards(cards: list[dict], schedule: dict[int, date], today: date,
     return (due + new)[:limit]
 
 
+def next_due_batch(schedule: dict[int, date], today: date) -> tuple[date | None, int]:
+    """When cards next return, and how many return then.
+
+    An empty queue is the algorithm succeeding, but saying only "nothing due"
+    leaves that indistinguishable from a broken schedule — the reader has no way
+    to tell working from failed. The return date is the evidence.
+    """
+    future = [d for d in schedule.values() if d and d > today]
+    if not future:
+        return None, 0
+    soonest = min(future)
+    return soonest, sum(1 for d in future if d == soonest)
+
+
 def due_counts(cards: list[dict], schedule: dict[int, date], today: date) -> dict[str, int]:
     """How much study is owed right now: due, of which overdue, and new.
 
