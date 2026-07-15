@@ -36,6 +36,45 @@ def _fell_back(meta, exc, kind: str):
     return _mark(meta, BY_EXTRACTIVE_FALLBACK, str(exc))
 
 
+def _document_chunks(text: str) -> list[str]:
+    """The most informative excerpts of the document, in reading order.
+
+    Generating from one 12k-char prompt truncated long documents and made small
+    local models lose the plot; a few focused excerpts cover the whole document
+    with prompts a 3B model handles reliably.
+    """
+    from ml_pipeline.services.chunking import chunk_text, select_chunks
+    k = getattr(settings, 'RAG_CHUNKS', 3)
+    return select_chunks(chunk_text(text), k=k) or [text[:12000]]
+
+
+def _generate_over_chunks(provider, chunks, per_chunk, build_prompt, key, limit):
+    """Call the provider once per excerpt, aggregating deduped items.
+
+    A failing excerpt is skipped rather than sinking the whole request; only if
+    every excerpt fails do we raise, letting the caller fall back.
+    """
+    items, seen, errors = [], set(), []
+    for chunk in chunks:
+        try:
+            data = provider.generate_json(build_prompt(chunk, per_chunk))
+        except Exception as exc:
+            logger.warning('Excerpt generation failed (continuing): %s', exc)
+            errors.append(exc)
+            continue
+        for item in (data.get(key) or []):
+            dedup = (item.get('question') or item.get('question_text') or '').strip().lower()
+            if not dedup or dedup in seen:
+                continue
+            seen.add(dedup)
+            items.append(item)
+        if len(items) >= limit:
+            break
+    if not items and errors:
+        raise errors[0]
+    return items[:limit]
+
+
 def _use_local_fallback() -> bool:
     return getattr(settings, 'USE_LOCAL_FALLBACK_ON_QUOTA', True)
 
@@ -136,23 +175,26 @@ def generate_flashcards_for_sources(sources, user, count: int = 10,
                 raise GeminiGenerationError(f'ML flashcard generation failed: {exc}') from exc
 
     label = _titles_label(sources)
-    doc_note = 'multiple documents' if len(sources) > 1 else 'this document'
+    chunks = _document_chunks(text)
+    per_chunk = -(-count // len(chunks))  # ceil, so the excerpts cover `count`
 
-    prompt = f"""Create exactly {count} study flashcards from {doc_note}.
-Combine and synthesize information across all documents where relevant.
+    def build_prompt(chunk: str, n: int) -> str:
+        return f"""Create exactly {n} study flashcards from this excerpt.
+Each flashcard must be answerable from the excerpt alone.
 
 Return ONLY valid JSON:
 {{"flashcards": [{{"question": "...", "answer": "...", "difficulty": "easy|medium|hard"}}]}}
 
-Sources: {label}
-Text:
-{text[:12000]}
+Source: {label}
+Excerpt:
+{chunk}
 """
 
     try:
         provider = get_ai_provider()
-        data = provider.generate_json(prompt)
-        cards = _save_flashcards_from_json(data, user, source_ids, count)
+        items = _generate_over_chunks(
+            provider, chunks, per_chunk, build_prompt, 'flashcards', count)
+        cards = _save_flashcards_from_json({'flashcards': items}, user, source_ids, count)
         _mark(meta, provider.name)
         return cards
     except GeminiNotConfiguredError as exc:
@@ -197,24 +239,28 @@ def generate_quiz_for_sources(sources, user, question_count: int = 8,
                 raise GeminiGenerationError(f'ML quiz generation failed: {exc}') from exc
 
     label = _titles_label(sources)
-    doc_note = 'multiple documents' if len(sources) > 1 else 'this document'
+    chunks = _document_chunks(text)
+    per_chunk = -(-question_count // len(chunks))  # ceil, so excerpts cover the count
 
-    prompt = f"""Create a quiz with {question_count} multiple-choice questions from {doc_note}.
+    def build_prompt(chunk: str, n: int) -> str:
+        return f"""Create exactly {n} multiple-choice questions from this excerpt.
 For each question give: the question, the single correct answer, and exactly 3
 plausible but incorrect answers (distractors) on the same topic. Do NOT put the
 correct answer in the distractors, and make the distractors distinct.
+Each question must be answerable from the excerpt alone.
 
 Return ONLY valid JSON in exactly this shape:
-{{"title": "...", "description": "...", "questions": [{{"question_text": "...", "correct_answer": "...", "distractors": ["...", "...", "..."], "explanation": "..."}}]}}
+{{"questions": [{{"question_text": "...", "correct_answer": "...", "distractors": ["...", "...", "..."], "explanation": "..."}}]}}
 
-Sources: {label}
-Text:
-{text[:12000]}
+Source: {label}
+Excerpt:
+{chunk}
 """
 
     try:
         provider = get_ai_provider()
-        data = provider.generate_json(prompt)
+        questions_data = _generate_over_chunks(
+            provider, chunks, per_chunk, build_prompt, 'questions', question_count)
         _mark(meta, provider.name)
     except GeminiNotConfiguredError as exc:
         if _use_local_fallback():
@@ -234,15 +280,16 @@ Text:
             return fallback.generate_quiz_fallback_multi(sources, user, question_count, tag)
         raise GeminiGenerationError(f'Content generation failed: {exc}') from exc
 
-    questions_data = data.get('questions') or []
     if not questions_data:
         raise GeminiGenerationError('No quiz questions were generated.')
 
-    default_title = f'Quiz: {label}' if len(sources) == 1 else f'Quiz: {len(sources)} sources'
+    # Titled locally: questions come from several excerpts, so there is no single
+    # model-authored title to use.
+    title = f'Quiz: {label}' if len(sources) == 1 else f'Quiz: {len(sources)} sources'
     quiz = Quiz.objects.create(
         user=user,
-        title=(data.get('title') or default_title)[:255],
-        description=(data.get('description') or f'Generated from {label}')[:2000],
+        title=title[:255],
+        description=f'Generated from {label}'[:2000],
         time_limit=0,
         is_public=False,
         is_published=True,

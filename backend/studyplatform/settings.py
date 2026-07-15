@@ -103,6 +103,9 @@ AI_PROVIDER = config('AI_PROVIDER', default='gemini')
 OLLAMA_BASE_URL = config('OLLAMA_BASE_URL', default='http://localhost:11434')
 OLLAMA_MODEL = config('OLLAMA_MODEL', default='llama3.2:3b')
 OLLAMA_TIMEOUT = config('OLLAMA_TIMEOUT', default=120, cast=int)
+# Document excerpts generated from per request. More = better coverage and more
+# reliable small-model output, but one model call each (the main latency cost).
+RAG_CHUNKS = config('RAG_CHUNKS', default=3, cast=int)
 
 SUPABASE_URL = config('SUPABASE_URL', default=config('NEXT_PUBLIC_SUPABASE_URL', default='')).rstrip('/')
 

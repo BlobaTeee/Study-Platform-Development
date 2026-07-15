@@ -111,6 +111,9 @@ class OllamaProvider:
             "prompt": prompt,
             "system": system,
             "stream": False,
+            # Keep the model resident between chunk calls; reloading a 2GB model
+            # per call would dominate generation time.
+            "keep_alive": "10m",
             "options": {"temperature": 0.4},
         }
         if json_mode:
