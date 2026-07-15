@@ -122,3 +122,70 @@ def test_per_source_counts_cards_and_reviews():
     out = ins.per_source_accuracy(cards, {1: "Doc"})
     assert out[0]["cards"] == 2
     assert out[0]["reviews"] == 4
+
+
+# ---- tally_reviews ---------------------------------------------------------
+# Counts come from the user's CardReview rows. Flashcard.correct_count and
+# .incorrect_count exist on the model but nothing has ever written to them.
+
+def _review(card_id, result):
+    return {"flashcard_id": card_id, "result": result}
+
+
+def test_good_and_easy_count_as_recalled():
+    assert ins.tally_reviews([_review(1, "good"), _review(1, "easy")]) == {
+        1: {"correct": 2, "incorrect": 0}
+    }
+
+
+def test_again_and_hard_count_as_forgotten():
+    assert ins.tally_reviews([_review(1, "again"), _review(1, "hard")]) == {
+        1: {"correct": 0, "incorrect": 2}
+    }
+
+
+def test_tally_keeps_cards_separate():
+    tallies = ins.tally_reviews([_review(1, "good"), _review(2, "again")])
+    assert tallies[1]["correct"] == 1
+    assert tallies[2]["incorrect"] == 1
+
+
+def test_tally_ignores_grades_it_does_not_recognise():
+    assert ins.tally_reviews([_review(1, "good"), _review(1, "bogus")]) == {
+        1: {"correct": 1, "incorrect": 0}
+    }
+
+
+def test_tally_of_no_reviews_is_empty():
+    assert ins.tally_reviews([]) == {}
+
+
+# ---- attach_review_counts --------------------------------------------------
+
+def test_attach_fills_counts_from_the_review_record():
+    cards = [{"id": 1, "question": "Q?", "tags": "source:1"}]
+    out = ins.attach_review_counts(cards, {1: {"correct": 3, "incorrect": 1}})
+    assert out[0]["correct_count"] == 3
+    assert out[0]["incorrect_count"] == 1
+
+
+def test_attach_defaults_an_unreviewed_card_to_zero():
+    out = ins.attach_review_counts([{"id": 7, "question": "Q?", "tags": "source:1"}], {})
+    assert out[0]["correct_count"] == 0
+    assert out[0]["incorrect_count"] == 0
+
+
+def test_attach_keeps_the_original_card_fields():
+    out = ins.attach_review_counts([{"id": 1, "question": "Q?", "tags": "source:2"}], {})
+    assert out[0]["question"] == "Q?"
+    assert out[0]["tags"] == "source:2"
+
+
+def test_attached_counts_feed_the_existing_ranking():
+    # The two halves must compose: reviews -> counts -> weakest-first ranking.
+    cards = [{"id": 1, "question": "strong", "tags": "source:1"},
+             {"id": 2, "question": "weak", "tags": "source:1"}]
+    reviews = [_review(1, "good"), _review(1, "good"),
+               _review(2, "again"), _review(2, "again")]
+    scored = ins.attach_review_counts(cards, ins.tally_reviews(reviews))
+    assert [c["id"] for c in ins.rank_weak_cards(scored, limit=2)] == [2, 1]

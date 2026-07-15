@@ -11,6 +11,43 @@ from __future__ import annotations
 
 SOURCE_TAG_PREFIX = "source:"
 
+# How a self-graded review maps onto "did you recall it?". Matches the split the
+# study-session stats have always used: only good/easy count as a success.
+CORRECT_RESULTS = frozenset({"good", "easy"})
+INCORRECT_RESULTS = frozenset({"again", "hard"})
+
+
+def tally_reviews(reviews: list[dict]) -> dict[int, dict[str, int]]:
+    """Fold CardReview rows into per-card correct/incorrect counts.
+
+    Each row is ``{"flashcard_id": int, "result": str}``. Grades outside the
+    four known ones are skipped rather than counted as failures.
+    """
+    tallies: dict[int, dict[str, int]] = {}
+    for review in reviews:
+        result = review.get("result")
+        if result not in CORRECT_RESULTS and result not in INCORRECT_RESULTS:
+            continue
+        bucket = tallies.setdefault(review["flashcard_id"], {"correct": 0, "incorrect": 0})
+        bucket["correct" if result in CORRECT_RESULTS else "incorrect"] += 1
+    return tallies
+
+
+def attach_review_counts(cards: list[dict], tallies: dict[int, dict[str, int]]) -> list[dict]:
+    """Give each card the review counts the rest of this module reads.
+
+    Cards with no reviews get zeros, which `card_priority` reads as unknown
+    mastery rather than as failure.
+    """
+    return [
+        {
+            **card,
+            "correct_count": tallies.get(card["id"], {}).get("correct", 0),
+            "incorrect_count": tallies.get(card["id"], {}).get("incorrect", 0),
+        }
+        for card in cards
+    ]
+
 
 def card_priority(correct: int, incorrect: int) -> float:
     """How urgently a card needs reviewing, in (0, 1) — higher means sooner.

@@ -3,15 +3,43 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
-from django.db.models import Sum, Count, Q
+from django.db.models import Q
 from datetime import timedelta
 
+from . import scheduling
 from .models import StudySession, StudyStreak, CardReview
 from .serializers import (
     StudySessionSerializer, StudySessionCreateSerializer,
     CardReviewSerializer, StudyStreakSerializer
 )
 from flashcards.models import Flashcard
+
+
+def resolve_review_request(request):
+    """Validate a {flashcard_id, result} body.
+
+    Returns ``(flashcard, result, None)``, or ``(None, None, error_response)``.
+    """
+    flashcard_id = request.data.get('flashcard_id')
+    result = request.data.get('result')
+
+    if result not in scheduling.RESULT_VALUES:
+        return None, None, Response(
+            {'error': f"result must be one of {list(scheduling.RESULT_VALUES)}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        flashcard = Flashcard.objects.get(id=flashcard_id, user=request.user)
+    except (Flashcard.DoesNotExist, ValueError, TypeError):
+        # A card belonging to someone else is reported the same way as a missing
+        # one, so this cannot be used to probe for other users' card ids.
+        return None, None, Response(
+            {'error': 'Flashcard not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    return flashcard, result, None
 
 
 class StudySessionViewSet(viewsets.ModelViewSet):
@@ -90,42 +118,16 @@ class StudySessionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def record_card_result(self, request, pk=None):
-        """Record flashcard performance during session."""
+        """Record flashcard performance during a scheduled session."""
         session = self.get_object()
-        flashcard_id = request.data.get('flashcard_id')
-        result = request.data.get('result')  # 'again', 'hard', 'good', 'easy'
+        flashcard, result, error = resolve_review_request(request)
+        if error:
+            return error
 
-        if not flashcard_id or not result:
-            return Response(
-                {'error': 'Missing flashcard_id or result'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        review = CardReview.record(request.user, flashcard, result, session=session)
 
-        try:
-            flashcard = Flashcard.objects.get(id=flashcard_id, user=request.user)
-        except Flashcard.DoesNotExist:
-            return Response(
-                {'error': 'Flashcard not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        # Create or update card review
-        review, created = CardReview.objects.get_or_create(
-            user=request.user,
-            flashcard=flashcard,
-            review_date=timezone.now().date(),
-            defaults={'session': session, 'result': result}
-        )
-
-        if not created:
-            review.result = result
-            review.session = session
-
-        review.calculate_next_review()
-
-        # Update session stats
         session.cards_reviewed += 1
-        if result in ['good', 'easy']:
+        if result in scheduling.CORRECT_RESULTS:
             session.cards_correct += 1
         else:
             session.cards_incorrect += 1
@@ -173,6 +175,22 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return CardReview.objects.filter(user=self.request.user)
+
+    @action(detail=False, methods=['post'])
+    def record(self, request):
+        """Record a self-graded flashcard review.
+
+        Unlike record_card_result on StudySession, this needs no session: the
+        flashcards page lets you grade cards without scheduling one first, and
+        CardReview.session is nullable to allow exactly that.
+        """
+        flashcard, result, error = resolve_review_request(request)
+        if error:
+            return error
+
+        review = CardReview.record(request.user, flashcard, result)
+        return Response(CardReviewSerializer(review).data,
+                        status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['get'])
     def due_today(self, request):

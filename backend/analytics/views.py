@@ -1,4 +1,4 @@
-from django.db.models import Avg, Sum
+from django.db.models import Avg
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -6,9 +6,21 @@ from rest_framework.response import Response
 from flashcards.models import Flashcard
 from notebooks.models import Notebook, Source
 from quizzes.models import Quiz, QuizAttempt
+from study_sessions.models import CardReview
 from . import insights
 
 WEAK_CARDS_LIMIT = 20
+
+
+def _review_tallies(user):
+    """Per-card correct/incorrect counts from the user's own review record.
+
+    Flashcard.correct_count and .incorrect_count look like the obvious source
+    but nothing writes to them; CardReview rows are what self-grading produces.
+    """
+    return insights.tally_reviews(
+        list(CardReview.objects.filter(user=user).values('flashcard_id', 'result'))
+    )
 
 
 class AnalyticsViewSet(viewsets.ViewSet):
@@ -28,10 +40,9 @@ class AnalyticsViewSet(viewsets.ViewSet):
         avg_quiz_score = completed.aggregate(avg=Avg('score'))['avg']
 
         flashcards = Flashcard.objects.filter(user=user)
-        totals = flashcards.aggregate(correct=Sum('correct_count'),
-                                      incorrect=Sum('incorrect_count'))
-        correct = totals['correct'] or 0
-        incorrect = totals['incorrect'] or 0
+        reviews_qs = CardReview.objects.filter(user=user)
+        correct = reviews_qs.filter(result__in=insights.CORRECT_RESULTS).count()
+        incorrect = reviews_qs.filter(result__in=insights.INCORRECT_RESULTS).count()
         reviews = correct + incorrect
 
         return Response({
@@ -53,9 +64,9 @@ class AnalyticsViewSet(viewsets.ViewSet):
         user = request.user
         limit = min(int(request.query_params.get('limit', 5)), WEAK_CARDS_LIMIT)
 
-        cards = list(
-            Flashcard.objects.filter(user=user)
-            .values('id', 'question', 'correct_count', 'incorrect_count', 'tags')
+        cards = insights.attach_review_counts(
+            list(Flashcard.objects.filter(user=user).values('id', 'question', 'tags')),
+            _review_tallies(user),
         )
         titles = dict(
             Source.objects.filter(notebook__user=user).values_list('id', 'title')

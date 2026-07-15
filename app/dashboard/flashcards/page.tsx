@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import useSWR from 'swr'
-import { flashcardsAPI } from '@/lib/api'
+import { flashcardsAPI, type ReviewGrade } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { SourceRequired } from '@/components/source-required'
@@ -29,6 +29,16 @@ type Flashcard = {
   tags?: string | null
 }
 
+/** The four SM-2 grades, worst recall first. Only you can judge whether you
+ *  remembered a card, so grading is the one step that cannot be automated —
+ *  the number keys mirror the on-screen order. */
+const GRADES: { value: ReviewGrade; label: string; hint: string; className: string }[] = [
+  { value: 'again', label: 'Again', hint: 'Forgot', className: 'border-red-300 bg-red-50 text-red-900 hover:bg-red-100' },
+  { value: 'hard', label: 'Hard', hint: 'Struggled', className: 'border-orange-300 bg-orange-50 text-orange-900 hover:bg-orange-100' },
+  { value: 'good', label: 'Good', hint: 'Recalled', className: 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100' },
+  { value: 'easy', label: 'Easy', hint: 'Instantly', className: 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100' },
+]
+
 function FlashcardsStudy() {
   const searchParams = useSearchParams()
   const sourceParam = searchParams.get('source')
@@ -47,6 +57,10 @@ function FlashcardsStudy() {
 
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [graded, setGraded] = useState<Set<number>>(new Set())
+  const [lastReview, setLastReview] = useState<{ label: string; interval: number } | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const total = flashcards.length
   const goPrev = useCallback(() => {
@@ -59,7 +73,31 @@ function FlashcardsStudy() {
     setIndex((i) => (i < total - 1 ? i + 1 : 0))
   }, [total])
 
-  // Keyboard: space/enter flips, arrows move between cards.
+  const grade = useCallback(
+    async (value: ReviewGrade) => {
+      const card = flashcards[index]
+      if (!card || saving) return
+      setSaving(true)
+      setError(null)
+      try {
+        const res = await flashcardsAPI.recordReview(card.id, value)
+        setGraded((g) => new Set(g).add(card.id))
+        setLastReview({
+          label: GRADES.find((g) => g.value === value)!.label,
+          interval: res.data.interval,
+        })
+        goNext()
+      } catch {
+        // Stay on the card so the grade isn't silently lost.
+        setError('Could not save that review. Is the backend running?')
+      } finally {
+        setSaving(false)
+      }
+    },
+    [flashcards, index, saving, goNext]
+  )
+
+  // Keyboard: space/enter flips, arrows move, 1-4 grade a revealed card.
   useEffect(() => {
     if (total === 0) return
     const onKey = (e: KeyboardEvent) => {
@@ -70,11 +108,14 @@ function FlashcardsStudy() {
         goNext()
       } else if (e.key === 'ArrowLeft') {
         goPrev()
+      } else if (flipped && /^[1-4]$/.test(e.key)) {
+        e.preventDefault()
+        grade(GRADES[Number(e.key) - 1].value)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [total, goNext, goPrev])
+  }, [total, goNext, goPrev, flipped, grade])
 
   if (!sourceParam || sourceIds.length === 0) {
     return <SourceRequired type="flashcards" />
@@ -150,27 +191,63 @@ function FlashcardsStudy() {
         </button>
       </div>
 
-      <div className="rise flex flex-wrap items-center justify-center gap-4" style={{ animationDelay: '180ms' }}>
-        <Button variant="outline" size="lg" onClick={goPrev} className="h-12 px-6 text-lg">
-          <ArrowLeft className="size-5 mr-2" />
-          Previous
-        </Button>
-        <Button variant="outline" size="lg" onClick={() => setFlipped((f) => !f)} className="h-12 px-6 text-lg">
-          <RotateCcw className="size-5 mr-2" />
-          Flip
-        </Button>
-        <Button
-          size="lg"
-          onClick={goNext}
-          className="bg-mode-flashcards hover:bg-mode-flashcards-hover text-white h-12 px-6 text-lg"
-        >
-          Next
-          <ArrowRight className="size-5 ml-2" />
-        </Button>
-      </div>
+      {/* Once the answer is showing, grading replaces navigation: the only
+          question left is how well you recalled it. */}
+      {flipped ? (
+        <div className="rise space-y-3" style={{ animationDelay: '180ms' }}>
+          <p className="text-center text-sm text-slate-500">How well did you recall it?</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {GRADES.map((g, i) => (
+              <button
+                key={g.value}
+                type="button"
+                disabled={saving}
+                onClick={() => grade(g.value)}
+                className={cn(
+                  'rounded-xl border-2 px-4 py-3 text-left transition-colors disabled:opacity-50',
+                  g.className
+                )}
+              >
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="text-lg font-semibold">{g.label}</span>
+                  <span className="font-mono text-xs opacity-60 tabular-nums">{i + 1}</span>
+                </span>
+                <span className="block text-sm opacity-75">{g.hint}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="rise flex flex-wrap items-center justify-center gap-4" style={{ animationDelay: '180ms' }}>
+          <Button variant="outline" size="lg" onClick={goPrev} className="h-12 px-6 text-lg">
+            <ArrowLeft className="size-5 mr-2" />
+            Previous
+          </Button>
+          <Button
+            size="lg"
+            onClick={() => setFlipped(true)}
+            className="bg-mode-flashcards hover:bg-mode-flashcards-hover text-white h-12 px-6 text-lg"
+          >
+            <RotateCcw className="size-5 mr-2" />
+            Show answer
+          </Button>
+          <Button variant="outline" size="lg" onClick={goNext} className="h-12 px-6 text-lg">
+            Skip
+            <ArrowRight className="size-5 ml-2" />
+          </Button>
+        </div>
+      )}
+
+      {error && (
+        <p role="alert" className="rise text-center text-sm text-red-700">
+          {error}
+        </p>
+      )}
 
       <p className="rise text-center font-mono text-xs uppercase tracking-wide text-slate-500" style={{ animationDelay: '220ms' }}>
-        Space to flip · arrows to move · difficulty: {card.difficulty}
+        {lastReview
+          ? `${lastReview.label} · back in ${lastReview.interval} day${lastReview.interval === 1 ? '' : 's'} · ${graded.size}/${total} graded`
+          : `Space to flip · 1-4 to grade · difficulty: ${card.difficulty}`}
       </p>
     </div>
   )

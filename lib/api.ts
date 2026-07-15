@@ -48,11 +48,18 @@ export const materialsAPI = {
   deleteMaterial: (id: number) => api.delete(`/materials/study-materials/${id}/`),
 }
 
+/** How well you recalled a card, worst first. Drives the SM-2 schedule. */
+export type ReviewGrade = 'again' | 'hard' | 'good' | 'easy'
+
 export const flashcardsAPI = {
   getFlashcards: (params?: any) => api.get('/flashcards/flashcards/', { params }),
   createFlashcard: (data: any) => api.post('/flashcards/flashcards/', data),
   updateFlashcard: (id: number, data: any) => api.put(`/flashcards/flashcards/${id}/`, data),
   deleteFlashcard: (id: number) => api.delete(`/flashcards/flashcards/${id}/`),
+  // Self-graded review: the backend schedules the card's next appearance and
+  // this is what analytics counts. No study session needed.
+  recordReview: (flashcardId: number, result: ReviewGrade) =>
+    api.post('/study/card-reviews/record/', { flashcard_id: flashcardId, result }),
 }
 
 export const quizzesAPI = {

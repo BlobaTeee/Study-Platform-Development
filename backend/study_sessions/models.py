@@ -4,6 +4,7 @@ from django.utils import timezone
 from datetime import timedelta
 from notebooks.models import Notebook
 from flashcards.models import Flashcard
+from . import scheduling
 
 
 class StudySession(models.Model):
@@ -143,30 +144,36 @@ class CardReview(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.flashcard.question[:30]} ({self.result})"
 
+    @classmethod
+    def record(cls, user, flashcard, result, session=None):
+        """Log one self-graded review and schedule the card's next appearance.
+
+        The card's SM-2 state lives on its most recent review, so it is carried
+        forward here; starting from the field defaults each time would pin every
+        card to a one-day interval forever.
+        """
+        previous = cls.objects.filter(user=user, flashcard=flashcard).first()
+        review = cls(
+            user=user,
+            flashcard=flashcard,
+            session=session,
+            result=result,
+            interval=previous.interval if previous else scheduling.INITIAL.interval,
+            ease_factor=previous.ease_factor if previous else scheduling.INITIAL.ease_factor,
+            repetitions=previous.repetitions if previous else scheduling.INITIAL.repetitions,
+        )
+        review.calculate_next_review()
+        return review
+
     def calculate_next_review(self):
-        """SM-2 spaced repetition algorithm."""
+        """Apply the SM-2 step to this review and save it."""
         from datetime import timedelta as td
 
-        self.repetitions += 1
-
-        # SM-2 algorithm
-        if self.result == 'again':
-            self.repetitions = 0
-            self.interval = 1
-            self.ease_factor = max(1.3, self.ease_factor - 0.2)
-        elif self.result == 'hard':
-            self.interval = max(1, int(self.interval * 1.2))
-            self.ease_factor = max(1.3, self.ease_factor - 0.15)
-        elif self.result == 'good':
-            if self.repetitions == 1:
-                self.interval = 1
-            elif self.repetitions == 2:
-                self.interval = 3
-            else:
-                self.interval = int(self.interval * self.ease_factor)
-        elif self.result == 'easy':
-            self.interval = int(self.interval * self.ease_factor)
-            self.ease_factor = self.ease_factor + 0.1
-
+        self.interval, self.ease_factor, self.repetitions = scheduling.next_schedule(
+            self.result,
+            interval=self.interval,
+            ease_factor=self.ease_factor,
+            repetitions=self.repetitions,
+        )
         self.next_review_date = timezone.now().date() + td(days=self.interval)
         self.save()
