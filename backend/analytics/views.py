@@ -1,11 +1,11 @@
-from django.db.models import Avg
+from django.db.models import Avg, F
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from flashcards.models import Flashcard
 from notebooks.models import Notebook, Source
-from quizzes.models import Quiz, QuizAttempt
+from quizzes.models import Answer, Question, Quiz, QuizAttempt
 from study_sessions.models import CardReview
 from . import insights
 
@@ -72,7 +72,17 @@ class AnalyticsViewSet(viewsets.ViewSet):
             Source.objects.filter(notebook__user=user).values_list('id', 'title')
         )
 
+        # Per-document mastery draws on every mode that grades an item against a
+        # source. Flashcards alone would ignore the quiz answers on record, which
+        # are the firmer evidence of the two — they are marked, not self-reported.
+        events = insights.flashcard_events(cards) + insights.quiz_events(
+            list(Question.objects.filter(quiz__user=user)
+                 .values('id', quiz_description=F('quiz__description'))),
+            list(Answer.objects.filter(quiz_attempt__user=user)
+                 .values('question_id', 'is_correct')),
+        )
+
         return Response({
             'weak_cards': insights.rank_weak_cards(cards, limit=limit),
-            'weak_sources': insights.per_source_accuracy(cards, titles),
+            'weak_sources': insights.per_source_mastery(events, titles),
         })

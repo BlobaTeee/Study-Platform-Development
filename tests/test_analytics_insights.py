@@ -77,6 +77,13 @@ def test_parses_single_and_multi_source_tags():
     assert ins.parse_source_ids("source:1,2") == [1, 2]
 
 
+def test_parses_the_tag_quizzes_bury_in_their_description():
+    # Flashcards store a bare tag; quizzes embed one in prose. Reading only the
+    # bare form is what silently kept every quiz out of per-document mastery.
+    assert ins.parse_source_ids("Generated from Week 2 Lecture [source:13]") == [13]
+    assert ins.parse_source_ids("Test your knowledge. [source:1,2]") == [1, 2]
+
+
 def test_parse_handles_missing_or_malformed_tags():
     assert ins.parse_source_ids(None) == []
     assert ins.parse_source_ids("") == []
@@ -85,43 +92,102 @@ def test_parse_handles_missing_or_malformed_tags():
     assert ins.parse_source_ids("source:1,abc,3") == [1, 3]  # skip junk, keep valid
 
 
-# ---- per_source_accuracy ---------------------------------------------------
+# ---- study events ----------------------------------------------------------
+# "How well do I know this document?" must not depend on which study mode
+# produced the evidence, so each mode is adapted to a common event shape and a
+# new mode later only needs its own adapter.
 
-def test_accuracy_per_document_weakest_first():
-    cards = [_card(1, correct=1, incorrect=9, tags="source:1"),   # 10% -> weakest
-             _card(2, correct=9, incorrect=1, tags="source:2")]   # 90%
-    out = ins.per_source_accuracy(cards, {1: "Weak Doc", 2: "Strong Doc"})
+def test_flashcard_events_carry_the_cards_review_tally():
+    events = ins.flashcard_events([
+        {"id": 1, "tags": "source:3", "correct_count": 2, "incorrect_count": 1}
+    ])
+    assert events == [
+        {"kind": ins.KIND_FLASHCARD, "source_ids": [3], "correct": 2, "incorrect": 1}
+    ]
+
+
+def test_quiz_events_count_each_questions_answers():
+    questions = [{"id": 9, "quiz_description": "Quiz [source:3]"}]
+    answers = [{"question_id": 9, "is_correct": True},
+               {"question_id": 9, "is_correct": False}]
+    assert ins.quiz_events(questions, answers) == [
+        {"kind": ins.KIND_QUIZ, "source_ids": [3], "correct": 1, "incorrect": 1}
+    ]
+
+
+def test_unanswered_quiz_question_is_still_an_item():
+    # Mirrors an unreviewed flashcard: something left to study, no evidence yet.
+    events = ins.quiz_events([{"id": 9, "quiz_description": "Quiz [source:3]"}], [])
+    assert events[0]["correct"] == 0
+    assert events[0]["incorrect"] == 0
+
+
+# ---- per_source_mastery ----------------------------------------------------
+
+def _fc(source_ids, correct=0, incorrect=0):
+    return {"kind": ins.KIND_FLASHCARD, "source_ids": source_ids,
+            "correct": correct, "incorrect": incorrect}
+
+
+def _qz(source_ids, correct=0, incorrect=0):
+    return {"kind": ins.KIND_QUIZ, "source_ids": source_ids,
+            "correct": correct, "incorrect": incorrect}
+
+
+def test_quiz_evidence_counts_toward_the_document():
+    # The defect this replaces: mastery ignored every quiz answer on record.
+    out = ins.per_source_mastery([_qz([1], correct=3, incorrect=1)], {1: "Doc"})
+    assert out[0]["accuracy"] == pytest.approx(75.0)
+    assert out[0]["questions"] == 1
+    assert out[0]["reviews"] == 4
+
+
+def test_both_study_modes_pool_into_one_accuracy():
+    events = [_fc([1], correct=1, incorrect=1), _qz([1], correct=3, incorrect=1)]
+    out = ins.per_source_mastery(events, {1: "Doc"})
+    assert out[0]["cards"] == 1
+    assert out[0]["questions"] == 1
+    assert out[0]["reviews"] == 6
+    assert out[0]["accuracy"] == pytest.approx(4 / 6 * 100, abs=0.1)
+
+
+def test_mastery_puts_the_weakest_document_first():
+    events = [_fc([1], correct=1, incorrect=9), _qz([2], correct=9, incorrect=1)]
+    out = ins.per_source_mastery(events, {1: "Weak Doc", 2: "Strong Doc"})
     assert [s["title"] for s in out] == ["Weak Doc", "Strong Doc"]
     assert out[0]["accuracy"] == pytest.approx(10.0)
-    assert out[1]["accuracy"] == pytest.approx(90.0)
 
 
-def test_multi_source_card_counts_toward_each_document():
-    cards = [_card(1, correct=1, incorrect=1, tags="source:1,2")]
-    out = ins.per_source_accuracy(cards, {1: "A", 2: "B"})
+def test_item_spanning_two_documents_counts_for_each():
+    out = ins.per_source_mastery([_fc([1, 2], correct=1, incorrect=1)], {1: "A", 2: "B"})
     assert {s["title"] for s in out} == {"A", "B"}
     assert all(s["cards"] == 1 for s in out)
 
 
-def test_unreviewed_document_reports_none_not_zero():
+def test_unstudied_document_reports_none_not_zero():
     # 0% would wrongly imply the user failed it; they simply haven't studied it.
-    cards = [_card(1, correct=0, incorrect=0, tags="source:1")]
-    out = ins.per_source_accuracy(cards, {1: "Fresh Doc"})
+    out = ins.per_source_mastery([_fc([1])], {1: "Fresh Doc"})
     assert out[0]["accuracy"] is None
     assert out[0]["reviews"] == 0
 
 
-def test_ignores_cards_whose_source_no_longer_exists():
-    cards = [_card(1, correct=1, incorrect=0, tags="source:99")]
-    assert ins.per_source_accuracy(cards, {1: "Only Doc"}) == []
+def test_mastery_ignores_items_whose_document_is_gone():
+    assert ins.per_source_mastery([_fc([99], correct=1)], {1: "Only Doc"}) == []
 
 
-def test_per_source_counts_cards_and_reviews():
-    cards = [_card(1, correct=2, incorrect=1, tags="source:1"),
-             _card(2, correct=1, incorrect=0, tags="source:1")]
-    out = ins.per_source_accuracy(cards, {1: "Doc"})
+def test_unstudied_documents_sort_last():
+    events = [_fc([1]), _fc([2], correct=0, incorrect=5)]
+    out = ins.per_source_mastery(events, {1: "Fresh", 2: "Failing"})
+    assert [s["title"] for s in out] == ["Failing", "Fresh"]
+
+
+def test_mastery_counts_items_and_answers_per_document():
+    events = [_fc([1], correct=2, incorrect=1), _fc([1], correct=1),
+              _qz([1], correct=0, incorrect=2)]
+    out = ins.per_source_mastery(events, {1: "Doc"})
     assert out[0]["cards"] == 2
-    assert out[0]["reviews"] == 4
+    assert out[0]["questions"] == 1
+    assert out[0]["reviews"] == 6
 
 
 # ---- tally_reviews ---------------------------------------------------------

@@ -37,8 +37,20 @@ type WeakSource = {
   source_id: number
   title: string
   cards: number
+  questions: number
   reviews: number
   accuracy: number | null
+}
+
+/** What a document's score rests on — flashcards you graded yourself, quiz
+ *  questions the app marked, or both. Empty modes are left out rather than
+ *  shown as a zero. */
+function sourceRecord(s: WeakSource): string {
+  const parts: string[] = []
+  if (s.cards) parts.push(`${s.cards} card${s.cards === 1 ? '' : 's'}`)
+  if (s.questions) parts.push(`${s.questions} quiz question${s.questions === 1 ? '' : 's'}`)
+  parts.push(`${s.reviews} answer${s.reviews === 1 ? '' : 's'}`)
+  return parts.join(' · ')
 }
 
 export default function AnalyticsPage() {
@@ -161,12 +173,13 @@ export default function AnalyticsPage() {
           <h2 className="text-xl font-semibold text-slate-900">By document</h2>
         </div>
         <p className="text-sm text-slate-500 mb-4">
-          How well you recall each document you&apos;ve studied. Weakest first.
+          How well you know each document, across flashcards and quizzes together.
+          Weakest first.
         </p>
 
         {weakSources.length === 0 ? (
           <p className="text-slate-500 py-6 text-center">
-            Nothing to show yet — upload a source and generate flashcards from it.
+            Nothing to show yet — upload a source and generate flashcards or a quiz from it.
           </p>
         ) : (
           <ul className="divide-y divide-slate-100">
@@ -174,14 +187,11 @@ export default function AnalyticsPage() {
               <li key={s.source_id} className="flex items-center gap-4 py-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-base text-slate-800 truncate">{s.title}</p>
-                  <p className="text-sm text-slate-500">
-                    {s.cards} card{s.cards === 1 ? '' : 's'} · {s.reviews} review
-                    {s.reviews === 1 ? '' : 's'}
-                  </p>
+                  <p className="text-sm text-slate-500">{sourceRecord(s)}</p>
                 </div>
                 {s.accuracy == null ? (
                   <span className="font-mono text-xs text-slate-600 bg-slate-100 rounded px-2 py-1 shrink-0">
-                    Not reviewed
+                    Not studied
                   </span>
                 ) : (
                   <span className="font-mono text-lg font-semibold text-slate-900 tabular-nums shrink-0">
