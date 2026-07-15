@@ -41,6 +41,30 @@ def test_extract_empty_or_thin_text_returns_empty():
     assert ext.extract_candidates("x y z", max_candidates=0) == []
 
 
+def test_extract_skips_light_filler_nouns():
+    # "takes place" -> "place" is a light filler noun, not a concept worth
+    # blanking. The extractor should pick a meaningful term instead.
+    ext = ContentExtractor()
+    cands = ext.extract_candidates(
+        "It takes place mainly in the chloroplasts, which contain the green "
+        "pigment chlorophyll.", max_candidates=5)
+    assert cands
+    terms = {c.term.lower() for c in cands}
+    assert "place" not in terms
+    assert terms & {"chloroplasts", "green pigment chlorophyll", "chlorophyll"}
+
+
+def test_extract_still_allows_light_noun_when_it_is_the_only_option():
+    # If the ONLY noun chunk is a light noun, don't return empty — a weak card
+    # beats no card. "part" is light, but it's all we have here.
+    ext = ContentExtractor()
+    cands = ext.extract_candidates(
+        "Each part connects to another part in the system.", max_candidates=5)
+    # Either a non-light term, or a graceful fallback to the light noun — but
+    # never an empty result when a noun chunk exists.
+    assert cands
+
+
 def _cand(sentence):
     return Candidate(sentence=sentence, term="x", label=NOUN_CHUNK_LABEL, score=1.0)
 

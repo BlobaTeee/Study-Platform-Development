@@ -8,6 +8,8 @@ version = "0.1.0"
 description = "Study Platform ML pipeline (notebooks + services)"
 readme = "ml_pipeline/README.md"
 requires-python = ">=3.11"
+# Runtime deps only — what the services + training need. Kept lean so the
+# Django backend can `pip install -e .` without pulling the notebook stack.
 dependencies = [
     "pandas>=2.2.0",
     "numpy>=1.26.0",
@@ -19,12 +21,11 @@ dependencies = [
     "nltk>=3.8.0",
     "textstat>=0.7.3",
     "joblib>=1.3.0",
-    "jupyter>=1.0.0",
-    "ipykernel>=6.29.0",
-    "tqdm>=4.66.0",
 ]
 
 [project.optional-dependencies]
+# Interactive notebook work only — not needed by the backend at runtime.
+notebooks = ["jupyter>=1.0.0", "ipykernel>=6.29.0", "tqdm>=4.66.0"]
 dev = ["pytest>=8.0.0"]
 
 [tool.setuptools.packages.find]

@@ -94,7 +94,14 @@ def get_ai_provider() -> AIProvider:
 
     provider_name = getattr(settings, 'AI_PROVIDER', 'gemini').lower()
 
-    if provider_name == 'custom':
+    if provider_name == 'ollama':
+        from .ollama_provider import OllamaProvider
+        return OllamaProvider(
+            base_url=getattr(settings, 'OLLAMA_BASE_URL', None),
+            model=getattr(settings, 'OLLAMA_MODEL', None),
+            timeout=getattr(settings, 'OLLAMA_TIMEOUT', None),
+        )
+    elif provider_name == 'custom':
         return CustomModelProvider()
     elif provider_name == 'gemini':
         return GeminiProvider()
