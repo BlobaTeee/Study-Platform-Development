@@ -20,12 +20,14 @@ function greeting(d = new Date()): string {
 }
 
 export default function HomePage() {
-  const { data: recsRes } = useSWR(['/analytics/recommendations'], () =>
+  const { data: recsRes, isLoading: recsLoading } = useSWR(['/analytics/recommendations'], () =>
     analyticsAPI.getRecommendations()
   )
   const { data: weekRes } = useSWR(['/study/weekly-stats'], () => reviewsAPI.getWeeklyStats())
   const { data: streakRes } = useSWR(['/study/streak'], () => streaksAPI.getMe())
-  const { data: notebooksRes } = useSWR(['/notebooks/all'], () => notebooksAPI.getNotebooks())
+  const { data: notebooksRes, isLoading: notebooksLoading } = useSWR(['/notebooks/all'], () =>
+    notebooksAPI.getNotebooks()
+  )
 
   const due: Due = recsRes?.data?.due ?? {
     due: 0,
@@ -47,6 +49,10 @@ export default function HomePage() {
   ).slice(0, 4)
 
   const hasAnything = notebooks.length > 0
+
+  if (recsLoading || notebooksLoading) {
+    return <p className="text-xl text-slate-500 text-center py-20">Loading…</p>
+  }
 
   return (
     <div className="max-w-5xl space-y-8">
