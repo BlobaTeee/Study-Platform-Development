@@ -163,3 +163,28 @@ def due_counts(cards: list[dict], schedule: dict[int, date], today: date) -> dic
             if next_date < today:
                 counts["overdue"] += 1
     return counts
+
+
+class Streak(NamedTuple):
+    current: int
+    best: int
+    last_date: date
+
+
+def advance_streak(current: int, best: int, last_date: date | None, today: date) -> Streak:
+    """Advance a study streak by one day of activity.
+
+    A streak counts consecutive local days with at least one review. The record
+    (`best`) survives a broken streak. Same-day repeats leave everything alone,
+    so this is safe to call on every review rather than only the first.
+    """
+    if last_date is None:
+        return Streak(1, max(best, 1), today)
+    delta = (today - last_date).days
+    if delta == 0:
+        return Streak(current, best, last_date)
+    if delta == 1:
+        current += 1
+        return Streak(current, max(best, current), today)
+    # A gap (or a clock that moved backwards) restarts the count; the best holds.
+    return Streak(1, max(best, 1), today)

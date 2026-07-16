@@ -313,3 +313,36 @@ def test_counts_agree_with_the_queue_they_summarise():
     counts = sm2.due_counts(cards, schedule, TODAY)
     queue = sm2.rank_due_cards(cards, schedule, TODAY, limit=100)
     assert counts["due"] + counts["new"] == len(queue)
+
+
+# ---- advance_streak --------------------------------------------------------
+# The streak counts consecutive local days with at least one review. Its math
+# is pure here so it can be tested without a database; the model delegates to it.
+
+def test_first_ever_review_starts_a_streak_of_one():
+    s = sm2.advance_streak(current=0, best=0, last_date=None, today=TODAY)
+    assert (s.current, s.best, s.last_date) == (1, 1, TODAY)
+
+
+def test_a_second_review_the_same_day_changes_nothing():
+    s = sm2.advance_streak(current=3, best=5, last_date=TODAY, today=TODAY)
+    assert (s.current, s.best, s.last_date) == (3, 5, TODAY)
+
+
+def test_a_review_the_next_day_extends_the_streak():
+    s = sm2.advance_streak(current=3, best=5, last_date=TODAY, today=TODAY + timedelta(days=1))
+    assert s.current == 4
+    assert s.last_date == TODAY + timedelta(days=1)
+
+
+def test_extending_past_the_record_raises_the_best():
+    s = sm2.advance_streak(current=5, best=5, last_date=TODAY, today=TODAY + timedelta(days=1))
+    assert s.current == 6
+    assert s.best == 6
+
+
+def test_a_gap_of_two_days_restarts_the_streak():
+    s = sm2.advance_streak(current=9, best=9, last_date=TODAY, today=TODAY + timedelta(days=2))
+    assert s.current == 1
+    assert s.best == 9  # the record survives a broken streak
+    assert s.last_date == TODAY + timedelta(days=2)

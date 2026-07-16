@@ -90,28 +90,17 @@ class StudyStreak(models.Model):
         return f"{self.user.username} - Streak: {self.current_streak}"
 
     def update_streak(self, session_date):
-        """Update streak based on session date."""
+        """Update streak based on session date (a date or datetime)."""
         if session_date is None:
             return
-
         if hasattr(session_date, 'date'):
             session_date = session_date.date()
-
-        if self.last_session_date is None:
-            # First session ever
-            self.current_streak = 1
-            self.best_streak = 1
-        elif (session_date - self.last_session_date).days == 1:
-            # Consecutive day
-            self.current_streak += 1
-            if self.current_streak > self.best_streak:
-                self.best_streak = self.current_streak
-        elif (session_date - self.last_session_date).days > 1:
-            # Streak broken
-            self.current_streak = 1
-        # Same day doesn't change streak
-
-        self.last_session_date = session_date
+        result = scheduling.advance_streak(
+            self.current_streak, self.best_streak, self.last_session_date, session_date
+        )
+        self.current_streak = result.current
+        self.best_streak = result.best
+        self.last_session_date = result.last_date
         self.save()
 
 
@@ -163,6 +152,8 @@ class CardReview(models.Model):
             repetitions=previous.repetitions if previous else scheduling.INITIAL.repetitions,
         )
         review.calculate_next_review()
+        streak, _ = StudyStreak.objects.get_or_create(user=user)
+        streak.update_streak(timezone.localdate())
         return review
 
     def calculate_next_review(self):
