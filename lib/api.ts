@@ -65,6 +65,17 @@ export const flashcardsAPI = {
   getDueCards: () => api.get('/study/card-reviews/due_today/'),
 }
 
+export const streaksAPI = {
+  // Current/best consecutive-day streak. Advances when a card is reviewed.
+  getMe: () => api.get('/study/streaks/me/'),
+}
+
+export const reviewsAPI = {
+  // Reviews done and recall accuracy over the last 7 days — a real week window,
+  // unlike the all-time counts on the analytics summary.
+  getWeeklyStats: () => api.get('/study/card-reviews/stats/'),
+}
+
 export const quizzesAPI = {
   getQuizzes: (params?: any) => api.get('/quizzes/quizzes/', { params }),
   getAttempts: () => api.get('/quizzes/attempts/'),
