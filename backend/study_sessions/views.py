@@ -235,10 +235,14 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
             result__in=['good', 'easy']
         ).count()
 
-        accuracy_pct = (accuracy_this_week / reviews_this_week * 100) if reviews_this_week > 0 else 0
+        # None, not 0, when nothing was reviewed: "0% recalled" reads as failure
+        # rather than "not studied yet". Matches analytics summary's accuracy, and
+        # lets the frontend's null-guard omit the clause entirely.
+        accuracy_pct = (round(accuracy_this_week / reviews_this_week * 100, 1)
+                        if reviews_this_week > 0 else None)
 
         return Response({
             'total_reviews': total_reviews,
             'reviews_this_week': reviews_this_week,
-            'accuracy_this_week_percent': round(accuracy_pct, 1),
+            'accuracy_this_week_percent': accuracy_pct,
         })

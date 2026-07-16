@@ -25,7 +25,9 @@ export default function HomePage() {
   )
   const { data: weekRes } = useSWR(['/study/weekly-stats'], () => reviewsAPI.getWeeklyStats())
   const { data: streakRes } = useSWR(['/study/streak'], () => streaksAPI.getMe())
-  const { data: notebooksRes, isLoading: notebooksLoading } = useSWR(['/notebooks/all'], () =>
+  // Same key as the notebooks list page so SWR serves one fetch and a
+  // create/delete there refreshes this list too.
+  const { data: notebooksRes, isLoading: notebooksLoading } = useSWR(['/notebooks/'], () =>
     notebooksAPI.getNotebooks()
   )
 
