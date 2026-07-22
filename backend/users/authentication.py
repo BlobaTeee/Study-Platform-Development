@@ -74,3 +74,9 @@ class SupabaseJWTAuthentication(BaseAuthentication):
             user.save(update_fields=['first_name'])
 
         return (user, token)
+
+    def authenticate_header(self, request):
+        # Advertise the Bearer scheme so DRF answers auth failures with 401
+        # (not 403). The frontend keys off 401 to redirect an expired session
+        # to login instead of showing a "can't reach the server" error.
+        return 'Bearer'
