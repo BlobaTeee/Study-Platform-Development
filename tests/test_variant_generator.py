@@ -95,5 +95,46 @@ def test_reformat_fallback_turns_a_definition_into_a_cloze():
 def test_malformed_payload_is_treated_as_a_failure():
     provider = FakeProvider({"nonsense": True}, {"nonsense": True})
     result = vg.generate_variant(*_card(), provider=provider)
-    # Falls back rather than raising.
-    assert result is None or result["question"] != _card()[0]
+    # Both malformed replies must actually have been consumed by _clean() and
+    # rejected — proving the result came from the fallback, not the payload
+    # (a deterministic-fallback result alone doesn't distinguish the two).
+    assert len(provider.prompts) == 2
+    assert result is not None
+    assert result["question"] != _card()[0]
+
+
+def test_fallback_never_reproduces_an_already_reformatted_card():
+    # A card shaped exactly like a previous fallback's output: the question is
+    # `reformat_fallback`'s own template built from this same answer. Since the
+    # fallback's question text is a deterministic function of `answer` alone,
+    # reformatting this again would reproduce the identical question verbatim
+    # if the dedupe guard didn't cover the fallback path too (Finding 1).
+    answer = "Conversion of light into chemical energy"
+    question = f"{answer} — which term does this describe? ({vg.BLANK})"
+    provider = FakeProvider(RuntimeError("down"), RuntimeError("down"))
+
+    result = vg.generate_variant(question, answer, provider=provider)
+
+    assert result is None or result["question"] != question
+    if result is not None:
+        # And the term it picks must be a real word, not the blank itself
+        # (Finding 2) — a card whose answer is "______" is garbage either way.
+        assert result["answer"].strip("_") != ""
+
+
+def test_reformat_fallback_does_not_pick_the_blank_as_the_answer():
+    # \w matches '_', so naively taking the last regex word from a question
+    # that already ends in the "(______)" blank picks the blank itself.
+    result = vg.reformat_fallback(
+        "Conversion of light into chemical energy — which term does this "
+        f"describe? ({vg.BLANK})",
+        "Photosynthesis produces the sugars a plant needs",
+    )
+    assert result is not None
+    assert result["answer"] != "______"
+    assert result["answer"].strip("_") != ""
+
+
+def test_reformat_fallback_returns_none_when_only_the_blank_remains():
+    result = vg.reformat_fallback("______ ______", "Twelve character answer here")
+    assert result is None

@@ -71,7 +71,10 @@ def reformat_fallback(question: str, answer: str) -> dict | None:
     question, answer = (question or "").strip(), (answer or "").strip()
     if len(answer) < MIN_REFORMAT_CHARS:
         return None
-    subject = _WORD.findall(question)
+    # \w matches '_', so a question that is itself a previous cloze (ending in
+    # the "(______)" blank) would otherwise hand back the blank as the "term" —
+    # a card whose answer is literally "______". Drop underscore-only tokens.
+    subject = [w for w in _WORD.findall(question) if w.strip("_")]
     term = subject[-1] if subject else ""
     if not term:
         return None
@@ -106,4 +109,12 @@ def generate_variant(question: str, answer: str, provider,
         if card and _normalize(card["question"]) != original_key:
             return card
 
-    return reformat_fallback(question, answer)
+    # The fallback is deterministic in (question, answer), so if this card is
+    # itself a previous fallback's output — or otherwise already shaped like
+    # one — reformatting it again can reproduce the very question the learner
+    # is failing. Apply the same dedupe guard used for the LLM path rather
+    # than handing back a duplicate.
+    fallback = reformat_fallback(question, answer)
+    if fallback and _normalize(fallback["question"]) != original_key:
+        return fallback
+    return None
