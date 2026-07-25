@@ -13,7 +13,7 @@ from .serializers import (
 )
 from flashcards.models import Flashcard
 from flashcards.services.regeneration import (
-    MAX_REGENERATIONS_PER_FETCH, select_for_regeneration,
+    MAX_REGENERATIONS_PER_FETCH, merge_replacements, select_for_regeneration,
 )
 
 DUE_CARDS_DEFAULT = 50
@@ -52,27 +52,36 @@ def _swap_in_variants(user, ranked, pending):
 
     A failure here must never cost the learner their study session, so a card
     that cannot be regenerated is simply returned unchanged and retried on the
-    next fetch.
+    next fetch. That guarantee only holds if the try/except spans every risky
+    call for a given card (the database lookups and the three-write swap, not
+    just the model call), so one bad card can't 500 the whole fetch.
     """
     from notebooks.services.ai_provider import get_ai_provider
     from flashcards.services.variant_generator import generate_variant
     from flashcards.services.regeneration import replace_card
 
-    provider = get_ai_provider()
+    try:
+        provider = get_ai_provider()
+    except Exception:
+        # No provider this fetch means no regeneration this fetch, not a
+        # broken study page: flagged cards stay flagged and are retried next
+        # time the learner fetches their due cards.
+        return ranked
+
     replacements = {}
     for entry in pending:
-        card = Flashcard.objects.filter(id=entry['id'], user=user).first()
-        if card is None:
-            continue
-        excerpt = _source_excerpt(user, card.tags)
         try:
+            card = Flashcard.objects.filter(id=entry['id'], user=user).first()
+            if card is None:
+                continue
+            excerpt = _source_excerpt(user, card.tags)
             variant = generate_variant(card.question, card.answer,
                                        provider=provider, excerpt=excerpt)
+            if not variant:
+                continue
+            new_card = replace_card(card, variant)
         except Exception:
-            variant = None
-        if not variant:
             continue
-        new_card = replace_card(card, variant)
         replacements[entry['id']] = {
             'id': new_card.id, 'question': new_card.question,
             'answer': new_card.answer, 'difficulty': new_card.difficulty,
@@ -80,7 +89,7 @@ def _swap_in_variants(user, ranked, pending):
             'overdue_days': entry['overdue_days'], 'regenerated': True,
         }
 
-    return [replacements.get(c['id'], c) for c in ranked]
+    return merge_replacements(ranked, replacements)
 
 
 def _source_excerpt(user, tags, limit=4000):
@@ -276,6 +285,12 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
         pending = select_for_regeneration(ranked, MAX_REGENERATIONS_PER_FETCH)
         if pending:
             ranked = _swap_in_variants(user, ranked, pending)
+
+        # needs_regeneration is selection-policy plumbing, not part of the
+        # public shape: replacements never carry it, so leaving it on
+        # originals would make the two kinds of entry disagree for no reason.
+        for entry in ranked:
+            entry.pop('needs_regeneration', None)
 
         return Response(ranked)
 

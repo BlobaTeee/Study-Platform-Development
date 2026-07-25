@@ -69,7 +69,11 @@ class AnalyticsViewSet(viewsets.ViewSet):
         user = request.user
 
         cards = insights.attach_review_counts(
-            list(Flashcard.objects.filter(user=user).values('id', 'tags')),
+            # Archived originals keep their old next_review_date forever, so an
+            # unfiltered count here would drift from due_today's own filtered
+            # queryset and never come back into agreement.
+            list(Flashcard.objects.filter(user=user, archived=False)
+                 .values('id', 'tags')),
             _review_tallies(user),
         )
         titles = dict(

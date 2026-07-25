@@ -23,46 +23,64 @@ def select_for_regeneration(cards: list[dict], limit: int) -> list[dict]:
     return flagged[:limit]
 
 
-def replace_card(card, variant: dict, generation_source: str = ""):
+def replace_card(card, variant: dict):
     """Archive `card` and return its replacement, carrying the schedule over.
 
     The variant must inherit the original's next-review date, or a card the
     learner just failed would silently leave the queue. The seed review is
     marked `is_seed` so it schedules without counting as a recall.
     """
+    from django.db import transaction
     from django.utils import timezone
     from flashcards.models import Flashcard
     from study_sessions.models import CardReview
 
-    replacement = Flashcard.objects.create(
-        user=card.user,
-        topic=card.topic,
-        question=variant["question"],
-        answer=variant["answer"],
-        difficulty=variant.get("difficulty", "medium"),
-        tags=card.tags,
-        is_public=False,
-        origin=card,
-        generation=card.generation + 1,
-    )
+    # All three writes must land together: a crash between them would leave a
+    # replacement with no seed review (so it loses its inherited urgency) or
+    # an original that stays active and flagged (so the next fetch regenerates
+    # it again, piling up duplicates every time). Atomic makes a partial swap
+    # impossible instead of merely unlikely.
+    with transaction.atomic():
+        replacement = Flashcard.objects.create(
+            user=card.user,
+            topic=card.topic,
+            question=variant["question"],
+            answer=variant["answer"],
+            difficulty=variant.get("difficulty", "medium"),
+            tags=card.tags,
+            is_public=False,
+            origin=card,
+            generation=card.generation + 1,
+        )
 
-    # Unfiltered on purpose: a seed row is exactly what tells a replacement
-    # when it is next due, so `.grades()` (which excludes seeds) would wrongly
-    # skip straight to a card's last real grade instead of its live schedule.
-    previous = CardReview.objects.filter(user=card.user, flashcard=card).first()
-    CardReview.objects.create(
-        user=card.user,
-        flashcard=replacement,
-        result="seed",
-        is_seed=True,
-        interval=previous.interval if previous else 1,
-        ease_factor=previous.ease_factor if previous else 2.5,
-        repetitions=previous.repetitions if previous else 0,
-        next_review_date=(previous.next_review_date if previous
-                          else timezone.localdate()),
-    )
+        # Unfiltered on purpose: a seed row is exactly what tells a replacement
+        # when it is next due, so `.grades()` (which excludes seeds) would
+        # wrongly skip straight to a card's last real grade instead of its
+        # live schedule.
+        previous = CardReview.objects.filter(user=card.user, flashcard=card).first()
+        CardReview.objects.create(
+            user=card.user,
+            flashcard=replacement,
+            result="seed",
+            is_seed=True,
+            interval=previous.interval if previous else 1,
+            ease_factor=previous.ease_factor if previous else 2.5,
+            repetitions=previous.repetitions if previous else 0,
+            next_review_date=(previous.next_review_date if previous
+                              else timezone.localdate()),
+        )
 
-    card.archived = True
-    card.needs_regeneration = False
-    card.save(update_fields=['archived', 'needs_regeneration'])
+        card.archived = True
+        card.needs_regeneration = False
+        card.save(update_fields=['archived', 'needs_regeneration'])
     return replacement
+
+
+def merge_replacements(ranked: list[dict], replacements: dict[int, dict]) -> list[dict]:
+    """`ranked` with each entry swapped for its replacement, order preserved.
+
+    Pulled out of the view so the response-shape logic — the part that
+    actually risks drifting between originals and replacements — can be unit
+    tested without a database.
+    """
+    return [replacements.get(entry["id"], entry) for entry in ranked]

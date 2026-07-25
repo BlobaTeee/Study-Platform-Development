@@ -15,7 +15,11 @@ class FlashcardViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return Flashcard.objects.filter(user=self.request.user) | Flashcard.objects.filter(is_public=True)
+        # Archived originals are replaced-but-not-deleted history, not live
+        # cards; exclude them on both sides of the union or a public archived
+        # card would still surface here even though due_today never offers it.
+        return (Flashcard.objects.filter(user=self.request.user, archived=False)
+                | Flashcard.objects.filter(is_public=True, archived=False))
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
