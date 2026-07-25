@@ -15,13 +15,18 @@ from datetime import date
 from typing import NamedTuple
 
 # Grades, easiest-to-recall last. These mirror CardReview.RESULT_CHOICES.
-AGAIN, HARD, GOOD, EASY = "again", "hard", "good", "easy"
-RESULT_VALUES = (AGAIN, HARD, GOOD, EASY)
+HARD, GOOD, EASY = "hard", "good", "easy"
+RESULT_VALUES = (HARD, GOOD, EASY)
 
 #: Grades that count as a successful recall when reporting accuracy. This module
 #: is the source of truth; analytics.insights mirrors it (a test holds them
 #: level) because it is loaded standalone and cannot import from here.
 CORRECT_RESULTS = frozenset({GOOD, EASY})
+
+#: Grades no longer offered, but still present on rows recorded before they were
+#: retired. `next_schedule` rejects them; analytics must still classify them, or
+#: a learner's history would silently lose its failures.
+RETIRED_RESULTS = frozenset({"again"})
 
 # A card can never become harder than this, or a single bad day would push its
 # interval growth to nothing and the card would resurface forever.
@@ -51,18 +56,12 @@ def next_schedule(result: str, *, interval: int, ease_factor: float,
 
     repetitions += 1
 
-    if result == AGAIN:
-        # Forgotten: back to square one, and the card earns a harder rating.
-        return Schedule(1, max(MIN_EASE_FACTOR, ease_factor - 0.2), 0)
-
     if result == HARD:
-        # Recalled, but with effort: stretch the gap barely at all — yet stretch
-        # it. Multiplying alone cannot, since int(1 * 1.2) is 1, which trapped a
-        # short-interval card at a daily appearance that remembering could never
-        # end. Only forgetting outright should hold a card at one day.
-        return Schedule(max(interval + 1, int(interval * 1.2)),
-                        max(MIN_EASE_FACTOR, ease_factor - 0.15),
-                        repetitions)
+        # Forgotten, or recalled only with effort: back to square one, and the
+        # card earns a harder rating. This is now the only grade that resets a
+        # card, so it is what stops material the learner cannot recall from
+        # drifting steadily further away.
+        return Schedule(1, max(MIN_EASE_FACTOR, ease_factor - 0.2), 0)
 
     if result == GOOD:
         # The first two successes use fixed gaps; after that the card's own ease

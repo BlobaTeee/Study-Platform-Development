@@ -22,6 +22,9 @@ KIND_QUIZ = "quiz"
 # How a self-graded review maps onto "did you recall it?". Matches the split the
 # study-session stats have always used: only good/easy count as a success.
 CORRECT_RESULTS = frozenset({"good", "easy"})
+# "again" was retired from the grade scale on 2026-07-25. Rows recorded before
+# then still exist, and must keep counting as failures — dropping it here would
+# quietly rewrite every affected learner's past accuracy.
 INCORRECT_RESULTS = frozenset({"again", "hard"})
 
 

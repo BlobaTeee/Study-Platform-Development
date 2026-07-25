@@ -10,18 +10,21 @@ from pathlib import Path
 
 import pytest
 
-_MODULE_PATH = (Path(__file__).resolve().parents[1]
-                / "backend" / "study_sessions" / "scheduling.py")
+_BACKEND = Path(__file__).resolve().parents[1] / "backend"
 
 
-def _load():
-    spec = importlib.util.spec_from_file_location("sm2_under_test", _MODULE_PATH)
+def _load(name, relative_path):
+    spec = importlib.util.spec_from_file_location(name, _BACKEND / relative_path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
 
-sm2 = _load()
+sm2 = _load("sm2_under_test", "study_sessions/scheduling.py")
+# Loaded alongside sm2 so the agreement test below can compare their grade
+# vocabularies without importing insights the normal way (it never survives
+# a standalone load through Django's app registry).
+ins = _load("insights_for_sm2_check", "analytics/insights.py")
 
 
 def _step(result, interval=1, ease_factor=2.5, repetitions=0):
@@ -29,16 +32,22 @@ def _step(result, interval=1, ease_factor=2.5, repetitions=0):
                              ease_factor=ease_factor, repetitions=repetitions)
 
 
-# ---- again: the card was forgotten -----------------------------------------
+# ---- hard: the card was forgotten or barely recalled ------------------------
 
-def test_again_restarts_the_card():
-    s = _step("again", interval=21, ease_factor=2.5, repetitions=5)
-    assert s.repetitions == 0
+def test_hard_restarts_the_card():
+    s = _step("hard", interval=21, ease_factor=2.5, repetitions=5)
     assert s.interval == 1
+    assert s.repetitions == 0
 
 
-def test_again_makes_the_card_harder():
-    assert _step("again", ease_factor=2.5).ease_factor == pytest.approx(2.3)
+def test_hard_makes_the_card_harder():
+    assert _step("hard", ease_factor=2.5).ease_factor == pytest.approx(2.3)
+
+
+def test_again_is_no_longer_a_grade():
+    assert "again" not in sm2.RESULT_VALUES
+    with pytest.raises(ValueError):
+        sm2.next_schedule("again", interval=1, ease_factor=2.5, repetitions=0)
 
 
 # ---- good: the normal path -------------------------------------------------
@@ -60,7 +69,7 @@ def test_good_leaves_ease_alone():
     assert s.ease_factor == pytest.approx(2.5)
 
 
-# ---- easy / hard -----------------------------------------------------------
+# ---- easy -------------------------------------------------------------------
 
 def test_easy_makes_the_card_easier_and_stretches_the_interval():
     s = _step("easy", interval=10, ease_factor=2.5, repetitions=3)
@@ -68,37 +77,14 @@ def test_easy_makes_the_card_easier_and_stretches_the_interval():
     assert s.ease_factor == pytest.approx(2.6)
 
 
-def test_hard_stretches_only_slightly_and_lowers_ease():
-    s = _step("hard", interval=10, ease_factor=2.5, repetitions=3)
-    assert s.interval == 12
-    assert s.ease_factor == pytest.approx(2.35)
-
-
-def test_hard_always_buys_at_least_one_more_day():
-    # Hard means recalled-but-with-effort, so the gap must grow. Multiplying
-    # alone cannot deliver that from a short interval: int(1 * 1.2) == 1, which
-    # pinned a card to a daily appearance no amount of remembering could end.
-    assert _step("hard", interval=1).interval == 2
-    assert _step("hard", interval=2).interval == 3
-
-
-def test_repeated_hard_reviews_still_lengthen_the_gap():
-    s = sm2.INITIAL
-    intervals = []
-    for _ in range(5):
-        s = sm2.next_schedule("hard", interval=s.interval,
-                              ease_factor=s.ease_factor, repetitions=s.repetitions)
-        intervals.append(s.interval)
-    assert intervals == [2, 3, 4, 5, 6]
-
-
-def test_hard_still_grows_slower_than_good():
+def test_hard_still_resets_further_than_good_advances():
+    # However far good would push the card, hard always resets to day one.
     hard = _step("hard", interval=10, ease_factor=2.5, repetitions=3)
     good = _step("good", interval=10, ease_factor=2.5, repetitions=3)
     assert hard.interval < good.interval
 
 
-@pytest.mark.parametrize("result", ["again", "hard"])
+@pytest.mark.parametrize("result", ["hard"])
 def test_ease_never_falls_below_the_floor(result):
     assert _step(result, ease_factor=1.3).ease_factor == pytest.approx(sm2.MIN_EASE_FACTOR)
 
@@ -119,7 +105,7 @@ def test_repeated_good_reviews_lengthen_the_gap():
 
 def test_forgetting_undoes_the_progress():
     s = _step("good", interval=17, ease_factor=2.5, repetitions=4)
-    s = sm2.next_schedule("again", interval=s.interval,
+    s = sm2.next_schedule("hard", interval=s.interval,
                           ease_factor=s.ease_factor, repetitions=s.repetitions)
     assert s.interval == 1
     assert s.repetitions == 0
@@ -133,27 +119,19 @@ def test_unknown_grade_is_rejected():
         _step("kinda-ok")
 
 
-def test_all_four_grades_are_accepted():
+def test_all_three_grades_are_accepted():
     for result in sm2.RESULT_VALUES:
         assert _step(result).interval >= 1
 
 
 # ---- agreement with the analytics side -------------------------------------
 
-def _load_insights():
-    path = Path(__file__).resolve().parents[1] / "backend" / "analytics" / "insights.py"
-    spec = importlib.util.spec_from_file_location("insights_for_sm2_check", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def test_analytics_grades_the_same_way_the_scheduler_does():
-    # Both modules are loaded standalone and so keep their own copy of the
-    # vocabulary. If they drift, accuracy stops matching the schedule.
-    ins = _load_insights()
+def test_insights_and_scheduling_agree_on_what_counts_as_correct():
     assert ins.CORRECT_RESULTS == sm2.CORRECT_RESULTS
-    assert ins.CORRECT_RESULTS | ins.INCORRECT_RESULTS == set(sm2.RESULT_VALUES)
+    # Every grade the app can record today must be classified by insights.
+    assert set(sm2.RESULT_VALUES) <= (ins.CORRECT_RESULTS | ins.INCORRECT_RESULTS)
+    # Retired grades stay classified so historical rows keep counting.
+    assert sm2.RETIRED_RESULTS <= ins.INCORRECT_RESULTS
 
 
 # ---- latest_schedule -------------------------------------------------------
