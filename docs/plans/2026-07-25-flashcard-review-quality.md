@@ -323,13 +323,33 @@ A Django-free module: it receives the card's text, an optional source excerpt, a
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `tests/test_variant_generator.py`:
+Create `tests/test_variant_generator.py`, following the repo's standalone-module loading pattern:
 
 ```python
 """The variant generator: a failed card becomes a different question."""
+import importlib.util
+import sys
+from pathlib import Path
+
 import pytest
 
-from backend.flashcards.services import variant_generator as vg
+_BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
+_MODULE_PATH = _BACKEND_DIR / "flashcards" / "services" / "variant_generator.py"
+
+
+def _load():
+    # The module under test imports `notebooks.services.dedupe`, which resolves
+    # the way it does under Django: with backend/ on the path. Adding it here
+    # keeps the module loadable standalone, without importing Django itself.
+    if str(_BACKEND_DIR) not in sys.path:
+        sys.path.insert(0, str(_BACKEND_DIR))
+    spec = importlib.util.spec_from_file_location("variant_generator_under_test", _MODULE_PATH)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+vg = _load()
 
 
 class FakeProvider:
@@ -410,15 +430,15 @@ def test_malformed_payload_is_treated_as_a_failure():
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `./.venv/bin/python -m pytest tests/test_variant_generator.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'backend.flashcards'`.
+Expected: FAIL — `FileNotFoundError` / `spec_from_file_location` returns None, because `variant_generator.py` does not exist yet.
 
-- [ ] **Step 3: Make the package importable**
-
-Create `backend/flashcards/services/__init__.py` (empty file), and confirm `backend/__init__.py` and `backend/flashcards/__init__.py` exist. If `backend/__init__.py` does not exist, create it empty so `tests/` can import the module without Django set up.
+- [ ] **Step 3: Create the services package**
 
 ```bash
-touch backend/__init__.py backend/flashcards/services/__init__.py
+touch backend/flashcards/services/__init__.py
 ```
+
+Do **not** create `backend/__init__.py`. Django puts `backend/` itself on the path (`BASE_DIR`) and refers to its apps as top-level modules (`flashcards`, `notebooks`); making `backend` a package as well would give every app two importable names and two module identities.
 
 - [ ] **Step 4: Write the generator**
 
@@ -569,7 +589,21 @@ Create `tests/test_regeneration_policy.py`:
 
 ```python
 """Which flagged cards get regenerated on a given due-fetch."""
-from backend.flashcards.services.regeneration import select_for_regeneration
+import importlib.util
+from pathlib import Path
+
+_MODULE_PATH = (Path(__file__).resolve().parents[1]
+                / "backend" / "flashcards" / "services" / "regeneration.py")
+
+
+def _load():
+    spec = importlib.util.spec_from_file_location("regeneration_under_test", _MODULE_PATH)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+select_for_regeneration = _load().select_for_regeneration
 
 
 def _card(card_id, *, flagged, status="due"):
@@ -806,7 +840,23 @@ Create `tests/test_deck_limits.py`:
 
 ```python
 """How much room a document has left for new flashcards."""
-from backend.notebooks.services.deck_limits import MAX_CARDS_PER_SOURCE, room_for
+import importlib.util
+from pathlib import Path
+
+_MODULE_PATH = (Path(__file__).resolve().parents[1]
+                / "backend" / "notebooks" / "services" / "deck_limits.py")
+
+
+def _load():
+    spec = importlib.util.spec_from_file_location("deck_limits_under_test", _MODULE_PATH)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_mod = _load()
+MAX_CARDS_PER_SOURCE = _mod.MAX_CARDS_PER_SOURCE
+room_for = _mod.room_for
 
 
 def test_an_empty_document_has_room_for_the_whole_cap():
