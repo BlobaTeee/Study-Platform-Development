@@ -170,6 +170,14 @@ class CardReview(models.Model):
             repetitions=previous.repetitions if previous else scheduling.INITIAL.repetitions,
         )
         review.calculate_next_review()
+
+        # A failed card comes back as a different question on the same concept,
+        # but generating one costs a model call, so only mark it here. The
+        # due-fetch does the work, and only for cards actually returned to.
+        if result == scheduling.HARD and not flashcard.needs_regeneration:
+            flashcard.needs_regeneration = True
+            flashcard.save(update_fields=['needs_regeneration'])
+
         streak, _ = StudyStreak.objects.get_or_create(user=user)
         streak.update_streak(timezone.localdate())
         return review

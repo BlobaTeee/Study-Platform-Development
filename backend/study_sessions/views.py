@@ -224,12 +224,12 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
         today = timezone.localdate()
         week_ago = today - timedelta(days=7)
 
-        total_reviews = CardReview.objects.filter(user=user).count()
-        reviews_this_week = CardReview.objects.filter(
+        total_reviews = CardReview.objects.grades().filter(user=user).count()
+        reviews_this_week = CardReview.objects.grades().filter(
             user=user,
             review_date__date__gte=week_ago
         ).count()
-        accuracy_this_week = CardReview.objects.filter(
+        accuracy_this_week = CardReview.objects.grades().filter(
             user=user,
             review_date__date__gte=week_ago,
             result__in=['good', 'easy']
