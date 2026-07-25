@@ -16,6 +16,27 @@ class Flashcard(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Regeneration lineage. A card the learner keeps failing is replaced by a
+    # freshly generated question on the same concept; the original is archived
+    # rather than deleted so its review history survives.
+    origin = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='variants',
+        help_text='The card this one was regenerated from.',
+    )
+    archived = models.BooleanField(
+        default=False,
+        help_text='Retired by regeneration; excluded from every study queue.',
+    )
+    needs_regeneration = models.BooleanField(
+        default=False,
+        help_text='Graded hard; replace with a new question when next due.',
+    )
+    generation = models.PositiveIntegerField(
+        default=0,
+        help_text='How many times this concept has been regenerated.',
+    )
+
     def __str__(self):
         return self.question[:100]
 
@@ -24,4 +45,8 @@ class Flashcard(models.Model):
         indexes = [
             models.Index(fields=['user', '-created_at']),
             models.Index(fields=['topic', '-created_at']),
+            # Study queues read active cards only, and the due-fetch looks for
+            # flagged ones. Both run on every study page load.
+            models.Index(fields=['user', 'archived']),
+            models.Index(fields=['user', 'needs_regeneration', 'archived']),
         ]

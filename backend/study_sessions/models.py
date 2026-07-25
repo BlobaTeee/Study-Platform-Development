@@ -104,10 +104,21 @@ class StudyStreak(models.Model):
         self.save()
 
 
+class CardReviewQuerySet(models.QuerySet):
+    def grades(self):
+        """Only rows recording an actual recall.
+
+        Seed rows carry a schedule to a regenerated card and represent no
+        answer, so counting them would inflate review totals and dilute
+        accuracy. Scheduling reads the unfiltered manager on purpose — a seed
+        row is exactly what tells a variant when it is next due.
+        """
+        return self.filter(is_seed=False)
+
+
 class CardReview(models.Model):
     """Track individual flashcard performance for spaced repetition."""
     RESULT_CHOICES = [
-        ('again', 'Again (forgot)'),
         ('hard', 'Hard'),
         ('good', 'Good'),
         ('easy', 'Very Easy'),
@@ -125,6 +136,13 @@ class CardReview(models.Model):
     ease_factor = models.FloatField(default=2.5, help_text='SM-2 ease factor')
     repetitions = models.IntegerField(default=0)
     next_review_date = models.DateField(null=True, blank=True)
+
+    is_seed = models.BooleanField(
+        default=False,
+        help_text='Carries a schedule to a regenerated card; not a real recall.',
+    )
+
+    objects = CardReviewQuerySet.as_manager()
 
     class Meta:
         ordering = ['-review_date']
