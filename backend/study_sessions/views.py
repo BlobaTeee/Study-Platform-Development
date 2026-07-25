@@ -12,6 +12,9 @@ from .serializers import (
     CardReviewSerializer, StudyStreakSerializer
 )
 from flashcards.models import Flashcard
+from flashcards.services.regeneration import (
+    MAX_REGENERATIONS_PER_FETCH, select_for_regeneration,
+)
 
 DUE_CARDS_DEFAULT = 50
 DUE_CARDS_LIMIT = 200
@@ -42,6 +45,59 @@ def resolve_review_request(request):
         )
 
     return flashcard, result, None
+
+
+def _swap_in_variants(user, ranked, pending):
+    """Replace each flagged card in `ranked` with a freshly generated one.
+
+    A failure here must never cost the learner their study session, so a card
+    that cannot be regenerated is simply returned unchanged and retried on the
+    next fetch.
+    """
+    from notebooks.services.ai_provider import get_ai_provider
+    from flashcards.services.variant_generator import generate_variant
+    from flashcards.services.regeneration import replace_card
+
+    provider = get_ai_provider()
+    replacements = {}
+    for entry in pending:
+        card = Flashcard.objects.filter(id=entry['id'], user=user).first()
+        if card is None:
+            continue
+        excerpt = _source_excerpt(user, card.tags)
+        try:
+            variant = generate_variant(card.question, card.answer,
+                                       provider=provider, excerpt=excerpt)
+        except Exception:
+            variant = None
+        if not variant:
+            continue
+        new_card = replace_card(card, variant)
+        replacements[entry['id']] = {
+            'id': new_card.id, 'question': new_card.question,
+            'answer': new_card.answer, 'difficulty': new_card.difficulty,
+            'tags': new_card.tags, 'status': entry['status'],
+            'overdue_days': entry['overdue_days'], 'regenerated': True,
+        }
+
+    return [replacements.get(c['id'], c) for c in ranked]
+
+
+def _source_excerpt(user, tags, limit=4000):
+    """The text the card was generated from, so a variant stays on topic."""
+    from notebooks.models import Source
+    from notebooks.services.generate import SOURCE_TAG_PREFIX
+
+    if not tags or not tags.startswith(SOURCE_TAG_PREFIX):
+        return ""
+    raw = tags[len(SOURCE_TAG_PREFIX):]
+    ids = [int(i) for i in raw.split(',') if i.strip().isdigit()]
+    if not ids:
+        return ""
+    texts = Source.objects.filter(
+        id__in=ids, notebook__user=user
+    ).values_list('extracted_text', flat=True)
+    return "\n\n".join(t for t in texts if t)[:limit]
 
 
 class StudySessionViewSet(viewsets.ModelViewSet):
@@ -211,11 +267,17 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
             list(CardReview.objects.filter(user=user)
                  .values('flashcard_id', 'next_review_date', 'review_date'))
         )
-        cards = list(Flashcard.objects.filter(user=user)
-                     .values('id', 'question', 'answer', 'difficulty', 'tags'))
-        return Response(
-            scheduling.rank_due_cards(cards, schedule, timezone.localdate(), limit=limit)
-        )
+        cards = list(Flashcard.objects.filter(user=user, archived=False)
+                     .values('id', 'question', 'answer', 'difficulty', 'tags',
+                             'needs_regeneration'))
+        ranked = scheduling.rank_due_cards(cards, schedule, timezone.localdate(),
+                                           limit=limit)
+
+        pending = select_for_regeneration(ranked, MAX_REGENERATIONS_PER_FETCH)
+        if pending:
+            ranked = _swap_in_variants(user, ranked, pending)
+
+        return Response(ranked)
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
