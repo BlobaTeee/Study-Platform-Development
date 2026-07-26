@@ -81,3 +81,94 @@ class Answer(models.Model):
 
     class Meta:
         ordering = ['question__order', 'answered_at']
+
+
+class MockTest(models.Model):
+    """One sitting of a timed paper drawn from across a notebook.
+
+    Separate from QuizAttempt, which is tied to a single Quiz by a non-null FK:
+    a mock test deliberately spans every quiz in a notebook, so it needs its own
+    record rather than a widened attempt.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='mock_tests')
+    # String reference on purpose: notebooks already imports quizzes.serializers,
+    # so importing notebooks here would close a circular import.
+    notebook = models.ForeignKey('notebooks.Notebook', on_delete=models.CASCADE,
+                                 related_name='mock_tests')
+    question_count = models.PositiveSmallIntegerField(default=20)
+    duration_minutes = models.PositiveSmallIntegerField(default=30)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    score = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-started_at']
+        indexes = [models.Index(fields=['user', '-started_at'])]
+
+    def __str__(self):
+        return f'{self.user.username} — {self.notebook_id} ({self.question_count}q)'
+
+    @property
+    def deadline(self):
+        """When the paper stops accepting answers."""
+        from datetime import timedelta
+        return self.started_at + timedelta(minutes=self.duration_minutes)
+
+
+class MockTestQuestion(models.Model):
+    """The frozen paper, and the answer given to each question.
+
+    Freezing matters: without stored rows a refresh would resample and hand the
+    student a different paper mid-sitting.
+    """
+    mock_test = models.ForeignKey(MockTest, on_delete=models.CASCADE, related_name='paper')
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    order = models.PositiveSmallIntegerField()
+    user_answer = models.TextField(blank=True, default='')
+    # Null until submission — grading happens once, at the end.
+    is_correct = models.BooleanField(null=True, blank=True)
+    answered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['order']
+        unique_together = [('mock_test', 'order'), ('mock_test', 'question')]
+        indexes = [models.Index(fields=['mock_test', 'order'])]
+
+    def __str__(self):
+        return f'{self.mock_test_id} #{self.order}'
+
+
+class PlannedTest(models.Model):
+    """A test the student intends to sit, and the state of its reminder."""
+    REMINDER_CHOICES = [
+        (1, '1 hour before'),
+        (24, '1 day before'),
+        (72, '3 days before'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='planned_tests')
+    notebook = models.ForeignKey('notebooks.Notebook', on_delete=models.CASCADE,
+                                 related_name='planned_tests')
+    scheduled_for = models.DateTimeField()
+    question_count = models.PositiveSmallIntegerField(default=20)
+    duration_minutes = models.PositiveSmallIntegerField(default=30)
+    reminder_lead_hours = models.PositiveSmallIntegerField(
+        default=24, choices=REMINDER_CHOICES,
+        help_text='How far ahead of the test the reminder goes out.')
+    # Null until sent. This is the idempotency guard: the command stamps it
+    # immediately, so a scheduler firing every few minutes cannot send twice.
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    mock_test = models.OneToOneField(MockTest, null=True, blank=True,
+                                     on_delete=models.SET_NULL, related_name='plan')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['scheduled_for']
+        indexes = [
+            # The reminder command's only query: unsent plans, by when they are due.
+            models.Index(fields=['reminder_sent_at', 'scheduled_for']),
+            models.Index(fields=['user', 'scheduled_for']),
+        ]
+
+    def __str__(self):
+        return f'{self.user.username} — {self.scheduled_for:%Y-%m-%d %H:%M}'
