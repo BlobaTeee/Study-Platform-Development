@@ -29,7 +29,7 @@
 
 **Files:**
 - Modify: `backend/quizzes/models.py`
-- Create: `backend/quizzes/migrations/0003_mock_tests.py` (generated, then hand-trimmed)
+- Create: `backend/quizzes/migrations/0002_mock_tests.py` (generated, then hand-trimmed)
 
 **Interfaces:**
 - Consumes: existing `Question` model in the same file; `notebooks.Notebook` by string reference.
@@ -137,13 +137,13 @@ class PlannedTest(models.Model):
 cd backend && ./venv/bin/python manage.py makemigrations quizzes
 ```
 
-Expected: a migration creating `MockTest`, `MockTestQuestion`, `PlannedTest` with their indexes. If it also contains `AlterField` operations on any `id` column, or migrations for other apps, those are pre-existing `DEFAULT_AUTO_FIELD` drift — remove them from the file, rename it to `0003_mock_tests.py`, and keep `dependencies` pointing at `quizzes`' previous migration plus `('notebooks', '0001_initial')` (the FK needs it).
+Expected: a migration creating `MockTest`, `MockTestQuestion`, `PlannedTest` with their indexes. If it also contains `AlterField` operations on any `id` column, or migrations for other apps, those are pre-existing `DEFAULT_AUTO_FIELD` drift — remove them from the file, rename it to `0002_mock_tests.py`, and keep `dependencies` as `[('quizzes', '0001_initial'), ('notebooks', '0001_initial')]` — `quizzes` has only `0001_initial`, and the notebook FK needs the second entry.
 
 - [ ] **Step 3: Apply and prove reversibility**
 
 ```bash
 cd backend && ./venv/bin/python manage.py migrate quizzes
-./venv/bin/python manage.py migrate quizzes 0002 && ./venv/bin/python manage.py migrate quizzes
+./venv/bin/python manage.py migrate quizzes 0001 && ./venv/bin/python manage.py migrate quizzes
 ```
 
 Expected: applies, rolls back, re-applies, all without error. A migration that cannot roll back is a defect — fix it rather than proceeding.
