@@ -11,16 +11,50 @@ from __future__ import annotations
 #: backlog is worked through a few cards at a time rather than all at once.
 MAX_REGENERATIONS_PER_FETCH = 3
 
+#: Some cards cannot be regenerated at all — a one-word answer leaves the
+#: deterministic fallback nothing to reshape, and the model may keep restating
+#: the original. Without a ceiling such a card stays flagged forever, burning
+#: provider calls on every fetch and starving the slots ahead of cards that
+#: could have been replaced. Grading it Hard again resets the count.
+MAX_REGENERATION_ATTEMPTS = 3
+
+#: A study page must never block on the model. The per-fetch count cap alone
+#: does not bound wall-clock time — a provider timing out on each attempt could
+#: hold the request for minutes — so regeneration also stops once this budget
+#: is spent, leaving the rest for the next fetch.
+REGENERATION_TIME_BUDGET_SECONDS = 15
+
 
 def select_for_regeneration(cards: list[dict], limit: int) -> list[dict]:
     """The flagged, currently-due cards to regenerate on this fetch.
 
     New cards are excluded: a card never studied has no memorised wording to
-    escape, so spending a model call on it buys nothing.
+    escape, so spending a model call on it buys nothing. Cards that have
+    already exhausted their attempts are excluded too, so one unregenerable
+    card cannot occupy a slot on every fetch forever.
     """
-    flagged = [c for c in cards
-               if c.get("needs_regeneration") and c.get("status") == "due"]
+    flagged = [
+        c for c in cards
+        if c.get("needs_regeneration")
+        and c.get("status") == "due"
+        and (c.get("regeneration_attempts") or 0) < MAX_REGENERATION_ATTEMPTS
+    ]
     return flagged[:limit]
+
+
+def record_failed_attempt(card) -> None:
+    """Count a regeneration that produced nothing, and give up at the ceiling.
+
+    Clearing the flag on the last attempt is what stops the card being picked
+    again; it stays as it is, which is the honest outcome when no different
+    question could be produced for it.
+    """
+    card.regeneration_attempts = (card.regeneration_attempts or 0) + 1
+    fields = ['regeneration_attempts']
+    if card.regeneration_attempts >= MAX_REGENERATION_ATTEMPTS:
+        card.needs_regeneration = False
+        fields.append('needs_regeneration')
+    card.save(update_fields=fields)
 
 
 def replace_card(card, variant: dict):
@@ -56,8 +90,11 @@ def replace_card(card, variant: dict):
         # Unfiltered on purpose: a seed row is exactly what tells a replacement
         # when it is next due, so `.grades()` (which excludes seeds) would
         # wrongly skip straight to a card's last real grade instead of its
-        # live schedule.
-        previous = CardReview.objects.filter(user=card.user, flashcard=card).first()
+        # live schedule. The ordering is spelled out rather than inherited from
+        # Meta: reordering that default would otherwise hand every replacement
+        # its *oldest* schedule, mis-scheduling silently and permanently.
+        previous = (CardReview.objects.filter(user=card.user, flashcard=card)
+                    .order_by('-review_date').first())
         CardReview.objects.create(
             user=card.user,
             flashcard=replacement,

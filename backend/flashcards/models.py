@@ -36,6 +36,10 @@ class Flashcard(models.Model):
         default=0,
         help_text='How many times this concept has been regenerated.',
     )
+    regeneration_attempts = models.PositiveSmallIntegerField(
+        default=0,
+        help_text='Failed regeneration attempts since this card was flagged.',
+    )
 
     def __str__(self):
         return self.question[:100]

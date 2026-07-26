@@ -16,10 +16,12 @@ def _load():
 _mod = _load()
 select_for_regeneration = _mod.select_for_regeneration
 merge_replacements = _mod.merge_replacements
+MAX_REGENERATION_ATTEMPTS = _mod.MAX_REGENERATION_ATTEMPTS
 
 
-def _card(card_id, *, flagged, status="due"):
-    return {"id": card_id, "needs_regeneration": flagged, "status": status}
+def _card(card_id, *, flagged, status="due", attempts=0):
+    return {"id": card_id, "needs_regeneration": flagged, "status": status,
+            "regeneration_attempts": attempts}
 
 
 def test_only_flagged_due_cards_are_selected():
@@ -61,3 +63,35 @@ def test_merge_replacements_passes_through_entries_with_no_replacement():
 def test_merge_replacements_with_empty_map_is_a_no_op():
     ranked = [{"id": 1}, {"id": 2}]
     assert merge_replacements(ranked, {}) == ranked
+
+
+# ---- giving up on a card that cannot be regenerated -------------------------
+#
+# Some cards have no different question to offer: a one-word answer leaves the
+# deterministic fallback nothing to reshape. Without a ceiling such a card is
+# picked on every fetch forever, spending provider calls and occupying a slot
+# that a regenerable card behind it would have used.
+
+def test_a_card_that_exhausted_its_attempts_is_skipped():
+    cards = [_card(1, flagged=True, attempts=MAX_REGENERATION_ATTEMPTS)]
+    assert select_for_regeneration(cards, limit=5) == []
+
+
+def test_a_card_with_attempts_left_is_still_selected():
+    cards = [_card(1, flagged=True, attempts=MAX_REGENERATION_ATTEMPTS - 1)]
+    assert [c["id"] for c in select_for_regeneration(cards, limit=5)] == [1]
+
+
+def test_an_exhausted_card_does_not_occupy_a_slot():
+    # The stuck card sorts first; without the attempts filter it would consume
+    # one of the three slots on every fetch and starve the cards behind it.
+    cards = [_card(1, flagged=True, attempts=MAX_REGENERATION_ATTEMPTS),
+             _card(2, flagged=True),
+             _card(3, flagged=True)]
+    assert [c["id"] for c in select_for_regeneration(cards, limit=2)] == [2, 3]
+
+
+def test_a_missing_attempts_key_is_treated_as_none_used():
+    # Rows written before the counter existed have no value for it.
+    assert [c["id"] for c in select_for_regeneration(
+        [{"id": 1, "needs_regeneration": True, "status": "due"}], limit=5)] == [1]

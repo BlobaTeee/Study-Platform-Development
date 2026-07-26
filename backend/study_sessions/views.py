@@ -35,7 +35,8 @@ def resolve_review_request(request):
         )
 
     try:
-        flashcard = Flashcard.objects.get(id=flashcard_id, user=request.user)
+        flashcard = Flashcard.objects.get(id=flashcard_id, user=request.user,
+                                          archived=False)
     except (Flashcard.DoesNotExist, ValueError, TypeError):
         # A card belonging to someone else is reported the same way as a missing
         # one, so this cannot be used to probe for other users' card ids.
@@ -56,9 +57,13 @@ def _swap_in_variants(user, ranked, pending):
     call for a given card (the database lookups and the three-write swap, not
     just the model call), so one bad card can't 500 the whole fetch.
     """
+    import time
+
     from notebooks.services.ai_provider import get_ai_provider
     from flashcards.services.variant_generator import generate_variant
-    from flashcards.services.regeneration import replace_card
+    from flashcards.services.regeneration import (
+        REGENERATION_TIME_BUDGET_SECONDS, record_failed_attempt, replace_card,
+    )
 
     try:
         provider = get_ai_provider()
@@ -69,7 +74,13 @@ def _swap_in_variants(user, ranked, pending):
         return ranked
 
     replacements = {}
+    deadline = time.monotonic() + REGENERATION_TIME_BUDGET_SECONDS
     for entry in pending:
+        # A provider that times out on each attempt would otherwise hold the
+        # study page for minutes. Whatever is left keeps its flag and is picked
+        # up next fetch, which is the degradation this flow is built around.
+        if time.monotonic() >= deadline:
+            break
         try:
             card = Flashcard.objects.filter(id=entry['id'], user=user).first()
             if card is None:
@@ -78,6 +89,9 @@ def _swap_in_variants(user, ranked, pending):
             variant = generate_variant(card.question, card.answer,
                                        provider=provider, excerpt=excerpt)
             if not variant:
+                # Nothing usable came back. Count it, so a card that can never
+                # be regenerated stops consuming a slot on every future fetch.
+                record_failed_attempt(card)
                 continue
             new_card = replace_card(card, variant)
         except Exception:
@@ -278,7 +292,7 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
         )
         cards = list(Flashcard.objects.filter(user=user, archived=False)
                      .values('id', 'question', 'answer', 'difficulty', 'tags',
-                             'needs_regeneration'))
+                             'needs_regeneration', 'regeneration_attempts'))
         ranked = scheduling.rank_due_cards(cards, schedule, timezone.localdate(),
                                            limit=limit)
 
@@ -291,6 +305,7 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
         # originals would make the two kinds of entry disagree for no reason.
         for entry in ranked:
             entry.pop('needs_regeneration', None)
+            entry.pop('regeneration_attempts', None)
 
         return Response(ranked)
 

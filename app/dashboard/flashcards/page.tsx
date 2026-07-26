@@ -290,7 +290,7 @@ function FlashcardsStudy() {
       <p className="rise text-center font-mono text-xs uppercase tracking-wide text-slate-500" style={{ animationDelay: '220ms' }}>
         {lastReview
           ? `${lastReview.label} · back in ${lastReview.interval} day${lastReview.interval === 1 ? '' : 's'} · ${graded.size}/${total} graded`
-          : `Space to flip · 1-4 to grade · difficulty: ${card.difficulty}`}
+          : `Space to flip · 1-3 to grade · difficulty: ${card.difficulty}`}
       </p>
     </div>
   )

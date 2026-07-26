@@ -159,7 +159,11 @@ class CardReview(models.Model):
         forward here; starting from the field defaults each time would pin every
         card to a one-day interval forever.
         """
-        previous = cls.objects.filter(user=user, flashcard=flashcard).first()
+        # Ordering spelled out rather than inherited from Meta: reordering
+        # that default would silently carry forward a card's *oldest*
+        # schedule and pin its interval forever.
+        previous = (cls.objects.filter(user=user, flashcard=flashcard)
+                    .order_by('-review_date').first())
         review = cls(
             user=user,
             flashcard=flashcard,
@@ -176,7 +180,17 @@ class CardReview(models.Model):
         # due-fetch does the work, and only for cards actually returned to.
         if result == scheduling.HARD and not flashcard.needs_regeneration:
             flashcard.needs_regeneration = True
-            flashcard.save(update_fields=['needs_regeneration'])
+            flashcard.regeneration_attempts = 0
+            flashcard.save(update_fields=['needs_regeneration',
+                                          'regeneration_attempts'])
+        elif result in scheduling.CORRECT_RESULTS and flashcard.needs_regeneration:
+            # Recalling the card means it no longer needs replacing: without
+            # this, a card failed once and then learned would still be swapped
+            # out weeks later, discarding what the learner had just mastered.
+            flashcard.needs_regeneration = False
+            flashcard.regeneration_attempts = 0
+            flashcard.save(update_fields=['needs_regeneration',
+                                          'regeneration_attempts'])
 
         streak, _ = StudyStreak.objects.get_or_create(user=user)
         streak.update_streak(timezone.localdate())
