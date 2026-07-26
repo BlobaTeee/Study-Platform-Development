@@ -11,6 +11,7 @@ from .gemini_client import (
 )
 from .ai_provider import get_ai_provider
 from . import dedupe, fallback
+from .deck_limits import MAX_CARDS_PER_SOURCE, room_for
 
 logger = logging.getLogger(__name__)
 
@@ -130,11 +131,18 @@ def _save_flashcards_from_json(
     tag = combined_source_tag(source_ids)
     # Generating again appends, so without this the same fact reaches two cards
     # with two schedules and gets reviewed twice. Scoped to this exact source
-    # selection — the set the caller asked to generate from.
+    # selection — the set the caller asked to generate from. Archived cards are
+    # excluded from both the dedupe pool and the count below: an archived
+    # original's question is fair game to resurface via its replacement, and it
+    # must not occupy a slot under the cap it no longer counts toward.
     existing = list(
-        Flashcard.objects.filter(user=user, tags=tag).values_list('question', flat=True)
+        Flashcard.objects.filter(user=user, tags=tag, archived=False)
+        .values_list('question', flat=True)
     )
-    fresh = dedupe.new_flashcards(items[:count], existing)
+    # The hard ceiling lives here rather than at the request, because the
+    # `max(3, ...)` clamp upstream would raise a one-slot top-up back to three.
+    allowed = min(count, room_for(len(existing)))
+    fresh = dedupe.new_flashcards(items[:count], existing)[:allowed]
 
     created = []
     for item in fresh:
@@ -169,6 +177,13 @@ def generate_flashcards_for_sources(sources, user, count: int = 10,
     count = max(3, min(count, 20))
     source_ids = [s.id for s in sources]
     tag = combined_source_tag(source_ids)
+
+    # A full document is a finished document, not an error: say so and stop
+    # before spending a model call that could not be saved anyway.
+    already = Flashcard.objects.filter(user=user, tags=tag, archived=False).count()
+    if room_for(already) == 0:
+        _mark(meta, 'none', reason=f'already at the {MAX_CARDS_PER_SOURCE}-card limit')
+        return []
 
     # Validate + guard against thin sources up front, for every provider, so the
     # user gets one clear message instead of empty output or a silent fallback.

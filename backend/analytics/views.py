@@ -39,7 +39,10 @@ class AnalyticsViewSet(viewsets.ViewSet):
         completed = QuizAttempt.objects.filter(user=user, is_completed=True)
         avg_quiz_score = completed.aggregate(avg=Avg('score'))['avg']
 
-        flashcards = Flashcard.objects.filter(user=user)
+        # Archived originals are replaced 1-for-1 by regeneration, not a net
+        # addition, so counting them would inflate the lifetime total by one
+        # per regeneration and disagree with the flashcards list page.
+        flashcards = Flashcard.objects.filter(user=user, archived=False)
         reviews_qs = CardReview.objects.filter(user=user)
         correct = reviews_qs.filter(result__in=insights.CORRECT_RESULTS).count()
         incorrect = reviews_qs.filter(result__in=insights.INCORRECT_RESULTS).count()

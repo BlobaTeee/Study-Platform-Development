@@ -132,8 +132,12 @@ class NotebookViewSet(viewsets.ModelViewSet):
         if not source_ids:
             return Response({'flashcards': 0})
         return Response({
+            # Archived originals don't count against the cap, so this must not
+            # count them either — it's exactly the number the generate button
+            # shows as "(n/10)", and an inflated count would disagree with the
+            # real ceiling forever.
             'flashcards': Flashcard.objects.filter(
-                user=request.user, tags=combined_source_tag(source_ids)
+                user=request.user, tags=combined_source_tag(source_ids), archived=False
             ).count(),
         })
 
