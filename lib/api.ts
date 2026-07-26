@@ -49,7 +49,7 @@ export const materialsAPI = {
 }
 
 /** How well you recalled a card, worst first. Drives the SM-2 schedule. */
-export type ReviewGrade = 'again' | 'hard' | 'good' | 'easy'
+export type ReviewGrade = 'hard' | 'good' | 'easy'
 
 export const flashcardsAPI = {
   getFlashcards: (params?: any) => api.get('/flashcards/flashcards/', { params }),

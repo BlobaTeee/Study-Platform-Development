@@ -110,6 +110,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     () => notebooksAPI.getMaterialCounts(notebookId, generationSourceIds)
   )
   const existingCards: number = countsRes?.data?.flashcards ?? 0
+  // A document holds at most 10 active flashcards; generating tops the deck
+  // up to that count and never stacks past it.
+  const deckFull = existingCards >= 10
 
   const hasFlashcardsForSources = useMemo(() => {
     if (generationSourceIds.length === 0) return false
@@ -624,18 +627,17 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                           ? 'From all selected sources'
                           : 'About 10 cards from selection'}
                       </p>
-                      {/* Generating appends. Saying so, with the running total,
-                          is the only thing standing between a press and a deck
-                          that has quietly grown to dozens of cards. */}
+                      {/* A document holds at most 10 active cards. Generating
+                          tops the deck up to that count and never stacks
+                          past it, so the running total is worth saying. */}
                       {existingCards > 0 && (
                         <p className="font-mono text-sm text-slate-600 tabular-nums">
-                          {existingCards} card{existingCards === 1 ? '' : 's'} already ·
-                          adds ~10 more
+                          {existingCards} card{existingCards === 1 ? '' : 's'} already
                         </p>
                       )}
                       <Button
                         onClick={handleGenerateFlashcards}
-                        disabled={!canGenerate || generating !== null}
+                        disabled={!canGenerate || generating !== null || deckFull}
                         size="lg"
                         className="mt-2 bg-mode-flashcards hover:bg-mode-flashcards-hover text-white w-full h-12 text-base"
                       >
@@ -647,7 +649,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                         ) : (
                           <>
                             <Sparkles className="size-4" />
-                            {existingCards > 0 ? 'Generate 10 more' : 'Generate flashcards'}
+                            {deckFull
+                              ? 'Flashcards full (10/10)'
+                              : `Generate flashcards (${existingCards}/10)`}
                           </>
                         )}
                       </Button>

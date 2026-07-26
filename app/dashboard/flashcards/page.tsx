@@ -29,12 +29,11 @@ type Flashcard = {
   tags?: string | null
 }
 
-/** The four SM-2 grades, worst recall first. Only you can judge whether you
+/** The three SM-2 grades, worst recall first. Only you can judge whether you
  *  remembered a card, so grading is the one step that cannot be automated —
  *  the number keys mirror the on-screen order. */
 const GRADES: { value: ReviewGrade; label: string; hint: string; className: string }[] = [
-  { value: 'again', label: 'Again', hint: 'Forgot', className: 'border-red-300 bg-red-50 text-red-900 hover:bg-red-100' },
-  { value: 'hard', label: 'Hard', hint: 'Struggled', className: 'border-orange-300 bg-orange-50 text-orange-900 hover:bg-orange-100' },
+  { value: 'hard', label: 'Hard', hint: 'Forgot', className: 'border-red-300 bg-red-50 text-red-900 hover:bg-red-100' },
   { value: 'good', label: 'Good', hint: 'Recalled', className: 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100' },
   { value: 'easy', label: 'Easy', hint: 'Instantly', className: 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100' },
 ]
@@ -118,7 +117,9 @@ function FlashcardsStudy() {
     [flashcards, index, saving, goNext, dueMode]
   )
 
-  // Keyboard: space/enter flips, arrows move, 1-4 grade a revealed card.
+  // Keyboard: space/enter flips, arrows move, number keys grade a revealed
+  // card — the range comes from GRADES.length so removing/adding a grade
+  // renumbers the shortcuts automatically instead of drifting out of sync.
   useEffect(() => {
     if (total === 0) return
     const onKey = (e: KeyboardEvent) => {
@@ -129,7 +130,7 @@ function FlashcardsStudy() {
         goNext()
       } else if (e.key === 'ArrowLeft') {
         goPrev()
-      } else if (flipped && /^[1-4]$/.test(e.key)) {
+      } else if (flipped && /^[1-9]$/.test(e.key) && Number(e.key) <= GRADES.length) {
         e.preventDefault()
         grade(GRADES[Number(e.key) - 1].value)
       }
@@ -238,7 +239,7 @@ function FlashcardsStudy() {
       {flipped ? (
         <div className="rise space-y-3" style={{ animationDelay: '180ms' }}>
           <p className="text-center text-sm text-slate-500">How well did you recall it?</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {GRADES.map((g, i) => (
               <button
                 key={g.value}
