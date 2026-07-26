@@ -19,3 +19,14 @@ def room_for(existing_active: int, maximum: int = MAX_CARDS_PER_SOURCE) -> int:
     rather than creeping past it.
     """
     return max(0, maximum - existing_active)
+
+
+def capped_count(requested: int, existing_active: int, maximum: int = MAX_CARDS_PER_SOURCE) -> int:
+    """How many cards it is safe to ask a generator for.
+
+    Bounds `requested` to the room actually left on the document: never more
+    than that room, never negative. Callers must apply this before branching
+    into any generator, because some generators (ML-primary, local fallback)
+    create rows directly and never pass back through a save-step ceiling.
+    """
+    return max(0, min(requested, room_for(existing_active, maximum)))

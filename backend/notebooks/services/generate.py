@@ -11,7 +11,7 @@ from .gemini_client import (
 )
 from .ai_provider import get_ai_provider
 from . import dedupe, fallback
-from .deck_limits import MAX_CARDS_PER_SOURCE, room_for
+from .deck_limits import MAX_CARDS_PER_SOURCE, capped_count, room_for
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +184,16 @@ def generate_flashcards_for_sources(sources, user, count: int = 10,
     if room_for(already) == 0:
         _mark(meta, 'none', reason=f'already at the {MAX_CARDS_PER_SOURCE}-card limit')
         return []
+
+    # Bound the request to the remaining room before any provider branch below.
+    # _save_flashcards_from_json's own ceiling only protects the LLM/JSON path;
+    # the ML-primary path (_generate_flashcards_ml) and the local-fallback path
+    # (fallback.generate_flashcards_fallback_multi) create Flashcard rows
+    # directly and never reach that save step, so a provider failure on a
+    # partially-filled document could otherwise stack cards past the cap. This
+    # also has to run after the max(3, ...) floor above, or a one-slot top-up
+    # would get re-inflated back up to three.
+    count = capped_count(count, already, MAX_CARDS_PER_SOURCE)
 
     # Validate + guard against thin sources up front, for every provider, so the
     # user gets one clear message instead of empty output or a silent fallback.
