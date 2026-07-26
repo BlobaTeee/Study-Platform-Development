@@ -236,7 +236,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
         setWarning(FALLBACK_NOTICE('flashcards'))
         return  // stay put so the downgrade is seen, not silently navigated past
       }
-      router.push(`/dashboard/flashcards?source=${studyQuery}`)
+      router.push(`/dashboard/flashcards?due=1&source=${studyQuery}`)
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { detail?: string } } }
       setError(ax.response?.data?.detail || 'Failed to generate flashcards')
@@ -693,7 +693,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                   <div className="flex flex-wrap gap-3 pt-2">
                     {hasFlashcardsForSources && (
                       <Button asChild variant="outline" size="lg" className="h-12 text-base">
-                        <Link href={`/dashboard/flashcards?source=${studyQuery}`}>
+                        <Link href={`/dashboard/flashcards?due=1&source=${studyQuery}`}>
                           Study flashcards
                         </Link>
                       </Button>

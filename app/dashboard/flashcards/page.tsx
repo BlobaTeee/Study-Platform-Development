@@ -159,11 +159,28 @@ function FlashcardsStudy() {
               : 'Nothing due right now. Cards come back as their dates arrive.'
             : 'No flashcards for this selection yet.'}
         </p>
-        <Button asChild size="lg" className="bg-mode-library hover:bg-mode-library-hover h-12 text-lg">
-          <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
-            {dueMode ? 'Back to progress' : 'Go to Notebooks'}
-          </Link>
-        </Button>
+        {/* Studying a document enters the scheduled queue, so "nothing due" is
+            the common landing. Offering the whole document here keeps that an
+            answer rather than a dead end, while still leading with the
+            schedule — reviewing early is a choice, not the default. */}
+        {dueMode && sourceParam ? (
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button asChild size="lg" variant="outline" className="h-12 text-lg">
+              <Link href={`/dashboard/flashcards?source=${sourceParam}`}>
+                Study all cards anyway
+              </Link>
+            </Button>
+            <Button asChild size="lg" className="bg-mode-library hover:bg-mode-library-hover h-12 text-lg">
+              <Link href="/dashboard/notebooks">Back to notebooks</Link>
+            </Button>
+          </div>
+        ) : (
+          <Button asChild size="lg" className="bg-mode-library hover:bg-mode-library-hover h-12 text-lg">
+            <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
+              {dueMode ? 'Back to progress' : 'Go to Notebooks'}
+            </Link>
+          </Button>
+        )}
       </div>
     )
   }
