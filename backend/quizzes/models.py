@@ -90,6 +90,10 @@ class MockTest(models.Model):
     a mock test deliberately spans every quiz in a notebook, so it needs its own
     record rather than a widened attempt.
     """
+    # Explicit BigAutoField: every sibling table in this app was created as
+    # BigAutoField in 0001_initial. Without this, apps.py's lack of
+    # DEFAULT_AUTO_FIELD silently downgrades new models to 32-bit AutoField.
+    id = models.BigAutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='mock_tests')
     # String reference on purpose: notebooks already imports quizzes.serializers,
     # so importing notebooks here would close a circular import.
@@ -121,6 +125,9 @@ class MockTestQuestion(models.Model):
     Freezing matters: without stored rows a refresh would resample and hand the
     student a different paper mid-sitting.
     """
+    # Explicit BigAutoField: this table grows with sittings x questions, and
+    # every sibling table in this app is BigAutoField (set in 0001_initial).
+    id = models.BigAutoField(primary_key=True)
     mock_test = models.ForeignKey(MockTest, on_delete=models.CASCADE, related_name='paper')
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     order = models.PositiveSmallIntegerField()
@@ -146,12 +153,19 @@ class PlannedTest(models.Model):
         (72, '3 days before'),
     ]
 
+    # Explicit BigAutoField: every sibling table in this app was created as
+    # BigAutoField in 0001_initial; apps.py sets no DEFAULT_AUTO_FIELD.
+    id = models.BigAutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='planned_tests')
     notebook = models.ForeignKey('notebooks.Notebook', on_delete=models.CASCADE,
                                  related_name='planned_tests')
     scheduled_for = models.DateTimeField()
     question_count = models.PositiveSmallIntegerField(default=20)
     duration_minutes = models.PositiveSmallIntegerField(default=30)
+    # `choices` only constrains the admin UI and DRF's browsable form, not the
+    # database or bulk creates/shell/scripts that skip serializer validation.
+    # The CheckConstraint below is what actually keeps this to {1, 24, 72} so
+    # the reminder command never has to act on a bogus lead time.
     reminder_lead_hours = models.PositiveSmallIntegerField(
         default=24, choices=REMINDER_CHOICES,
         help_text='How far ahead of the test the reminder goes out.')
@@ -160,6 +174,12 @@ class PlannedTest(models.Model):
     reminder_sent_at = models.DateTimeField(null=True, blank=True)
     mock_test = models.OneToOneField(MockTest, null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name='plan')
+    # Stamped when this plan is turned into a sitting. Unlike mock_test (which
+    # is SET_NULL and reverts to NULL if the sitting is later deleted), this
+    # stays set permanently, so "this plan was fulfilled" can't be forgotten
+    # and the reminder command can't resurrect a reminder for a test already
+    # taken.
+    sat_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -168,6 +188,12 @@ class PlannedTest(models.Model):
             # The reminder command's only query: unsent plans, by when they are due.
             models.Index(fields=['reminder_sent_at', 'scheduled_for']),
             models.Index(fields=['user', 'scheduled_for']),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(reminder_lead_hours__in=[1, 24, 72]),
+                name='planned_test_reminder_lead_choices',
+            ),
         ]
 
     def __str__(self):
