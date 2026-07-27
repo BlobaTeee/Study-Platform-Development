@@ -36,7 +36,12 @@ def source_accuracy(answer_rows: list[dict]) -> dict[int, float]:
             bucket = totals.setdefault(sid, [0, 0])
             bucket[0] += 1 if row.get("is_correct") else 0
             bucket[1] += 1
-    return {sid: round(correct / total * 100, 1)
+    # Left at full precision on purpose: this dict only feeds the weight
+    # thresholds below, never a display. Rounding here would let a genuine
+    # 84.95% round up to 85.0 and flip STRONG a comparison early (and the
+    # mirror case at the WEAK boundary), which is a silent misclassification
+    # for no benefit.
+    return {sid: correct / total * 100
             for sid, (correct, total) in totals.items() if total}
 
 
@@ -80,9 +85,34 @@ def sample_paper(pool: list[dict], weights: dict[int, float], count: int,
     if count <= 0 or not pool:
         return []
 
+    # Drop duplicate ids, keeping the first occurrence. The next task builds
+    # `pool` by matching questions to a notebook's documents, which can yield
+    # more than one entry for the same question (e.g. one row per matching
+    # source before aggregation). MockTestQuestion has a unique_together on
+    # (mock_test, question), so an undetected duplicate here would surface as
+    # an IntegrityError on save rather than as the duplicated question that
+    # actually caused it.
+    deduped = []
+    seen_ids = set()
+    for entry in pool:
+        eid = entry.get("id")
+        if eid in seen_ids:
+            continue
+        seen_ids.add(eid)
+        deduped.append(entry)
+
+    # Sorted by id before drawing so each entry's random key depends on the
+    # entry's identity, not on its position in `pool`. rng.random() is called
+    # once per position in iteration order, so without this sort, the same
+    # seed over the same items in a different order (e.g. a queryset without
+    # an explicit ORDER BY, which Postgres does not guarantee across calls)
+    # would hand out keys to the wrong entries and silently produce a
+    # different paper — defeating the reproducibility `seed` promises.
+    deduped.sort(key=lambda entry: entry["id"])
+
     rng = random.Random(seed)
     scored = []
-    for entry in pool:
+    for entry in deduped:
         weight = max(question_weight(entry, weights), 1e-9)
         scored.append((rng.random() ** (1.0 / weight), entry))
     scored.sort(key=lambda pair: pair[0], reverse=True)
