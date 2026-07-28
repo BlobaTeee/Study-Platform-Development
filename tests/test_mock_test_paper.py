@@ -152,3 +152,60 @@ def test_an_empty_pool_is_an_empty_paper():
 def test_a_zero_or_negative_count_is_an_empty_paper():
     assert paper.sample_paper(_pool(10), {}, count=0, seed=1) == []
     assert paper.sample_paper(_pool(10), {}, count=-5, seed=1) == []
+
+
+# ---- clamp_int ----------------------------------------------------------
+
+def test_clamp_int_returns_the_default_when_value_is_none():
+    assert paper.clamp_int(None, 5, 50, default=20) == 20
+
+
+def test_clamp_int_clamps_below_the_floor():
+    assert paper.clamp_int(1, 5, 50, default=20) == 5
+    assert paper.clamp_int("-100", 5, 50, default=20) == 5
+
+
+def test_clamp_int_clamps_above_the_ceiling():
+    assert paper.clamp_int(9999, 5, 50, default=20) == 50
+    assert paper.clamp_int("500", 5, 50, default=20) == 50
+
+
+def test_clamp_int_returns_an_in_range_value_unchanged():
+    assert paper.clamp_int(30, 5, 50, default=20) == 30
+    assert paper.clamp_int("30", 5, 50, default=20) == 30
+
+
+def test_clamp_int_accepts_a_whole_valued_float():
+    # JSON has no separate integer type, so a body decoded from JSON may hand
+    # back 20.0 for a field a form would have sent as "20".
+    assert paper.clamp_int(20.0, 5, 50, default=20) == 20
+
+
+def test_clamp_int_rejects_non_numeric_text():
+    import pytest
+    with pytest.raises(ValueError):
+        paper.clamp_int("abc", 5, 50, default=20)
+
+
+def test_clamp_int_rejects_none_like_junk():
+    import pytest
+    with pytest.raises(ValueError):
+        paper.clamp_int("None", 5, 50, default=20)
+    with pytest.raises(ValueError):
+        paper.clamp_int("null", 5, 50, default=20)
+
+
+def test_clamp_int_rejects_a_fractional_value():
+    import pytest
+    with pytest.raises(ValueError):
+        paper.clamp_int(3.5, 5, 50, default=20)
+    with pytest.raises(ValueError):
+        paper.clamp_int("3.5", 5, 50, default=20)
+
+
+def test_clamp_int_rejects_a_bool():
+    # bool is a subclass of int in Python, so without an explicit check
+    # isinstance(True, int) would quietly let True become 1.
+    import pytest
+    with pytest.raises(ValueError):
+        paper.clamp_int(True, 5, 50, default=20)

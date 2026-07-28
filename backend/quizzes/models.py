@@ -108,6 +108,20 @@ class MockTest(models.Model):
     class Meta:
         ordering = ['-started_at']
         indexes = [models.Index(fields=['user', '-started_at'])]
+        constraints = [
+            # .objects.create() never calls full_clean(), so PositiveSmallIntegerField
+            # alone does not stop a 0 being written by a shell, an admin action, or
+            # future code that bypasses the view. A 0-question or 0-minute sitting
+            # measures nothing, so this is enforced at the database, not just the API.
+            models.CheckConstraint(
+                condition=models.Q(question_count__gte=1),
+                name='mock_test_question_count_positive',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(duration_minutes__gte=1),
+                name='mock_test_duration_minutes_positive',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.user.username} — {self.notebook_id} ({self.question_count}q)'
@@ -193,6 +207,17 @@ class PlannedTest(models.Model):
             models.CheckConstraint(
                 condition=models.Q(reminder_lead_hours__in=[1, 24, 72]),
                 name='planned_test_reminder_lead_choices',
+            ),
+            # Same rationale as MockTest's constraints: .objects.create() skips
+            # full_clean(), so PositiveSmallIntegerField alone would not stop a
+            # planned test for 0 questions or 0 minutes being written directly.
+            models.CheckConstraint(
+                condition=models.Q(question_count__gte=1),
+                name='planned_test_question_count_positive',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(duration_minutes__gte=1),
+                name='planned_test_duration_minutes_positive',
             ),
         ]
 

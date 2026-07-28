@@ -22,6 +22,54 @@ WEAK_WEIGHT = 1.5
 NEUTRAL_WEIGHT = 1.0
 STRONG_WEIGHT = 0.6
 
+#: Bounds on what a student can request for a sitting. A floor exists at all
+#: because a one-question or one-minute "paper" measures nothing — it cannot
+#: tell a student anything about their readiness, so it is not a smaller
+#: version of the feature, it is a broken one. The ceiling exists because an
+#: unbounded count turns one "start a test" press into an unbounded sample and
+#: an unbounded number of frozen `MockTestQuestion` rows.
+MIN_QUESTIONS = 5
+MAX_QUESTIONS = 50
+MIN_DURATION_MINUTES = 5
+MAX_DURATION_MINUTES = 180
+
+
+def clamp_int(value, minimum: int, maximum: int, default: int) -> int:
+    """Parse `value` as a whole number and clamp it into [minimum, maximum].
+
+    `None` (the field was omitted) yields `default` rather than an error —
+    that is the normal case, not a bad request. Anything else that is not
+    genuinely a whole number raises `ValueError`, so the caller can turn it
+    into a 400 naming the offending field instead of silently coercing junk
+    into a number. That includes `bool`: Python's `bool` is a subclass of
+    `int`, so `isinstance(True, int)` is true, and without an explicit check
+    `True` would quietly become `1`.
+
+    Accepts a plain `int`, a whole-valued `float` (JSON has no distinct
+    integer type, so a body decoded from JSON may hand back `20.0` for a
+    field a form would have sent as `"20"`), or a string of digits. A
+    fractional float or a non-digit string is rejected.
+    """
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        raise ValueError(f'expected a whole number, got {value!r}')
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, float):
+        if not value.is_integer():
+            raise ValueError(f'expected a whole number, got {value!r}')
+        parsed = int(value)
+    elif isinstance(value, str):
+        stripped = value.strip()
+        digits = stripped[1:] if stripped[:1] == '-' else stripped
+        if not digits.isdigit():
+            raise ValueError(f'expected a whole number, got {value!r}')
+        parsed = int(stripped)
+    else:
+        raise ValueError(f'expected a whole number, got {value!r}')
+    return max(minimum, min(maximum, parsed))
+
 
 def source_accuracy(answer_rows: list[dict]) -> dict[int, float]:
     """Percent correct per source, from graded quiz answers.

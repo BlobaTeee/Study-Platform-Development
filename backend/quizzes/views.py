@@ -1,3 +1,6 @@
+from functools import reduce
+
+from django.db.models import Q
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -10,7 +13,10 @@ from .serializers import (
     QuizSerializer, QuestionSerializer, QuizAttemptSerializer, AnswerSerializer,
     MockTestSerializer, MockTestQuestionReviewSerializer, PlannedTestSerializer,
 )
-from .services.paper import sample_paper, source_accuracy, source_weights
+from .services.paper import (
+    sample_paper, source_accuracy, source_weights, clamp_int,
+    MIN_QUESTIONS, MAX_QUESTIONS, MIN_DURATION_MINUTES, MAX_DURATION_MINUTES,
+)
 
 
 class QuizViewSet(viewsets.ModelViewSet):
@@ -93,7 +99,22 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-def _question_pool(user, notebook):
+def _source_filter(field_prefix, source_ids):
+    """OR of `description__contains` across a notebook's source ids.
+
+    This is a prefilter, not the real check: `source:3` is also a substring of
+    `source:30`, so it may match a quiz that mentions a different source
+    entirely. That is fine, and deliberate — a prefilter is only required
+    never to return too little, and the exact check (`parse_source_ids`
+    followed by `if sid in source_ids`) still runs on every row this yields.
+    Do not remove that exact check on the theory that this filter is precise
+    enough on its own; it isn't.
+    """
+    field = f'{field_prefix}description__contains'
+    return reduce(lambda acc, sid: acc | Q(**{field: f'source:{sid}'}), source_ids)
+
+
+def _question_pool(user, source_ids):
     """Every question generated from this notebook's documents.
 
     Source ids are parsed out of the quiz description rather than matched as a
@@ -102,12 +123,17 @@ def _question_pool(user, notebook):
     """
     from analytics import insights
 
-    source_ids = set(notebook.sources.values_list('id', flat=True))
     if not source_ids:
         return []
 
+    # Narrowed at the database layer to quizzes that could mention one of
+    # this notebook's sources, rather than scanning the user's entire quiz
+    # history on every "start a test" press — see _source_filter for why
+    # over-matching here is safe.
     pool = []
-    for row in Question.objects.filter(quiz__user=user).values('id', 'quiz__description'):
+    for row in (Question.objects.filter(quiz__user=user)
+                .filter(_source_filter('quiz__', source_ids))
+                .values('id', 'quiz__description')):
         matched = [sid for sid in insights.parse_source_ids(row['quiz__description'])
                    if sid in source_ids]
         if matched:
@@ -115,14 +141,22 @@ def _question_pool(user, notebook):
     return pool
 
 
-def _source_accuracy(user):
-    """How well the user has answered questions from each document so far."""
+def _source_accuracy(user, source_ids):
+    """How well the user has answered questions from this notebook's own
+    documents so far — the weighting has no use for accuracy on unrelated
+    material, so this is scoped rather than pulling the user's whole history.
+    """
     from analytics import insights
 
+    if not source_ids:
+        return {}
+
     rows = [
-        {'source_ids': insights.parse_source_ids(row['question__quiz__description']),
+        {'source_ids': [sid for sid in insights.parse_source_ids(row['question__quiz__description'])
+                        if sid in source_ids],
          'is_correct': row['is_correct']}
         for row in Answer.objects.filter(quiz_attempt__user=user)
+        .filter(_source_filter('question__quiz__', source_ids))
         .values('question__quiz__description', 'is_correct')
     ]
     return source_accuracy(rows)
@@ -147,9 +181,23 @@ class MockTestViewSet(viewsets.ModelViewSet):
         if notebook is None:
             return Response({'detail': 'Notebook not found.'}, status=404)
 
-        requested = int(request.data.get('question_count', 20))
-        duration = int(request.data.get('duration_minutes', 30))
-        pool = _question_pool(request.user, notebook)
+        # Parse defensively rather than bare int(): a non-numeric value would
+        # otherwise raise an unhandled ValueError (500) instead of a 400, and
+        # an unclamped count/duration could produce a zero-question paper or
+        # an already-expired deadline. See clamp_int's docstring.
+        try:
+            requested = clamp_int(request.data.get('question_count'),
+                                   MIN_QUESTIONS, MAX_QUESTIONS, default=20)
+        except ValueError as exc:
+            return Response({'detail': f'question_count: {exc}'}, status=400)
+        try:
+            duration = clamp_int(request.data.get('duration_minutes'),
+                                  MIN_DURATION_MINUTES, MAX_DURATION_MINUTES, default=30)
+        except ValueError as exc:
+            return Response({'detail': f'duration_minutes: {exc}'}, status=400)
+
+        source_ids = set(notebook.sources.values_list('id', flat=True))
+        pool = _question_pool(request.user, source_ids)
         if not pool:
             return Response(
                 {'detail': 'No quiz questions for this notebook yet. '
@@ -157,7 +205,7 @@ class MockTestViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
-        weights = source_weights(_source_accuracy(request.user))
+        weights = source_weights(_source_accuracy(request.user, source_ids))
         chosen = sample_paper(pool, weights, count=requested)
 
         test = MockTest.objects.create(
@@ -169,7 +217,11 @@ class MockTestViewSet(viewsets.ModelViewSet):
             for i, entry in enumerate(chosen)
         ])
 
-        test.refresh_from_db()
+        # Re-fetch through get_queryset() rather than refresh_from_db(): that
+        # carries the same select_related/prefetch_related get_queryset()
+        # already uses for reads, so the serializer walks the frozen paper's
+        # questions in one query instead of one per row.
+        test = self.get_queryset().get(pk=test.pk)
         data = MockTestSerializer(test).data
         # Say so rather than silently handing over a shorter paper: the student
         # is about to judge their readiness on it.
