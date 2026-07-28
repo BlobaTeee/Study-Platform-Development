@@ -1,5 +1,3 @@
-from functools import reduce
-
 from django.db.models import Q
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
@@ -111,7 +109,15 @@ def _source_filter(field_prefix, source_ids):
     enough on its own; it isn't.
     """
     field = f'{field_prefix}description__contains'
-    return reduce(lambda acc, sid: acc | Q(**{field: f'source:{sid}'}), source_ids)
+    # An empty Q() matches everything, which would silently widen the scan to
+    # every quiz the user owns rather than narrowing it, so an empty list of
+    # source ids must produce a filter that matches nothing instead.
+    if not source_ids:
+        return Q(pk__in=[])
+    query = Q()
+    for sid in source_ids:
+        query |= Q(**{field: f'source:{sid}'})
+    return query
 
 
 def _question_pool(user, source_ids):
