@@ -234,3 +234,76 @@ class MockTestViewSet(viewsets.ModelViewSet):
         if len(chosen) < requested:
             data['short_paper'] = True
         return Response(data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def answer(self, request, pk=None):
+        """Record one answer. Deliberately returns no marking.
+
+        Telling the student whether they were right would turn the paper back
+        into a quiz, so the response carries only what is needed to keep going.
+        """
+        from django.utils import timezone
+        from .services.timing import answers_are_open, seconds_remaining
+
+        test = self.get_object()
+        if test.completed_at:
+            return Response({'detail': 'This test has already been submitted.'}, status=400)
+
+        now = timezone.now()
+        if not answers_are_open(test.started_at, test.duration_minutes, now):
+            return Response({'detail': 'Time is up for this test.',
+                             'seconds_remaining': 0}, status=409)
+
+        row = test.paper.filter(id=request.data.get('paper_question_id')).first()
+        if row is None:
+            return Response({'detail': 'Question not part of this test.'}, status=404)
+
+        row.user_answer = str(request.data.get('answer', ''))
+        row.answered_at = now
+        row.save(update_fields=['user_answer', 'answered_at'])
+
+        return Response({
+            'id': row.id,
+            'answered': True,
+            'seconds_remaining': seconds_remaining(
+                test.started_at, test.duration_minutes, now),
+        })
+
+    @action(detail=True, methods=['post'])
+    def submit(self, request, pk=None):
+        """Grade the whole paper and hand back the full review."""
+        from django.db import transaction
+        from django.utils import timezone
+
+        test = self.get_object()
+        if test.completed_at:
+            return Response(self._review(test))
+
+        rows = list(test.paper.select_related('question'))
+        # Grading and stamping must land together, or a crash between them would
+        # leave a paper that reads as unfinished but is already marked.
+        with transaction.atomic():
+            correct = 0
+            for row in rows:
+                row.is_correct = (row.user_answer or '').strip() == \
+                    (row.question.correct_answer or '').strip()
+                correct += 1 if row.is_correct else 0
+            MockTestQuestion.objects.bulk_update(rows, ['is_correct'])
+
+            test.completed_at = timezone.now()
+            test.score = round(correct / len(rows) * 100, 1) if rows else 0.0
+            test.save(update_fields=['completed_at', 'score'])
+
+        return Response(self._review(test))
+
+    def _review(self, test):
+        """The paper with its marking revealed — only ever after submission."""
+        rows = test.paper.select_related('question').all()
+        return {
+            'id': test.id,
+            'score': test.score,
+            'completed_at': test.completed_at,
+            'question_count': test.question_count,
+            'correct_count': sum(1 for r in rows if r.is_correct),
+            'paper': MockTestQuestionReviewSerializer(rows, many=True).data,
+        }
