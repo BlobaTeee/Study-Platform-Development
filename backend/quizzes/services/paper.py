@@ -71,6 +71,19 @@ def clamp_int(value, minimum: int, maximum: int, default: int) -> int:
     return max(minimum, min(maximum, parsed))
 
 
+def _answer_matches(given: str | None, expected: str | None) -> bool:
+    """Whether a submitted answer counts as correct against the stored one.
+
+    Grading is deliberately lenient about case and surrounding whitespace and
+    nothing else: the student is being tested on the material, not on their
+    typing, so "paris" and "  Paris  " both count against a correct answer of
+    "Paris". `casefold()` rather than `lower()` because it folds case more
+    correctly across languages (e.g. German ß vs "ss"), which `lower()` alone
+    would miss.
+    """
+    return (given or '').strip().casefold() == (expected or '').strip().casefold()
+
+
 def source_accuracy(answer_rows: list[dict]) -> dict[int, float]:
     """Percent correct per source, from graded quiz answers.
 

@@ -209,3 +209,36 @@ def test_clamp_int_rejects_a_bool():
     import pytest
     with pytest.raises(ValueError):
         paper.clamp_int(True, 5, 50, default=20)
+
+
+# ---- answer matching ---------------------------------------------------------
+
+def test_an_exact_match_is_correct():
+    assert paper._answer_matches("Paris", "Paris") is True
+
+
+def test_matching_is_case_insensitive():
+    assert paper._answer_matches("paris", "Paris") is True
+
+
+def test_matching_ignores_surrounding_whitespace():
+    assert paper._answer_matches("  Paris  ", "Paris") is True
+
+
+def test_a_none_given_answer_does_not_match_a_real_answer():
+    # An unanswered row must still grade wrong, not raise on the missing value.
+    assert paper._answer_matches(None, "Paris") is False
+
+
+def test_a_none_expected_answer_does_not_match_a_real_answer():
+    assert paper._answer_matches("Paris", None) is False
+
+
+def test_an_empty_answer_does_not_match_a_real_answer():
+    # Distinct from the None cases: an explicit empty string still must not
+    # accidentally satisfy a real, non-empty correct answer.
+    assert paper._answer_matches("", "Paris") is False
+
+
+def test_two_different_answers_do_not_match():
+    assert paper._answer_matches("Paris", "London") is False

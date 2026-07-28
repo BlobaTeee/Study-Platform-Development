@@ -12,7 +12,7 @@ from .serializers import (
     MockTestSerializer, MockTestQuestionReviewSerializer, PlannedTestSerializer,
 )
 from .services.paper import (
-    sample_paper, source_accuracy, source_weights, clamp_int,
+    sample_paper, source_accuracy, source_weights, clamp_int, _answer_matches,
     MIN_QUESTIONS, MAX_QUESTIONS, MIN_DURATION_MINUTES, MAX_DURATION_MINUTES,
 )
 
@@ -258,7 +258,12 @@ class MockTestViewSet(viewsets.ModelViewSet):
         if row is None:
             return Response({'detail': 'Question not part of this test.'}, status=404)
 
-        row.user_answer = str(request.data.get('answer', ''))
+        # `.get('answer', '')` only falls back to '' when the key is *absent*;
+        # a payload of {"answer": null} would otherwise stringify to the
+        # literal text "None" and be graded (and shown on the review) as
+        # though the student had typed that word.
+        raw_answer = request.data.get('answer', '')
+        row.user_answer = '' if raw_answer is None else str(raw_answer)
         row.answered_at = now
         row.save(update_fields=['user_answer', 'answered_at'])
 
@@ -271,22 +276,41 @@ class MockTestViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def submit(self, request, pk=None):
-        """Grade the whole paper and hand back the full review."""
+        """Grade the whole paper once and hand back the full review.
+
+        Serialised against a concurrent double-submit: two requests racing
+        each other block on the row lock below rather than both grading.
+        """
         from django.db import transaction
         from django.utils import timezone
 
         test = self.get_object()
+        # Cheap pre-lock check: the common case is a client retrying a submit
+        # whose response it never saw, and that case should not pay for a
+        # row lock it doesn't need.
         if test.completed_at:
             return Response(self._review(test))
 
-        rows = list(test.paper.select_related('question'))
-        # Grading and stamping must land together, or a crash between them would
-        # leave a paper that reads as unfinished but is already marked.
         with transaction.atomic():
+            # Re-fetch under select_for_update() and re-check completed_at:
+            # without the lock, two simultaneous requests could both read
+            # completed_at as unset above and both proceed to grade. The
+            # second request to reach this line now blocks until the first
+            # commits, then sees completed_at already set and short-circuits
+            # instead of re-grading. (Grading happens to be idempotent — it's
+            # a pure function of the already-stored answers — but doing it
+            # twice is still redundant database work the lock avoids.)
+            test = MockTest.objects.select_for_update().get(pk=test.pk)
+            if test.completed_at:
+                return Response(self._review(test))
+
+            rows = list(test.paper.select_related('question'))
+            # Grading and stamping must land together, or a crash between them
+            # would leave a paper that reads as unfinished but is already marked.
             correct = 0
             for row in rows:
-                row.is_correct = (row.user_answer or '').strip() == \
-                    (row.question.correct_answer or '').strip()
+                row.is_correct = _answer_matches(
+                    row.user_answer, row.question.correct_answer)
                 correct += 1 if row.is_correct else 0
             MockTestQuestion.objects.bulk_update(rows, ['is_correct'])
 
@@ -294,11 +318,17 @@ class MockTestViewSet(viewsets.ModelViewSet):
             test.score = round(correct / len(rows) * 100, 1) if rows else 0.0
             test.save(update_fields=['completed_at', 'score'])
 
-        return Response(self._review(test))
+        return Response(self._review(test, rows))
 
-    def _review(self, test):
-        """The paper with its marking revealed — only ever after submission."""
-        rows = test.paper.select_related('question').all()
+    def _review(self, test, rows=None):
+        """The paper with its marking revealed — only ever after submission.
+
+        `rows` lets `submit` hand over the paper it just graded rather than
+        re-querying it; the already-submitted short-circuit path above has no
+        rows loaded, so it is left to query them itself.
+        """
+        if rows is None:
+            rows = test.paper.select_related('question').all()
         return {
             'id': test.id,
             'score': test.score,
