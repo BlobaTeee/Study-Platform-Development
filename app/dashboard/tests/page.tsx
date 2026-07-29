@@ -45,6 +45,10 @@ type MockTest = {
   notebook_title: string
   paper: PaperQuestion[]
   short_paper?: boolean
+  // Present on GET but not on the start response's shape we rely on; used
+  // only to detect "this test is already finished" on resume.
+  completed_at?: string | null
+  score?: number | null
 }
 
 type SubmitResult = {
@@ -89,8 +93,8 @@ function MockTestsInner() {
   const notebooks: NotebookItem[] = nbData?.data?.results ?? nbData?.data ?? []
 
   const [notebookId, setNotebookId] = useState<number | ''>('')
-  const [questionCount, setQuestionCount] = useState(20)
-  const [durationMinutes, setDurationMinutes] = useState(30)
+  const [questionCount, setQuestionCount] = useState<number | ''>(20)
+  const [durationMinutes, setDurationMinutes] = useState<number | ''>(30)
   const [starting, setStarting] = useState(false)
   const [setupError, setSetupError] = useState('')
 
@@ -102,6 +106,7 @@ function MockTestsInner() {
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null)
   const [saveError, setSaveError] = useState('')
+  const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const submittingRef = useRef(false)
 
@@ -112,22 +117,39 @@ function MockTestsInner() {
   // Resuming after a refresh: the deadline the server hands back is the only
   // clock worth trusting, so re-fetching the test is how the countdown
   // survives a reload instead of quietly resetting to the full duration.
+  //
+  // A resumed test can already be finished (submitted before the refresh, or
+  // auto-submitted the instant the deadline passed). The GET withholds
+  // marking, so an already-completed test cannot go through the sitting
+  // view at all — that would just re-trigger the deadline-passed auto-submit
+  // against a paper with no legitimate "unfinished" state to resolve into.
+  // Instead, fetch the review via the idempotent submit endpoint, which
+  // returns the existing marked-up paper without re-grading.
   useEffect(() => {
-    if (!idParam || test) return
+    if (!idParam || test || result) return
     let cancelled = false
     mockTestsAPI
       .get(Number(idParam))
       .then((res) => {
         if (cancelled) return
         const data = res.data as MockTest
+        if (data.completed_at) {
+          return mockTestsAPI.submit(data.id).then((subRes) => {
+            if (!cancelled) setResult(subRes.data)
+          })
+        }
         setTest(data)
         const initial: Record<number, string> = {}
         for (const q of data.paper) {
           if (q.user_answer) initial[q.id] = q.user_answer
         }
         setAnswers(initial)
+        return undefined
       })
       .catch(() => {
+        // Covers a 404'd id and a failure of the review fetch above alike:
+        // there is nothing sensible left to resume, so fall back to Setup
+        // rather than leaving the student on a permanent loading state.
         if (!cancelled) router.replace('/dashboard/tests')
       })
       .finally(() => {
@@ -136,7 +158,7 @@ function MockTestsInner() {
     return () => {
       cancelled = true
     }
-  }, [idParam, test, router])
+  }, [idParam, test, result, router])
 
   const paper = useMemo(
     () => [...(test?.paper ?? [])].sort((a, b) => a.order - b.order),
@@ -147,14 +169,19 @@ function MockTestsInner() {
     if (!test || submittingRef.current) return
     submittingRef.current = true
     setSubmitting(true)
+    setSubmitError('')
     try {
       const res = await mockTestsAPI.submit(test.id)
       setResult(res.data)
-    } catch {
-      // The paper is already frozen server-side; there is nothing sensible
-      // to retry into, so leave the student on the sitting view rather than
-      // invent a failure state.
+    } catch (err) {
+      // Submit is idempotent server-side, so retrying is fine in principle —
+      // but a *persistent* failure (backend down, network gone) must surface
+      // to the student and stop firing on every countdown tick rather than
+      // retry silently forever. `submitError` being non-empty is what tells
+      // the tick effect below to stand down; the "try again" affordance in
+      // the UI is the only thing allowed to attempt it again after that.
       submittingRef.current = false
+      setSubmitError(apiErrorMessage(err, 'Could not submit the test. Check your connection and try again.'))
     } finally {
       setSubmitting(false)
     }
@@ -169,17 +196,42 @@ function MockTestsInner() {
     const tick = () => {
       const remaining = Math.max(0, Math.round((deadlineMs - Date.now()) / 1000))
       setSecondsRemaining(remaining)
-      if (remaining <= 0) void handleSubmit()
+      // Once a submit attempt has failed, stop auto-retrying on every tick —
+      // that's the infinite-loop trap. The student sees `submitError` and a
+      // manual retry button instead.
+      if (remaining <= 0 && !submitError) void handleSubmit()
     }
     tick()
     const interval = window.setInterval(tick, 1000)
     return () => window.clearInterval(interval)
-  }, [test, result, handleSubmit])
+  }, [test, result, handleSubmit, submitError])
+
+  // New test: reset every bit of the previous attempt's state, not just the
+  // URL. `/dashboard/tests` is the same route segment as the current URL
+  // (only the `?id=` query differs), so Next does not remount this
+  // component on that navigation — without this, `result`/`test`/`answers`
+  // would keep the review screen on the page forever.
+  const handleNewTest = useCallback(() => {
+    submittingRef.current = false
+    setResult(null)
+    setTest(null)
+    setAnswers({})
+    setQIndex(0)
+    setSecondsRemaining(null)
+    setSaveError('')
+    setSubmitError('')
+    setResuming(false)
+    router.replace('/dashboard/tests')
+  }, [router])
 
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!notebookId) {
       setSetupError('Choose a notebook first.')
+      return
+    }
+    if (questionCount === '' || durationMinutes === '') {
+      setSetupError('Enter both the number of questions and the duration.')
       return
     }
     setStarting(true)
@@ -275,11 +327,9 @@ function MockTestsInner() {
             </p>
             <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">Reviewed</h1>
           </div>
-          <Button asChild variant="outline" size="lg" className="text-lg h-11 shrink-0">
-            <Link href="/dashboard/tests">
-              <ChevronLeft className="size-5 mr-1" />
-              New test
-            </Link>
+          <Button variant="outline" size="lg" className="text-lg h-11 shrink-0" onClick={handleNewTest}>
+            <ChevronLeft className="size-5 mr-1" />
+            New test
           </Button>
         </div>
 
@@ -468,6 +518,20 @@ function MockTestsInner() {
           </p>
         )}
 
+        {submitError && (
+          <div role="alert" className="rise flex flex-col items-center gap-3 text-center">
+            <p className="text-sm text-red-700">{submitError}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleSubmit()}
+              className="border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
+            >
+              Try submitting again
+            </Button>
+          </div>
+        )}
+
         <div className="flex justify-center gap-4 flex-wrap">
           <Button
             variant="outline"
@@ -556,7 +620,10 @@ function MockTestsInner() {
                   min={5}
                   max={50}
                   value={questionCount}
-                  onChange={(e) => setQuestionCount(Number(e.target.value))}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setQuestionCount(v === '' ? '' : Number(v))
+                  }}
                 />
                 <p className="text-sm text-slate-500">Between 5 and 50.</p>
               </div>
@@ -568,7 +635,10 @@ function MockTestsInner() {
                   min={5}
                   max={180}
                   value={durationMinutes}
-                  onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setDurationMinutes(v === '' ? '' : Number(v))
+                  }}
                 />
                 <p className="text-sm text-slate-500">Between 5 and 180.</p>
               </div>
