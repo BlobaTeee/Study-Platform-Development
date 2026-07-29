@@ -17,6 +17,7 @@ import {
   titleFromFileName,
 } from '@/lib/source-utils'
 import { SourceDropZone } from '@/components/source-drop-zone'
+import { useConfirm } from '@/components/confirm-dialog'
 import {
   AlertCircle,
   ArrowLeft,
@@ -58,6 +59,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   // lower-quality result is never mistaken for the real generator's output.
   const [warning, setWarning] = useState('')
   const [deletingSourceId, setDeletingSourceId] = useState<number | null>(null)
+  const [confirm, confirmDialog] = useConfirm()
   const [loadingSource, setLoadingSource] = useState(false)
   const [sourceDetail, setSourceDetail] = useState<{
     // Only the opening of the document; `text_length` is how long the whole
@@ -210,14 +212,13 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     // Generating replaces this selection's deck, so a second press throws away
     // whatever review progress the current cards carry. Cheap to confirm, and
     // impossible to undo from here if we don't.
-    if (
-      existingCards > 0 &&
-      !window.confirm(
-        `Replace the ${existingCards} flashcard${existingCards === 1 ? '' : 's'} already made from this selection? ` +
-          'The new cards start from scratch, and your review progress on the current ones is retired.'
-      )
-    ) {
-      return
+    if (existingCards > 0) {
+      const ok = await confirm({
+        title: `Replace ${existingCards} flashcard${existingCards === 1 ? '' : 's'}?`,
+        body: 'The new cards start from scratch, and your review progress on the current ones is retired.',
+        confirmLabel: 'Replace deck',
+      })
+      if (!ok) return
     }
     setGenerating('flashcards')
     setError('')
@@ -284,13 +285,12 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const canGenerate = generationSourceIds.length > 0
 
   const handleRemoveSource = async (sourceId: number, title: string) => {
-    if (
-      !window.confirm(
-        `Remove "${title}"? This deletes the file from this notebook. Generated flashcards and quizzes will remain.`
-      )
-    ) {
-      return
-    }
+    const ok = await confirm({
+      title: `Remove "${title}"?`,
+      body: 'This deletes the file from this notebook. Generated flashcards and quizzes will remain.',
+      confirmLabel: 'Remove source',
+    })
+    if (!ok) return
     setDeletingSourceId(sourceId)
     setError('')
     try {
@@ -336,6 +336,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-white">
+      {confirmDialog}
       <div className="border-t-[3px] border-mode-library flex items-center justify-between gap-4 px-5 md:px-6 py-4 border-b border-slate-200 shrink-0">
         <div className="min-w-0 flex-1">
           <Link

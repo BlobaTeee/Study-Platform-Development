@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import useSWR from 'swr'
 import { mockTestsAPI, notebooksAPI, plannedTestsAPI } from '@/lib/api'
+import { useConfirm } from '@/components/confirm-dialog'
 import {
   AlertCircle,
   ArrowLeft,
@@ -130,6 +131,7 @@ function MockTestsInner() {
   const [questionCount, setQuestionCount] = useState<number | ''>(20)
   const [durationMinutes, setDurationMinutes] = useState<number | ''>(30)
   const [starting, setStarting] = useState(false)
+  const [confirm, confirmDialog] = useConfirm()
   const [setupError, setSetupError] = useState('')
 
   const {
@@ -468,15 +470,17 @@ function MockTestsInner() {
     return () => window.removeEventListener('keydown', onKey)
   }, [test, result, paper, qIndex, goNext, goPrev, selectAnswer])
 
-  const handleSubmitClick = () => {
+  const handleSubmitClick = async () => {
     const unanswered = paper.length - Object.keys(answers).length
-    const question = unanswered > 0 ? (unanswered === 1 ? 'question' : 'questions') : ''
-    const confirmed =
-      unanswered === 0 ||
-      window.confirm(
-        `${unanswered} ${question} still unanswered. Submit the test now?`
-      )
-    if (confirmed) void handleSubmit()
+    if (unanswered > 0) {
+      const ok = await confirm({
+        title: `${unanswered} ${unanswered === 1 ? 'question' : 'questions'} still unanswered`,
+        body: 'Submitting now marks them wrong. You cannot return to this paper afterwards.',
+        confirmLabel: 'Submit anyway',
+      })
+      if (!ok) return
+    }
+    void handleSubmit()
   }
 
   // ---- Review ----
@@ -573,6 +577,9 @@ function MockTestsInner() {
 
     return (
       <div className="max-w-3xl mx-auto space-y-8">
+        {/* Only this branch confirms anything (submitting with blanks), so the
+            dialog belongs here rather than in every return. */}
+        {confirmDialog}
         <div className="rise border-t-[3px] border-mode-quizzes pt-4 flex items-start justify-between gap-4">
           <div>
             <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import useSWR, { mutate } from 'swr'
 import { notebooksAPI } from '@/lib/api'
+import { useConfirm } from '@/components/confirm-dialog'
 import {
   AlertCircle,
   ChevronRight,
@@ -34,6 +35,7 @@ export default function NotebooksListPage() {
   const [description, setDescription] = useState('')
   const [creating, setCreating] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [confirm, confirmDialog] = useConfirm()
   const [error, setError] = useState('')
 
   const { data, isLoading, error: loadError } = useSWR(['/notebooks/'], () => notebooksAPI.getNotebooks())
@@ -67,13 +69,12 @@ export default function NotebooksListPage() {
   const handleDelete = async (e: React.MouseEvent, nb: NotebookItem) => {
     e.preventDefault()
     e.stopPropagation()
-    if (
-      !window.confirm(
-        `Delete "${nb.title}"? Its sources and its flashcards go with it.`
-      )
-    ) {
-      return
-    }
+    const ok = await confirm({
+      title: `Delete "${nb.title}"?`,
+      body: 'Its sources and its flashcards go with it. This cannot be undone.',
+      confirmLabel: 'Delete notebook',
+    })
+    if (!ok) return
     setDeletingId(nb.id)
     setError('')
     try {
@@ -92,6 +93,7 @@ export default function NotebooksListPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 py-6 md:py-10 px-6 md:px-10">
+      {confirmDialog}
       <div className="rise border-t-[3px] border-mode-library pt-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-library">
