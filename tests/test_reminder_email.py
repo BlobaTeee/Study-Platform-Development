@@ -2,6 +2,7 @@
 import importlib.util
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 _MODULE_PATH = (Path(__file__).resolve().parents[1]
                 / "backend" / "quizzes" / "services" / "reminder_email.py")
@@ -55,3 +56,37 @@ def test_the_wording_stays_plain():
     # The app's voice is calm and scholarly; a reminder must not nag or shout.
     subject, body = _build()
     assert "!" not in subject and "!" not in body
+
+
+def test_an_aware_datetime_states_its_zone():
+    aware = datetime(2026, 7, 30, 14, 0, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh"))
+    _, body = emails.build_reminder(
+        notebook_title="Biology",
+        scheduled_for=aware,
+        question_count=20,
+        duration_minutes=30,
+        url="http://localhost:3000/dashboard/tests",
+    )
+    # Asia/Ho_Chi_Minh has no named abbreviation in the tz database, so
+    # strftime('%Z') reports it as a fixed offset instead.
+    assert "When: 30 July 2026 at 14:00 +07" in body
+
+
+def test_a_naive_datetime_renders_cleanly_with_no_dangling_separator():
+    _, body = _build()
+    assert "When: 30 July 2026 at 14:00\n" in body
+
+
+def test_a_notebook_title_with_a_newline_and_tab_is_collapsed_for_the_subject():
+    subject, body = emails.build_reminder(
+        notebook_title="Cell\nBiology\tBasics",
+        scheduled_for=WHEN,
+        question_count=20,
+        duration_minutes=30,
+        url="http://localhost:3000/dashboard/tests",
+    )
+    assert "\n" not in subject
+    assert "\t" not in subject
+    assert "Cell Biology Basics" in subject
+    # The body is normalised the same way, for consistency.
+    assert "Cell Biology Basics" in body
