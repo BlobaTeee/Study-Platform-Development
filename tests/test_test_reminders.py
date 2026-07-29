@@ -1,0 +1,76 @@
+"""Which planned tests are owed a reminder right now."""
+import importlib.util
+from datetime import datetime, timedelta, timezone as tz
+from pathlib import Path
+
+_MODULE_PATH = (Path(__file__).resolve().parents[1]
+                / "backend" / "quizzes" / "services" / "reminders.py")
+
+
+def _load():
+    spec = importlib.util.spec_from_file_location("reminders_under_test", _MODULE_PATH)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+reminders = _load()
+NOW = datetime(2026, 7, 27, 12, 0, tzinfo=tz.utc)
+
+
+def _plan(**overrides):
+    plan = {
+        "id": 1,
+        "scheduled_for": NOW + timedelta(hours=24),
+        "reminder_lead_hours": 24,
+        "reminder_sent_at": None,
+        "taken": False,
+    }
+    plan.update(overrides)
+    return plan
+
+
+def test_a_plan_exactly_at_its_lead_time_is_due():
+    # 24h ahead with a 24h lead: the window opens now, to the second.
+    assert [p["id"] for p in reminders.due_reminders([_plan()], NOW)] == [1]
+
+
+def test_a_plan_still_beyond_its_lead_time_is_not_due():
+    plan = _plan(scheduled_for=NOW + timedelta(hours=25))
+    assert reminders.due_reminders([plan], NOW) == []
+
+
+def test_a_plan_inside_its_lead_time_is_due():
+    plan = _plan(scheduled_for=NOW + timedelta(hours=2))
+    assert [p["id"] for p in reminders.due_reminders([plan], NOW)] == [1]
+
+
+def test_a_plan_already_reminded_is_skipped():
+    plan = _plan(reminder_sent_at=NOW - timedelta(hours=1))
+    assert reminders.due_reminders([plan], NOW) == []
+
+
+def test_a_plan_already_sat_is_skipped():
+    assert reminders.due_reminders([_plan(taken=True)], NOW) == []
+
+
+def test_a_test_whose_time_has_passed_is_skipped():
+    # Reminding someone about a test they have already missed is noise.
+    plan = _plan(scheduled_for=NOW - timedelta(minutes=1))
+    assert reminders.due_reminders([plan], NOW) == []
+
+
+def test_a_short_lead_holds_the_reminder_back():
+    plan = _plan(scheduled_for=NOW + timedelta(hours=5), reminder_lead_hours=1)
+    assert reminders.due_reminders([plan], NOW) == []
+    later = NOW + timedelta(hours=4, minutes=1)
+    assert [p["id"] for p in reminders.due_reminders([plan], later)] == [1]
+
+
+def test_several_plans_are_filtered_independently():
+    plans = [
+        _plan(id=1),
+        _plan(id=2, reminder_sent_at=NOW),
+        _plan(id=3, scheduled_for=NOW + timedelta(days=9)),
+    ]
+    assert [p["id"] for p in reminders.due_reminders(plans, NOW)] == [1]

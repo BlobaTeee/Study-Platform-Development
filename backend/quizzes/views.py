@@ -337,3 +337,16 @@ class MockTestViewSet(viewsets.ModelViewSet):
             'correct_count': sum(1 for r in rows if r.is_correct),
             'paper': MockTestQuestionReviewSerializer(rows, many=True).data,
         }
+
+
+class PlannedTestViewSet(viewsets.ModelViewSet):
+    """Tests the student intends to sit, and their reminders."""
+    serializer_class = PlannedTestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return (PlannedTest.objects.filter(user=self.request.user)
+                .select_related('notebook'))
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
