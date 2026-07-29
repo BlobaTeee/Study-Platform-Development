@@ -88,7 +88,7 @@ class AnalyticsViewSet(viewsets.ViewSet):
         # only: naming the cards here would show their questions minutes before
         # they are graded, inflating the grade and skewing the schedule.
         schedule = scheduling.latest_schedule(
-            list(CardReview.objects.filter(user=user)
+            list(CardReview.objects.filter(user=user).latest_per_card()
                  .values('flashcard_id', 'next_review_date', 'review_date'))
         )
         today = timezone.localdate()

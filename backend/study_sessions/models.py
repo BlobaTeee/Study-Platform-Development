@@ -115,6 +115,26 @@ class CardReviewQuerySet(models.QuerySet):
         """
         return self.filter(is_seed=False)
 
+    def latest_per_card(self):
+        """One row per card: the review that describes where it stands now.
+
+        A card accrues a row per review forever, but only its newest describes
+        its schedule — so loading them all to find each card's latest made
+        every study-page and analytics load cost the learner's entire history.
+        A year at thirty reviews a day is eleven thousand rows read to answer a
+        question about a few hundred cards.
+
+        Postgres answers it directly with DISTINCT ON. On backends without it
+        (the sqlite fallback in settings) this is a no-op and the caller's
+        `latest_schedule` fold still collapses the rows correctly — it takes
+        the newest per card either way, so this is transparent to behaviour and
+        only changes how much is read.
+        """
+        from django.db import connection
+        if not connection.features.can_distinct_on_fields:
+            return self
+        return self.order_by('flashcard_id', '-review_date').distinct('flashcard_id')
+
 
 class CardReview(models.Model):
     """Track individual flashcard performance for spaced repetition."""

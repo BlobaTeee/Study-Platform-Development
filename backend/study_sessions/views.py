@@ -287,7 +287,7 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
         limit = min(int(request.query_params.get('limit', DUE_CARDS_DEFAULT)),
                     DUE_CARDS_LIMIT)
         schedule = scheduling.latest_schedule(
-            list(CardReview.objects.filter(user=user)
+            list(CardReview.objects.filter(user=user).latest_per_card()
                  .values('flashcard_id', 'next_review_date', 'review_date'))
         )
         cards = list(Flashcard.objects.filter(user=user, archived=False)
