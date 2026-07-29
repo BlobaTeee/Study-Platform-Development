@@ -8,16 +8,20 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import useSWR from 'swr'
-import { mockTestsAPI, notebooksAPI } from '@/lib/api'
+import { mockTestsAPI, notebooksAPI, plannedTestsAPI } from '@/lib/api'
 import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  Bell,
+  BellRing,
   BookOpen,
+  CalendarClock,
   CheckCircle2,
   ChevronLeft,
   Clock,
   Loader2,
+  Trash2,
   XCircle,
 } from 'lucide-react'
 
@@ -60,6 +64,25 @@ type SubmitResult = {
   paper: PaperQuestion[]
 }
 
+type PlannedTest = {
+  id: number
+  notebook: number
+  notebook_title: string
+  scheduled_for: string
+  question_count: number
+  duration_minutes: number
+  reminder_lead_hours: number
+  reminder_sent_at: string | null
+  mock_test: number | null
+  created_at: string
+}
+
+const REMINDER_LEAD_LABELS: Record<number, string> = {
+  1: '1 hour before',
+  24: '1 day before',
+  72: '3 days before',
+}
+
 /** 400s here name the offending field instead of using `detail` — try both
  *  before falling back to something generic. */
 function apiErrorMessage(err: unknown, fallback: string): string {
@@ -82,6 +105,16 @@ function formatClock(totalSeconds: number): string {
   return `${m}:${String(sec).padStart(2, '0')}`
 }
 
+function formatScheduledFor(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 function MockTestsInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -98,6 +131,23 @@ function MockTestsInner() {
   const [starting, setStarting] = useState(false)
   const [setupError, setSetupError] = useState('')
 
+  const {
+    data: plansData,
+    isLoading: plansLoading,
+    mutate: mutatePlans,
+  } = useSWR(['/quizzes/planned-tests/'], () => plannedTestsAPI.list())
+  const plans: PlannedTest[] = plansData?.data?.results ?? plansData?.data ?? []
+
+  const [planNotebookId, setPlanNotebookId] = useState<number | ''>('')
+  const [planScheduledFor, setPlanScheduledFor] = useState('')
+  const [planQuestionCount, setPlanQuestionCount] = useState<number | ''>(20)
+  const [planDurationMinutes, setPlanDurationMinutes] = useState<number | ''>(30)
+  const [planReminderLead, setPlanReminderLead] = useState<number>(24)
+  const [planCreating, setPlanCreating] = useState(false)
+  const [planError, setPlanError] = useState('')
+  const [startingPlanId, setStartingPlanId] = useState<number | null>(null)
+  const [cancelingPlanId, setCancelingPlanId] = useState<number | null>(null)
+
   const [test, setTest] = useState<MockTest | null>(null)
   const [result, setResult] = useState<SubmitResult | null>(null)
   const [resuming, setResuming] = useState(!!idParam)
@@ -109,10 +159,23 @@ function MockTestsInner() {
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const submittingRef = useRef(false)
+  // Set by handleNewTest, checked (and cleared) by the resume effect below.
+  // router.replace('/dashboard/tests') drops `?id=` asynchronously, but the
+  // setState calls in the same handler are urgent and can commit a render
+  // first — one where `test`/`result` are already null while `idParam`
+  // still holds the id of the test just left behind. Without this flag that
+  // render's resume effect would treat it as "test/result missing, id
+  // present" and re-fetch (and, for an already-submitted test, re-submit),
+  // silently undoing the reset the student just asked for.
+  const justResetRef = useRef(false)
 
   useEffect(() => {
     if (!notebookId && notebooks.length > 0) setNotebookId(notebooks[0].id)
   }, [notebooks, notebookId])
+
+  useEffect(() => {
+    if (!planNotebookId && notebooks.length > 0) setPlanNotebookId(notebooks[0].id)
+  }, [notebooks, planNotebookId])
 
   // Resuming after a refresh: the deadline the server hands back is the only
   // clock worth trusting, so re-fetching the test is how the countdown
@@ -126,6 +189,14 @@ function MockTestsInner() {
   // Instead, fetch the review via the idempotent submit endpoint, which
   // returns the existing marked-up paper without re-grading.
   useEffect(() => {
+    if (justResetRef.current) {
+      // See the comment on justResetRef: this render is the transient one
+      // where the URL hasn't caught up with the just-reset state yet.
+      // Swallow it once and let the next render (with `idParam` actually
+      // cleared) take the normal early-return path below.
+      justResetRef.current = false
+      return
+    }
     if (!idParam || test || result) return
     let cancelled = false
     mockTestsAPI
@@ -212,6 +283,7 @@ function MockTestsInner() {
   // component on that navigation — without this, `result`/`test`/`answers`
   // would keep the review screen on the page forever.
   const handleNewTest = useCallback(() => {
+    justResetRef.current = true
     submittingRef.current = false
     setResult(null)
     setTest(null)
@@ -223,6 +295,20 @@ function MockTestsInner() {
     setResuming(false)
     router.replace('/dashboard/tests')
   }, [router])
+
+  // Shared by the setup form and a plan's "Start now" — both just need to
+  // hand the server a notebook and a shape and land on the same sitting view.
+  const beginTest = useCallback(
+    async (params: { notebook: number; question_count: number; duration_minutes: number }) => {
+      const res = await mockTestsAPI.start(params)
+      setAnswers({})
+      setQIndex(0)
+      setResult(null)
+      setTest(res.data)
+      router.replace(`/dashboard/tests?id=${res.data.id}`)
+    },
+    [router]
+  )
 
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -237,20 +323,89 @@ function MockTestsInner() {
     setStarting(true)
     setSetupError('')
     try {
-      const res = await mockTestsAPI.start({
+      await beginTest({
         notebook: Number(notebookId),
         question_count: questionCount,
         duration_minutes: durationMinutes,
       })
-      setAnswers({})
-      setQIndex(0)
-      setResult(null)
-      setTest(res.data)
-      router.replace(`/dashboard/tests?id=${res.data.id}`)
     } catch (err) {
       setSetupError(apiErrorMessage(err, 'Could not start the test. Is the backend running?'))
     } finally {
       setStarting(false)
+    }
+  }
+
+  const handleStartFromPlan = async (plan: PlannedTest) => {
+    setStartingPlanId(plan.id)
+    setPlanError('')
+    try {
+      await beginTest({
+        notebook: plan.notebook,
+        question_count: plan.question_count,
+        duration_minutes: plan.duration_minutes,
+      })
+    } catch (err) {
+      setPlanError(apiErrorMessage(err, 'Could not start the test. Is the backend running?'))
+    } finally {
+      setStartingPlanId(null)
+    }
+  }
+
+  const handleCreatePlan = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!planNotebookId) {
+      setPlanError('Choose a notebook first.')
+      return
+    }
+    if (!planScheduledFor) {
+      setPlanError('Pick a date and time.')
+      return
+    }
+    if (planQuestionCount === '' || planDurationMinutes === '') {
+      setPlanError('Enter both the number of questions and the duration.')
+      return
+    }
+    setPlanCreating(true)
+    setPlanError('')
+    try {
+      // `datetime-local` carries no timezone of its own. `new Date(...)`
+      // parses it in the browser's local zone, and `.toISOString()` is what
+      // turns that into the UTC instant the backend stores and compares
+      // `scheduled_for` against — posting the raw string would leave the
+      // server guessing the zone.
+      const scheduledForIso = new Date(planScheduledFor).toISOString()
+      await plannedTestsAPI.create({
+        notebook: Number(planNotebookId),
+        scheduled_for: scheduledForIso,
+        question_count: planQuestionCount,
+        duration_minutes: planDurationMinutes,
+        reminder_lead_hours: planReminderLead,
+      })
+      setPlanScheduledFor('')
+      setPlanQuestionCount(20)
+      setPlanDurationMinutes(30)
+      setPlanReminderLead(24)
+      void mutatePlans()
+    } catch (err) {
+      // A past scheduled_for comes back as a field error naming
+      // scheduled_for ("Pick a time in the future.") — surface it as-is
+      // rather than a generic failure.
+      setPlanError(apiErrorMessage(err, 'Could not plan the test. Is the backend running?'))
+    } finally {
+      setPlanCreating(false)
+    }
+  }
+
+  const handleCancelPlan = async (id: number) => {
+    setCancelingPlanId(id)
+    setPlanError('')
+    try {
+      await plannedTestsAPI.remove(id)
+      void mutatePlans()
+    } catch {
+      setPlanError('Could not cancel that plan. Is the backend running?')
+    } finally {
+      setCancelingPlanId(null)
     }
   }
 
@@ -669,6 +824,186 @@ function MockTestsInner() {
           </form>
         </Card>
       )}
+
+      <div className="rise space-y-6" style={{ animationDelay: '120ms' }}>
+        <div>
+          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
+            Planned tests
+          </p>
+          <h2 className="font-display text-2xl font-semibold text-slate-900 mt-1">Plan ahead</h2>
+          <p className="text-base text-slate-500 mt-2 leading-relaxed">
+            Schedule a test for later and get a reminder before it is due.
+          </p>
+        </div>
+
+        {notebooks.length > 0 && (
+          <Card className="border-slate-200 shadow-sheet p-6 md:p-8">
+            <form onSubmit={handleCreatePlan} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="plan-notebook">Notebook</Label>
+                <select
+                  id="plan-notebook"
+                  value={planNotebookId}
+                  onChange={(e) => setPlanNotebookId(Number(e.target.value))}
+                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-base text-slate-900 shadow-sm outline-none focus-visible:border-mode-quizzes focus-visible:ring-mode-quizzes/25 focus-visible:ring-[4px]"
+                >
+                  {notebooks.map((nb) => (
+                    <option key={nb.id} value={nb.id}>
+                      {nb.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="plan-when">Date and time</Label>
+                <Input
+                  id="plan-when"
+                  type="datetime-local"
+                  value={planScheduledFor}
+                  onChange={(e) => setPlanScheduledFor(e.target.value)}
+                  className="h-11"
+                />
+              </div>
+
+              <div className="grid sm:grid-cols-3 gap-5">
+                <div className="space-y-2">
+                  <Label htmlFor="plan-count">Questions</Label>
+                  <Input
+                    id="plan-count"
+                    type="number"
+                    min={5}
+                    max={50}
+                    value={planQuestionCount}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setPlanQuestionCount(v === '' ? '' : Number(v))
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="plan-duration">Duration (minutes)</Label>
+                  <Input
+                    id="plan-duration"
+                    type="number"
+                    min={5}
+                    max={180}
+                    value={planDurationMinutes}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setPlanDurationMinutes(v === '' ? '' : Number(v))
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="plan-reminder">Reminder</Label>
+                  <select
+                    id="plan-reminder"
+                    value={planReminderLead}
+                    onChange={(e) => setPlanReminderLead(Number(e.target.value))}
+                    className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-base text-slate-900 shadow-sm outline-none focus-visible:border-mode-quizzes focus-visible:ring-mode-quizzes/25 focus-visible:ring-[4px]"
+                  >
+                    <option value={1}>1 hour before</option>
+                    <option value={24}>1 day before</option>
+                    <option value={72}>3 days before</option>
+                  </select>
+                </div>
+              </div>
+
+              {planError && (
+                <div className="flex gap-3 rounded-lg bg-red-50 p-4 border border-red-200">
+                  <AlertCircle className="size-5 text-mode-danger shrink-0" />
+                  <p className="text-base text-red-700">{planError}</p>
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                size="lg"
+                disabled={planCreating || !planNotebookId}
+                className="w-full bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 text-lg"
+              >
+                {planCreating ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin mr-2" />
+                    Planning…
+                  </>
+                ) : (
+                  'Plan test'
+                )}
+              </Button>
+            </form>
+          </Card>
+        )}
+
+        {plansLoading ? (
+          <p className="text-lg text-slate-500 text-center py-8">Loading planned tests…</p>
+        ) : plans.length === 0 ? (
+          <p className="text-base text-slate-500 text-center py-8">No tests planned.</p>
+        ) : (
+          <div className="space-y-3">
+            {plans.map((plan) => (
+              <Card key={plan.id} className="border-slate-200 shadow-sheet p-5 md:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-lg font-medium text-slate-900 truncate">{plan.notebook_title}</p>
+                    <p className="flex items-center gap-1.5 text-sm text-slate-500 mt-1">
+                      <CalendarClock className="size-4 shrink-0" aria-hidden />
+                      {formatScheduledFor(plan.scheduled_for)}
+                    </p>
+                    <p className="font-mono text-sm text-slate-500 mt-1 tabular-nums">
+                      {plan.question_count} questions · {plan.duration_minutes} min
+                    </p>
+                    {plan.reminder_sent_at ? (
+                      <p className="flex items-center gap-1.5 text-sm text-mode-quizzes mt-2">
+                        <BellRing className="size-4 shrink-0" aria-hidden />
+                        Reminder sent
+                      </p>
+                    ) : (
+                      <p className="flex items-center gap-1.5 text-sm text-slate-500 mt-2">
+                        <Bell className="size-4 shrink-0" aria-hidden />
+                        Reminder {REMINDER_LEAD_LABELS[plan.reminder_lead_hours] ?? `${plan.reminder_lead_hours}h before`}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleStartFromPlan(plan)}
+                      disabled={startingPlanId === plan.id}
+                      className="border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
+                    >
+                      {startingPlanId === plan.id ? (
+                        <Loader2 className="size-4 animate-spin mr-1.5" />
+                      ) : null}
+                      Start now
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void handleCancelPlan(plan.id)}
+                      disabled={cancelingPlanId === plan.id}
+                      className="text-slate-500 hover:text-mode-danger hover:bg-red-50"
+                    >
+                      {cancelingPlanId === plan.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Trash2 className="size-4 mr-1.5" />
+                          Cancel
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

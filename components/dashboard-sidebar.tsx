@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import {
   BarChart3,
+  ClipboardList,
   Home,
   LogOut,
   Menu,
@@ -37,6 +38,12 @@ const navItems: NavItem[] = [
     label: 'Notebooks',
     icon: NotebookText,
     activeClass: 'bg-mode-library/10 text-mode-library',
+  },
+  {
+    href: '/dashboard/tests',
+    label: 'Tests',
+    icon: ClipboardList,
+    activeClass: 'bg-mode-quizzes/10 text-mode-quizzes',
   },
   {
     href: '/dashboard/analytics',
