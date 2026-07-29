@@ -1,19 +1,41 @@
 from rest_framework import serializers
 from .models import Notebook, Source
 
+#: Characters of document text a source detail returns. The reader only ever
+#: rendered this much, so sending the rest meant shipping a 167,000-character
+#: document to display 8,000 of it. Generation reads `extracted_text` straight
+#: from the model server-side and is unaffected by this.
+TEXT_PREVIEW_CHARS = 8000
+
 
 class SourceSerializer(serializers.ModelSerializer):
+    text_preview = serializers.SerializerMethodField()
+    text_length = serializers.SerializerMethodField()
+
     class Meta:
         model = Source
         fields = [
             'id', 'notebook', 'title', 'file', 'file_type', 'original_filename', 'page_count',
-            'extracted_text', 'gemini_summary', 'status', 'error_message',
+            'text_preview', 'text_length', 'gemini_summary', 'status', 'error_message',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'file', 'original_filename', 'page_count', 'extracted_text',
+            'file', 'original_filename', 'page_count',
             'gemini_summary', 'status', 'error_message', 'created_at', 'updated_at',
         ]
+
+    def get_text_preview(self, obj) -> str:
+        """The opening of the document, not the whole thing.
+
+        Named `text_preview` rather than left as `extracted_text` on purpose: a
+        truncated value under the old name would look complete to every client
+        that reads it.
+        """
+        return (obj.extracted_text or '')[:TEXT_PREVIEW_CHARS]
+
+    def get_text_length(self, obj) -> int:
+        """Full length, so a reader can say how much it is not showing."""
+        return len(obj.extracted_text or '')
 
 
 class SourceListSerializer(serializers.ModelSerializer):
