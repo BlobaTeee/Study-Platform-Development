@@ -74,7 +74,10 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+# Spaced repetition turns on where the day boundary falls: a card due "today"
+# must mean the learner's today, not UTC's. Timestamps are still stored in UTC
+# (USE_TZ), so this only decides how a date is read back.
+TIME_ZONE = config('TIME_ZONE', default='Asia/Ho_Chi_Minh')
 USE_I18N = True
 USE_TZ = True
 
@@ -108,6 +111,27 @@ OLLAMA_TIMEOUT = config('OLLAMA_TIMEOUT', default=120, cast=int)
 RAG_CHUNKS = config('RAG_CHUNKS', default=3, cast=int)
 
 SUPABASE_URL = config('SUPABASE_URL', default=config('NEXT_PUBLIC_SUPABASE_URL', default='')).rstrip('/')
+
+# --- Email (planned-test reminders) ---
+# Real SMTP. The credential must be a provider *app password*, never an account
+# password, and lives in backend/.env, which is gitignored. With EMAIL_HOST
+# unset the console backend is used instead, so a developer without credentials
+# still sees exactly what would have been sent rather than hitting an error.
+EMAIL_HOST = config('EMAIL_HOST', default='')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL',
+                            default='StudyFlow <no-reply@studyflow.local>')
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND',
+    default=('django.core.mail.backends.smtp.EmailBackend' if EMAIL_HOST
+             else 'django.core.mail.backends.console.EmailBackend'),
+)
+
+# Where a reminder tells the student to go to sit their test.
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000').rstrip('/')
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

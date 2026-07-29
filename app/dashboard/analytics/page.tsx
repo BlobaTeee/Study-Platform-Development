@@ -1,169 +1,89 @@
 'use client'
 
-import { useState } from 'react'
-import { Card } from '@/components/ui/card'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Card } from '@/components/ui/card'
 import useSWR from 'swr'
 import { analyticsAPI } from '@/lib/api'
+import { cn } from '@/lib/utils'
+import { type Due, dueBreakdown, caughtUpMessage } from '@/lib/study-format'
 import {
+  ArrowRight,
   BarChart3,
   BookMarked,
-  Brain,
-  Clock,
   FileText,
   Loader2,
-  Map,
-  Route,
-  Sparkles,
   Target,
   TrendingUp,
   Zap,
 } from 'lucide-react'
 
 type Summary = {
-  notebooks_count: number
-  sources_count: number
   flashcards_count: number
   quizzes_count: number
-  quiz_attempts_count: number
   quiz_attempts_completed: number
   average_quiz_score: number | null
-  total_study_minutes: number
-  study_sessions_count: number
   flashcard_reviews: number
+  flashcard_correct: number
+  flashcard_incorrect: number
   flashcard_accuracy: number | null
 }
 
-type Recommendation = {
-  subject: string
-  topic: string
-  subtopic: string
-  label: string
-  priority: number
-  recommended_difficulty: string
-  reason: string
+type WeakSource = {
+  source_id: number
+  title: string
+  cards: number
+  questions: number
+  reviews: number
+  accuracy: number | null
 }
 
-type PathStep = {
-  step: number
-  subject: string
-  topic: string
-  subtopic: string
-  difficulty: string
-  status: string
+/** What a document's score rests on — flashcards you graded yourself, quiz
+ *  questions the app marked, or both. Empty modes are left out rather than
+ *  shown as a zero. */
+function sourceRecord(s: WeakSource): string {
+  const parts: string[] = []
+  if (s.cards) parts.push(`${s.cards} card${s.cards === 1 ? '' : 's'}`)
+  if (s.questions) parts.push(`${s.questions} quiz question${s.questions === 1 ? '' : 's'}`)
+  parts.push(`${s.reviews} answer${s.reviews === 1 ? '' : 's'}`)
+  return parts.join(' · ')
 }
 
 export default function AnalyticsPage() {
-  const { data: summaryRes, mutate: refreshSummary } = useSWR(['/analytics/summary'], () =>
-    analyticsAPI.getSummary()
-  )
-  const { data: sessionsRes, mutate: refreshSessions } = useSWR(['/analytics/sessions'], () =>
-    analyticsAPI.getStudySessions()
-  )
-  const { data: subjectsRes } = useSWR(['/analytics/subjects'], () => analyticsAPI.getSubjects())
-
-  const [studyContext, setStudyContext] = useState('')
-  const [pathSubject, setPathSubject] = useState('')
-
+  const { data: summaryRes } = useSWR(['/analytics/summary'], () => analyticsAPI.getSummary())
   const { data: recsRes, isLoading: recsLoading } = useSWR(
-    ['/analytics/recommendations', studyContext],
-    () => analyticsAPI.getRecommendations({ text: studyContext, limit: 5 })
-  )
-  const { data: pathRes, isLoading: pathLoading } = useSWR(
-    ['/analytics/learning-path', pathSubject],
-    () => analyticsAPI.getLearningPath({ subject: pathSubject || undefined, limit: 12 })
+    ['/analytics/recommendations'],
+    () => analyticsAPI.getRecommendations()
   )
 
-  const summary: Summary | null = summaryRes?.data ?? null
-  const sessions = sessionsRes?.data?.results ?? sessionsRes?.data ?? []
-  const recommendations: Recommendation[] = recsRes?.data?.recommendations ?? []
-  const learningPath: PathStep[] = pathRes?.data?.learning_path ?? []
-  const subjects: string[] = subjectsRes?.data?.subjects ?? []
-
-  const [logging, setLogging] = useState(false)
-  const [minutes, setMinutes] = useState('30')
-  const [topic, setTopic] = useState('')
-  const [moodBefore, setMoodBefore] = useState('good')
-  const [moodAfter, setMoodAfter] = useState('good')
-
-  const handleLogSession = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLogging(true)
-    try {
-      await analyticsAPI.createStudySession({
-        duration_minutes: Math.max(1, parseInt(minutes, 10) || 1),
-        material_studied: topic || 'Manual study session',
-        mood_before: moodBefore,
-        mood_after: moodAfter,
-      })
-      setTopic('')
-      refreshSummary()
-      refreshSessions()
-    } finally {
-      setLogging(false)
-    }
+  const summary: Summary | undefined = summaryRes?.data
+  const due: Due = recsRes?.data?.due ?? {
+    due: 0,
+    overdue: 0,
+    new: 0,
+    next_date: null,
+    next_count: 0,
   }
-
-  if (!summary) {
-    return (
-      <div className="flex justify-center py-24">
-        <Loader2 className="size-10 animate-spin text-mode-analytics" />
-      </div>
-    )
-  }
+  const ready = due.due + due.new
+  const weakSources: WeakSource[] = recsRes?.data?.weak_sources ?? []
 
   const stats = [
+    { label: 'Flashcards', value: summary?.flashcards_count ?? '—', icon: BookMarked, color: 'text-mode-flashcards' },
+    { label: 'Reviews', value: summary?.flashcard_reviews ?? '—', icon: Zap, color: 'text-mode-flashcards' },
     {
-      label: 'Notebooks',
-      value: summary.notebooks_count,
-      icon: BookMarked,
-      color: 'text-mode-library',
-    },
-    {
-      label: 'Sources',
-      value: summary.sources_count,
-      icon: FileText,
-      color: 'text-sky-500',
-    },
-    {
-      label: 'Flashcards',
-      value: summary.flashcards_count,
-      icon: Zap,
-      color: 'text-mode-flashcards',
-    },
-    {
-      label: 'Quizzes taken',
-      value: summary.quiz_attempts_completed,
+      label: 'Recall accuracy',
+      value: summary?.flashcard_accuracy != null ? `${summary.flashcard_accuracy}%` : '—',
       icon: Target,
-      color: 'text-mode-quizzes',
-    },
-    {
-      label: 'Avg quiz score',
-      value: summary.average_quiz_score != null ? `${summary.average_quiz_score}%` : '—',
-      icon: TrendingUp,
       color: 'text-mode-analytics',
     },
     {
-      label: 'Study time logged',
-      value: `${summary.total_study_minutes}m`,
-      icon: Clock,
-      color: 'text-mode-library',
+      label: 'Avg quiz score',
+      value: summary?.average_quiz_score != null ? `${summary.average_quiz_score}%` : '—',
+      icon: TrendingUp,
+      color: 'text-mode-quizzes',
     },
+    { label: 'Quizzes taken', value: summary?.quiz_attempts_completed ?? '—', icon: FileText, color: 'text-mode-quizzes' },
   ]
-
-  const difficultyColor = (d: string) => {
-    if (d === 'easy') return 'text-emerald-700 bg-emerald-50'
-    if (d === 'hard') return 'text-rose-700 bg-rose-50'
-    return 'text-amber-700 bg-amber-50'
-  }
-
-  const statusColor = (s: string) => {
-    if (s === 'current') return 'border-emerald-300 bg-emerald-50'
-    if (s === 'next') return 'border-blue-300 bg-blue-50'
-    return 'border-slate-200 bg-slate-50'
-  }
 
   return (
     <div className="space-y-8 max-w-5xl">
@@ -176,13 +96,14 @@ export default function AnalyticsPage() {
           Your progress
         </h1>
         <p className="text-lg text-slate-500 mt-2 text-pretty">
-          Study activity, AI recommendations, and a personalized learning path.
+          What your schedule says is due, and where you&apos;re weakest — from your own
+          study record.
         </p>
       </div>
 
       {/* Summary strip: one panel, hairline-divided cells (1px gap over a
           slate backing) — an instrument readout rather than floating tiles. */}
-      <dl className="rise grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sheet" style={{ animationDelay: '60ms' }}>
+      <dl className="rise grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sheet" style={{ animationDelay: '60ms' }}>
         {stats.map((stat) => {
           const Icon = stat.icon
           return (
@@ -199,251 +120,89 @@ export default function AnalyticsPage() {
         })}
       </dl>
 
-      {/* ML Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-slate-200 shadow-sheet p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="size-5 text-mode-quizzes" />
-            <h2 className="text-xl font-semibold text-slate-900">Study Recommendations</h2>
+      {/* Review next — the page's one action. A count and a button: there is
+          nothing to decide between cards, and showing their questions here would
+          be a free look at what you're about to be tested on. */}
+      <Card className="rise border-slate-200 shadow-sheet p-6" style={{ animationDelay: '120ms' }}>
+        {recsLoading ? (
+          <div className="flex items-center gap-2 text-slate-500 py-2">
+            <Loader2 className="size-4 animate-spin" /> Loading…
           </div>
-          <p className="text-sm text-slate-500 mb-4">
-            Content-based suggestions from your performance and study material (TF-IDF + topic hierarchy).
-          </p>
-          <div className="space-y-2 mb-4">
-            <Label htmlFor="study-context">Optional study context</Label>
-            <Input
-              id="study-context"
-              value={studyContext}
-              onChange={(e) => setStudyContext(e.target.value)}
-              placeholder="e.g. photosynthesis chloroplast biology"
-            />
+        ) : ready === 0 ? (
+          <div className="flex items-center gap-3 py-2">
+            <Target className="size-5 text-mode-analytics shrink-0" />
+            <p className="text-lg text-slate-700">{caughtUpMessage(due)}</p>
           </div>
-          {recsLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="size-6 animate-spin text-mode-quizzes" />
-            </div>
-          ) : recommendations.length > 0 ? (
-            <div className="space-y-3">
-              {recommendations.map((rec, i) => (
-                <div
-                  key={`${rec.label}-${i}`}
-                  className="p-4 rounded-lg border border-slate-200 bg-slate-50"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-slate-900 font-medium">{rec.subtopic}</p>
-                      <p className="text-slate-500 text-sm">{rec.topic} · {rec.subject}</p>
-                    </div>
-                    <span className={`text-xs px-2 py-1 rounded-full shrink-0 ${difficultyColor(rec.recommended_difficulty)}`}>
-                      {rec.recommended_difficulty}
-                    </span>
-                  </div>
-                  <p className="text-slate-500 text-sm mt-2">{rec.reason}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-slate-500 text-sm py-4">
-              No recommendations yet. Upload notes or complete quizzes to personalize suggestions.
-            </p>
-          )}
-        </Card>
-
-        <Card className="border-slate-200 shadow-sheet p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Route className="size-5 text-mode-library" />
-            <h2 className="text-xl font-semibold text-slate-900">Adaptive Learning Path</h2>
-          </div>
-          <p className="text-sm text-slate-500 mb-4">
-            Topics ordered by difficulty and Bloom level — skips areas you&apos;ve mastered.
-          </p>
-          <div className="space-y-2 mb-4">
-            <Label htmlFor="path-subject">Filter by subject</Label>
-            <select
-              id="path-subject"
-              value={pathSubject}
-              onChange={(e) => setPathSubject(e.target.value)}
-              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900 text-base"
-            >
-              <option value="">All subjects</option>
-              {subjects.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          {pathLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="size-6 animate-spin text-mode-library" />
-            </div>
-          ) : learningPath.length > 0 ? (
-            <div className="space-y-2">
-              {learningPath.map((step) => (
-                <div
-                  key={`${step.step}-${step.subtopic}`}
-                  className={`p-3 rounded-lg border flex items-center gap-3 ${statusColor(step.status)}`}
-                >
-                  <span className="font-mono flex items-center justify-center size-8 rounded-full bg-white border border-slate-200 text-slate-600 text-sm font-semibold shrink-0">
-                    {step.step}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-slate-900 font-medium truncate">{step.subtopic}</p>
-                    <p className="text-slate-500 text-xs">{step.topic} · {step.subject}</p>
-                  </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${difficultyColor(step.difficulty)}`}>
-                    {step.difficulty}
-                  </span>
-                  {step.status === 'current' && (
-                    <Map className="size-4 text-mode-analytics shrink-0" />
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-5">
+            <div className="flex items-baseline gap-4 min-w-0">
+              <span className="font-mono text-5xl font-semibold text-slate-900 tabular-nums">
+                {ready}
+              </span>
+              <div className="min-w-0">
+                <p className="text-lg text-slate-900">
+                  card{ready === 1 ? '' : 's'} ready to study
+                </p>
+                <p
+                  className={cn(
+                    'font-mono text-sm tabular-nums',
+                    due.overdue > 0 ? 'text-red-700' : 'text-slate-500'
                   )}
-                </div>
-              ))}
+                >
+                  {dueBreakdown(due)}
+                </p>
+              </div>
             </div>
-          ) : (
-            <p className="text-slate-500 text-sm py-4">Learning path unavailable. Ensure ML models are trained.</p>
-          )}
-        </Card>
-      </div>
-
-      <Card className="border-slate-200 shadow-sheet p-5">
-        <div className="flex items-start gap-3">
-          <span className="rounded-lg bg-mode-quizzes/10 p-2 shrink-0">
-            <Brain className="size-5 text-mode-quizzes" />
-          </span>
-          <div>
-            <p className="text-slate-900 font-medium">Powered by a local ML pipeline</p>
-            <p className="text-slate-500 text-sm mt-1 leading-relaxed max-w-2xl">
-              Flashcards use spaCy NER, quizzes use TF-IDF distractors, and recommendations use
-              scikit-learn content-based filtering. Set{' '}
-              <code className="font-mono text-mode-quizzes bg-mode-quizzes/10 px-1.5 py-0.5 rounded">
-                USE_ML_PRIMARY=True
-              </code>{' '}
-              in backend/.env for fully offline generation.
-            </p>
+            <Button
+              asChild
+              size="lg"
+              className="bg-mode-flashcards hover:bg-mode-flashcards-hover text-white h-12 px-8 text-lg shrink-0"
+            >
+              <Link href="/dashboard/flashcards?due=1">
+                Study now
+                <ArrowRight className="size-5 ml-2" />
+              </Link>
+            </Button>
           </div>
-        </div>
+        )}
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-slate-200 shadow-sheet p-6">
-          <h2 className="text-xl font-semibold text-slate-900 mb-4">Log a study session</h2>
-          <form onSubmit={handleLogSession} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="minutes">Minutes</Label>
-                <Input
-                  id="minutes"
-                  type="number"
-                  min={1}
-                  value={minutes}
-                  onChange={(e) => setMinutes(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="topic">Topic</Label>
-                <Input
-                  id="topic"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="e.g. Biology revision"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="mood-before">Mood before</Label>
-                <select
-                  id="mood-before"
-                  value={moodBefore}
-                  onChange={(e) => setMoodBefore(e.target.value)}
-                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900 text-base"
-                >
-                  <option value="great">Great</option>
-                  <option value="good">Good</option>
-                  <option value="neutral">Neutral</option>
-                  <option value="tired">Tired</option>
-                  <option value="unmotivated">Unmotivated</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mood-after">Mood after</Label>
-                <select
-                  id="mood-after"
-                  value={moodAfter}
-                  onChange={(e) => setMoodAfter(e.target.value)}
-                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900 text-base"
-                >
-                  <option value="great">Great</option>
-                  <option value="good">Good</option>
-                  <option value="neutral">Neutral</option>
-                  <option value="tired">Tired</option>
-                  <option value="unmotivated">Unmotivated</option>
-                </select>
-              </div>
-            </div>
-            <Button type="submit" disabled={logging} className="w-full h-11">
-              {logging ? <Loader2 className="size-4 animate-spin" /> : 'Save session'}
-            </Button>
-          </form>
-          <p className="text-sm text-slate-500 mt-4">
-            Completing a quiz also logs time automatically.
-          </p>
-        </Card>
-
-        <Card className="border-slate-200 shadow-sheet p-6">
-          <h2 className="text-xl font-semibold text-slate-900 mb-4">Flashcard reviews</h2>
-          <p className="font-mono text-4xl font-semibold text-slate-900 tabular-nums">
-            {summary.flashcard_reviews}
-          </p>
-          <p className="text-slate-500 mt-2">Total correct + incorrect review counts</p>
-          {summary.flashcard_accuracy != null && (
-            <p className="text-lg text-mode-analytics mt-4">
-              Accuracy when reviewed: {summary.flashcard_accuracy}%
-            </p>
-          )}
-          {summary.flashcard_reviews === 0 && (
-            <p className="text-sm text-slate-500 mt-4">
-              Review counts update when flashcard practice tracking is used.
-            </p>
-          )}
-        </Card>
-      </div>
-
-      <Card className="border-slate-200 p-6">
-        <h2 className="text-xl font-semibold text-slate-900 mb-4">Recent study sessions</h2>
-        <div className="space-y-3">
-          {sessions.slice(0, 8).map((session: {
-            id: number
-            material_studied?: string
-            duration_minutes: number
-            started_at: string
-            mood_before?: string
-            mood_after?: string
-            notes?: string
-          }) => (
-            <div
-              key={session.id}
-              className="p-4 bg-slate-50 rounded-lg border border-slate-200 flex justify-between gap-4"
-            >
-              <div className="min-w-0">
-                <p className="text-slate-900 font-medium truncate">
-                  {session.material_studied || 'Study session'}
-                </p>
-                <p className="text-slate-500 text-sm mt-1">
-                  {new Date(session.started_at).toLocaleString()}
-                  {session.notes ? ` · ${session.notes}` : ''}
-                </p>
-              </div>
-              <span className="font-mono text-slate-600 font-semibold shrink-0">
-                {session.duration_minutes}m
-              </span>
-            </div>
-          ))}
-          {sessions.length === 0 && (
-            <p className="text-slate-500">
-              No sessions yet. Log one above or finish a quiz to record activity.
-            </p>
-          )}
+      {/* Weakest documents */}
+      <Card className="rise border-slate-200 shadow-sheet p-6" style={{ animationDelay: '180ms' }}>
+        <div className="flex items-center gap-2 mb-1">
+          <FileText className="size-5 text-mode-notebooks" />
+          <h2 className="text-xl font-semibold text-slate-900">By document</h2>
         </div>
+        <p className="text-sm text-slate-500 mb-4">
+          How well you know each document, across flashcards and quizzes together.
+          Weakest first.
+        </p>
+
+        {weakSources.length === 0 ? (
+          <p className="text-slate-500 py-6 text-center">
+            Nothing to show yet — upload a source and generate flashcards or a quiz from it.
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {weakSources.map((s) => (
+              <li key={s.source_id} className="flex items-center gap-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-base text-slate-800 truncate">{s.title}</p>
+                  <p className="text-sm text-slate-500">{sourceRecord(s)}</p>
+                </div>
+                {s.accuracy == null ? (
+                  <span className="font-mono text-xs text-slate-600 bg-slate-100 rounded px-2 py-1 shrink-0">
+                    Not studied
+                  </span>
+                ) : (
+                  <span className="font-mono text-lg font-semibold text-slate-900 tabular-nums shrink-0">
+                    {s.accuracy}%
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
     </div>
   )

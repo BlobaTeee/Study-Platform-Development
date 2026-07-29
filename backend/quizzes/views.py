@@ -1,10 +1,21 @@
+from django.db.models import Q
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Quiz, Question, QuizAttempt, Answer
-from .serializers import QuizSerializer, QuestionSerializer, QuizAttemptSerializer, AnswerSerializer
+from .models import (
+    Quiz, Question, QuizAttempt, Answer, MockTest, MockTestQuestion, PlannedTest,
+)
+from .serializers import (
+    QuizSerializer, QuestionSerializer, QuizAttemptSerializer, AnswerSerializer,
+    MockTestSerializer, MockTestQuestionReviewSerializer, PlannedTestSerializer,
+)
+from .services.paper import (
+    sample_paper, source_accuracy, source_weights, clamp_int, _answer_matches,
+    MIN_QUESTIONS, MAX_QUESTIONS, MIN_DURATION_MINUTES, MAX_DURATION_MINUTES,
+)
+from .services.topup import questions_to_request, should_continue
 
 
 class QuizViewSet(viewsets.ModelViewSet):
@@ -85,3 +96,398 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         attempt.save()
         serializer = QuizAttemptSerializer(attempt)
         return Response(serializer.data)
+
+
+def _source_filter(field_prefix, source_ids):
+    """OR of `description__contains` across a notebook's source ids.
+
+    This is a prefilter, not the real check: `source:3` is also a substring of
+    `source:30`, so it may match a quiz that mentions a different source
+    entirely. That is fine, and deliberate — a prefilter is only required
+    never to return too little, and the exact check (`parse_source_ids`
+    followed by `if sid in source_ids`) still runs on every row this yields.
+    Do not remove that exact check on the theory that this filter is precise
+    enough on its own; it isn't.
+    """
+    field = f'{field_prefix}description__contains'
+    # An empty Q() matches everything, which would silently widen the scan to
+    # every quiz the user owns rather than narrowing it, so an empty list of
+    # source ids must produce a filter that matches nothing instead.
+    if not source_ids:
+        return Q(pk__in=[])
+    query = Q()
+    for sid in source_ids:
+        query |= Q(**{field: f'source:{sid}'})
+    return query
+
+
+def _top_up_pool(user, notebook, source_ids, pool, requested):
+    """Generate questions until the notebook can fill the paper, or we stop.
+
+    Returns (pool, generated_any). Never raises: a paper that cannot be topped
+    up is still a paper, and a student pressing "start" must not be met with a
+    provider error. Every failure path leaves the pool exactly as it was.
+
+    Generated questions are written as an ordinary Quiz tagged to these
+    sources, so they are not private to this sitting — they join the pool
+    permanently and the next test starts faster for having been generated
+    here.
+    """
+    import logging
+    import time
+
+    from notebooks.services.generate import generate_quiz_for_sources
+
+    logger = logging.getLogger(__name__)
+
+    # Only documents that finished processing can be generated from;
+    # generate_quiz_for_sources raises on anything else, and one still-
+    # processing upload must not stop the others being used.
+    sources = [s for s in notebook.sources.all()
+               if s.status == 'ready' and s.extracted_text.strip()]
+    if not sources:
+        return pool, False
+
+    started = time.monotonic()
+    rounds = 0
+    previous_size = -1  # so the "did it grow" test cannot fire on round one
+    generated_any = False
+
+    while should_continue(len(pool), previous_size, requested, rounds,
+                          time.monotonic() - started):
+        want = questions_to_request(len(pool), requested)
+        if want <= 0:
+            break
+        previous_size = len(pool)
+        rounds += 1
+        try:
+            generate_quiz_for_sources(sources, user, question_count=want)
+        except Exception as exc:  # noqa: BLE001
+            # Includes the provider being down, a quota refusal, and documents
+            # too thin to generate from. All of them mean "no more questions
+            # today", not "the student cannot sit a test".
+            logger.warning('Mock test top-up generation failed: %s', exc)
+            break
+        generated_any = True
+        # Re-resolved rather than appended: this is the same function the
+        # paper is built from, so a question that does not show up here would
+        # not have been sampled anyway, and counting it would make the loop
+        # think it had made progress it had not.
+        pool = _question_pool(user, source_ids)
+
+    return pool, generated_any
+
+
+def _question_pool(user, source_ids):
+    """Every question generated from this notebook's documents.
+
+    Source ids are parsed out of the quiz description rather than matched as a
+    substring: `source:3` is a prefix of `source:30`, so substring matching
+    would quietly mix in another document's questions.
+    """
+    from analytics import insights
+
+    if not source_ids:
+        return []
+
+    # Narrowed at the database layer to quizzes that could mention one of
+    # this notebook's sources, rather than scanning the user's entire quiz
+    # history on every "start a test" press — see _source_filter for why
+    # over-matching here is safe.
+    pool = []
+    for row in (Question.objects.filter(quiz__user=user)
+                .filter(_source_filter('quiz__', source_ids))
+                .values('id', 'quiz__description')):
+        matched = [sid for sid in insights.parse_source_ids(row['quiz__description'])
+                   if sid in source_ids]
+        if matched:
+            pool.append({'id': row['id'], 'source_ids': matched})
+    return pool
+
+
+def _source_accuracy(user, source_ids):
+    """How well the user has answered questions from this notebook's own
+    documents so far — the weighting has no use for accuracy on unrelated
+    material, so this is scoped rather than pulling the user's whole history.
+    """
+    from analytics import insights
+
+    if not source_ids:
+        return {}
+
+    rows = [
+        {'source_ids': [sid for sid in insights.parse_source_ids(row['question__quiz__description'])
+                        if sid in source_ids],
+         'is_correct': row['is_correct']}
+        for row in Answer.objects.filter(quiz_attempt__user=user)
+        .filter(_source_filter('question__quiz__', source_ids))
+        .values('question__quiz__description', 'is_correct')
+    ]
+    return source_accuracy(rows)
+
+
+class MockTestViewSet(viewsets.ModelViewSet):
+    """Sit a timed paper drawn from a whole notebook."""
+    serializer_class = MockTestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def get_queryset(self):
+        # No `paper__question`: the serializers now read straight off
+        # MockTestQuestion's own denormalised columns, so following the FK to
+        # Question would just be an unused join (and one that skips rows
+        # whose question has since gone NULL, which must render as normally
+        # as any other).
+        return (MockTest.objects.filter(user=self.request.user)
+                .select_related('notebook')
+                .prefetch_related('paper'))
+
+    def create(self, request, *args, **kwargs):
+        from django.db import transaction
+        from django.utils import timezone
+        from notebooks.models import Notebook
+
+        notebook = Notebook.objects.filter(
+            id=request.data.get('notebook'), user=request.user).first()
+        if notebook is None:
+            return Response({'detail': 'Notebook not found.'}, status=404)
+
+        plan = None
+        planned_test_id = request.data.get('planned_test')
+        if planned_test_id is not None:
+            # Scoped to request.user for the same reason validate_notebook
+            # scopes the notebook lookup in serializers.py: a plan id
+            # belonging to someone else must fail exactly like a missing
+            # one, or the response would let a plan id be enumerated.
+            plan = PlannedTest.objects.filter(
+                id=planned_test_id, user=request.user).first()
+            if plan is None:
+                return Response({'detail': 'Planned test not found.'}, status=404)
+            if plan.sat_at is not None:
+                return Response(
+                    {'detail': 'This planned test has already been sat.'}, status=400)
+
+        # Parse defensively rather than bare int(): a non-numeric value would
+        # otherwise raise an unhandled ValueError (500) instead of a 400, and
+        # an unclamped count/duration could produce a zero-question paper or
+        # an already-expired deadline. See clamp_int's docstring.
+        try:
+            requested = clamp_int(request.data.get('question_count'),
+                                   MIN_QUESTIONS, MAX_QUESTIONS, default=20)
+        except ValueError as exc:
+            return Response({'detail': f'question_count: {exc}'}, status=400)
+        try:
+            duration = clamp_int(request.data.get('duration_minutes'),
+                                  MIN_DURATION_MINUTES, MAX_DURATION_MINUTES, default=30)
+        except ValueError as exc:
+            return Response({'detail': f'duration_minutes: {exc}'}, status=400)
+
+        source_ids = set(notebook.sources.values_list('id', flat=True))
+        pool = _question_pool(request.user, source_ids)
+
+        # Top up before judging the pool, not after: a notebook whose documents
+        # have never been made into a quiz can now still be sat, which is the
+        # case this used to reject outright.
+        generated = False
+        if len(pool) < requested:
+            pool, generated = _top_up_pool(
+                request.user, notebook, source_ids, pool, requested)
+
+        if not pool:
+            return Response(
+                {'detail': 'No questions could be generated for this notebook. '
+                           'Check its documents have finished processing, then '
+                           'try generating a quiz from them.'},
+                status=400,
+            )
+
+        weights = source_weights(_source_accuracy(request.user, source_ids))
+        chosen = sample_paper(pool, weights, count=requested)
+
+        # Fetched once, up front, so every field a review will ever need can
+        # be copied onto MockTestQuestion below — see the SET_NULL/denormalise
+        # comment on that model for why this duplication exists at all.
+        questions_by_id = {
+            q.id: q for q in Question.objects.filter(
+                id__in=[entry['id'] for entry in chosen])
+        }
+
+        with transaction.atomic():
+            test = MockTest.objects.create(
+                user=request.user, notebook=notebook,
+                question_count=len(chosen), duration_minutes=duration,
+            )
+            MockTestQuestion.objects.bulk_create([
+                MockTestQuestion(
+                    mock_test=test, question_id=entry['id'], order=i,
+                    question_text=questions_by_id[entry['id']].question_text,
+                    options=questions_by_id[entry['id']].options,
+                    correct_answer=questions_by_id[entry['id']].correct_answer,
+                    explanation=questions_by_id[entry['id']].explanation,
+                )
+                for i, entry in enumerate(chosen)
+            ])
+            if plan is not None:
+                # Same transaction as the paper itself: sat_at exists
+                # specifically so this link survives the sitting later being
+                # deleted (mock_test is SET_NULL and would revert to NULL),
+                # so it must never be stamped without the sitting actually
+                # having been created, or vice versa.
+                plan.mock_test = test
+                plan.sat_at = timezone.now()
+                plan.save(update_fields=['mock_test', 'sat_at'])
+
+        # Re-fetch through get_queryset() rather than refresh_from_db(): that
+        # carries the same select_related/prefetch_related get_queryset()
+        # already uses for reads, so the serializer walks the frozen paper's
+        # questions in one query instead of one per row.
+        test = self.get_queryset().get(pk=test.pk)
+        data = MockTestSerializer(test).data
+        # Say so rather than silently handing over a shorter paper: the student
+        # is about to judge their readiness on it. Still reachable after a
+        # top-up — the documents may simply not hold enough material, or the
+        # round/time caps may have been hit first.
+        if len(chosen) < requested:
+            data['short_paper'] = True
+        # So the page can explain why starting took as long as it did.
+        if generated:
+            data['generated_questions'] = True
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def answer(self, request, pk=None):
+        """Record one answer. Deliberately returns no marking.
+
+        Telling the student whether they were right would turn the paper back
+        into a quiz, so the response carries only what is needed to keep going.
+        """
+        from django.utils import timezone
+        from .services.timing import answers_are_open, seconds_remaining
+
+        test = self.get_object()
+        if test.completed_at:
+            return Response({'detail': 'This test has already been submitted.'}, status=400)
+
+        now = timezone.now()
+        if not answers_are_open(test.started_at, test.duration_minutes, now):
+            return Response({'detail': 'Time is up for this test.',
+                             'seconds_remaining': 0}, status=409)
+
+        row = test.paper.filter(id=request.data.get('paper_question_id')).first()
+        if row is None:
+            return Response({'detail': 'Question not part of this test.'}, status=404)
+
+        # `.get('answer', '')` only falls back to '' when the key is *absent*;
+        # a payload of {"answer": null} would otherwise stringify to the
+        # literal text "None" and be graded (and shown on the review) as
+        # though the student had typed that word.
+        raw_answer = request.data.get('answer', '')
+        row.user_answer = '' if raw_answer is None else str(raw_answer)
+        row.answered_at = now
+        row.save(update_fields=['user_answer', 'answered_at'])
+
+        return Response({
+            'id': row.id,
+            'answered': True,
+            'seconds_remaining': seconds_remaining(
+                test.started_at, test.duration_minutes, now),
+        })
+
+    @action(detail=True, methods=['post'])
+    def submit(self, request, pk=None):
+        """Grade the whole paper once and hand back the full review.
+
+        Serialised against a concurrent double-submit: two requests racing
+        each other block on the row lock below rather than both grading.
+        """
+        from django.db import transaction
+        from django.utils import timezone
+
+        test = self.get_object()
+        # Cheap pre-lock check: the common case is a client retrying a submit
+        # whose response it never saw, and that case should not pay for a
+        # row lock it doesn't need.
+        if test.completed_at:
+            return Response(self._review(test))
+
+        with transaction.atomic():
+            # Re-fetch under select_for_update() and re-check completed_at:
+            # without the lock, two simultaneous requests could both read
+            # completed_at as unset above and both proceed to grade. The
+            # second request to reach this line now blocks until the first
+            # commits, then sees completed_at already set and short-circuits
+            # instead of re-grading. (Grading happens to be idempotent — it's
+            # a pure function of the already-stored answers — but doing it
+            # twice is still redundant database work the lock avoids.)
+            test = MockTest.objects.select_for_update().get(pk=test.pk)
+            if test.completed_at:
+                return Response(self._review(test))
+
+            # No select_related('question'): grading reads the paper's own
+            # denormalised `correct_answer`, not the live Question, so this
+            # still grades correctly even if the source quiz (and therefore
+            # `question`) has since been deleted or regenerated.
+            rows = list(test.paper.all())
+            # Grading and stamping must land together, or a crash between them
+            # would leave a paper that reads as unfinished but is already marked.
+            correct = 0
+            for row in rows:
+                row.is_correct = _answer_matches(row.user_answer, row.correct_answer)
+                correct += 1 if row.is_correct else 0
+            MockTestQuestion.objects.bulk_update(rows, ['is_correct'])
+
+            test.completed_at = timezone.now()
+            test.score = round(correct / len(rows) * 100, 1) if rows else 0.0
+            test.save(update_fields=['completed_at', 'score'])
+
+        return Response(self._review(test, rows))
+
+    def _review(self, test, rows=None):
+        """The paper with its marking revealed — only ever after submission.
+
+        `rows` lets `submit` hand over the paper it just graded rather than
+        re-querying it; the already-submitted short-circuit path above has no
+        rows loaded, so it is left to query them itself.
+        """
+        if rows is None:
+            rows = test.paper.all()
+        return {
+            'id': test.id,
+            'score': test.score,
+            'completed_at': test.completed_at,
+            'question_count': test.question_count,
+            'correct_count': sum(1 for r in rows if r.is_correct),
+            'paper': MockTestQuestionReviewSerializer(rows, many=True).data,
+        }
+
+
+class PlannedTestViewSet(viewsets.ModelViewSet):
+    """Tests the student intends to sit, and their reminders."""
+    serializer_class = PlannedTestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return (PlannedTest.objects.filter(user=self.request.user)
+                .select_related('notebook'))
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def perform_update(self, serializer):
+        old_scheduled_for = serializer.instance.scheduled_for
+        plan = serializer.save()
+        # A reschedule must not carry over reminder state tied to the old
+        # date. reminder_sent_at set means the old date's reminder already
+        # fired — leaving it set would mean the new date silently never gets
+        # its own. reminder_skipped_at set means send_test_reminders gave up
+        # on this plan (its old window passed unsent); the plan just proved
+        # that wrong by getting a fresh future date, so it deserves another
+        # chance at a reminder rather than staying excluded from the due
+        # query forever. Guarded on scheduled_for actually changing so a PATCH
+        # that only touches, say, duration_minutes leaves both alone.
+        if plan.scheduled_for != old_scheduled_for and (
+            plan.reminder_sent_at is not None or plan.reminder_skipped_at is not None
+        ):
+            plan.reminder_sent_at = None
+            plan.reminder_skipped_at = None
+            plan.save(update_fields=['reminder_sent_at', 'reminder_skipped_at'])

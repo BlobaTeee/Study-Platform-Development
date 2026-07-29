@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.db import transaction
 from flashcards.models import Flashcard
 from quizzes.models import Quiz, Question
 from .gemini_client import (
@@ -10,7 +11,8 @@ from .gemini_client import (
     is_quota_error,
 )
 from .ai_provider import get_ai_provider
-from . import fallback
+from . import dedupe, fallback
+from .deck_limits import batch_size
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +130,15 @@ def _save_flashcards_from_json(
         raise GeminiGenerationError('No flashcards were generated.')
 
     tag = combined_source_tag(source_ids)
+    # Deduped against the batch itself only, not against the cards already on
+    # file: those are retired by this generation (see
+    # `generate_flashcards_for_sources`), so rejecting a question for matching
+    # one of them would silently shrink the replacement deck. Within the batch
+    # it still matters — excerpts overlap, so one run can raise a fact twice.
+    fresh = dedupe.new_flashcards(items[:count], [])[:count]
+
     created = []
-    for item in items[:count]:
+    for item in fresh:
         question = (item.get('question') or '').strip()
         answer = (item.get('answer') or '').strip()
         difficulty = (item.get('difficulty') or 'medium').lower()
@@ -147,18 +156,72 @@ def _save_flashcards_from_json(
         )
         created.append(card)
 
+    # Raising rather than returning [] is what lets the caller fall back to the
+    # extractive generator. It is also what protects the existing deck: the
+    # cards on file are only retired once a replacement batch comes back
+    # non-empty, so an empty result here costs the learner nothing.
     if not created:
         raise GeminiGenerationError('No valid flashcards could be saved.')
     return created
 
 
+def _replace_deck(cards: list[Flashcard], user, tag: str, notebook) -> None:
+    """Hand the new deck its notebook and retire the deck it replaces.
+
+    Both writes live here rather than at each creation site because there are
+    four of them (LLM, ML-primary, local fallback, regeneration) and only this
+    one runs for every provider — the local fallback in particular generates
+    from a stand-in object that has no notebook to read.
+
+    Retirement is expressed as "every other active card on this tag" rather
+    than a list captured before generating, so two generations racing each
+    other still leave one deck rather than two, and any deck that stacked
+    under the old append behaviour is cleaned up the next time it is
+    regenerated. Archiving rather than deleting keeps the reviews already
+    recorded against those cards, which analytics counts.
+
+    Atomic: a crash between the two writes would leave the old deck and the
+    new one both live, which is the stacking this exists to prevent.
+    """
+    fresh_ids = [c.id for c in cards]
+    with transaction.atomic():
+        if notebook is not None:
+            Flashcard.objects.filter(id__in=fresh_ids).update(notebook=notebook)
+            for card in cards:
+                card.notebook = notebook
+        Flashcard.objects.filter(user=user, tags=tag, archived=False).exclude(
+            id__in=fresh_ids
+        ).update(archived=True, needs_regeneration=False)
+
+
 def generate_flashcards_for_sources(sources, user, count: int = 10,
                                     meta: dict | None = None) -> list[Flashcard]:
-    """Generate flashcards. Pass `meta` to learn which generator was used."""
-    count = max(3, min(count, 20))
+    """Generate a source selection's flashcards, replacing any it already has.
+
+    Generating used to append, so a document pressed three times carried
+    thirty cards and the study queue filled with one subject. It now produces
+    one deck of at most `deck_limits.MAX_CARDS_PER_SOURCE`: the old deck is
+    retired
+    only once a replacement is actually in hand, so a failed generation leaves
+    the learner exactly what they had. Pass `meta` to learn which generator
+    was used.
+    """
+    count = batch_size(count)
     source_ids = [s.id for s in sources]
     tag = combined_source_tag(source_ids)
+    # Every source in a request belongs to one notebook (the view filters them
+    # by it), so the first one names the deck's owner.
+    notebook = getattr(sources[0], 'notebook', None) if sources else None
 
+    cards = _generate_flashcards(sources, user, count, source_ids, tag, meta)
+    if cards:
+        _replace_deck(cards, user, tag, notebook)
+    return cards
+
+
+def _generate_flashcards(sources, user, count: int, source_ids: list[int],
+                         tag: str, meta: dict | None) -> list[Flashcard]:
+    """Run the provider cascade. Creates cards; does not retire anything."""
     # Validate + guard against thin sources up front, for every provider, so the
     # user gets one clear message instead of empty output or a silent fallback.
     text = _sources_text(sources)

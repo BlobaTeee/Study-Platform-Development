@@ -69,7 +69,7 @@ export default function NotebooksListPage() {
     e.stopPropagation()
     if (
       !window.confirm(
-        `Delete "${nb.title}"? All sources in this notebook will be removed.`
+        `Delete "${nb.title}"? Its sources and its flashcards go with it.`
       )
     ) {
       return

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import useSWR from 'swr'
-import { flashcardsAPI } from '@/lib/api'
+import { flashcardsAPI, type ReviewGrade } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { SourceRequired } from '@/components/source-required'
@@ -29,26 +29,57 @@ type Flashcard = {
   tags?: string | null
 }
 
+/** The three SM-2 grades, worst recall first. Only you can judge whether you
+ *  remembered a card, so grading is the one step that cannot be automated —
+ *  the number keys mirror the on-screen order. */
+const GRADES: { value: ReviewGrade; label: string; hint: string; className: string }[] = [
+  { value: 'hard', label: 'Hard', hint: 'Forgot', className: 'border-red-300 bg-red-50 text-red-900 hover:bg-red-100' },
+  { value: 'good', label: 'Good', hint: 'Recalled', className: 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100' },
+  { value: 'easy', label: 'Easy', hint: 'Instantly', className: 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100' },
+]
+
 function FlashcardsStudy() {
   const searchParams = useSearchParams()
   const sourceParam = searchParams.get('source')
   const sourceIds = useMemo(() => parseSourceIdsParam(sourceParam), [sourceParam])
+  // Two ways to study, both legitimate: work through a document before an exam,
+  // or clear what the schedule says is owed today.
+  const dueMode = searchParams.get('due') === '1'
 
   const { data, isLoading } = useSWR(
-    sourceParam ? ['/flashcards/', sourceParam] : null,
-    () => flashcardsAPI.getFlashcards()
+    dueMode ? ['/flashcards/due'] : sourceParam ? ['/flashcards/', sourceParam] : null,
+    () => (dueMode ? flashcardsAPI.getDueCards() : flashcardsAPI.getFlashcards())
   )
 
   const allCards: Flashcard[] = data?.data?.results ?? data?.data ?? []
-  const flashcards = useMemo(() => {
-    if (sourceIds.length === 0) return []
-    return allCards.filter((f) => flashcardMatchesSourceTag(f.tags, sourceIds))
-  }, [allCards, sourceIds])
-
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [graded, setGraded] = useState<Set<number>>(new Set())
+  const [lastReview, setLastReview] = useState<{ label: string; interval: number } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const flashcards = useMemo(() => {
+    // The backend already picked the due cards; a source filter still applies if
+    // one is present. Grading a card settles its debt, so it leaves the queue —
+    // otherwise wrapping round would review it twice and corrupt its schedule.
+    if (dueMode) {
+      const scoped = sourceIds.length
+        ? allCards.filter((f) => flashcardMatchesSourceTag(f.tags, sourceIds))
+        : allCards
+      return scoped.filter((f) => !graded.has(f.id))
+    }
+    if (sourceIds.length === 0) return []
+    return allCards.filter((f) => flashcardMatchesSourceTag(f.tags, sourceIds))
+  }, [allCards, sourceIds, dueMode, graded])
 
   const total = flashcards.length
+
+  // The due queue shrinks under the cursor; fall back to the top of what's left.
+  useEffect(() => {
+    if (index >= total && total > 0) setIndex(0)
+  }, [index, total])
+
   const goPrev = useCallback(() => {
     setFlipped(false)
     setIndex((i) => (i > 0 ? i - 1 : total - 1))
@@ -59,7 +90,36 @@ function FlashcardsStudy() {
     setIndex((i) => (i < total - 1 ? i + 1 : 0))
   }, [total])
 
-  // Keyboard: space/enter flips, arrows move between cards.
+  const grade = useCallback(
+    async (value: ReviewGrade) => {
+      const card = flashcards[index]
+      if (!card || saving) return
+      setSaving(true)
+      setError(null)
+      try {
+        const res = await flashcardsAPI.recordReview(card.id, value)
+        setLastReview({
+          label: GRADES.find((g) => g.value === value)!.label,
+          interval: res.data.interval,
+        })
+        setGraded((g) => new Set(g).add(card.id))
+        // In due mode the card drops out of the queue and the next one slides
+        // into this slot, so only the browse mode needs to advance.
+        if (dueMode) setFlipped(false)
+        else goNext()
+      } catch {
+        // Stay on the card so the grade isn't silently lost.
+        setError('Could not save that review. Is the backend running?')
+      } finally {
+        setSaving(false)
+      }
+    },
+    [flashcards, index, saving, goNext, dueMode]
+  )
+
+  // Keyboard: space/enter flips, arrows move, number keys grade a revealed
+  // card — the range comes from GRADES.length so removing/adding a grade
+  // renumbers the shortcuts automatically instead of drifting out of sync.
   useEffect(() => {
     if (total === 0) return
     const onKey = (e: KeyboardEvent) => {
@@ -70,13 +130,17 @@ function FlashcardsStudy() {
         goNext()
       } else if (e.key === 'ArrowLeft') {
         goPrev()
+      } else if (flipped && /^[1-9]$/.test(e.key) && Number(e.key) <= GRADES.length) {
+        e.preventDefault()
+        grade(GRADES[Number(e.key) - 1].value)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [total, goNext, goPrev])
+  }, [total, goNext, goPrev, flipped, grade])
 
-  if (!sourceParam || sourceIds.length === 0) {
+  // Studying the due queue needs no document chosen — the schedule already knows.
+  if (!dueMode && (!sourceParam || sourceIds.length === 0)) {
     return <SourceRequired type="flashcards" />
   }
 
@@ -88,15 +152,42 @@ function FlashcardsStudy() {
     return (
       <div className="text-center py-20 max-w-md mx-auto">
         <Zap className="size-16 text-slate-300 mx-auto mb-4" />
-        <p className="text-xl text-slate-600 mb-6">No flashcards for this selection yet.</p>
-        <Button asChild size="lg" className="bg-mode-library hover:bg-mode-library-hover h-12 text-lg">
-          <Link href="/dashboard/notebooks">Go to Notebooks</Link>
-        </Button>
+        <p className="text-xl text-slate-600 mb-6">
+          {dueMode
+            ? graded.size > 0
+              ? `Caught up — ${graded.size} card${graded.size === 1 ? '' : 's'} reviewed. Nothing else is due.`
+              : 'Nothing due right now. Cards come back as their dates arrive.'
+            : 'No flashcards for this selection yet.'}
+        </p>
+        {/* Studying a document enters the scheduled queue, so "nothing due" is
+            the common landing. Offering the whole document here keeps that an
+            answer rather than a dead end, while still leading with the
+            schedule — reviewing early is a choice, not the default. */}
+        {dueMode && sourceParam ? (
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button asChild size="lg" variant="outline" className="h-12 text-lg">
+              <Link href={`/dashboard/flashcards?source=${sourceParam}`}>
+                Study all cards anyway
+              </Link>
+            </Button>
+            <Button asChild size="lg" className="bg-mode-library hover:bg-mode-library-hover h-12 text-lg">
+              <Link href="/dashboard/notebooks">Back to notebooks</Link>
+            </Button>
+          </div>
+        ) : (
+          <Button asChild size="lg" className="bg-mode-library hover:bg-mode-library-hover h-12 text-lg">
+            <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
+              {dueMode ? 'Back to progress' : 'Go to Notebooks'}
+            </Link>
+          </Button>
+        )}
       </div>
     )
   }
 
-  const card = flashcards[index]
+  // The clamping effect above runs after this render, so on the frame a graded
+  // card leaves the queue the index can still point past the end.
+  const card = flashcards[index] ?? flashcards[0]
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
@@ -109,15 +200,19 @@ function FlashcardsStudy() {
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-flashcards">
             Flashcards
           </p>
-          <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">Study session</h1>
+          <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">
+            {dueMode ? 'Due today' : 'Study session'}
+          </h1>
           <p className="font-mono text-sm text-slate-500 mt-1 tabular-nums">
-            {String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
+            {dueMode
+              ? `${total} left${graded.size > 0 ? ` · ${graded.size} done` : ''}`
+              : `${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`}
           </p>
         </div>
         <Button asChild variant="outline" size="lg" className="text-lg h-11">
-          <Link href="/dashboard/notebooks">
+          <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
             <ChevronLeft className="size-5 mr-1" />
-            Notebooks
+            {dueMode ? 'Progress' : 'Notebooks'}
           </Link>
         </Button>
       </div>
@@ -125,7 +220,13 @@ function FlashcardsStudy() {
       <div className="rise h-1.5 rounded-full bg-slate-100 overflow-hidden" style={{ animationDelay: '60ms' }}>
         <div
           className="h-full bg-mode-flashcards transition-all duration-300"
-          style={{ width: `${((index + 1) / total) * 100}%` }}
+          style={{
+            // Browsing tracks position in the deck; the due queue tracks the
+            // debt cleared, since its cards leave as they are graded.
+            width: dueMode
+              ? `${(graded.size / (graded.size + total)) * 100}%`
+              : `${((index + 1) / total) * 100}%`,
+          }}
         />
       </div>
 
@@ -150,27 +251,63 @@ function FlashcardsStudy() {
         </button>
       </div>
 
-      <div className="rise flex flex-wrap items-center justify-center gap-4" style={{ animationDelay: '180ms' }}>
-        <Button variant="outline" size="lg" onClick={goPrev} className="h-12 px-6 text-lg">
-          <ArrowLeft className="size-5 mr-2" />
-          Previous
-        </Button>
-        <Button variant="outline" size="lg" onClick={() => setFlipped((f) => !f)} className="h-12 px-6 text-lg">
-          <RotateCcw className="size-5 mr-2" />
-          Flip
-        </Button>
-        <Button
-          size="lg"
-          onClick={goNext}
-          className="bg-mode-flashcards hover:bg-mode-flashcards-hover text-white h-12 px-6 text-lg"
-        >
-          Next
-          <ArrowRight className="size-5 ml-2" />
-        </Button>
-      </div>
+      {/* Once the answer is showing, grading replaces navigation: the only
+          question left is how well you recalled it. */}
+      {flipped ? (
+        <div className="rise space-y-3" style={{ animationDelay: '180ms' }}>
+          <p className="text-center text-sm text-slate-500">How well did you recall it?</p>
+          <div className="grid grid-cols-3 gap-3">
+            {GRADES.map((g, i) => (
+              <button
+                key={g.value}
+                type="button"
+                disabled={saving}
+                onClick={() => grade(g.value)}
+                className={cn(
+                  'rounded-xl border-2 px-4 py-3 text-left transition-colors disabled:opacity-50',
+                  g.className
+                )}
+              >
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="text-lg font-semibold">{g.label}</span>
+                  <span className="font-mono text-xs opacity-60 tabular-nums">{i + 1}</span>
+                </span>
+                <span className="block text-sm opacity-75">{g.hint}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="rise flex flex-wrap items-center justify-center gap-4" style={{ animationDelay: '180ms' }}>
+          <Button variant="outline" size="lg" onClick={goPrev} className="h-12 px-6 text-lg">
+            <ArrowLeft className="size-5 mr-2" />
+            Previous
+          </Button>
+          <Button
+            size="lg"
+            onClick={() => setFlipped(true)}
+            className="bg-mode-flashcards hover:bg-mode-flashcards-hover text-white h-12 px-6 text-lg"
+          >
+            <RotateCcw className="size-5 mr-2" />
+            Show answer
+          </Button>
+          <Button variant="outline" size="lg" onClick={goNext} className="h-12 px-6 text-lg">
+            Skip
+            <ArrowRight className="size-5 ml-2" />
+          </Button>
+        </div>
+      )}
+
+      {error && (
+        <p role="alert" className="rise text-center text-sm text-red-700">
+          {error}
+        </p>
+      )}
 
       <p className="rise text-center font-mono text-xs uppercase tracking-wide text-slate-500" style={{ animationDelay: '220ms' }}>
-        Space to flip · arrows to move · difficulty: {card.difficulty}
+        {lastReview
+          ? `${lastReview.label} · back in ${lastReview.interval} day${lastReview.interval === 1 ? '' : 's'} · ${graded.size}/${total} graded`
+          : `Space to flip · 1-3 to grade · difficulty: ${card.difficulty}`}
       </p>
     </div>
   )

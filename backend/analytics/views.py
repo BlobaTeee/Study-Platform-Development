@@ -1,109 +1,114 @@
-from django.db.models import Avg, Sum
+from django.db.models import Avg, F
+from django.utils import timezone
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.filters import OrderingFilter
-from django_filters.rest_framework import DjangoFilterBackend
 
 from flashcards.models import Flashcard
 from notebooks.models import Notebook, Source
-from quizzes.models import Quiz, QuizAttempt
-from .models import StudySession
-from .serializers import StudySessionSerializer
+from quizzes.models import Answer, Question, Quiz, QuizAttempt
+from study_sessions import scheduling
+from study_sessions.models import CardReview
+from . import insights
 
 
-class StudySessionViewSet(viewsets.ModelViewSet):
-    serializer_class = StudySessionSerializer
+def _review_tallies(user):
+    """Per-card correct/incorrect counts from the user's own review record.
+
+    Flashcard.correct_count and .incorrect_count look like the obvious source
+    but nothing writes to them; CardReview rows are what self-grading produces.
+    """
+    return insights.tally_reviews(
+        list(CardReview.objects.filter(user=user).values('flashcard_id', 'result'))
+    )
+
+
+class AnalyticsViewSet(viewsets.ViewSet):
+    """Read-only study insights computed from the user's own activity.
+
+    Everything here derives from what the user actually did: their cards, their
+    review history, their documents. The previous taxonomy-backed recommender
+    and learning path were removed — they could only suggest topics from a fixed
+    5-subject STEM list, which does not match real uploaded documents.
+    """
     permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, OrderingFilter]
-    filterset_fields = ['mood_before', 'mood_after']
-    ordering_fields = ['started_at', 'duration_minutes']
-    ordering = ['-started_at']
-
-    def get_queryset(self):
-        return StudySession.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
         user = request.user
-        sessions = StudySession.objects.filter(user=user)
-        attempts = QuizAttempt.objects.filter(user=user)
-        completed = attempts.filter(is_completed=True)
-
-        total_study_minutes = sessions.aggregate(total=Sum('duration_minutes'))['total'] or 0
+        completed = QuizAttempt.objects.filter(user=user, is_completed=True)
         avg_quiz_score = completed.aggregate(avg=Avg('score'))['avg']
 
-        flashcards = Flashcard.objects.filter(user=user)
-        total_reviews = flashcards.aggregate(
-            correct=Sum('correct_count'),
-            incorrect=Sum('incorrect_count'),
-        )
-        correct = total_reviews['correct'] or 0
-        incorrect = total_reviews['incorrect'] or 0
-        review_total = correct + incorrect
-
-        notebooks_count = Notebook.objects.filter(user=user).count()
-        sources_count = Source.objects.filter(notebook__user=user).count()
+        # Archived originals are replaced 1-for-1 by regeneration, not a net
+        # addition, so counting them would inflate the lifetime total by one
+        # per regeneration and disagree with the flashcards list page.
+        flashcards = Flashcard.objects.filter(user=user, archived=False)
+        reviews_qs = CardReview.objects.filter(user=user)
+        correct = reviews_qs.filter(result__in=insights.CORRECT_RESULTS).count()
+        incorrect = reviews_qs.filter(result__in=insights.INCORRECT_RESULTS).count()
+        reviews = correct + incorrect
 
         return Response({
-            'notebooks_count': notebooks_count,
-            'sources_count': sources_count,
+            'notebooks_count': Notebook.objects.filter(user=user).count(),
+            'sources_count': Source.objects.filter(notebook__user=user).count(),
             'flashcards_count': flashcards.count(),
             'quizzes_count': Quiz.objects.filter(user=user).count(),
-            'quiz_attempts_count': attempts.count(),
             'quiz_attempts_completed': completed.count(),
             'average_quiz_score': round(avg_quiz_score, 1) if avg_quiz_score is not None else None,
-            'total_study_minutes': total_study_minutes,
-            'study_sessions_count': sessions.count(),
-            'flashcard_reviews': review_total,
-            'flashcard_accuracy': round((correct / review_total) * 100, 1) if review_total else None,
+            'flashcard_reviews': reviews,
+            'flashcard_correct': correct,
+            'flashcard_incorrect': incorrect,
+            'flashcard_accuracy': round(correct / reviews * 100, 1) if reviews else None,
         })
 
     @action(detail=False, methods=['get'])
-    def subjects(self, request):
-        """Available subjects from the topic hierarchy for learning path filtering."""
-        try:
-            import pandas as pd
-            from ml_pipeline.config import PROCESSED_DIR
-
-            path = PROCESSED_DIR / 'topic_hierarchy.parquet'
-            if not path.exists():
-                return Response({'subjects': []})
-            hierarchy = pd.read_parquet(path)
-            subjects = sorted(hierarchy['subject'].unique().tolist())
-            return Response({'subjects': subjects})
-        except Exception as exc:
-            return Response({'subjects': [], 'detail': str(exc)}, status=503)
-
-    @action(detail=False, methods=['get'])
     def recommendations(self, request):
-        """Content-based study topic recommendations from ML pipeline."""
-        study_text = request.query_params.get('text', '')
-        limit = min(int(request.query_params.get('limit', 5)), 20)
-        try:
-            from ml.adapter import get_study_recommendations
-            items = get_study_recommendations(request.user, study_text=study_text, n=limit)
-            return Response({'recommendations': items, 'method': 'content_based'})
-        except Exception as exc:
-            return Response(
-                {'recommendations': [], 'method': 'unavailable', 'detail': str(exc)},
-                status=503,
-            )
+        """How much study is owed now, and which documents you're weakest on.
 
-    @action(detail=False, methods=['get'])
-    def learning_path(self, request):
-        """Adaptive learning path based on topic hierarchy and performance."""
-        subject = request.query_params.get('subject')
-        limit = min(int(request.query_params.get('limit', 15)), 50)
-        try:
-            from ml.adapter import get_learning_path
-            path = get_learning_path(request.user, subject=subject, limit=limit)
-            return Response({'learning_path': path, 'subject': subject})
-        except Exception as exc:
-            return Response(
-                {'learning_path': [], 'detail': str(exc)},
-                status=503,
-            )
+        Question text is never fetched here, let alone returned: this endpoint
+        reports on the schedule, and the study page is the only place a prompt
+        should be seen.
+        """
+        user = request.user
+
+        cards = insights.attach_review_counts(
+            # Archived originals keep their old next_review_date forever, so an
+            # unfiltered count here would drift from due_today's own filtered
+            # queryset and never come back into agreement.
+            list(Flashcard.objects.filter(user=user, archived=False)
+                 .values('id', 'tags')),
+            _review_tallies(user),
+        )
+        titles = dict(
+            Source.objects.filter(notebook__user=user).values_list('id', 'title')
+        )
+
+        # How much is owed comes from the SM-2 schedule the reviews built, so
+        # this page and the study page cannot disagree about what is due. Counts
+        # only: naming the cards here would show their questions minutes before
+        # they are graded, inflating the grade and skewing the schedule.
+        schedule = scheduling.latest_schedule(
+            list(CardReview.objects.filter(user=user).latest_per_card()
+                 .values('flashcard_id', 'next_review_date', 'review_date'))
+        )
+        today = timezone.localdate()
+        due = scheduling.due_counts(cards, schedule, today)
+        # An empty queue means the schedule is working. Without a return date it
+        # reads exactly like a broken one, so the date travels with the counts.
+        next_date, next_count = scheduling.next_due_batch(schedule, today)
+        due = {**due, 'next_date': next_date, 'next_count': next_count}
+
+        # Per-document mastery draws on every mode that grades an item against a
+        # source. Flashcards alone would ignore the quiz answers on record, which
+        # are the firmer evidence of the two — they are marked, not self-reported.
+        events = insights.flashcard_events(cards) + insights.quiz_events(
+            list(Question.objects.filter(quiz__user=user)
+                 .values('id', quiz_description=F('quiz__description'))),
+            list(Answer.objects.filter(quiz_attempt__user=user)
+                 .values('question_id', 'is_correct')),
+        )
+
+        return Response({
+            'due': due,
+            'weak_sources': insights.per_source_mastery(events, titles),
+        })

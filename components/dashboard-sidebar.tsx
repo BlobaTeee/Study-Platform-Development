@@ -7,6 +7,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import {
   BarChart3,
+  ClipboardList,
+  Home,
   LogOut,
   Menu,
   NotebookText,
@@ -26,10 +28,22 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   {
+    href: '/dashboard',
+    label: 'Home',
+    icon: Home,
+    activeClass: 'bg-mode-library/10 text-mode-library',
+  },
+  {
     href: '/dashboard/notebooks',
     label: 'Notebooks',
     icon: NotebookText,
     activeClass: 'bg-mode-library/10 text-mode-library',
+  },
+  {
+    href: '/dashboard/tests',
+    label: 'Tests',
+    icon: ClipboardList,
+    activeClass: 'bg-mode-quizzes/10 text-mode-quizzes',
   },
   {
     href: '/dashboard/analytics',
@@ -41,7 +55,10 @@ const navItems: NavItem[] = [
 
 function useIsActive() {
   const pathname = usePathname()
-  return (href: string) => pathname === href || (pathname?.startsWith(href + '/') ?? false)
+  return (href: string) => {
+    if (href === '/dashboard') return pathname === '/dashboard'
+    return pathname === href || (pathname?.startsWith(href + '/') ?? false)
+  }
 }
 
 /** A quiet monogram tile that stands in for a logo — Fraunces "S" on a paper-blue chip. */
@@ -79,7 +96,7 @@ function SidebarBody({
   return (
     <div className="flex h-full flex-col">
       <Link
-        href="/dashboard/notebooks"
+        href="/dashboard"
         onClick={onNavigate}
         className={cn(
           'flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-slate-100',
@@ -236,7 +253,7 @@ export function MobileNavBar() {
           <Menu className="size-5" />
         </button>
         <Link
-          href="/dashboard/notebooks"
+          href="/dashboard"
           className="flex items-center gap-2 rounded-lg px-1 py-1 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode-library/30"
         >
           <BrandMark />

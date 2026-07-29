@@ -4,6 +4,7 @@ from django.utils import timezone
 from datetime import timedelta
 from notebooks.models import Notebook
 from flashcards.models import Flashcard
+from . import scheduling
 
 
 class StudySession(models.Model):
@@ -89,35 +90,55 @@ class StudyStreak(models.Model):
         return f"{self.user.username} - Streak: {self.current_streak}"
 
     def update_streak(self, session_date):
-        """Update streak based on session date."""
+        """Update streak based on session date (a date or datetime)."""
         if session_date is None:
             return
-
         if hasattr(session_date, 'date'):
             session_date = session_date.date()
-
-        if self.last_session_date is None:
-            # First session ever
-            self.current_streak = 1
-            self.best_streak = 1
-        elif (session_date - self.last_session_date).days == 1:
-            # Consecutive day
-            self.current_streak += 1
-            if self.current_streak > self.best_streak:
-                self.best_streak = self.current_streak
-        elif (session_date - self.last_session_date).days > 1:
-            # Streak broken
-            self.current_streak = 1
-        # Same day doesn't change streak
-
-        self.last_session_date = session_date
+        result = scheduling.advance_streak(
+            self.current_streak, self.best_streak, self.last_session_date, session_date
+        )
+        self.current_streak = result.current
+        self.best_streak = result.best
+        self.last_session_date = result.last_date
         self.save()
+
+
+class CardReviewQuerySet(models.QuerySet):
+    def grades(self):
+        """Only rows recording an actual recall.
+
+        Seed rows carry a schedule to a regenerated card and represent no
+        answer, so counting them would inflate review totals and dilute
+        accuracy. Scheduling reads the unfiltered manager on purpose — a seed
+        row is exactly what tells a variant when it is next due.
+        """
+        return self.filter(is_seed=False)
+
+    def latest_per_card(self):
+        """One row per card: the review that describes where it stands now.
+
+        A card accrues a row per review forever, but only its newest describes
+        its schedule — so loading them all to find each card's latest made
+        every study-page and analytics load cost the learner's entire history.
+        A year at thirty reviews a day is eleven thousand rows read to answer a
+        question about a few hundred cards.
+
+        Postgres answers it directly with DISTINCT ON. On backends without it
+        (the sqlite fallback in settings) this is a no-op and the caller's
+        `latest_schedule` fold still collapses the rows correctly — it takes
+        the newest per card either way, so this is transparent to behaviour and
+        only changes how much is read.
+        """
+        from django.db import connection
+        if not connection.features.can_distinct_on_fields:
+            return self
+        return self.order_by('flashcard_id', '-review_date').distinct('flashcard_id')
 
 
 class CardReview(models.Model):
     """Track individual flashcard performance for spaced repetition."""
     RESULT_CHOICES = [
-        ('again', 'Again (forgot)'),
         ('hard', 'Hard'),
         ('good', 'Good'),
         ('easy', 'Very Easy'),
@@ -136,6 +157,13 @@ class CardReview(models.Model):
     repetitions = models.IntegerField(default=0)
     next_review_date = models.DateField(null=True, blank=True)
 
+    is_seed = models.BooleanField(
+        default=False,
+        help_text='Carries a schedule to a regenerated card; not a real recall.',
+    )
+
+    objects = CardReviewQuerySet.as_manager()
+
     class Meta:
         ordering = ['-review_date']
         unique_together = ('user', 'flashcard', 'review_date')
@@ -143,30 +171,60 @@ class CardReview(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.flashcard.question[:30]} ({self.result})"
 
+    @classmethod
+    def record(cls, user, flashcard, result, session=None):
+        """Log one self-graded review and schedule the card's next appearance.
+
+        The card's SM-2 state lives on its most recent review, so it is carried
+        forward here; starting from the field defaults each time would pin every
+        card to a one-day interval forever.
+        """
+        # Ordering spelled out rather than inherited from Meta: reordering
+        # that default would silently carry forward a card's *oldest*
+        # schedule and pin its interval forever.
+        previous = (cls.objects.filter(user=user, flashcard=flashcard)
+                    .order_by('-review_date').first())
+        review = cls(
+            user=user,
+            flashcard=flashcard,
+            session=session,
+            result=result,
+            interval=previous.interval if previous else scheduling.INITIAL.interval,
+            ease_factor=previous.ease_factor if previous else scheduling.INITIAL.ease_factor,
+            repetitions=previous.repetitions if previous else scheduling.INITIAL.repetitions,
+        )
+        review.calculate_next_review()
+
+        # A failed card comes back as a different question on the same concept,
+        # but generating one costs a model call, so only mark it here. The
+        # due-fetch does the work, and only for cards actually returned to.
+        if result == scheduling.HARD and not flashcard.needs_regeneration:
+            flashcard.needs_regeneration = True
+            flashcard.regeneration_attempts = 0
+            flashcard.save(update_fields=['needs_regeneration',
+                                          'regeneration_attempts'])
+        elif result in scheduling.CORRECT_RESULTS and flashcard.needs_regeneration:
+            # Recalling the card means it no longer needs replacing: without
+            # this, a card failed once and then learned would still be swapped
+            # out weeks later, discarding what the learner had just mastered.
+            flashcard.needs_regeneration = False
+            flashcard.regeneration_attempts = 0
+            flashcard.save(update_fields=['needs_regeneration',
+                                          'regeneration_attempts'])
+
+        streak, _ = StudyStreak.objects.get_or_create(user=user)
+        streak.update_streak(timezone.localdate())
+        return review
+
     def calculate_next_review(self):
-        """SM-2 spaced repetition algorithm."""
+        """Apply the SM-2 step to this review and save it."""
         from datetime import timedelta as td
 
-        self.repetitions += 1
-
-        # SM-2 algorithm
-        if self.result == 'again':
-            self.repetitions = 0
-            self.interval = 1
-            self.ease_factor = max(1.3, self.ease_factor - 0.2)
-        elif self.result == 'hard':
-            self.interval = max(1, int(self.interval * 1.2))
-            self.ease_factor = max(1.3, self.ease_factor - 0.15)
-        elif self.result == 'good':
-            if self.repetitions == 1:
-                self.interval = 1
-            elif self.repetitions == 2:
-                self.interval = 3
-            else:
-                self.interval = int(self.interval * self.ease_factor)
-        elif self.result == 'easy':
-            self.interval = int(self.interval * self.ease_factor)
-            self.ease_factor = self.ease_factor + 0.1
-
-        self.next_review_date = timezone.now().date() + td(days=self.interval)
+        self.interval, self.ease_factor, self.repetitions = scheduling.next_schedule(
+            self.result,
+            interval=self.interval,
+            ease_factor=self.ease_factor,
+            repetitions=self.repetitions,
+        )
+        self.next_review_date = timezone.localdate() + td(days=self.interval)
         self.save()

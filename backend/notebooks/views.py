@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.conf import settings
+from django.db.models import Prefetch
 
 from .models import Notebook, Source
 from .serializers import (
@@ -14,12 +15,15 @@ from .services.document_extract import file_type_from_filename, title_from_filen
 from .services.ingest import process_source
 from .services.gemini_client import GeminiNotConfiguredError, GeminiGenerationError
 from .services.generate import (
+    combined_source_tag,
     generate_flashcards_for_sources,
     generate_quiz_for_sources,
     generate_flashcards_for_source,
     generate_quiz_for_source,
 )
+from flashcards.models import Flashcard
 from flashcards.serializers import FlashcardSerializer
+from quizzes.models import Quiz
 from quizzes.serializers import QuizSerializer
 
 SUPPORTED_FORMATS = 'PDF, Word (.docx), and PowerPoint (.pptx)'
@@ -30,7 +34,14 @@ class NotebookViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
-        return Notebook.objects.filter(user=self.request.user).prefetch_related('sources')
+        # `defer` matters more than it looks: a plain prefetch_related('sources')
+        # loads whole Source rows, and `extracted_text` holds an entire document
+        # — 282 KB across three files here. SourceListSerializer never outputs
+        # it, so every notebook load was pulling that out of Postgres and
+        # discarding it, growing with each upload.
+        return Notebook.objects.filter(user=self.request.user).prefetch_related(
+            Prefetch('sources', queryset=Source.objects.defer('extracted_text'))
+        )
 
     def get_serializer_class(self):
         if self.action in ('create', 'update', 'partial_update'):
@@ -113,6 +124,42 @@ class NotebookViewSet(viewsets.ModelViewSet):
             'fallback_reason': meta.get('reason'),
             'flashcards': serializer.data,
         }, status=201)
+
+    @action(detail=True, methods=['get'])
+    def material_counts(self, request, pk=None):
+        """What this exact source selection already has: cards, and a quiz.
+
+        Generating replaces this selection's deck, so the page has to be able
+        to warn that a press discards cards the learner may have been part-way
+        through. Keyed on the same combined tag that generation writes and
+        retires against, so this is exactly the number the next press replaces.
+
+        `quiz_id` is here so the workspace can offer a "study" link without
+        downloading every flashcard and every quiz the user owns just to test
+        whether one of them matches — which is what it did before, and which
+        grew with the whole collection rather than with this selection.
+        Counts and one id: no card or question text is loaded.
+        """
+        self.get_object()  # 404s unless the notebook belongs to this user
+        raw = request.query_params.get('source_ids', '')
+        source_ids = sorted({int(i) for i in raw.split(',') if i.strip().isdigit()})
+        if not source_ids:
+            return Response({'flashcards': 0, 'quiz_id': None})
+
+        tag = combined_source_tag(source_ids)
+        # Quizzes carry their source tag in `description`, as `[source:1,2]`.
+        # Bracketed so "[source:1]" cannot match a quiz tagged "[source:13]" —
+        # the exact substring trap the frontend matcher falls into.
+        quiz_id = (Quiz.objects.filter(user=request.user, description__contains=f'[{tag}]')
+                   .order_by('-created_at').values_list('id', flat=True).first())
+        return Response({
+            # Active cards only: an archived original is already retired, so
+            # counting it would overstate what a regeneration costs.
+            'flashcards': Flashcard.objects.filter(
+                user=request.user, tags=tag, archived=False
+            ).count(),
+            'quiz_id': quiz_id,
+        })
 
     @action(detail=True, methods=['post'])
     def generate_quiz(self, request, pk=None):

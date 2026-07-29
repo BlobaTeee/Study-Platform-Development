@@ -7,14 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import useSWR, { mutate } from 'swr'
-import { flashcardsAPI, notebooksAPI, quizzesAPI } from '@/lib/api'
+import { notebooksAPI } from '@/lib/api'
 import {
   SOURCE_ACCEPT,
   fileTypeLabel,
-  flashcardMatchesSourceTag,
   formatSourceIdsForQuery,
   isAllowedSourceFile,
-  quizMatchesSourceTag,
   sourceCountLabel,
   titleFromFileName,
 } from '@/lib/source-utils'
@@ -62,7 +60,10 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const [deletingSourceId, setDeletingSourceId] = useState<number | null>(null)
   const [loadingSource, setLoadingSource] = useState(false)
   const [sourceDetail, setSourceDetail] = useState<{
-    extracted_text: string
+    // Only the opening of the document; `text_length` is how long the whole
+    // thing is, so the reader can say what it is not showing.
+    text_preview: string
+    text_length: number
     gemini_summary: string
     title: string
     page_count: number
@@ -75,11 +76,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const { data: notebookRes, isLoading, error: loadError } = useSWR(swrKey, () =>
     notebooksAPI.getNotebook(notebookId)
   )
-
-  const { data: flashcardsData } = useSWR(['/flashcards/all'], () =>
-    flashcardsAPI.getFlashcards()
-  )
-  const { data: quizzesData } = useSWR(['/quizzes/all'], () => quizzesAPI.getQuizzes())
 
   const notebook = notebookRes?.data
   const sources: SourceItem[] = notebook?.sources ?? []
@@ -99,23 +95,25 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
   const studyQuery = formatSourceIdsForQuery(generationSourceIds)
 
-  const hasFlashcardsForSources = useMemo(() => {
-    if (generationSourceIds.length === 0) return false
-    const list = flashcardsData?.data?.results ?? flashcardsData?.data ?? []
-    return list.some((f: { tags?: string }) =>
-      flashcardMatchesSourceTag(f.tags, generationSourceIds)
-    )
-  }, [flashcardsData, generationSourceIds])
-
-  const quizForSources = useMemo(() => {
-    if (generationSourceIds.length === 0) return null
-    const list = quizzesData?.data?.results ?? quizzesData?.data ?? []
-    return (
-      list.find((q: { description?: string }) =>
-        quizMatchesSourceTag(q.description, generationSourceIds)
-      ) ?? null
-    )
-  }, [quizzesData, generationSourceIds])
+  // Counted server-side on the exact combined tag, which is the same set
+  // generating replaces — so the number shown is always the number a press
+  // retires. Counting here instead would use flashcardMatchesSourceTag, whose
+  // substring test reports a "source:13" card as belonging to source 1.
+  const { data: countsRes } = useSWR(
+    generationSourceIds.length > 0
+      ? ['/notebooks/material_counts', notebookId, studyQuery]
+      : null,
+    () => notebooksAPI.getMaterialCounts(notebookId, generationSourceIds)
+  )
+  const existingCards: number = countsRes?.data?.flashcards ?? 0
+  // Both of these used to be derived by downloading every flashcard and every
+  // quiz the user owns and scanning for a tag match — a cost that grew with
+  // the whole collection to answer a question about one selection. The server
+  // answers it directly now, and more accurately: its tag comparison is exact,
+  // where the client matchers' substring test reads a "source:13" card as
+  // belonging to source 1.
+  const hasFlashcardsForSources = existingCards > 0
+  const quizIdForSources: number | null = countsRes?.data?.quiz_id ?? null
 
   const readySources = sources.filter((s) => s.status === 'ready')
 
@@ -152,7 +150,8 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       .getSource(activeSourceId)
       .then((res) => {
         setSourceDetail({
-          extracted_text: res.data.extracted_text,
+          text_preview: res.data.text_preview,
+          text_length: res.data.text_length,
           gemini_summary: res.data.gemini_summary,
           title: res.data.title,
           page_count: res.data.page_count,
@@ -208,6 +207,18 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       setError('Select at least one ready source (checkbox) to generate flashcards.')
       return
     }
+    // Generating replaces this selection's deck, so a second press throws away
+    // whatever review progress the current cards carry. Cheap to confirm, and
+    // impossible to undo from here if we don't.
+    if (
+      existingCards > 0 &&
+      !window.confirm(
+        `Replace the ${existingCards} flashcard${existingCards === 1 ? '' : 's'} already made from this selection? ` +
+          'The new cards start from scratch, and your review progress on the current ones is retired.'
+      )
+    ) {
+      return
+    }
     setGenerating('flashcards')
     setError('')
     setWarning('')
@@ -217,11 +228,15 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
         generationSourceIds
       )
       mutate(['/flashcards/'])
+      // The deck this selection holds just changed. Matters on the fallback
+      // branch below, which stays on this page — without it the card the
+      // button offers to replace is the one it replaced a moment ago.
+      mutate(['/notebooks/material_counts', notebookId, studyQuery])
       if (res.data.generated_by === 'extractive-fallback') {
         setWarning(FALLBACK_NOTICE('flashcards'))
         return  // stay put so the downgrade is seen, not silently navigated past
       }
-      router.push(`/dashboard/flashcards?source=${studyQuery}`)
+      router.push(`/dashboard/flashcards?due=1&source=${studyQuery}`)
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { detail?: string } } }
       setError(ax.response?.data?.detail || 'Failed to generate flashcards')
@@ -244,6 +259,10 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
         generationSourceIds
       )
       mutate(['/quizzes/'])
+      // The "Take quiz" link reads quiz_id from the counts endpoint, so it only
+      // appears once this is revalidated. Matters on the fallback branch below,
+      // which stays on this page.
+      mutate(['/notebooks/material_counts', notebookId, studyQuery])
       if (res.data.generated_by === 'extractive-fallback') {
         setWarning(FALLBACK_NOTICE('quiz questions'))
         return  // stay put so the downgrade is seen, not silently navigated past
@@ -281,8 +300,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
         setSourceDetail(null)
       }
       setCheckedSourceIds((prev) => prev.filter((id) => id !== sourceId))
-      mutate(['/flashcards/all'])
-      mutate(['/quizzes/all'])
+      // The removed source drops out of the selection, so the counts keyed on
+      // the old selection no longer describe anything on screen.
+      mutate(['/notebooks/material_counts', notebookId, studyQuery])
       refresh()
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { detail?: string } } }
@@ -612,6 +632,14 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                           ? 'From all selected sources'
                           : 'About 10 cards from selection'}
                       </p>
+                      {/* Generating replaces this selection's deck rather than
+                          adding to it, so saying what is about to be retired
+                          matters more than a running total. */}
+                      {existingCards > 0 && (
+                        <p className="font-mono text-sm text-slate-600 tabular-nums">
+                          Replaces {existingCards} card{existingCards === 1 ? '' : 's'}
+                        </p>
+                      )}
                       <Button
                         onClick={handleGenerateFlashcards}
                         disabled={!canGenerate || generating !== null}
@@ -626,7 +654,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                         ) : (
                           <>
                             <Sparkles className="size-4" />
-                            Generate flashcards
+                            {existingCards > 0
+                              ? 'Regenerate flashcards'
+                              : 'Generate flashcards'}
                           </>
                         )}
                       </Button>
@@ -664,19 +694,19 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                   </Card>
                 </div>
 
-                {(hasFlashcardsForSources || quizForSources) && studyQuery && (
+                {(hasFlashcardsForSources || quizIdForSources) && studyQuery && (
                   <div className="flex flex-wrap gap-3 pt-2">
                     {hasFlashcardsForSources && (
                       <Button asChild variant="outline" size="lg" className="h-12 text-base">
-                        <Link href={`/dashboard/flashcards?source=${studyQuery}`}>
+                        <Link href={`/dashboard/flashcards?due=1&source=${studyQuery}`}>
                           Study flashcards
                         </Link>
                       </Button>
                     )}
-                    {quizForSources && (
+                    {quizIdForSources && (
                       <Button asChild variant="outline" size="lg" className="h-12 text-base">
                         <Link
-                          href={`/dashboard/quizzes?source=${studyQuery}&quiz=${quizForSources.id}`}
+                          href={`/dashboard/quizzes?source=${studyQuery}&quiz=${quizIdForSources}`}
                         >
                           Take quiz
                         </Link>
@@ -686,14 +716,20 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                 )}
               </div>
 
-              {sourceDetail?.extracted_text && (
+              {sourceDetail?.text_preview && (
                 <details className="rounded-xl border border-slate-200 bg-slate-50">
                   <summary className="px-4 py-3 text-sm text-slate-500 cursor-pointer hover:text-slate-700">
                     View extracted text
                   </summary>
                   <pre className="text-xs text-slate-500 whitespace-pre-wrap max-h-64 overflow-y-auto px-4 pb-4 border-t border-slate-200 pt-3">
-                    {sourceDetail.extracted_text.slice(0, 8000)}
-                    {sourceDetail.extracted_text.length > 8000 ? '\n\n…' : ''}
+                    {sourceDetail.text_preview}
+                    {/* The server sends the opening only, so say so rather than
+                        letting the text look like it simply stops. */}
+                    {sourceDetail.text_length > sourceDetail.text_preview.length
+                      ? `\n\n… ${(
+                          sourceDetail.text_length - sourceDetail.text_preview.length
+                        ).toLocaleString()} more characters (generation reads the whole document)`
+                      : ''}
                   </pre>
                 </details>
               )}

@@ -1,9 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import StudySessionViewSet
+from .views import AnalyticsViewSet
 
 router = DefaultRouter()
-router.register(r'sessions', StudySessionViewSet, basename='study-session')
+# Kept at 'sessions' so existing client paths (/analytics/sessions/summary/)
+# keep working; the manual study-session CRUD behind it was removed.
+router.register(r'sessions', AnalyticsViewSet, basename='analytics')
 
 urlpatterns = [
     path('', include(router.urls)),

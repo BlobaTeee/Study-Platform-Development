@@ -48,11 +48,32 @@ export const materialsAPI = {
   deleteMaterial: (id: number) => api.delete(`/materials/study-materials/${id}/`),
 }
 
+/** How well you recalled a card, worst first. Drives the SM-2 schedule. */
+export type ReviewGrade = 'hard' | 'good' | 'easy'
+
 export const flashcardsAPI = {
   getFlashcards: (params?: any) => api.get('/flashcards/flashcards/', { params }),
   createFlashcard: (data: any) => api.post('/flashcards/flashcards/', data),
   updateFlashcard: (id: number, data: any) => api.put(`/flashcards/flashcards/${id}/`, data),
   deleteFlashcard: (id: number) => api.delete(`/flashcards/flashcards/${id}/`),
+  // Self-graded review: the backend schedules the card's next appearance and
+  // this is what analytics counts. No study session needed.
+  recordReview: (flashcardId: number, result: ReviewGrade) =>
+    api.post('/study/card-reviews/record/', { flashcard_id: flashcardId, result }),
+  // Cards the SM-2 schedule says are owed today, plus ones never studied.
+  // Cards scheduled ahead are deliberately withheld.
+  getDueCards: () => api.get('/study/card-reviews/due_today/'),
+}
+
+export const streaksAPI = {
+  // Current/best consecutive-day streak. Advances when a card is reviewed.
+  getMe: () => api.get('/study/streaks/me/'),
+}
+
+export const reviewsAPI = {
+  // Reviews done and recall accuracy over the last 7 days — a real week window,
+  // unlike the all-time counts on the analytics summary.
+  getWeeklyStats: () => api.get('/study/card-reviews/stats/'),
 }
 
 export const quizzesAPI = {
@@ -82,6 +103,12 @@ export const notebooksAPI = {
   },
   uploadPdf: (notebookId: number, file: File, title?: string) =>
     notebooksAPI.uploadSource(notebookId, file, title),
+  // How many flashcards this exact source selection already holds. Generating
+  // appends, so the page needs this to say what a press will add to.
+  getMaterialCounts: (notebookId: number, sourceIds: number[]) =>
+    api.get(`/notebooks/notebooks/${notebookId}/material_counts/`, {
+      params: { source_ids: sourceIds.join(',') },
+    }),
   generateFlashcardsFromSources: (
     notebookId: number,
     sourceIds: number[],
@@ -108,24 +135,44 @@ export const notebooksAPI = {
     }),
 }
 
+export const mockTestsAPI = {
+  // Starting a test freezes its paper server-side, so a refresh cannot reshuffle it.
+  // `planned_test`, when present, is how the server links this sitting back
+  // to the plan it fulfils (stamping the plan's sat_at in the same
+  // transaction) — without it the plan/sitting link is never made at all.
+  start: (data: {
+    notebook: number
+    question_count?: number
+    duration_minutes?: number
+    planned_test?: number
+  }) => api.post('/quizzes/mock-tests/', data),
+  get: (id: number) => api.get(`/quizzes/mock-tests/${id}/`),
+  // Deliberately returns no marking — feedback waits until the paper is handed in.
+  answer: (id: number, paperQuestionId: number, answer: string) =>
+    api.post(`/quizzes/mock-tests/${id}/answer/`, {
+      paper_question_id: paperQuestionId,
+      answer,
+    }),
+  submit: (id: number) => api.post(`/quizzes/mock-tests/${id}/submit/`, {}),
+}
+
+export const plannedTestsAPI = {
+  list: () => api.get('/quizzes/planned-tests/'),
+  create: (data: {
+    notebook: number
+    scheduled_for: string
+    question_count?: number
+    duration_minutes?: number
+    reminder_lead_hours?: number
+  }) => api.post('/quizzes/planned-tests/', data),
+  remove: (id: number) => api.delete(`/quizzes/planned-tests/${id}/`),
+}
+
 export const analyticsAPI = {
   getSummary: () => api.get('/analytics/sessions/summary/'),
-  getStudySessions: (params?: Record<string, unknown>) =>
-    api.get('/analytics/sessions/', { params }),
-  getRecommendations: (params?: { text?: string; limit?: number }) =>
-    api.get('/analytics/sessions/recommendations/', { params }),
-  getLearningPath: (params?: { subject?: string; limit?: number }) =>
-    api.get('/analytics/sessions/learning_path/', { params }),
-  getSubjects: () => api.get('/analytics/sessions/subjects/'),
-  createStudySession: (data: {
-    duration_minutes: number
-    material_studied?: string
-    notes?: string
-    mood_before?: string
-    mood_after?: string
-  }) => api.post('/analytics/sessions/', data),
-  updateStudySession: (id: number, data: Record<string, unknown>) =>
-    api.put(`/analytics/sessions/${id}/`, data),
+  // How much study is owed, plus per-document mastery — both derived from the
+  // user's own record. Returns counts, never card questions.
+  getRecommendations: () => api.get('/analytics/sessions/recommendations/'),
 }
 
 
