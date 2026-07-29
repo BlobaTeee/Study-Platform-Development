@@ -1,6 +1,10 @@
 # Environment variables
 .env*.local
 backend/.env
+# Anything derived from it holds the same credentials (DB password, API keys).
+backend/.env.*
+# ...except the template, which is checked in and holds no values.
+!backend/.env.example
 
 # Dependencies and build
 node_modules
