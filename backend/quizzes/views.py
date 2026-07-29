@@ -15,6 +15,7 @@ from .services.paper import (
     sample_paper, source_accuracy, source_weights, clamp_int, _answer_matches,
     MIN_QUESTIONS, MAX_QUESTIONS, MIN_DURATION_MINUTES, MAX_DURATION_MINUTES,
 )
+from .services.topup import questions_to_request, should_continue
 
 
 class QuizViewSet(viewsets.ModelViewSet):
@@ -118,6 +119,63 @@ def _source_filter(field_prefix, source_ids):
     for sid in source_ids:
         query |= Q(**{field: f'source:{sid}'})
     return query
+
+
+def _top_up_pool(user, notebook, source_ids, pool, requested):
+    """Generate questions until the notebook can fill the paper, or we stop.
+
+    Returns (pool, generated_any). Never raises: a paper that cannot be topped
+    up is still a paper, and a student pressing "start" must not be met with a
+    provider error. Every failure path leaves the pool exactly as it was.
+
+    Generated questions are written as an ordinary Quiz tagged to these
+    sources, so they are not private to this sitting — they join the pool
+    permanently and the next test starts faster for having been generated
+    here.
+    """
+    import logging
+    import time
+
+    from notebooks.services.generate import generate_quiz_for_sources
+
+    logger = logging.getLogger(__name__)
+
+    # Only documents that finished processing can be generated from;
+    # generate_quiz_for_sources raises on anything else, and one still-
+    # processing upload must not stop the others being used.
+    sources = [s for s in notebook.sources.all()
+               if s.status == 'ready' and s.extracted_text.strip()]
+    if not sources:
+        return pool, False
+
+    started = time.monotonic()
+    rounds = 0
+    previous_size = -1  # so the "did it grow" test cannot fire on round one
+    generated_any = False
+
+    while should_continue(len(pool), previous_size, requested, rounds,
+                          time.monotonic() - started):
+        want = questions_to_request(len(pool), requested)
+        if want <= 0:
+            break
+        previous_size = len(pool)
+        rounds += 1
+        try:
+            generate_quiz_for_sources(sources, user, question_count=want)
+        except Exception as exc:  # noqa: BLE001
+            # Includes the provider being down, a quota refusal, and documents
+            # too thin to generate from. All of them mean "no more questions
+            # today", not "the student cannot sit a test".
+            logger.warning('Mock test top-up generation failed: %s', exc)
+            break
+        generated_any = True
+        # Re-resolved rather than appended: this is the same function the
+        # paper is built from, so a question that does not show up here would
+        # not have been sampled anyway, and counting it would make the loop
+        # think it had made progress it had not.
+        pool = _question_pool(user, source_ids)
+
+    return pool, generated_any
 
 
 def _question_pool(user, source_ids):
@@ -226,10 +284,20 @@ class MockTestViewSet(viewsets.ModelViewSet):
 
         source_ids = set(notebook.sources.values_list('id', flat=True))
         pool = _question_pool(request.user, source_ids)
+
+        # Top up before judging the pool, not after: a notebook whose documents
+        # have never been made into a quiz can now still be sat, which is the
+        # case this used to reject outright.
+        generated = False
+        if len(pool) < requested:
+            pool, generated = _top_up_pool(
+                request.user, notebook, source_ids, pool, requested)
+
         if not pool:
             return Response(
-                {'detail': 'No quiz questions for this notebook yet. '
-                           'Generate a quiz from its documents first.'},
+                {'detail': 'No questions could be generated for this notebook. '
+                           'Check its documents have finished processing, then '
+                           'try generating a quiz from them.'},
                 status=400,
             )
 
@@ -276,9 +344,14 @@ class MockTestViewSet(viewsets.ModelViewSet):
         test = self.get_queryset().get(pk=test.pk)
         data = MockTestSerializer(test).data
         # Say so rather than silently handing over a shorter paper: the student
-        # is about to judge their readiness on it.
+        # is about to judge their readiness on it. Still reachable after a
+        # top-up — the documents may simply not hold enough material, or the
+        # round/time caps may have been hit first.
         if len(chosen) < requested:
             data['short_paper'] = True
+        # So the page can explain why starting took as long as it did.
+        if generated:
+            data['generated_questions'] = True
         return Response(data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])

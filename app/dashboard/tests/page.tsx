@@ -604,8 +604,8 @@ function MockTestsInner() {
 
         {test.short_paper && (
           <p className="rise text-sm text-slate-500">
-            This notebook only had {test.question_count} question{test.question_count === 1 ? '' : 's'} available, so the
-            paper is shorter than requested.
+            This notebook could only supply {test.question_count} question{test.question_count === 1 ? '' : 's'}, even
+            after generating more, so the paper is shorter than requested.
           </p>
         )}
 
@@ -825,12 +825,21 @@ function MockTestsInner() {
               {starting ? (
                 <>
                   <Loader2 className="size-4 animate-spin mr-2" />
-                  Starting…
+                  Building your paper…
                 </>
               ) : (
                 'Start test'
               )}
             </Button>
+            {/* Starting is instant when the notebook already holds enough
+                questions, and up to a minute when it has to generate the
+                rest. Without saying so, the second case reads as a hang. */}
+            {starting && (
+              <p className="text-sm text-slate-500 text-center">
+                If this notebook needs more questions, they are being generated
+                now. This can take up to a minute.
+              </p>
+            )}
           </form>
         </Card>
       )}
@@ -1001,7 +1010,7 @@ function MockTestsInner() {
                         {startingPlanId === plan.id ? (
                           <Loader2 className="size-4 animate-spin mr-1.5" />
                         ) : null}
-                        Start now
+                        {startingPlanId === plan.id ? 'Building…' : 'Start now'}
                       </Button>
                     )}
                     <Button
