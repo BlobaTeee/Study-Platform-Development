@@ -135,6 +135,32 @@ export const notebooksAPI = {
     }),
 }
 
+export const mockTestsAPI = {
+  // Starting a test freezes its paper server-side, so a refresh cannot reshuffle it.
+  start: (data: { notebook: number; question_count?: number; duration_minutes?: number }) =>
+    api.post('/quizzes/mock-tests/', data),
+  get: (id: number) => api.get(`/quizzes/mock-tests/${id}/`),
+  // Deliberately returns no marking — feedback waits until the paper is handed in.
+  answer: (id: number, paperQuestionId: number, answer: string) =>
+    api.post(`/quizzes/mock-tests/${id}/answer/`, {
+      paper_question_id: paperQuestionId,
+      answer,
+    }),
+  submit: (id: number) => api.post(`/quizzes/mock-tests/${id}/submit/`, {}),
+}
+
+export const plannedTestsAPI = {
+  list: () => api.get('/quizzes/planned-tests/'),
+  create: (data: {
+    notebook: number
+    scheduled_for: string
+    question_count?: number
+    duration_minutes?: number
+    reminder_lead_hours?: number
+  }) => api.post('/quizzes/planned-tests/', data),
+  remove: (id: number) => api.delete(`/quizzes/planned-tests/${id}/`),
+}
+
 export const analyticsAPI = {
   getSummary: () => api.get('/analytics/sessions/summary/'),
   // How much study is owed, plus per-document mastery — both derived from the
