@@ -32,3 +32,24 @@ def due_reminders(plans: list[dict], now) -> list[dict]:
         if scheduled - lead <= now:
             due.append(plan)
     return due
+
+
+def missed_reminders(plans: list[dict], now) -> list[dict]:
+    """Plans whose reminder window closed without ever being sent.
+
+    This is the flip side of `due_reminders`' late-drop: if cron doesn't run
+    for the whole lead window (down host, deploy gap, whatever), the plan
+    never appears in `due_reminders` again once `scheduled_for` has passed —
+    it just quietly stops being reminder-eligible, and nothing records that
+    the student was owed a reminder that never went out. Callers should
+    report this count (e.g. to stderr) rather than act on it: sending a
+    reminder for a test that has already happened would be noise, so these
+    are surfaced, not sent or stamped.
+    """
+    missed = []
+    for plan in plans:
+        if plan.get("reminder_sent_at") is not None or plan.get("taken"):
+            continue
+        if plan["scheduled_for"] <= now:
+            missed.append(plan)
+    return missed

@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from quizzes.models import PlannedTest
 from quizzes.services.reminder_email import build_reminder
-from quizzes.services.reminders import due_reminders
+from quizzes.services.reminders import due_reminders, missed_reminders
 
 
 class Command(BaseCommand):
@@ -46,6 +46,19 @@ class Command(BaseCommand):
 
         by_id = {plan.id: plan for plan in candidates}
         due = [by_id[row['id']] for row in due_reminders(rows, now)]
+
+        # Reporting-only: a plan here means its whole lead window passed
+        # with cron never sending it, and nothing else anywhere would
+        # otherwise show that. Surfacing the count on stderr is what makes a
+        # cron outage visible instead of the student just never hearing
+        # about their test. Never send or stamp these — a reminder for a
+        # test that has already come and gone is noise.
+        missed = missed_reminders(rows, now)
+        if missed:
+            self.stderr.write(
+                f'{len(missed)} planned test reminder(s) missed their window '
+                '(scheduled time passed before they were ever sent) — check '
+                'whether the reminder cron job has been running.')
 
         if not due:
             self.stdout.write('No reminders due.')

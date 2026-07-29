@@ -74,3 +74,24 @@ def test_several_plans_are_filtered_independently():
         _plan(id=3, scheduled_for=NOW + timedelta(days=9)),
     ]
     assert [p["id"] for p in reminders.due_reminders(plans, NOW)] == [1]
+
+
+def test_a_plan_past_its_time_and_unsent_counts_as_missed():
+    plan = _plan(scheduled_for=NOW - timedelta(minutes=1))
+    assert [p["id"] for p in reminders.missed_reminders([plan], NOW)] == [1]
+
+
+def test_a_missed_plan_already_sent_does_not_count():
+    plan = _plan(scheduled_for=NOW - timedelta(minutes=1),
+                  reminder_sent_at=NOW - timedelta(hours=1))
+    assert reminders.missed_reminders([plan], NOW) == []
+
+
+def test_a_missed_plan_already_taken_does_not_count():
+    plan = _plan(scheduled_for=NOW - timedelta(minutes=1), taken=True)
+    assert reminders.missed_reminders([plan], NOW) == []
+
+
+def test_a_plan_still_in_the_future_does_not_count_as_missed():
+    plan = _plan(scheduled_for=NOW + timedelta(hours=2))
+    assert reminders.missed_reminders([plan], NOW) == []

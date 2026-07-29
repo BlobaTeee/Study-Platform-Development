@@ -105,6 +105,27 @@ class PlannedTestSerializer(serializers.ModelSerializer):
                   'question_count', 'duration_minutes', 'reminder_lead_hours',
                   'reminder_sent_at', 'mock_test', 'created_at']
         read_only_fields = ['reminder_sent_at', 'mock_test', 'created_at']
+        extra_kwargs = {
+            # Same wording as validate_notebook's rejection below, on purpose
+            # — see that method's comment for why the two must read alike.
+            'notebook': {'error_messages': {'does_not_exist': 'Notebook not found.'}},
+        }
+
+    def validate_notebook(self, value):
+        # The field's own queryset (Notebook.objects.all(), via the FK)
+        # only proves the id exists *somewhere* — not that it's this user's.
+        # Without this check a student could POST another user's notebook
+        # id and plan a test against it (an IDOR): the notebook's title
+        # would then leak back through `notebook_title` here and again in
+        # the reminder email sent later. Rejecting with the exact same
+        # message as "no such notebook" (rather than something like "not
+        # your notebook") is deliberate: telling the two apart would let
+        # this field be used to enumerate which notebook ids belong to
+        # other users.
+        user = self.context['request'].user
+        if value.user_id != user.id:
+            raise serializers.ValidationError('Notebook not found.')
+        return value
 
     def validate_scheduled_for(self, value):
         from django.utils import timezone
