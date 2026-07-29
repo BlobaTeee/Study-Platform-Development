@@ -137,8 +137,15 @@ export const notebooksAPI = {
 
 export const mockTestsAPI = {
   // Starting a test freezes its paper server-side, so a refresh cannot reshuffle it.
-  start: (data: { notebook: number; question_count?: number; duration_minutes?: number }) =>
-    api.post('/quizzes/mock-tests/', data),
+  // `planned_test`, when present, is how the server links this sitting back
+  // to the plan it fulfils (stamping the plan's sat_at in the same
+  // transaction) — without it the plan/sitting link is never made at all.
+  start: (data: {
+    notebook: number
+    question_count?: number
+    duration_minutes?: number
+    planned_test?: number
+  }) => api.post('/quizzes/mock-tests/', data),
   get: (id: number) => api.get(`/quizzes/mock-tests/${id}/`),
   // Deliberately returns no marking — feedback waits until the paper is handed in.
   answer: (id: number, paperQuestionId: number, answer: string) =>

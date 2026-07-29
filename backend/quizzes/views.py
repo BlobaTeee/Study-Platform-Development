@@ -175,17 +175,39 @@ class MockTestViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'head', 'options']
 
     def get_queryset(self):
+        # No `paper__question`: the serializers now read straight off
+        # MockTestQuestion's own denormalised columns, so following the FK to
+        # Question would just be an unused join (and one that skips rows
+        # whose question has since gone NULL, which must render as normally
+        # as any other).
         return (MockTest.objects.filter(user=self.request.user)
                 .select_related('notebook')
-                .prefetch_related('paper__question'))
+                .prefetch_related('paper'))
 
     def create(self, request, *args, **kwargs):
+        from django.db import transaction
+        from django.utils import timezone
         from notebooks.models import Notebook
 
         notebook = Notebook.objects.filter(
             id=request.data.get('notebook'), user=request.user).first()
         if notebook is None:
             return Response({'detail': 'Notebook not found.'}, status=404)
+
+        plan = None
+        planned_test_id = request.data.get('planned_test')
+        if planned_test_id is not None:
+            # Scoped to request.user for the same reason validate_notebook
+            # scopes the notebook lookup in serializers.py: a plan id
+            # belonging to someone else must fail exactly like a missing
+            # one, or the response would let a plan id be enumerated.
+            plan = PlannedTest.objects.filter(
+                id=planned_test_id, user=request.user).first()
+            if plan is None:
+                return Response({'detail': 'Planned test not found.'}, status=404)
+            if plan.sat_at is not None:
+                return Response(
+                    {'detail': 'This planned test has already been sat.'}, status=400)
 
         # Parse defensively rather than bare int(): a non-numeric value would
         # otherwise raise an unhandled ValueError (500) instead of a 400, and
@@ -214,14 +236,38 @@ class MockTestViewSet(viewsets.ModelViewSet):
         weights = source_weights(_source_accuracy(request.user, source_ids))
         chosen = sample_paper(pool, weights, count=requested)
 
-        test = MockTest.objects.create(
-            user=request.user, notebook=notebook,
-            question_count=len(chosen), duration_minutes=duration,
-        )
-        MockTestQuestion.objects.bulk_create([
-            MockTestQuestion(mock_test=test, question_id=entry['id'], order=i)
-            for i, entry in enumerate(chosen)
-        ])
+        # Fetched once, up front, so every field a review will ever need can
+        # be copied onto MockTestQuestion below — see the SET_NULL/denormalise
+        # comment on that model for why this duplication exists at all.
+        questions_by_id = {
+            q.id: q for q in Question.objects.filter(
+                id__in=[entry['id'] for entry in chosen])
+        }
+
+        with transaction.atomic():
+            test = MockTest.objects.create(
+                user=request.user, notebook=notebook,
+                question_count=len(chosen), duration_minutes=duration,
+            )
+            MockTestQuestion.objects.bulk_create([
+                MockTestQuestion(
+                    mock_test=test, question_id=entry['id'], order=i,
+                    question_text=questions_by_id[entry['id']].question_text,
+                    options=questions_by_id[entry['id']].options,
+                    correct_answer=questions_by_id[entry['id']].correct_answer,
+                    explanation=questions_by_id[entry['id']].explanation,
+                )
+                for i, entry in enumerate(chosen)
+            ])
+            if plan is not None:
+                # Same transaction as the paper itself: sat_at exists
+                # specifically so this link survives the sitting later being
+                # deleted (mock_test is SET_NULL and would revert to NULL),
+                # so it must never be stamped without the sitting actually
+                # having been created, or vice versa.
+                plan.mock_test = test
+                plan.sat_at = timezone.now()
+                plan.save(update_fields=['mock_test', 'sat_at'])
 
         # Re-fetch through get_queryset() rather than refresh_from_db(): that
         # carries the same select_related/prefetch_related get_queryset()
@@ -304,13 +350,16 @@ class MockTestViewSet(viewsets.ModelViewSet):
             if test.completed_at:
                 return Response(self._review(test))
 
-            rows = list(test.paper.select_related('question'))
+            # No select_related('question'): grading reads the paper's own
+            # denormalised `correct_answer`, not the live Question, so this
+            # still grades correctly even if the source quiz (and therefore
+            # `question`) has since been deleted or regenerated.
+            rows = list(test.paper.all())
             # Grading and stamping must land together, or a crash between them
             # would leave a paper that reads as unfinished but is already marked.
             correct = 0
             for row in rows:
-                row.is_correct = _answer_matches(
-                    row.user_answer, row.question.correct_answer)
+                row.is_correct = _answer_matches(row.user_answer, row.correct_answer)
                 correct += 1 if row.is_correct else 0
             MockTestQuestion.objects.bulk_update(rows, ['is_correct'])
 
@@ -328,7 +377,7 @@ class MockTestViewSet(viewsets.ModelViewSet):
         rows loaded, so it is left to query them itself.
         """
         if rows is None:
-            rows = test.paper.select_related('question').all()
+            rows = test.paper.all()
         return {
             'id': test.id,
             'score': test.score,
@@ -350,3 +399,22 @@ class PlannedTestViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    def perform_update(self, serializer):
+        old_scheduled_for = serializer.instance.scheduled_for
+        plan = serializer.save()
+        # A reschedule must not carry over reminder state tied to the old
+        # date. reminder_sent_at set means the old date's reminder already
+        # fired — leaving it set would mean the new date silently never gets
+        # its own. reminder_skipped_at set means send_test_reminders gave up
+        # on this plan (its old window passed unsent); the plan just proved
+        # that wrong by getting a fresh future date, so it deserves another
+        # chance at a reminder rather than staying excluded from the due
+        # query forever. Guarded on scheduled_for actually changing so a PATCH
+        # that only touches, say, duration_minutes leaves both alone.
+        if plan.scheduled_for != old_scheduled_for and (
+            plan.reminder_sent_at is not None or plan.reminder_skipped_at is not None
+        ):
+            plan.reminder_sent_at = None
+            plan.reminder_skipped_at = None
+            plan.save(update_fields=['reminder_sent_at', 'reminder_skipped_at'])

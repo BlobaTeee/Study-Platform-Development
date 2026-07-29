@@ -143,12 +143,32 @@ class MockTestQuestion(models.Model):
     # every sibling table in this app is BigAutoField (set in 0001_initial).
     id = models.BigAutoField(primary_key=True)
     mock_test = models.ForeignKey(MockTest, on_delete=models.CASCADE, related_name='paper')
-    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    # SET_NULL rather than CASCADE: QuizViewSet is a full ModelViewSet, so
+    # deleting or regenerating a quiz cascades Quiz -> Question, and a CASCADE
+    # here would take a sat paper's rows down with it. MockTest keeps its
+    # score/question_count forever (set once, at submission), so a paper that
+    # silently lost rows would show a stale tally next to a shrunken review —
+    # wrong and unrecoverable. The text needed to render the review is
+    # denormalised below specifically so `question` going NULL costs nothing
+    # a student-facing review actually needs.
+    question = models.ForeignKey(Question, on_delete=models.SET_NULL, null=True, blank=True)
     order = models.PositiveSmallIntegerField()
     user_answer = models.TextField(blank=True, default='')
     # Null until submission — grading happens once, at the end.
     is_correct = models.BooleanField(null=True, blank=True)
     answered_at = models.DateTimeField(null=True, blank=True)
+
+    # Denormalised copies of the source Question's content, populated once
+    # when the paper is frozen (MockTestViewSet.create) and never updated
+    # again. A past paper must stay readable — and its review must keep
+    # showing every question it was actually marked against — after its
+    # source quiz is edited, regenerated, or deleted out from under it.
+    # Defaults exist only so the AddField migration doesn't need to touch
+    # historical rows; every row this app creates supplies real values.
+    question_text = models.TextField(default='')
+    options = models.JSONField(default=list)
+    correct_answer = models.CharField(max_length=500, default='')
+    explanation = models.TextField(blank=True, null=True)
 
     class Meta:
         ordering = ['order']
@@ -186,6 +206,15 @@ class PlannedTest(models.Model):
     # Null until sent. This is the idempotency guard: the command stamps it
     # immediately, so a scheduler firing every few minutes cannot send twice.
     reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    # Terminal marker for a plan the reminder command has given up on: its
+    # window closed with nothing ever sent, or its user has no email address.
+    # Without this, send_test_reminders' "missed" report would recount the
+    # same never-resolving plan every single run forever after one cron
+    # outage — an alarm nobody keeps reading, over a query that never stops
+    # growing. Once stamped, the plan is excluded from both the due query and
+    # the missed count; perform_update clears it again on a genuine
+    # reschedule to a new future date, since that plan is no longer missed.
+    reminder_skipped_at = models.DateTimeField(null=True, blank=True)
     mock_test = models.OneToOneField(MockTest, null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name='plan')
     # Stamped when this plan is turned into a sitting. Unlike mock_test (which
@@ -199,8 +228,12 @@ class PlannedTest(models.Model):
     class Meta:
         ordering = ['scheduled_for']
         indexes = [
-            # The reminder command's only query: unsent plans, by when they are due.
-            models.Index(fields=['reminder_sent_at', 'scheduled_for']),
+            # The reminder command's only query: unsent, unskipped plans, by
+            # when they are due. reminder_skipped_at is in the index (not just
+            # reminder_sent_at) because that query filters on both — a plan
+            # the command has given up on must stop being scanned, not just
+            # stop being sent.
+            models.Index(fields=['reminder_sent_at', 'reminder_skipped_at', 'scheduled_for']),
             models.Index(fields=['user', 'scheduled_for']),
         ]
         constraints = [

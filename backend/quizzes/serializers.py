@@ -59,10 +59,13 @@ class MockTestQuestionSerializer(serializers.ModelSerializer):
 
     Withholding `correct_answer` and `is_correct` here is what separates a test
     from a quiz; the review serializer supplies them once the paper is handed in.
+    `question_text`/`options` read straight off this row (denormalised at
+    freeze time onto MockTestQuestion, not looked up via `question`) so the
+    sitting still renders correctly even if the source quiz was since deleted
+    or regenerated — but that denormalisation is exactly why this class must
+    keep listing only these four fields: `correct_answer` now lives on this
+    same row too, and must stay off this serializer regardless.
     """
-    question_text = serializers.CharField(source='question.question_text', read_only=True)
-    options = serializers.JSONField(source='question.options', read_only=True)
-
     class Meta:
         model = MockTestQuestion
         fields = ['id', 'order', 'question_text', 'options', 'user_answer']
@@ -70,12 +73,13 @@ class MockTestQuestionSerializer(serializers.ModelSerializer):
 
 
 class MockTestQuestionReviewSerializer(serializers.ModelSerializer):
-    """The same question after submission, with the marking revealed."""
-    question_text = serializers.CharField(source='question.question_text', read_only=True)
-    options = serializers.JSONField(source='question.options', read_only=True)
-    correct_answer = serializers.CharField(source='question.correct_answer', read_only=True)
-    explanation = serializers.CharField(source='question.explanation', read_only=True)
+    """The same question after submission, with the marking revealed.
 
+    Reads `correct_answer`/`explanation` off this row's own denormalised
+    columns rather than following `question` — that FK can be NULL by the
+    time this is rendered (its quiz deleted or regenerated long after the
+    sitting), and the review must stay complete regardless.
+    """
     class Meta:
         model = MockTestQuestion
         fields = ['id', 'order', 'question_text', 'options', 'user_answer',
@@ -103,8 +107,12 @@ class PlannedTestSerializer(serializers.ModelSerializer):
         model = PlannedTest
         fields = ['id', 'notebook', 'notebook_title', 'scheduled_for',
                   'question_count', 'duration_minutes', 'reminder_lead_hours',
-                  'reminder_sent_at', 'mock_test', 'created_at']
-        read_only_fields = ['reminder_sent_at', 'mock_test', 'created_at']
+                  'reminder_sent_at', 'mock_test', 'sat_at', 'created_at']
+        # sat_at read-only and exposed: it's how the UI tells a plan that has
+        # already been turned into a sitting from one that hasn't, without
+        # trusting mock_test alone (mock_test is SET_NULL and reverts to NULL
+        # if that sitting is later deleted; sat_at does not).
+        read_only_fields = ['reminder_sent_at', 'mock_test', 'sat_at', 'created_at']
         extra_kwargs = {
             # Same wording as validate_notebook's rejection below, on purpose
             # — see that method's comment for why the two must read alike.

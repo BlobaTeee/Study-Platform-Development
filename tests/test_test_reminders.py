@@ -24,6 +24,7 @@ def _plan(**overrides):
         "scheduled_for": NOW + timedelta(hours=24),
         "reminder_lead_hours": 24,
         "reminder_sent_at": None,
+        "reminder_skipped_at": None,
         "taken": False,
     }
     plan.update(overrides)
@@ -95,3 +96,32 @@ def test_a_missed_plan_already_taken_does_not_count():
 def test_a_plan_still_in_the_future_does_not_count_as_missed():
     plan = _plan(scheduled_for=NOW + timedelta(hours=2))
     assert reminders.missed_reminders([plan], NOW) == []
+
+
+# ---- reminder_skipped_at: a plan the command has already given up on -------
+#
+# The command stamps reminder_skipped_at (missed window, or user has no
+# email) so that a single cron outage produces a "missed" count exactly once,
+# not on every run forever after. That only works if a skipped plan is fully
+# inert here: neither due, nor counted missed a second time.
+
+def test_a_skipped_plan_is_not_due_even_within_its_lead_window():
+    plan = _plan(scheduled_for=NOW + timedelta(hours=2),
+                 reminder_skipped_at=NOW - timedelta(hours=1))
+    assert reminders.due_reminders([plan], NOW) == []
+
+
+def test_a_skipped_plan_whose_time_has_passed_does_not_count_as_missed_again():
+    # Without this, a plan the previous run already reported (and stamped)
+    # would be reported as missed again on this run, and every run after —
+    # the exact unbounded-report bug reminder_skipped_at exists to close.
+    plan = _plan(scheduled_for=NOW - timedelta(minutes=1),
+                 reminder_skipped_at=NOW - timedelta(minutes=30))
+    assert reminders.missed_reminders([plan], NOW) == []
+
+
+def test_an_unskipped_plan_past_its_time_still_counts_as_missed():
+    # Control for the test above: only the presence of reminder_skipped_at
+    # should suppress the missed count, not merely being past scheduled_for.
+    plan = _plan(scheduled_for=NOW - timedelta(minutes=1))
+    assert [p["id"] for p in reminders.missed_reminders([plan], NOW)] == [1]

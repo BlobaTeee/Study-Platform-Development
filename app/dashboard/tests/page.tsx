@@ -74,6 +74,7 @@ type PlannedTest = {
   reminder_lead_hours: number
   reminder_sent_at: string | null
   mock_test: number | null
+  sat_at: string | null
   created_at: string
 }
 
@@ -298,8 +299,15 @@ function MockTestsInner() {
 
   // Shared by the setup form and a plan's "Start now" — both just need to
   // hand the server a notebook and a shape and land on the same sitting view.
+  // `planned_test` is only ever set by handleStartFromPlan, so a fresh setup
+  // never mistakenly links itself to somebody's leftover plan.
   const beginTest = useCallback(
-    async (params: { notebook: number; question_count: number; duration_minutes: number }) => {
+    async (params: {
+      notebook: number
+      question_count: number
+      duration_minutes: number
+      planned_test?: number
+    }) => {
       const res = await mockTestsAPI.start(params)
       setAnswers({})
       setQIndex(0)
@@ -343,7 +351,9 @@ function MockTestsInner() {
         notebook: plan.notebook,
         question_count: plan.question_count,
         duration_minutes: plan.duration_minutes,
+        planned_test: plan.id,
       })
+      void mutatePlans()
     } catch (err) {
       setPlanError(apiErrorMessage(err, 'Could not start the test. Is the backend running?'))
     } finally {
@@ -954,7 +964,16 @@ function MockTestsInner() {
                     <p className="font-mono text-sm text-slate-500 mt-1 tabular-nums">
                       {plan.question_count} questions · {plan.duration_minutes} min
                     </p>
-                    {plan.reminder_sent_at ? (
+                    {plan.sat_at ? (
+                      // Sat takes priority over the reminder line: once a plan
+                      // has been fulfilled, whether its reminder ever fired is
+                      // no longer the relevant fact about it. Icon + label,
+                      // not colour alone, same as the reminder states below.
+                      <p className="flex items-center gap-1.5 text-sm text-mode-quizzes mt-2">
+                        <CheckCircle2 className="size-4 shrink-0" aria-hidden />
+                        Sat — this plan has been fulfilled
+                      </p>
+                    ) : plan.reminder_sent_at ? (
                       <p className="flex items-center gap-1.5 text-sm text-mode-quizzes mt-2">
                         <BellRing className="size-4 shrink-0" aria-hidden />
                         Reminder sent
@@ -967,19 +986,24 @@ function MockTestsInner() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void handleStartFromPlan(plan)}
-                      disabled={startingPlanId === plan.id}
-                      className="border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
-                    >
-                      {startingPlanId === plan.id ? (
-                        <Loader2 className="size-4 animate-spin mr-1.5" />
-                      ) : null}
-                      Start now
-                    </Button>
+                    {/* A sat plan can't be started again — the server rejects
+                        it — so the affordance is dropped rather than shown
+                        disabled with no explanation. */}
+                    {!plan.sat_at && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleStartFromPlan(plan)}
+                        disabled={startingPlanId === plan.id}
+                        className="border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
+                      >
+                        {startingPlanId === plan.id ? (
+                          <Loader2 className="size-4 animate-spin mr-1.5" />
+                        ) : null}
+                        Start now
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="ghost"
