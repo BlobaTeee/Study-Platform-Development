@@ -78,6 +78,9 @@ def replace_card(card, variant: dict):
         replacement = Flashcard.objects.create(
             user=card.user,
             topic=card.topic,
+            # Inherited so a replacement is deleted with its notebook exactly
+            # as the original would have been.
+            notebook=card.notebook,
             question=variant["question"],
             answer=variant["answer"],
             difficulty=variant.get("difficulty", "medium"),

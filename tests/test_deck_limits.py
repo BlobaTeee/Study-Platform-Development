@@ -1,4 +1,4 @@
-"""How much room a document has left for new flashcards."""
+"""How large one flashcard generation is."""
 import importlib.util
 from pathlib import Path
 
@@ -15,50 +15,39 @@ def _load():
 
 _mod = _load()
 MAX_CARDS_PER_SOURCE = _mod.MAX_CARDS_PER_SOURCE
-room_for = _mod.room_for
-capped_count = _mod.capped_count
+MIN_CARDS_PER_SOURCE = _mod.MIN_CARDS_PER_SOURCE
+batch_size = _mod.batch_size
 
 
-def test_an_empty_document_has_room_for_the_whole_cap():
-    assert room_for(0) == MAX_CARDS_PER_SOURCE
-
-
-def test_a_partly_filled_document_tops_up():
-    assert room_for(6) == 4
-
-
-def test_a_full_document_has_no_room():
-    assert room_for(MAX_CARDS_PER_SOURCE) == 0
-
-
-def test_room_never_goes_negative():
-    # Documents generated before the cap existed can exceed it; they must not
-    # produce a negative request that would read as "unlimited" downstream.
-    assert room_for(25) == 0
-
-
-def test_the_cap_is_ten():
+def test_a_generation_is_ten_cards():
     assert MAX_CARDS_PER_SOURCE == 10
 
 
-def test_capped_count_shrinks_a_top_up_request_to_the_remaining_room():
-    # 9 active cards, 10 requested (the max(3, ...) clamp's usual output) -> 1,
-    # not 10 and not the clamp's floor of 3.
-    assert capped_count(10, 9) == 1
+def test_the_default_request_is_honoured_whole():
+    assert batch_size(10) == 10
 
 
-def test_capped_count_leaves_a_fresh_request_untouched():
-    assert capped_count(10, 0) == 10
+def test_an_oversized_request_is_cut_to_the_maximum():
+    assert batch_size(50) == MAX_CARDS_PER_SOURCE
 
 
-def test_capped_count_on_a_full_document_is_zero():
-    assert capped_count(10, MAX_CARDS_PER_SOURCE) == 0
+def test_a_request_under_the_floor_is_raised():
+    # A two-card deck is not worth a study session.
+    assert batch_size(1) == MIN_CARDS_PER_SOURCE
 
 
-def test_capped_count_never_goes_negative_past_the_cap():
-    assert capped_count(10, 25) == 0
+def test_a_request_between_the_bounds_is_left_alone():
+    assert batch_size(6) == 6
 
 
-def test_capped_count_returns_small_requests_unchanged():
-    # Requesting fewer than the remaining room should not be inflated.
-    assert capped_count(2, 3) == 2
+def test_nonsense_requests_still_produce_a_studiable_deck():
+    # A malformed or missing count must not ask a generator for nothing: an
+    # empty result reads downstream as a failed generation.
+    assert batch_size(0) == MIN_CARDS_PER_SOURCE
+    assert batch_size(-7) == MIN_CARDS_PER_SOURCE
+
+
+def test_the_maximum_wins_when_it_falls_below_the_floor():
+    # Guards the clamp order: a caller passing a maximum under the floor must
+    # get that maximum, not a batch larger than the ceiling they asked for.
+    assert batch_size(10, maximum=2) == 2

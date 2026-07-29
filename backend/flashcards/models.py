@@ -5,6 +5,18 @@ from materials.models import Topic
 class Flashcard(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='flashcards')
     topic = models.ForeignKey(Topic, on_delete=models.SET_NULL, null=True, related_name='flashcards')
+    # The notebook this card was generated from. Cards used to be tied to their
+    # notebook only by the `source:1,2` string in `tags`, which meant deleting a
+    # notebook left its cards in the study queue forever, asking about a
+    # document the learner can no longer open. A real FK makes that deletion a
+    # database-level cascade rather than something every caller has to remember.
+    # Null for cards created by hand through the API, which belong to no
+    # notebook; string reference because notebooks imports flashcards.
+    notebook = models.ForeignKey(
+        'notebooks.Notebook', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='flashcards',
+        help_text='Deleted along with its notebook.',
+    )
     question = models.TextField()
     answer = models.TextField()
     difficulty = models.CharField(max_length=20, default='medium', choices=[('easy', 'Easy'), ('medium', 'Medium'), ('hard', 'Hard')])
@@ -53,4 +65,7 @@ class Flashcard(models.Model):
             # flagged ones. Both run on every study page load.
             models.Index(fields=['user', 'archived']),
             models.Index(fields=['user', 'needs_regeneration', 'archived']),
+            # No index on `notebook`: a ForeignKey is indexed by default, and
+            # declaring a second one over the same column makes Postgres
+            # refuse the migration ("pending trigger events") for nothing.
         ]

@@ -120,11 +120,11 @@ class NotebookViewSet(viewsets.ModelViewSet):
     def material_counts(self, request, pk=None):
         """How many flashcards this exact source selection already has.
 
-        Generating appends, so without this the page gives no sign that a
-        document already holds cards and the count quietly climbs with every
-        press. Keyed on the same combined tag that generation writes and that
-        duplicate-checking compares against, so this is the number the next
-        press adds to. Counts only — no card text is loaded.
+        Generating replaces this selection's deck, so the page has to be able
+        to warn that a press discards cards the learner may have been part-way
+        through. Keyed on the same combined tag that generation writes and
+        retires against, so this is exactly the number the next press replaces.
+        Counts only — no card text is loaded.
         """
         self.get_object()  # 404s unless the notebook belongs to this user
         raw = request.query_params.get('source_ids', '')
@@ -132,10 +132,8 @@ class NotebookViewSet(viewsets.ModelViewSet):
         if not source_ids:
             return Response({'flashcards': 0})
         return Response({
-            # Archived originals don't count against the cap, so this must not
-            # count them either — it's exactly the number the generate button
-            # shows as "(n/10)", and an inflated count would disagree with the
-            # real ceiling forever.
+            # Active cards only: an archived original is already retired, so
+            # counting it would overstate what a regeneration costs.
             'flashcards': Flashcard.objects.filter(
                 user=request.user, tags=combined_source_tag(source_ids), archived=False
             ).count(),

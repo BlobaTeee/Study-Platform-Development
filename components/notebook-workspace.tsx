@@ -99,10 +99,10 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
   const studyQuery = formatSourceIdsForQuery(generationSourceIds)
 
-  // Counted server-side on the exact combined tag, which is the same set the
-  // backend checks for duplicates — so the number shown is always the number a
-  // press adds to. Counting here instead would use flashcardMatchesSourceTag,
-  // whose substring test reports a "source:13" card as belonging to source 1.
+  // Counted server-side on the exact combined tag, which is the same set
+  // generating replaces — so the number shown is always the number a press
+  // retires. Counting here instead would use flashcardMatchesSourceTag, whose
+  // substring test reports a "source:13" card as belonging to source 1.
   const { data: countsRes } = useSWR(
     generationSourceIds.length > 0
       ? ['/notebooks/material_counts', notebookId, studyQuery]
@@ -110,9 +110,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     () => notebooksAPI.getMaterialCounts(notebookId, generationSourceIds)
   )
   const existingCards: number = countsRes?.data?.flashcards ?? 0
-  // A document holds at most 10 active flashcards; generating tops the deck
-  // up to that count and never stacks past it.
-  const deckFull = existingCards >= 10
 
   const hasFlashcardsForSources = useMemo(() => {
     if (generationSourceIds.length === 0) return false
@@ -223,6 +220,18 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       setError('Select at least one ready source (checkbox) to generate flashcards.')
       return
     }
+    // Generating replaces this selection's deck, so a second press throws away
+    // whatever review progress the current cards carry. Cheap to confirm, and
+    // impossible to undo from here if we don't.
+    if (
+      existingCards > 0 &&
+      !window.confirm(
+        `Replace the ${existingCards} flashcard${existingCards === 1 ? '' : 's'} already made from this selection? ` +
+          'The new cards start from scratch, and your review progress on the current ones is retired.'
+      )
+    ) {
+      return
+    }
     setGenerating('flashcards')
     setError('')
     setWarning('')
@@ -232,6 +241,10 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
         generationSourceIds
       )
       mutate(['/flashcards/'])
+      // The deck this selection holds just changed. Matters on the fallback
+      // branch below, which stays on this page — without it the card the
+      // button offers to replace is the one it replaced a moment ago.
+      mutate(['/notebooks/material_counts', notebookId, studyQuery])
       if (res.data.generated_by === 'extractive-fallback') {
         setWarning(FALLBACK_NOTICE('flashcards'))
         return  // stay put so the downgrade is seen, not silently navigated past
@@ -627,17 +640,17 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                           ? 'From all selected sources'
                           : 'About 10 cards from selection'}
                       </p>
-                      {/* A document holds at most 10 active cards. Generating
-                          tops the deck up to that count and never stacks
-                          past it, so the running total is worth saying. */}
+                      {/* Generating replaces this selection's deck rather than
+                          adding to it, so saying what is about to be retired
+                          matters more than a running total. */}
                       {existingCards > 0 && (
                         <p className="font-mono text-sm text-slate-600 tabular-nums">
-                          {existingCards} card{existingCards === 1 ? '' : 's'} already
+                          Replaces {existingCards} card{existingCards === 1 ? '' : 's'}
                         </p>
                       )}
                       <Button
                         onClick={handleGenerateFlashcards}
-                        disabled={!canGenerate || generating !== null || deckFull}
+                        disabled={!canGenerate || generating !== null}
                         size="lg"
                         className="mt-2 bg-mode-flashcards hover:bg-mode-flashcards-hover text-white w-full h-12 text-base"
                       >
@@ -649,9 +662,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                         ) : (
                           <>
                             <Sparkles className="size-4" />
-                            {deckFull
-                              ? 'Flashcards full (10/10)'
-                              : `Generate flashcards (${existingCards}/10)`}
+                            {existingCards > 0
+                              ? 'Regenerate flashcards'
+                              : 'Generate flashcards'}
                           </>
                         )}
                       </Button>

@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.db import transaction
 from flashcards.models import Flashcard
 from quizzes.models import Quiz, Question
 from .gemini_client import (
@@ -11,7 +12,7 @@ from .gemini_client import (
 )
 from .ai_provider import get_ai_provider
 from . import dedupe, fallback
-from .deck_limits import MAX_CARDS_PER_SOURCE, capped_count, room_for
+from .deck_limits import batch_size
 
 logger = logging.getLogger(__name__)
 
@@ -129,20 +130,12 @@ def _save_flashcards_from_json(
         raise GeminiGenerationError('No flashcards were generated.')
 
     tag = combined_source_tag(source_ids)
-    # Generating again appends, so without this the same fact reaches two cards
-    # with two schedules and gets reviewed twice. Scoped to this exact source
-    # selection — the set the caller asked to generate from. Archived cards are
-    # excluded from both the dedupe pool and the count below: an archived
-    # original's question is fair game to resurface via its replacement, and it
-    # must not occupy a slot under the cap it no longer counts toward.
-    existing = list(
-        Flashcard.objects.filter(user=user, tags=tag, archived=False)
-        .values_list('question', flat=True)
-    )
-    # The hard ceiling lives here rather than at the request, because the
-    # `max(3, ...)` clamp upstream would raise a one-slot top-up back to three.
-    allowed = min(count, room_for(len(existing)))
-    fresh = dedupe.new_flashcards(items[:count], existing)[:allowed]
+    # Deduped against the batch itself only, not against the cards already on
+    # file: those are retired by this generation (see
+    # `generate_flashcards_for_sources`), so rejecting a question for matching
+    # one of them would silently shrink the replacement deck. Within the batch
+    # it still matters — excerpts overlap, so one run can raise a fact twice.
+    fresh = dedupe.new_flashcards(items[:count], [])[:count]
 
     created = []
     for item in fresh:
@@ -163,38 +156,72 @@ def _save_flashcards_from_json(
         )
         created.append(card)
 
-    if fresh and not created:
+    # Raising rather than returning [] is what lets the caller fall back to the
+    # extractive generator. It is also what protects the existing deck: the
+    # cards on file are only retired once a replacement batch comes back
+    # non-empty, so an empty result here costs the learner nothing.
+    if not created:
         raise GeminiGenerationError('No valid flashcards could be saved.')
-    # Nothing fresh is a document with nothing left to add, not a failure — and
-    # must not raise, or the caller would fall back to the extractive generator
-    # and produce the very duplicates this just removed.
     return created
+
+
+def _replace_deck(cards: list[Flashcard], user, tag: str, notebook) -> None:
+    """Hand the new deck its notebook and retire the deck it replaces.
+
+    Both writes live here rather than at each creation site because there are
+    four of them (LLM, ML-primary, local fallback, regeneration) and only this
+    one runs for every provider — the local fallback in particular generates
+    from a stand-in object that has no notebook to read.
+
+    Retirement is expressed as "every other active card on this tag" rather
+    than a list captured before generating, so two generations racing each
+    other still leave one deck rather than two, and any deck that stacked
+    under the old append behaviour is cleaned up the next time it is
+    regenerated. Archiving rather than deleting keeps the reviews already
+    recorded against those cards, which analytics counts.
+
+    Atomic: a crash between the two writes would leave the old deck and the
+    new one both live, which is the stacking this exists to prevent.
+    """
+    fresh_ids = [c.id for c in cards]
+    with transaction.atomic():
+        if notebook is not None:
+            Flashcard.objects.filter(id__in=fresh_ids).update(notebook=notebook)
+            for card in cards:
+                card.notebook = notebook
+        Flashcard.objects.filter(user=user, tags=tag, archived=False).exclude(
+            id__in=fresh_ids
+        ).update(archived=True, needs_regeneration=False)
 
 
 def generate_flashcards_for_sources(sources, user, count: int = 10,
                                     meta: dict | None = None) -> list[Flashcard]:
-    """Generate flashcards. Pass `meta` to learn which generator was used."""
-    count = max(3, min(count, 20))
+    """Generate a source selection's flashcards, replacing any it already has.
+
+    Generating used to append, so a document pressed three times carried
+    thirty cards and the study queue filled with one subject. It now produces
+    one deck of at most `deck_limits.MAX_CARDS_PER_SOURCE`: the old deck is
+    retired
+    only once a replacement is actually in hand, so a failed generation leaves
+    the learner exactly what they had. Pass `meta` to learn which generator
+    was used.
+    """
+    count = batch_size(count)
     source_ids = [s.id for s in sources]
     tag = combined_source_tag(source_ids)
+    # Every source in a request belongs to one notebook (the view filters them
+    # by it), so the first one names the deck's owner.
+    notebook = getattr(sources[0], 'notebook', None) if sources else None
 
-    # A full document is a finished document, not an error: say so and stop
-    # before spending a model call that could not be saved anyway.
-    already = Flashcard.objects.filter(user=user, tags=tag, archived=False).count()
-    if room_for(already) == 0:
-        _mark(meta, 'none', reason=f'already at the {MAX_CARDS_PER_SOURCE}-card limit')
-        return []
+    cards = _generate_flashcards(sources, user, count, source_ids, tag, meta)
+    if cards:
+        _replace_deck(cards, user, tag, notebook)
+    return cards
 
-    # Bound the request to the remaining room before any provider branch below.
-    # _save_flashcards_from_json's own ceiling only protects the LLM/JSON path;
-    # the ML-primary path (_generate_flashcards_ml) and the local-fallback path
-    # (fallback.generate_flashcards_fallback_multi) create Flashcard rows
-    # directly and never reach that save step, so a provider failure on a
-    # partially-filled document could otherwise stack cards past the cap. This
-    # also has to run after the max(3, ...) floor above, or a one-slot top-up
-    # would get re-inflated back up to three.
-    count = capped_count(count, already, MAX_CARDS_PER_SOURCE)
 
+def _generate_flashcards(sources, user, count: int, source_ids: list[int],
+                         tag: str, meta: dict | None) -> list[Flashcard]:
+    """Run the provider cascade. Creates cards; does not retire anything."""
     # Validate + guard against thin sources up front, for every provider, so the
     # user gets one clear message instead of empty output or a silent fallback.
     text = _sources_text(sources)
