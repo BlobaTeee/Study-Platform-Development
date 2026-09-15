@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import useSWR from 'swr'
 import { quizzesAPI } from '@/lib/api'
-import { parseSourceIdsParam, quizMatchesSourceTag } from '@/lib/source-utils'
+import { parseSourceIdsParam, hasAllSources } from '@/lib/source-utils'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { SourceRequired } from '@/components/source-required'
 import { ArrowRight, BookOpen, CheckCircle2, ChevronLeft } from 'lucide-react'
@@ -26,6 +26,7 @@ type Quiz = {
   id: number
   title: string
   description?: string
+  source_ids?: number[]
   questions: Question[]
 }
 
@@ -43,7 +44,7 @@ function QuizzesStudy() {
   const allQuizzes: Quiz[] = data?.data?.results ?? data?.data ?? []
   const quizzes = useMemo(() => {
     if (sourceIds.length === 0) return []
-    return allQuizzes.filter((q) => quizMatchesSourceTag(q.description, sourceIds))
+    return allQuizzes.filter((q) => hasAllSources(q.source_ids, sourceIds))
   }, [allQuizzes, sourceIds])
 
   const quiz = useMemo(() => {

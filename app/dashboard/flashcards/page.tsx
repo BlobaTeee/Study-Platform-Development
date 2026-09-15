@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { SourceRequired } from '@/components/source-required'
 import {
-  flashcardMatchesSourceTag,
+  hasAllSources,
   parseSourceIdsParam,
 } from '@/lib/source-utils'
 import {
@@ -26,7 +26,7 @@ type Flashcard = {
   question: string
   answer: string
   difficulty: string
-  tags?: string | null
+  source_ids?: number[]
 }
 
 /** The three SM-2 grades, worst recall first. Only you can judge whether you
@@ -65,12 +65,12 @@ function FlashcardsStudy() {
     // otherwise wrapping round would review it twice and corrupt its schedule.
     if (dueMode) {
       const scoped = sourceIds.length
-        ? allCards.filter((f) => flashcardMatchesSourceTag(f.tags, sourceIds))
+        ? allCards.filter((f) => hasAllSources(f.source_ids, sourceIds))
         : allCards
       return scoped.filter((f) => !graded.has(f.id))
     }
     if (sourceIds.length === 0) return []
-    return allCards.filter((f) => flashcardMatchesSourceTag(f.tags, sourceIds))
+    return allCards.filter((f) => hasAllSources(f.source_ids, sourceIds))
   }, [allCards, sourceIds, dueMode, graded])
 
   const total = flashcards.length

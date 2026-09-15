@@ -97,10 +97,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
   const studyQuery = formatSourceIdsForQuery(generationSourceIds)
 
-  // Counted server-side on the exact combined tag, which is the same set
+  // Counted server-side as the exact source set, which is the same set
   // generating replaces — so the number shown is always the number a press
-  // retires. Counting here instead would use flashcardMatchesSourceTag, whose
-  // substring test reports a "source:13" card as belonging to source 1.
+  // retires. The page has no card list to count from anyway.
   const { data: countsRes } = useSWR(
     generationSourceIds.length > 0
       ? ['/notebooks/material_counts', notebookId, studyQuery]
