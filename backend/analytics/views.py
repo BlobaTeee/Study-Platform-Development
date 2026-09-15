@@ -79,8 +79,13 @@ class AnalyticsViewSet(viewsets.ViewSet):
                  .values('id', 'tags')),
             _review_tallies(user),
         )
-        titles = dict(
-            Source.objects.filter(notebook__user=user).values_list('id', 'title')
+        # Mastery is reported per notebook: a source's id is what the study
+        # items are tagged with, so the lookup goes source -> notebook here.
+        source_to_notebook = dict(
+            Source.objects.filter(notebook__user=user).values_list('id', 'notebook_id')
+        )
+        notebook_titles = dict(
+            Notebook.objects.filter(user=user).values_list('id', 'title')
         )
 
         # How much is owed comes from the SM-2 schedule the reviews built, so
@@ -98,7 +103,7 @@ class AnalyticsViewSet(viewsets.ViewSet):
         next_date, next_count = scheduling.next_due_batch(schedule, today)
         due = {**due, 'next_date': next_date, 'next_count': next_count}
 
-        # Per-document mastery draws on every mode that grades an item against a
+        # Per-notebook mastery draws on every mode that grades an item against a
         # source. Flashcards alone would ignore the quiz answers on record, which
         # are the firmer evidence of the two — they are marked, not self-reported.
         events = insights.flashcard_events(cards) + insights.quiz_events(
@@ -110,5 +115,6 @@ class AnalyticsViewSet(viewsets.ViewSet):
 
         return Response({
             'due': due,
-            'weak_sources': insights.per_source_mastery(events, titles),
+            'weak_notebooks': insights.per_notebook_mastery(
+                events, source_to_notebook, notebook_titles),
         })

@@ -119,6 +119,42 @@ def quiz_events(questions: list[dict], answers: list[dict]) -> list[dict]:
     ]
 
 
+def _mastery(events: list[dict], groups_of, titles: dict[int, str], id_key: str) -> list[dict]:
+    """Shared tally behind the per-source and per-notebook views.
+
+    `groups_of(event)` names the groups an event counts toward — a set, so an
+    item is credited to each group once no matter how many of its sources land
+    there. Groups missing from `titles` are ignored (deleted, or never existed).
+    """
+    totals: dict[int, dict] = {}
+    for event in events:
+        for gid in groups_of(event):
+            if gid not in titles:
+                continue
+            bucket = totals.setdefault(
+                gid, {"correct": 0, "incorrect": 0, "cards": 0, "questions": 0}
+            )
+            bucket["correct"] += event.get("correct", 0)
+            bucket["incorrect"] += event.get("incorrect", 0)
+            bucket["cards" if event.get("kind") == KIND_FLASHCARD else "questions"] += 1
+
+    out = []
+    for gid, b in totals.items():
+        reviews = b["correct"] + b["incorrect"]
+        out.append({
+            id_key: gid,
+            "title": titles[gid],
+            "cards": b["cards"],
+            "questions": b["questions"],
+            "reviews": reviews,
+            "accuracy": round(b["correct"] / reviews * 100, 1) if reviews else None,
+        })
+
+    # Weakest first; never-studied groups go last (nothing to act on yet).
+    out.sort(key=lambda r: (r["accuracy"] is None, r["accuracy"] if r["accuracy"] is not None else 0))
+    return out
+
+
 def per_source_mastery(events: list[dict], source_titles: dict[int, str]) -> list[dict]:
     """How well the user knows each document, weakest first.
 
@@ -131,30 +167,20 @@ def per_source_mastery(events: list[dict], source_titles: dict[int, str]) -> lis
     longer exists are ignored. A document with no answers reports accuracy None
     rather than 0%, which would wrongly imply the user got it wrong.
     """
-    totals: dict[int, dict] = {}
-    for event in events:
-        for sid in event.get("source_ids", []):
-            if sid not in source_titles:
-                continue
-            bucket = totals.setdefault(
-                sid, {"correct": 0, "incorrect": 0, "cards": 0, "questions": 0}
-            )
-            bucket["correct"] += event.get("correct", 0)
-            bucket["incorrect"] += event.get("incorrect", 0)
-            bucket["cards" if event.get("kind") == KIND_FLASHCARD else "questions"] += 1
+    return _mastery(events, lambda e: set(e.get("source_ids", [])), source_titles, "source_id")
 
-    out = []
-    for sid, b in totals.items():
-        reviews = b["correct"] + b["incorrect"]
-        out.append({
-            "source_id": sid,
-            "title": source_titles[sid],
-            "cards": b["cards"],
-            "questions": b["questions"],
-            "reviews": reviews,
-            "accuracy": round(b["correct"] / reviews * 100, 1) if reviews else None,
-        })
 
-    # Weakest first; never-studied documents go last (nothing to act on yet).
-    out.sort(key=lambda s: (s["accuracy"] is None, s["accuracy"] if s["accuracy"] is not None else 0))
-    return out
+def per_notebook_mastery(events: list[dict], source_to_notebook: dict[int, int],
+                         notebook_titles: dict[int, str]) -> list[dict]:
+    """How well the user knows each notebook, weakest first.
+
+    Same evidence as `per_source_mastery`, rolled up a level. Not a sum of the
+    per-source rows: a card generated from two sources in the same notebook
+    would then count twice for it, so each event is credited to the *set* of
+    notebooks its sources belong to. Sources with no notebook on record are
+    ignored, and a notebook nobody has studied from is absent, not 0%.
+    """
+    def notebooks_of(event):
+        return {source_to_notebook[sid] for sid in event.get("source_ids", [])
+                if sid in source_to_notebook}
+    return _mastery(events, notebooks_of, notebook_titles, "notebook_id")

@@ -11,6 +11,7 @@ import {
   ArrowRight,
   BarChart3,
   BookMarked,
+  BookOpen,
   FileText,
   Loader2,
   Target,
@@ -29,8 +30,8 @@ type Summary = {
   flashcard_accuracy: number | null
 }
 
-type WeakSource = {
-  source_id: number
+type WeakNotebook = {
+  notebook_id: number
   title: string
   cards: number
   questions: number
@@ -38,14 +39,14 @@ type WeakSource = {
   accuracy: number | null
 }
 
-/** What a document's score rests on — flashcards you graded yourself, quiz
+/** What a notebook's score rests on — flashcards you graded yourself, quiz
  *  questions the app marked, or both. Empty modes are left out rather than
  *  shown as a zero. */
-function sourceRecord(s: WeakSource): string {
+function notebookRecord(n: WeakNotebook): string {
   const parts: string[] = []
-  if (s.cards) parts.push(`${s.cards} card${s.cards === 1 ? '' : 's'}`)
-  if (s.questions) parts.push(`${s.questions} quiz question${s.questions === 1 ? '' : 's'}`)
-  parts.push(`${s.reviews} answer${s.reviews === 1 ? '' : 's'}`)
+  if (n.cards) parts.push(`${n.cards} card${n.cards === 1 ? '' : 's'}`)
+  if (n.questions) parts.push(`${n.questions} quiz question${n.questions === 1 ? '' : 's'}`)
+  parts.push(`${n.reviews} answer${n.reviews === 1 ? '' : 's'}`)
   return parts.join(' · ')
 }
 
@@ -65,7 +66,7 @@ export default function AnalyticsPage() {
     next_count: 0,
   }
   const ready = due.due + due.new
-  const weakSources: WeakSource[] = recsRes?.data?.weak_sources ?? []
+  const weakNotebooks: WeakNotebook[] = recsRes?.data?.weak_notebooks ?? []
 
   const stats = [
     { label: 'Flashcards', value: summary?.flashcards_count ?? '—', icon: BookMarked, color: 'text-mode-flashcards' },
@@ -167,38 +168,45 @@ export default function AnalyticsPage() {
         )}
       </Card>
 
-      {/* Weakest documents */}
+      {/* Weakest notebooks. Each row links to its notebook: that is where
+          the sources live and where the next set of cards gets generated. */}
       <Card className="rise border-slate-200 shadow-sheet p-6" style={{ animationDelay: '180ms' }}>
         <div className="flex items-center gap-2 mb-1">
-          <FileText className="size-5 text-mode-notebooks" />
-          <h2 className="text-xl font-semibold text-slate-900">By document</h2>
+          <BookOpen className="size-5 text-mode-notebooks" />
+          <h2 className="text-xl font-semibold text-slate-900">By notebook</h2>
         </div>
         <p className="text-sm text-slate-500 mb-4">
-          How well you know each document, across flashcards and quizzes together.
+          How well you know each notebook, across flashcards and quizzes together.
           Weakest first.
         </p>
 
-        {weakSources.length === 0 ? (
+        {weakNotebooks.length === 0 ? (
           <p className="text-slate-500 py-6 text-center">
-            Nothing to show yet — upload a source and generate flashcards or a quiz from it.
+            Nothing to show yet — add a source to a notebook and generate flashcards or a quiz from it.
           </p>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {weakSources.map((s) => (
-              <li key={s.source_id} className="flex items-center gap-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-base text-slate-800 truncate">{s.title}</p>
-                  <p className="text-sm text-slate-500">{sourceRecord(s)}</p>
-                </div>
-                {s.accuracy == null ? (
-                  <span className="font-mono text-xs text-slate-600 bg-slate-100 rounded px-2 py-1 shrink-0">
-                    Not studied
-                  </span>
-                ) : (
-                  <span className="font-mono text-lg font-semibold text-slate-900 tabular-nums shrink-0">
-                    {s.accuracy}%
-                  </span>
-                )}
+            {weakNotebooks.map((n) => (
+              <li key={n.notebook_id}>
+                <Link
+                  href={`/dashboard/notebooks/${n.notebook_id}`}
+                  className="flex items-center gap-4 py-3 -mx-2 px-2 rounded-md hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mode-notebooks"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-base text-slate-800 truncate">{n.title}</p>
+                    <p className="text-sm text-slate-500">{notebookRecord(n)}</p>
+                  </div>
+                  {n.accuracy == null ? (
+                    <span className="font-mono text-xs text-slate-600 bg-slate-100 rounded px-2 py-1 shrink-0">
+                      Not studied
+                    </span>
+                  ) : (
+                    <span className="font-mono text-lg font-semibold text-slate-900 tabular-nums shrink-0">
+                      {n.accuracy}%
+                    </span>
+                  )}
+                  <ArrowRight className="size-4 text-slate-400 shrink-0" aria-hidden />
+                </Link>
               </li>
             ))}
           </ul>

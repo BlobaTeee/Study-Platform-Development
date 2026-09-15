@@ -211,3 +211,47 @@ def test_attached_counts_reach_per_document_mastery():
     out = ins.per_source_mastery(ins.flashcard_events(scored), {1: "Doc"})
     assert out[0]["accuracy"] == pytest.approx(50.0)
     assert out[0]["cards"] == 2
+
+
+# ---- per_notebook_mastery --------------------------------------------------
+
+# source id -> notebook id. Sources 1 and 2 share notebook 10; source 3 is in 20.
+NB_OF = {1: 10, 2: 10, 3: 20}
+NB_TITLES = {10: "Biology", 20: "History"}
+
+
+def test_notebook_mastery_pools_its_sources():
+    events = [_fc([1], correct=1, incorrect=1), _qz([2], correct=3, incorrect=1)]
+    out = ins.per_notebook_mastery(events, NB_OF, NB_TITLES)
+    assert [n["notebook_id"] for n in out] == [10]
+    assert out[0]["title"] == "Biology"
+    assert out[0]["cards"] == 1
+    assert out[0]["questions"] == 1
+    assert out[0]["reviews"] == 6
+    assert out[0]["accuracy"] == pytest.approx(4 / 6 * 100, abs=0.1)
+
+
+def test_item_spanning_two_sources_in_one_notebook_counts_once():
+    # Summing per-source rows would count this card twice for Biology.
+    out = ins.per_notebook_mastery([_fc([1, 2], correct=1, incorrect=1)], NB_OF, NB_TITLES)
+    assert len(out) == 1
+    assert out[0]["cards"] == 1
+    assert out[0]["reviews"] == 2
+
+
+def test_notebook_mastery_puts_the_weakest_first():
+    events = [_fc([3], correct=1, incorrect=9), _qz([1], correct=9, incorrect=1)]
+    out = ins.per_notebook_mastery(events, NB_OF, NB_TITLES)
+    assert [n["title"] for n in out] == ["History", "Biology"]
+
+
+def test_notebook_with_nothing_studied_is_absent():
+    out = ins.per_notebook_mastery([_fc([1])], NB_OF, NB_TITLES)
+    assert [n["title"] for n in out] == ["Biology"]
+    assert out[0]["accuracy"] is None
+
+
+def test_event_pointing_at_an_orphan_source_is_ignored():
+    # A source deleted from its notebook, or one that never existed.
+    out = ins.per_notebook_mastery([_fc([99], correct=1)], NB_OF, NB_TITLES)
+    assert out == []
