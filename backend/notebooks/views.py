@@ -15,8 +15,8 @@ from .serializers import (
 from .services.document_extract import file_type_from_filename, title_from_filename
 from .services.ingest import process_source
 from .services.gemini_client import GeminiNotConfiguredError, GeminiGenerationError
+from .services.decks import items_with_exact_sources
 from .services.generate import (
-    combined_source_tag,
     generate_flashcards_for_sources,
     generate_quiz_for_sources,
     generate_flashcards_for_source,
@@ -147,20 +147,23 @@ class NotebookViewSet(viewsets.ModelViewSet):
         if not source_ids:
             return Response({'flashcards': 0, 'quiz_id': None})
 
-        tag = combined_source_tag(source_ids)
-        # Quizzes carry their source tag in `description`, as `[source:1,2]`.
-        # Bracketed so "[source:1]" cannot match a quiz tagged "[source:13]" —
-        # the exact substring trap the frontend matcher falls into.
-        quiz_id = (Quiz.objects.filter(user=request.user, description__contains=f'[{tag}]')
-                   .order_by('-created_at').values_list('id', flat=True).first())
-        return Response({
-            # Active cards only: an archived original is already retired, so
-            # counting it would overstate what a regeneration costs.
-            'flashcards': Flashcard.objects.filter(
-                user=request.user, tags=tag, archived=False
-            ).count(),
-            'quiz_id': quiz_id,
-        })
+        # The deck for this exact selection — every selected source and no
+        # other — because that is the set a generate press retires, and the
+        # number shown must be the number that press costs. Active cards only:
+        # an archived original is already retired.
+        deck = items_with_exact_sources(
+            Flashcard.sources.through.objects
+            .filter(flashcard__user=request.user, flashcard__archived=False)
+            .values_list('flashcard_id', 'source_id'),
+            source_ids)
+        quizzes = items_with_exact_sources(
+            Quiz.sources.through.objects
+            .filter(quiz__user=request.user)
+            .values_list('quiz_id', 'source_id'),
+            source_ids)
+        quiz_id = (Quiz.objects.filter(id__in=quizzes).order_by('-created_at')
+                   .values_list('id', flat=True).first())
+        return Response({'flashcards': len(deck), 'quiz_id': quiz_id})
 
     @action(detail=True, methods=['post'], throttle_classes=[GenerationRateThrottle])
     def generate_quiz(self, request, pk=None):
