@@ -24,36 +24,15 @@ ins = _load()
 # deliberately set aside for weeks.
 
 
-# ---- parse_source_ids ------------------------------------------------------
-
-def test_parses_single_and_multi_source_tags():
-    assert ins.parse_source_ids("source:5") == [5]
-    assert ins.parse_source_ids("source:1,2") == [1, 2]
-
-
-def test_parses_the_tag_quizzes_bury_in_their_description():
-    # Flashcards store a bare tag; quizzes embed one in prose. Reading only the
-    # bare form is what silently kept every quiz out of per-document mastery.
-    assert ins.parse_source_ids("Generated from Week 2 Lecture [source:13]") == [13]
-    assert ins.parse_source_ids("Test your knowledge. [source:1,2]") == [1, 2]
-
-
-def test_parse_handles_missing_or_malformed_tags():
-    assert ins.parse_source_ids(None) == []
-    assert ins.parse_source_ids("") == []
-    assert ins.parse_source_ids("source:") == []
-    assert ins.parse_source_ids("not-a-source-tag") == []
-    assert ins.parse_source_ids("source:1,abc,3") == [1, 3]  # skip junk, keep valid
-
-
 # ---- study events ----------------------------------------------------------
 # "How well do I know this document?" must not depend on which study mode
 # produced the evidence, so each mode is adapted to a common event shape and a
-# new mode later only needs its own adapter.
+# new mode later only needs its own adapter. Source ids arrive already
+# resolved from the relation; the adapters do no parsing.
 
 def test_flashcard_events_carry_the_cards_review_tally():
     events = ins.flashcard_events([
-        {"id": 1, "tags": "source:3", "correct_count": 2, "incorrect_count": 1}
+        {"id": 1, "source_ids": [3], "correct_count": 2, "incorrect_count": 1}
     ])
     assert events == [
         {"kind": ins.KIND_FLASHCARD, "source_ids": [3], "correct": 2, "incorrect": 1}
@@ -61,7 +40,7 @@ def test_flashcard_events_carry_the_cards_review_tally():
 
 
 def test_quiz_events_count_each_questions_answers():
-    questions = [{"id": 9, "quiz_description": "Quiz [source:3]"}]
+    questions = [{"id": 9, "source_ids": [3]}]
     answers = [{"question_id": 9, "is_correct": True},
                {"question_id": 9, "is_correct": False}]
     assert ins.quiz_events(questions, answers) == [
@@ -71,9 +50,18 @@ def test_quiz_events_count_each_questions_answers():
 
 def test_unanswered_quiz_question_is_still_an_item():
     # Mirrors an unreviewed flashcard: something left to study, no evidence yet.
-    events = ins.quiz_events([{"id": 9, "quiz_description": "Quiz [source:3]"}], [])
+    events = ins.quiz_events([{"id": 9, "source_ids": [3]}], [])
     assert events[0]["correct"] == 0
     assert events[0]["incorrect"] == 0
+
+
+def test_an_item_with_no_sources_is_still_an_event():
+    # A hand-written card, or one whose only source was deleted: it is studied
+    # like any other, it just counts toward no document.
+    events = ins.flashcard_events([{"id": 1, "correct_count": 1, "incorrect_count": 0}])
+    assert events == [
+        {"kind": ins.KIND_FLASHCARD, "source_ids": [], "correct": 1, "incorrect": 0}
+    ]
 
 
 # ---- per_source_mastery ----------------------------------------------------
@@ -183,28 +171,28 @@ def test_tally_of_no_reviews_is_empty():
 # ---- attach_review_counts --------------------------------------------------
 
 def test_attach_fills_counts_from_the_review_record():
-    cards = [{"id": 1, "question": "Q?", "tags": "source:1"}]
+    cards = [{"id": 1, "question": "Q?", "source_ids": [1]}]
     out = ins.attach_review_counts(cards, {1: {"correct": 3, "incorrect": 1}})
     assert out[0]["correct_count"] == 3
     assert out[0]["incorrect_count"] == 1
 
 
 def test_attach_defaults_an_unreviewed_card_to_zero():
-    out = ins.attach_review_counts([{"id": 7, "question": "Q?", "tags": "source:1"}], {})
+    out = ins.attach_review_counts([{"id": 7, "question": "Q?", "source_ids": [1]}], {})
     assert out[0]["correct_count"] == 0
     assert out[0]["incorrect_count"] == 0
 
 
 def test_attach_keeps_the_original_card_fields():
-    out = ins.attach_review_counts([{"id": 1, "question": "Q?", "tags": "source:2"}], {})
+    out = ins.attach_review_counts([{"id": 1, "question": "Q?", "source_ids": [2]}], {})
     assert out[0]["question"] == "Q?"
-    assert out[0]["tags"] == "source:2"
+    assert out[0]["source_ids"] == [2]
 
 
 def test_attached_counts_reach_per_document_mastery():
     # The chain must compose: reviews -> counts -> events -> document accuracy.
-    cards = [{"id": 1, "question": "recalled", "tags": "source:1"},
-             {"id": 2, "question": "forgotten", "tags": "source:1"}]
+    cards = [{"id": 1, "question": "recalled", "source_ids": [1]},
+             {"id": 2, "question": "forgotten", "source_ids": [1]}]
     reviews = [_review(1, "good"), _review(1, "good"),
                _review(2, "again"), _review(2, "again")]
     scored = ins.attach_review_counts(cards, ins.tally_reviews(reviews))

@@ -1,4 +1,4 @@
-from django.db.models import Avg, F
+from django.db.models import Avg
 from django.utils import timezone
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
@@ -21,6 +21,34 @@ def _review_tallies(user):
     return insights.tally_reviews(
         list(CardReview.objects.filter(user=user).values('flashcard_id', 'result'))
     )
+
+
+def _sources_by_flashcard(user):
+    """Flashcard id -> ids of the sources it was generated from.
+
+    One query over the through table for the whole collection, instead of a
+    prefetch per card; the analytics page reads every card the user has.
+    """
+    by_card: dict[int, list[int]] = {}
+    for card_id, source_id in (Flashcard.sources.through.objects
+                               .filter(flashcard__user=user)
+                               .values_list('flashcard_id', 'source_id')):
+        by_card.setdefault(card_id, []).append(source_id)
+    return by_card
+
+
+def _questions_with_sources(user):
+    """Every question the user owns as {'id', 'source_ids'}, one query.
+
+    `values('id', 'quiz__sources')` yields one row per (question, source) and
+    a row with `None` for a quiz with no sources, so rows are folded here.
+    """
+    by_question: dict[int, list[int]] = {}
+    for row in Question.objects.filter(quiz__user=user).values('id', 'quiz__sources'):
+        ids = by_question.setdefault(row['id'], [])
+        if row['quiz__sources'] is not None:
+            ids.append(row['quiz__sources'])
+    return [{'id': qid, 'source_ids': ids} for qid, ids in by_question.items()]
 
 
 class AnalyticsViewSet(viewsets.ViewSet):
@@ -71,12 +99,13 @@ class AnalyticsViewSet(viewsets.ViewSet):
         """
         user = request.user
 
+        by_card = _sources_by_flashcard(user)
         cards = insights.attach_review_counts(
             # Archived originals keep their old next_review_date forever, so an
             # unfiltered count here would drift from due_today's own filtered
             # queryset and never come back into agreement.
-            list(Flashcard.objects.filter(user=user, archived=False)
-                 .values('id', 'tags')),
+            [{'id': c['id'], 'source_ids': by_card.get(c['id'], [])}
+             for c in Flashcard.objects.filter(user=user, archived=False).values('id')],
             _review_tallies(user),
         )
         # Mastery is reported per notebook: a source's id is what the study
@@ -107,8 +136,7 @@ class AnalyticsViewSet(viewsets.ViewSet):
         # source. Flashcards alone would ignore the quiz answers on record, which
         # are the firmer evidence of the two — they are marked, not self-reported.
         events = insights.flashcard_events(cards) + insights.quiz_events(
-            list(Question.objects.filter(quiz__user=user)
-                 .values('id', quiz_description=F('quiz__description'))),
+            _questions_with_sources(user),
             list(Answer.objects.filter(quiz_attempt__user=user)
                  .values('question_id', 'is_correct')),
         )
