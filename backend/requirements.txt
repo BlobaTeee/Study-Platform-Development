@@ -23,3 +23,6 @@ textstat>=0.7.3
 -e ..
 # Optional: needed for PostgreSQL/Supabase connections.
 psycopg[binary]>=3.2
+# Backend API tests (backend/tests, run with ./venv/bin/pytest).
+pytest>=8.0
+pytest-django>=4.8
