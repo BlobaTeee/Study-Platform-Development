@@ -45,3 +45,23 @@ def test_seconds_remaining_never_goes_negative():
 
 def test_seconds_remaining_counts_down():
     assert timing.seconds_remaining(START, 30, START + timedelta(minutes=10)) == 1200
+
+
+# ---- planned tests: not before the booked time --------------------------------
+
+SCHEDULED = datetime(2026, 7, 27, 15, 0, tzinfo=tz.utc)
+
+
+def test_a_plan_is_closed_before_its_scheduled_time():
+    assert timing.plan_is_open(SCHEDULED, SCHEDULED - timedelta(minutes=1)) is False
+
+
+def test_a_plan_opens_exactly_at_its_scheduled_time():
+    # Inclusive at the start, unlike the deadline: booking 15:00 and being
+    # told "not yet" at 15:00:00 would be a lie.
+    assert timing.plan_is_open(SCHEDULED, SCHEDULED) is True
+
+
+def test_a_plan_stays_open_after_its_scheduled_time():
+    # No expiry: a plan is a "not before", never a "not after".
+    assert timing.plan_is_open(SCHEDULED, SCHEDULED + timedelta(days=3)) is True

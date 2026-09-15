@@ -16,10 +16,13 @@ class QuizSerializer(serializers.ModelSerializer):
     questions = QuestionSerializer(many=True, read_only=True)
     topic_name = serializers.CharField(source='topic.name', read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)
+    # Read-only: provenance is set by generation, never claimed by a client.
+    source_ids = serializers.PrimaryKeyRelatedField(
+        source='sources', many=True, read_only=True)
 
     class Meta:
         model = Quiz
-        fields = ['id', 'user', 'username', 'topic', 'topic_name', 'title', 'description', 
+        fields = ['id', 'user', 'username', 'topic', 'topic_name', 'title', 'description', 'source_ids', 
                   'time_limit', 'is_public', 'is_published', 'questions', 'created_at', 'updated_at']
         read_only_fields = ['user', 'created_at', 'updated_at']
 

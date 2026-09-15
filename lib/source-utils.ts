@@ -27,12 +27,6 @@ export function sourceCountLabel(fileType: string | undefined, pageCount: number
   return null
 }
 
-/** Canonical tag for one or more source IDs, e.g. source:3 or source:1,3,7 */
-export function buildSourceTag(sourceIds: number[]): string {
-  const sorted = [...new Set(sourceIds)].filter((id) => id > 0).sort((a, b) => a - b)
-  return `source:${sorted.join(',')}`
-}
-
 export function parseSourceIdsParam(param: string | null | undefined): number[] {
   if (!param?.trim()) return []
   return [...new Set(param.split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => n > 0))]
@@ -42,14 +36,12 @@ export function formatSourceIdsForQuery(ids: number[]): string {
   return [...new Set(ids)].sort((a, b) => a - b).join(',')
 }
 
-export function flashcardMatchesSourceTag(tags: string | null | undefined, sourceIds: number[]): boolean {
-  if (!tags || sourceIds.length === 0) return false
-  const expected = buildSourceTag(sourceIds)
-  return tags === expected || tags.includes(expected)
-}
-
-export function quizMatchesSourceTag(description: string | null | undefined, sourceIds: number[]): boolean {
-  if (!description || sourceIds.length === 0) return false
-  const expected = buildSourceTag(sourceIds)
-  return description.includes(`[${expected}]`) || description.includes(expected)
+/** Whether an item generated from `itemSourceIds` belongs in a view of
+ *  `selected` sources: it must have every one of them. An item from [1, 3]
+ *  shows under ?source=1 and under ?source=1,3; an item from [1] does not
+ *  show under ?source=1,3. An empty selection matches nothing, which is what
+ *  the pages' "pick a document first" guards rely on. */
+export function hasAllSources(itemSourceIds: number[] | undefined, selected: number[]): boolean {
+  if (!itemSourceIds || selected.length === 0) return false
+  return selected.every((id) => itemSourceIds.includes(id))
 }

@@ -1,6 +1,6 @@
-from django.db.models import Q
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from studyplatform.throttling import GenerationRateThrottle
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
@@ -98,29 +98,6 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-def _source_filter(field_prefix, source_ids):
-    """OR of `description__contains` across a notebook's source ids.
-
-    This is a prefilter, not the real check: `source:3` is also a substring of
-    `source:30`, so it may match a quiz that mentions a different source
-    entirely. That is fine, and deliberate — a prefilter is only required
-    never to return too little, and the exact check (`parse_source_ids`
-    followed by `if sid in source_ids`) still runs on every row this yields.
-    Do not remove that exact check on the theory that this filter is precise
-    enough on its own; it isn't.
-    """
-    field = f'{field_prefix}description__contains'
-    # An empty Q() matches everything, which would silently widen the scan to
-    # every quiz the user owns rather than narrowing it, so an empty list of
-    # source ids must produce a filter that matches nothing instead.
-    if not source_ids:
-        return Q(pk__in=[])
-    query = Q()
-    for sid in source_ids:
-        query |= Q(**{field: f'source:{sid}'})
-    return query
-
-
 def _top_up_pool(user, notebook, source_ids, pool, requested):
     """Generate questions until the notebook can fill the paper, or we stop.
 
@@ -179,49 +156,38 @@ def _top_up_pool(user, notebook, source_ids, pool, requested):
 
 
 def _question_pool(user, source_ids):
-    """Every question generated from this notebook's documents.
+    """Every question generated from this notebook's documents, each with the
+    subset of those documents it came from.
 
-    Source ids are parsed out of the quiz description rather than matched as a
-    substring: `source:3` is a prefix of `source:30`, so substring matching
-    would quietly mix in another document's questions.
+    Filtering and reading `quiz__sources` in the same query reuses one join,
+    so the ids that come back are only the selected ones.
     """
-    from analytics import insights
-
     if not source_ids:
         return []
-
-    # Narrowed at the database layer to quizzes that could mention one of
-    # this notebook's sources, rather than scanning the user's entire quiz
-    # history on every "start a test" press — see _source_filter for why
-    # over-matching here is safe.
-    pool = []
-    for row in (Question.objects.filter(quiz__user=user)
-                .filter(_source_filter('quiz__', source_ids))
-                .values('id', 'quiz__description')):
-        matched = [sid for sid in insights.parse_source_ids(row['quiz__description'])
-                   if sid in source_ids]
-        if matched:
-            pool.append({'id': row['id'], 'source_ids': matched})
-    return pool
+    pool: dict[int, list[int]] = {}
+    for row in (Question.objects
+                .filter(quiz__user=user, quiz__sources__in=source_ids)
+                .values('id', 'quiz__sources')):
+        pool.setdefault(row['id'], []).append(row['quiz__sources'])
+    return [{'id': qid, 'source_ids': ids} for qid, ids in pool.items()]
 
 
 def _source_accuracy(user, source_ids):
     """How well the user has answered questions from this notebook's own
     documents so far — the weighting has no use for accuracy on unrelated
     material, so this is scoped rather than pulling the user's whole history.
-    """
-    from analytics import insights
 
+    One row per (answer, source): an answer to a question drawn from two of
+    the selected documents counts for each, which is what `source_accuracy`
+    expects.
+    """
     if not source_ids:
         return {}
-
     rows = [
-        {'source_ids': [sid for sid in insights.parse_source_ids(row['question__quiz__description'])
-                        if sid in source_ids],
-         'is_correct': row['is_correct']}
-        for row in Answer.objects.filter(quiz_attempt__user=user)
-        .filter(_source_filter('question__quiz__', source_ids))
-        .values('question__quiz__description', 'is_correct')
+        {'source_ids': [row['question__quiz__sources']], 'is_correct': row['is_correct']}
+        for row in Answer.objects
+        .filter(quiz_attempt__user=user, question__quiz__sources__in=source_ids)
+        .values('question__quiz__sources', 'is_correct')
     ]
     return source_accuracy(rows)
 
@@ -241,6 +207,14 @@ class MockTestViewSet(viewsets.ModelViewSet):
         return (MockTest.objects.filter(user=self.request.user)
                 .select_related('notebook')
                 .prefetch_related('paper'))
+
+    def get_throttles(self):
+        # Starting a sitting can generate questions to fill the paper (see
+        # topup), so it pays the generation rate; everything else on this
+        # viewset is a read or an answer save and keeps the default.
+        if self.action == 'create':
+            return [GenerationRateThrottle()]
+        return super().get_throttles()
 
     def create(self, request, *args, **kwargs):
         from django.db import transaction
@@ -266,6 +240,17 @@ class MockTestViewSet(viewsets.ModelViewSet):
             if plan.sat_at is not None:
                 return Response(
                     {'detail': 'This planned test has already been sat.'}, status=400)
+            # Enforced here, not only by the disabled button: the client's
+            # clock is the student's to change. `opens_at` lets the client
+            # say when rather than just "no" if the two clocks disagree.
+            from django.utils import timezone
+            from .services.timing import plan_is_open
+            if not plan_is_open(plan.scheduled_for, timezone.now()):
+                opens = timezone.localtime(plan.scheduled_for)
+                return Response({
+                    'detail': f'This test opens at {opens:%H:%M on %d %b}.',
+                    'opens_at': plan.scheduled_for.isoformat(),
+                }, status=400)
 
         # Parse defensively rather than bare int(): a non-numeric value would
         # otherwise raise an unhandled ValueError (500) instead of a 400, and

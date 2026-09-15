@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { ArrowRight, Flame, NotebookText, Target, Zap } from 'lucide-react'
 
 type Notebook = { id: number; title: string }
-type WeakSource = { source_id: number; title: string; accuracy: number | null }
+type WeakNotebook = { notebook_id: number; title: string; accuracy: number | null }
 
 function greeting(d = new Date()): string {
   const h = d.getHours()
@@ -39,7 +39,7 @@ export default function HomePage() {
     next_count: 0,
   }
   const ready = due.due + due.new
-  const weakSources: WeakSource[] = (recsRes?.data?.weak_sources ?? []).slice(0, 3)
+  const weakNotebooks: WeakNotebook[] = (recsRes?.data?.weak_notebooks ?? []).slice(0, 3)
   const reviewsThisWeek: number = weekRes?.data?.reviews_this_week ?? 0
   const accuracyThisWeek: number | null = weekRes?.data?.accuracy_this_week_percent ?? null
   const streak: number = streakRes?.data?.current_streak ?? 0
@@ -206,17 +206,17 @@ export default function HomePage() {
                   Analytics →
                 </Link>
               </div>
-              {weakSources.length === 0 ? (
+              {weakNotebooks.length === 0 ? (
                 <p className="py-3 text-slate-500">
-                  Study a document and its recall shows up here.
+                  Study a notebook and its recall shows up here.
                 </p>
               ) : (
                 <ul className="divide-y divide-slate-100">
-                  {weakSources.map((s) => (
-                    <li key={s.source_id} className="flex items-center gap-4 py-3">
-                      <span className="min-w-0 flex-1 truncate text-slate-800">{s.title}</span>
+                  {weakNotebooks.map((n) => (
+                    <li key={n.notebook_id} className="flex items-center gap-4 py-3">
+                      <span className="min-w-0 flex-1 truncate text-slate-800">{n.title}</span>
                       <span className="shrink-0 font-mono text-sm tabular-nums text-slate-600">
-                        {s.accuracy == null ? 'Not studied' : `${s.accuracy}%`}
+                        {n.accuracy == null ? 'Not studied' : `${n.accuracy}%`}
                       </span>
                     </li>
                   ))}

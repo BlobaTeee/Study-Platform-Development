@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import useSWR from 'swr'
 import { mockTestsAPI, notebooksAPI, plannedTestsAPI } from '@/lib/api'
+import { useConfirm } from '@/components/confirm-dialog'
 import {
   AlertCircle,
   ArrowLeft,
@@ -116,6 +117,19 @@ function formatScheduledFor(iso: string): string {
   })
 }
 
+// For the disabled Start button. The card already shows the full date a line
+// above, so the button only repeats the time — unless the plan is on another
+// day, when a bare time would read as today.
+function formatOpensAt(iso: string): string {
+  const at = new Date(iso)
+  const sameDay = at.toDateString() === new Date().toDateString()
+  return at.toLocaleString(undefined, {
+    ...(sameDay ? {} : { month: 'short', day: 'numeric' }),
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 function MockTestsInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -130,6 +144,7 @@ function MockTestsInner() {
   const [questionCount, setQuestionCount] = useState<number | ''>(20)
   const [durationMinutes, setDurationMinutes] = useState<number | ''>(30)
   const [starting, setStarting] = useState(false)
+  const [confirm, confirmDialog] = useConfirm()
   const [setupError, setSetupError] = useState('')
 
   const {
@@ -148,6 +163,10 @@ function MockTestsInner() {
   const [planError, setPlanError] = useState('')
   const [startingPlanId, setStartingPlanId] = useState<number | null>(null)
   const [cancelingPlanId, setCancelingPlanId] = useState<number | null>(null)
+  // A plan can't be started before its booked time. This clock exists so the
+  // button enables itself when that time arrives instead of waiting for a
+  // refresh; the server re-checks regardless, so it is display only.
+  const [nowMs, setNowMs] = useState(() => Date.now())
 
   const [test, setTest] = useState<MockTest | null>(null)
   const [result, setResult] = useState<SubmitResult | null>(null)
@@ -277,6 +296,18 @@ function MockTestsInner() {
     const interval = window.setInterval(tick, 1000)
     return () => window.clearInterval(interval)
   }, [test, result, handleSubmit, submitError])
+
+  // Only runs while some plan is still waiting to open, and at 30s: the
+  // countdown above needs seconds, this only needs to flip a button within a
+  // half minute of its time, and most visits have nothing pending at all.
+  useEffect(() => {
+    const pending = plans.some(
+      (p) => !p.sat_at && new Date(p.scheduled_for).getTime() > nowMs
+    )
+    if (!pending) return
+    const interval = window.setInterval(() => setNowMs(Date.now()), 30_000)
+    return () => window.clearInterval(interval)
+  }, [plans, nowMs])
 
   // New test: reset every bit of the previous attempt's state, not just the
   // URL. `/dashboard/tests` is the same route segment as the current URL
@@ -468,15 +499,17 @@ function MockTestsInner() {
     return () => window.removeEventListener('keydown', onKey)
   }, [test, result, paper, qIndex, goNext, goPrev, selectAnswer])
 
-  const handleSubmitClick = () => {
+  const handleSubmitClick = async () => {
     const unanswered = paper.length - Object.keys(answers).length
-    const question = unanswered > 0 ? (unanswered === 1 ? 'question' : 'questions') : ''
-    const confirmed =
-      unanswered === 0 ||
-      window.confirm(
-        `${unanswered} ${question} still unanswered. Submit the test now?`
-      )
-    if (confirmed) void handleSubmit()
+    if (unanswered > 0) {
+      const ok = await confirm({
+        title: `${unanswered} ${unanswered === 1 ? 'question' : 'questions'} still unanswered`,
+        body: 'Submitting now marks them wrong. You cannot return to this paper afterwards.',
+        confirmLabel: 'Submit anyway',
+      })
+      if (!ok) return
+    }
+    void handleSubmit()
   }
 
   // ---- Review ----
@@ -573,6 +606,9 @@ function MockTestsInner() {
 
     return (
       <div className="max-w-3xl mx-auto space-y-8">
+        {/* Only this branch confirms anything (submitting with blanks), so the
+            dialog belongs here rather than in every return. */}
+        {confirmDialog}
         <div className="rise border-t-[3px] border-mode-quizzes pt-4 flex items-start justify-between gap-4">
           <div>
             <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
@@ -997,22 +1033,31 @@ function MockTestsInner() {
                   <div className="flex items-center gap-2 shrink-0">
                     {/* A sat plan can't be started again — the server rejects
                         it — so the affordance is dropped rather than shown
-                        disabled with no explanation. */}
-                    {!plan.sat_at && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => void handleStartFromPlan(plan)}
-                        disabled={startingPlanId === plan.id}
-                        className="border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
-                      >
-                        {startingPlanId === plan.id ? (
-                          <Loader2 className="size-4 animate-spin mr-1.5" />
-                        ) : null}
-                        {startingPlanId === plan.id ? 'Building…' : 'Start now'}
-                      </Button>
-                    )}
+                        disabled with no explanation. A plan that hasn't
+                        opened yet is the opposite case: the button stays,
+                        disabled, and says when — otherwise a plan booked for
+                        later looks broken. */}
+                    {!plan.sat_at && (() => {
+                      const isOpen = nowMs >= new Date(plan.scheduled_for).getTime()
+                      const busy = startingPlanId === plan.id
+                      return (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void handleStartFromPlan(plan)}
+                          disabled={busy || !isOpen}
+                          className="border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
+                        >
+                          {busy ? <Loader2 className="size-4 animate-spin mr-1.5" /> : null}
+                          {busy
+                            ? 'Building…'
+                            : isOpen
+                              ? 'Start now'
+                              : `Opens ${formatOpensAt(plan.scheduled_for)}`}
+                        </Button>
+                      )
+                    })()}
                     <Button
                       type="button"
                       variant="ghost"

@@ -6,7 +6,7 @@ class Flashcard(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='flashcards')
     topic = models.ForeignKey(Topic, on_delete=models.SET_NULL, null=True, related_name='flashcards')
     # The notebook this card was generated from. Cards used to be tied to their
-    # notebook only by the `source:1,2` string in `tags`, which meant deleting a
+    # notebook only by a `source:1,2` string, which meant deleting a
     # notebook left its cards in the study queue forever, asking about a
     # document the learner can no longer open. A real FK makes that deletion a
     # database-level cascade rather than something every caller has to remember.
@@ -17,11 +17,16 @@ class Flashcard(models.Model):
         related_name='flashcards',
         help_text='Deleted along with its notebook.',
     )
+    # The documents this card was generated from. Empty for a card written by
+    # hand through the API. Deleting a source unlinks it here; the card stays.
+    sources = models.ManyToManyField(
+        'notebooks.Source', related_name='flashcards', blank=True,
+        help_text='The documents this card was generated from.',
+    )
     question = models.TextField()
     answer = models.TextField()
     difficulty = models.CharField(max_length=20, default='medium', choices=[('easy', 'Easy'), ('medium', 'Medium'), ('hard', 'Hard')])
     is_public = models.BooleanField(default=False)
-    tags = models.CharField(max_length=500, blank=True, null=True)
     views_count = models.IntegerField(default=0)
     correct_count = models.IntegerField(default=0)
     incorrect_count = models.IntegerField(default=0)

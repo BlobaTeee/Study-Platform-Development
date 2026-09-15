@@ -20,7 +20,7 @@ def _label(sources) -> str:
     return f"{len(sources)} documents"
 
 
-def generate_flashcards_ml(sources, user, count: int, tag: str) -> list[Flashcard]:
+def generate_flashcards_ml(sources, user, count: int) -> list[Flashcard]:
     from ml_pipeline.services.flashcard_generator import FlashcardGenerator
 
     text = _combined_text(sources)
@@ -35,14 +35,13 @@ def generate_flashcards_ml(sources, user, count: int, tag: str) -> list[Flashcar
             question=item["question"],
             answer=item["answer"],
             difficulty=item.get("difficulty", "medium"),
-            tags=tag,
             is_public=False,
         )
         created.append(card)
     return created
 
 
-def generate_quiz_ml(sources, user, question_count: int, tag: str) -> Quiz:
+def generate_quiz_ml(sources, user, question_count: int) -> Quiz:
     from ml_pipeline.services.quiz_generator import QuizGenerator
 
     text = _combined_text(sources)
@@ -52,11 +51,14 @@ def generate_quiz_ml(sources, user, question_count: int, tag: str) -> Quiz:
     quiz = Quiz.objects.create(
         user=user,
         title=data["title"][:255],
-        description=(data.get("description") or "") + f" [{tag}]",
+        description=data.get("description") or "",
         time_limit=0,
         is_public=False,
         is_published=True,
     )
+    # Linked before the questions so a quiz deleted for having none takes
+    # its links with it.
+    quiz.sources.set([s.id for s in sources])
 
     order = 0
     for q in data.get("questions", [])[:question_count]:

@@ -15,8 +15,7 @@ def api_root(request):
     return JsonResponse({
         'message': 'StudyFlow API',
         'endpoints': {
-            'register': '/api/users/register/',
-            'login': '/api/users/token/',
+            'profile': '/api/users/profiles/me/',
             'notebooks': '/api/notebooks/notebooks/',
             'upload_pdf': '/api/notebooks/notebooks/{id}/upload_pdf/',
             'admin': '/admin/',

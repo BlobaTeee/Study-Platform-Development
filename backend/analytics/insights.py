@@ -9,10 +9,6 @@ unit-testable in isolation.
 """
 from __future__ import annotations
 
-import re
-
-SOURCE_TAG_PREFIX = "source:"
-
 # Study modes that produce evidence of knowing a document. Adding a mode later
 # means adding a kind and an adapter that emits events — per_source_mastery
 # itself stays untouched, because accuracy does not depend on the mode.
@@ -60,35 +56,17 @@ def attach_review_counts(cards: list[dict], tallies: dict[int, dict[str, int]]) 
     ]
 
 
-# The tag may be a field of its own (flashcards store a bare ``source:1,2``) or
-# buried in prose (quizzes append ``[source:13]`` to their description), so this
-# looks for it anywhere. Stopping at the first non-word character keeps the
-# closing bracket out of the captured ids.
-_SOURCE_TAG_RE = re.compile(re.escape(SOURCE_TAG_PREFIX) + r"([\w,]+)")
-
-
-def parse_source_ids(text: str | None) -> list[int]:
-    """Extract source ids from any text carrying a ``source:1,2`` tag.
-
-    An item may be generated from several sources at once. Malformed pieces are
-    skipped rather than failing the whole item.
-    """
-    if not text:
-        return []
-    ids = []
-    for match in _SOURCE_TAG_RE.finditer(text):
-        for piece in match.group(1).split(","):
-            if piece.strip().isdigit():
-                ids.append(int(piece.strip()))
-    return ids
-
-
 def flashcard_events(cards: list[dict]) -> list[dict]:
-    """Adapt flashcards (with review counts attached) to study events."""
+    """Adapt flashcards (with review counts attached) to study events.
+
+    `source_ids` is the card's resolved relation; a card with none — written
+    by hand, or whose documents were deleted — is still an event, it just
+    counts toward no document.
+    """
     return [
         {
             "kind": KIND_FLASHCARD,
-            "source_ids": parse_source_ids(card.get("tags")),
+            "source_ids": list(card.get("source_ids", [])),
             "correct": card.get("correct_count", 0),
             "incorrect": card.get("incorrect_count", 0),
         }
@@ -111,12 +89,48 @@ def quiz_events(questions: list[dict], answers: list[dict]) -> list[dict]:
     return [
         {
             "kind": KIND_QUIZ,
-            "source_ids": parse_source_ids(question.get("quiz_description")),
+            "source_ids": list(question.get("source_ids", [])),
             "correct": tallies.get(question["id"], {}).get("correct", 0),
             "incorrect": tallies.get(question["id"], {}).get("incorrect", 0),
         }
         for question in questions
     ]
+
+
+def _mastery(events: list[dict], groups_of, titles: dict[int, str], id_key: str) -> list[dict]:
+    """Shared tally behind the per-source and per-notebook views.
+
+    `groups_of(event)` names the groups an event counts toward — a set, so an
+    item is credited to each group once no matter how many of its sources land
+    there. Groups missing from `titles` are ignored (deleted, or never existed).
+    """
+    totals: dict[int, dict] = {}
+    for event in events:
+        for gid in groups_of(event):
+            if gid not in titles:
+                continue
+            bucket = totals.setdefault(
+                gid, {"correct": 0, "incorrect": 0, "cards": 0, "questions": 0}
+            )
+            bucket["correct"] += event.get("correct", 0)
+            bucket["incorrect"] += event.get("incorrect", 0)
+            bucket["cards" if event.get("kind") == KIND_FLASHCARD else "questions"] += 1
+
+    out = []
+    for gid, b in totals.items():
+        reviews = b["correct"] + b["incorrect"]
+        out.append({
+            id_key: gid,
+            "title": titles[gid],
+            "cards": b["cards"],
+            "questions": b["questions"],
+            "reviews": reviews,
+            "accuracy": round(b["correct"] / reviews * 100, 1) if reviews else None,
+        })
+
+    # Weakest first; never-studied groups go last (nothing to act on yet).
+    out.sort(key=lambda r: (r["accuracy"] is None, r["accuracy"] if r["accuracy"] is not None else 0))
+    return out
 
 
 def per_source_mastery(events: list[dict], source_titles: dict[int, str]) -> list[dict]:
@@ -131,30 +145,20 @@ def per_source_mastery(events: list[dict], source_titles: dict[int, str]) -> lis
     longer exists are ignored. A document with no answers reports accuracy None
     rather than 0%, which would wrongly imply the user got it wrong.
     """
-    totals: dict[int, dict] = {}
-    for event in events:
-        for sid in event.get("source_ids", []):
-            if sid not in source_titles:
-                continue
-            bucket = totals.setdefault(
-                sid, {"correct": 0, "incorrect": 0, "cards": 0, "questions": 0}
-            )
-            bucket["correct"] += event.get("correct", 0)
-            bucket["incorrect"] += event.get("incorrect", 0)
-            bucket["cards" if event.get("kind") == KIND_FLASHCARD else "questions"] += 1
+    return _mastery(events, lambda e: set(e.get("source_ids", [])), source_titles, "source_id")
 
-    out = []
-    for sid, b in totals.items():
-        reviews = b["correct"] + b["incorrect"]
-        out.append({
-            "source_id": sid,
-            "title": source_titles[sid],
-            "cards": b["cards"],
-            "questions": b["questions"],
-            "reviews": reviews,
-            "accuracy": round(b["correct"] / reviews * 100, 1) if reviews else None,
-        })
 
-    # Weakest first; never-studied documents go last (nothing to act on yet).
-    out.sort(key=lambda s: (s["accuracy"] is None, s["accuracy"] if s["accuracy"] is not None else 0))
-    return out
+def per_notebook_mastery(events: list[dict], source_to_notebook: dict[int, int],
+                         notebook_titles: dict[int, str]) -> list[dict]:
+    """How well the user knows each notebook, weakest first.
+
+    Same evidence as `per_source_mastery`, rolled up a level. Not a sum of the
+    per-source rows: a card generated from two sources in the same notebook
+    would then count twice for it, so each event is credited to the *set* of
+    notebooks its sources belong to. Sources with no notebook on record are
+    ignored, and a notebook nobody has studied from is absent, not 0%.
+    """
+    def notebooks_of(event):
+        return {source_to_notebook[sid] for sid in event.get("source_ids", [])
+                if sid in source_to_notebook}
+    return _mastery(events, notebooks_of, notebook_titles, "notebook_id")

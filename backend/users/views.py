@@ -1,26 +1,14 @@
-from rest_framework import status, viewsets, permissions
+from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from django.contrib.auth.models import User
 from .models import UserProfile
-from .serializers import UserSerializer, UserProfileSerializer, UserRegistrationSerializer
+from .serializers import UserProfileSerializer
 
-
-class UserRegistrationView(viewsets.ModelViewSet):
-    queryset = User.objects.all()
-    serializer_class = UserRegistrationSerializer
-    permission_classes = [permissions.AllowAny]
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        user = serializer.instance
-        return Response({
-            'user': UserSerializer(user).data,
-            'message': 'User created successfully'
-        }, status=status.HTTP_201_CREATED)
+# Sign-up and sign-in are Supabase's: the frontend obtains a JWT there and
+# `users.authentication.SupabaseJWTAuthentication` provisions the Django user
+# on first request. The password-based register/token endpoints that used to
+# live here created a second Django user for the same email — one that could
+# never authenticate — so they are gone rather than merely unused.
 
 
 class UserProfileViewSet(viewsets.ModelViewSet):

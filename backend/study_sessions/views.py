@@ -85,7 +85,7 @@ def _swap_in_variants(user, ranked, pending):
             card = Flashcard.objects.filter(id=entry['id'], user=user).first()
             if card is None:
                 continue
-            excerpt = _source_excerpt(user, card.tags)
+            excerpt = _source_excerpt(user, entry.get('source_ids', []))
             variant = generate_variant(card.question, card.answer,
                                        provider=provider, excerpt=excerpt)
             if not variant:
@@ -99,26 +99,22 @@ def _swap_in_variants(user, ranked, pending):
         replacements[entry['id']] = {
             'id': new_card.id, 'question': new_card.question,
             'answer': new_card.answer, 'difficulty': new_card.difficulty,
-            'tags': new_card.tags, 'status': entry['status'],
+            'source_ids': list(new_card.sources.values_list('id', flat=True)),
+            'status': entry['status'],
             'overdue_days': entry['overdue_days'], 'regenerated': True,
         }
 
     return merge_replacements(ranked, replacements)
 
 
-def _source_excerpt(user, tags, limit=4000):
+def _source_excerpt(user, source_ids, limit=4000):
     """The text the card was generated from, so a variant stays on topic."""
     from notebooks.models import Source
-    from notebooks.services.generate import SOURCE_TAG_PREFIX
 
-    if not tags or not tags.startswith(SOURCE_TAG_PREFIX):
-        return ""
-    raw = tags[len(SOURCE_TAG_PREFIX):]
-    ids = [int(i) for i in raw.split(',') if i.strip().isdigit()]
-    if not ids:
+    if not source_ids:
         return ""
     texts = Source.objects.filter(
-        id__in=ids, notebook__user=user
+        id__in=source_ids, notebook__user=user
     ).values_list('extracted_text', flat=True)
     return "\n\n".join(t for t in texts if t)[:limit]
 
@@ -291,8 +287,17 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
                  .values('flashcard_id', 'next_review_date', 'review_date'))
         )
         cards = list(Flashcard.objects.filter(user=user, archived=False)
-                     .values('id', 'question', 'answer', 'difficulty', 'tags',
+                     .values('id', 'question', 'answer', 'difficulty',
                              'needs_regeneration', 'regeneration_attempts'))
+        # Sources ride along so the study page can scope the due queue to a
+        # document (`?due=1&source=…`). One query for the collection.
+        by_card: dict[int, list[int]] = {}
+        for card_id, source_id in (Flashcard.sources.through.objects
+                                   .filter(flashcard__user=user)
+                                   .values_list('flashcard_id', 'source_id')):
+            by_card.setdefault(card_id, []).append(source_id)
+        for card in cards:
+            card['source_ids'] = by_card.get(card['id'], [])
         ranked = scheduling.rank_due_cards(cards, schedule, timezone.localdate(),
                                            limit=limit)
 
