@@ -1,6 +1,7 @@
 from django.db.models import Q
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from studyplatform.throttling import GenerationRateThrottle
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
@@ -241,6 +242,14 @@ class MockTestViewSet(viewsets.ModelViewSet):
         return (MockTest.objects.filter(user=self.request.user)
                 .select_related('notebook')
                 .prefetch_related('paper'))
+
+    def get_throttles(self):
+        # Starting a sitting can generate questions to fill the paper (see
+        # topup), so it pays the generation rate; everything else on this
+        # viewset is a read or an answer save and keeps the default.
+        if self.action == 'create':
+            return [GenerationRateThrottle()]
+        return super().get_throttles()
 
     def create(self, request, *args, **kwargs):
         from django.db import transaction

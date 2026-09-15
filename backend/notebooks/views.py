@@ -1,5 +1,6 @@
 from rest_framework import mixins, viewsets, permissions, status
 from rest_framework.decorators import action
+from studyplatform.throttling import GenerationRateThrottle
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.conf import settings
@@ -89,7 +90,7 @@ class NotebookViewSet(viewsets.ModelViewSet):
 
         return Response(SourceSerializer(source, context={'request': request}).data, status=201)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], throttle_classes=[GenerationRateThrottle])
     def generate_flashcards(self, request, pk=None):
         """Generate flashcards from one or more sources in this notebook."""
         notebook = self.get_object()
@@ -161,7 +162,7 @@ class NotebookViewSet(viewsets.ModelViewSet):
             'quiz_id': quiz_id,
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], throttle_classes=[GenerationRateThrottle])
     def generate_quiz(self, request, pk=None):
         """Generate a quiz from one or more sources in this notebook."""
         notebook = self.get_object()
@@ -213,7 +214,7 @@ class SourceViewSet(
             instance.file.delete(save=False)
         instance.delete()
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], throttle_classes=[GenerationRateThrottle])
     def generate_flashcards(self, request, pk=None):
         source = self.get_object()
         count = int(request.data.get('count', 10))
@@ -233,7 +234,7 @@ class SourceViewSet(
             'flashcards': serializer.data,
         }, status=201)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], throttle_classes=[GenerationRateThrottle])
     def generate_quiz(self, request, pk=None):
         source = self.get_object()
         question_count = int(request.data.get('question_count', 8))

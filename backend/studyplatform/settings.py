@@ -140,6 +140,17 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    # Blanket per-user ceiling for the cheap endpoints. The expensive ones
+    # (anything that generates content) opt into the tighter `generate` scope
+    # via studyplatform.throttling.GenerationRateThrottle. Anonymous requests
+    # are already refused by IsAuthenticated before throttling runs.
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'user': config('THROTTLE_USER', default='60/min'),
+        'generate': config('THROTTLE_GENERATE', default='10/hour'),
+    },
 }
 
 # Comma-separated list of allowed frontend origins. Defaults to local dev;
