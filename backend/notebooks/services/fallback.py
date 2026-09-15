@@ -25,7 +25,7 @@ def _combined_text(sources) -> str:
     return '\n\n'.join(s.extracted_text for s in sources if s.extracted_text)
 
 
-def generate_flashcards_fallback(source, user, count: int, tag: str) -> list[Flashcard]:
+def generate_flashcards_fallback(source, user, count: int) -> list[Flashcard]:
     chunks = _chunks(source.extracted_text)
     if not chunks:
         raise ValueError('Not enough text to build flashcards without AI.')
@@ -37,17 +37,16 @@ def generate_flashcards_fallback(source, user, count: int, tag: str) -> list[Fla
             question=f'What are the main points in section {i + 1} of "{source.title}"?',
             answer=chunk[:800],
             difficulty='medium',
-            tags=tag,
             is_public=False,
         )
         created.append(card)
     return created
 
 
-def generate_flashcards_fallback_multi(sources, user, count: int, tag: str) -> list[Flashcard]:
+def generate_flashcards_fallback_multi(sources, user, count: int) -> list[Flashcard]:
     try:
         from ml.adapter import generate_flashcards_ml
-        return generate_flashcards_ml(sources, user, count, tag)
+        return generate_flashcards_ml(sources, user, count)
     except Exception:
         pass
 
@@ -58,13 +57,13 @@ def generate_flashcards_fallback_multi(sources, user, count: int, tag: str) -> l
 
     label = sources[0].title if len(sources) == 1 else f'{len(sources)} documents'
     combined = _Combined(label, _combined_text(sources))
-    return generate_flashcards_fallback(combined, user, count, tag)
+    return generate_flashcards_fallback(combined, user, count)
 
 
-def generate_quiz_fallback_multi(sources, user, question_count: int, tag: str) -> Quiz:
+def generate_quiz_fallback_multi(sources, user, question_count: int) -> Quiz:
     try:
         from ml.adapter import generate_quiz_ml
-        return generate_quiz_ml(sources, user, question_count, tag)
+        return generate_quiz_ml(sources, user, question_count)
     except Exception:
         pass
 
@@ -75,10 +74,13 @@ def generate_quiz_fallback_multi(sources, user, question_count: int, tag: str) -
 
     label = sources[0].title if len(sources) == 1 else f'{len(sources)} documents'
     combined = _Combined(label, _combined_text(sources))
-    return generate_quiz_fallback(combined, user, question_count, tag)
+    quiz = generate_quiz_fallback(combined, user, question_count)
+    # The stand-in has no id; the quiz is linked to the documents it stood for.
+    quiz.sources.set([s.id for s in sources])
+    return quiz
 
 
-def generate_quiz_fallback(source, user, question_count: int, tag: str) -> Quiz:
+def generate_quiz_fallback(source, user, question_count: int) -> Quiz:
     chunks = _chunks(source.extracted_text)
     if len(chunks) < 2:
         raise ValueError('Not enough text to build a quiz without AI.')
@@ -86,7 +88,7 @@ def generate_quiz_fallback(source, user, question_count: int, tag: str) -> Quiz:
     quiz = Quiz.objects.create(
         user=user,
         title=f'Quiz: {source.title}'[:255],
-        description=f'Basic quiz from document sections [{tag}]',
+        description='Basic quiz from document sections',
         time_limit=0,
         is_public=False,
         is_published=True,

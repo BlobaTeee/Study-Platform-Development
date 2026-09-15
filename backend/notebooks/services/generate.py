@@ -12,11 +12,10 @@ from .gemini_client import (
 )
 from .ai_provider import get_ai_provider
 from . import dedupe, fallback
+from .decks import items_with_exact_sources
 from .deck_limits import batch_size
 
 logger = logging.getLogger(__name__)
-
-SOURCE_TAG_PREFIX = 'source:'
 
 # Values reported back as `generated_by`, so a silent fallback is visible.
 BY_EXTRACTIVE_ML = 'extractive-ml'
@@ -85,11 +84,6 @@ def _use_ml_primary() -> bool:
     return getattr(settings, 'USE_ML_PRIMARY', False)
 
 
-def combined_source_tag(source_ids: list[int]) -> str:
-    sorted_ids = sorted({int(i) for i in source_ids})
-    return f'{SOURCE_TAG_PREFIX}{",".join(str(i) for i in sorted_ids)}'
-
-
 def _sources_text(sources) -> str:
     if not sources:
         raise ValueError('No sources selected.')
@@ -112,14 +106,14 @@ def _titles_label(sources) -> str:
     )
 
 
-def _generate_flashcards_ml(sources, user, count: int, tag: str) -> list[Flashcard]:
+def _generate_flashcards_ml(sources, user, count: int) -> list[Flashcard]:
     from ml.adapter import generate_flashcards_ml
-    return generate_flashcards_ml(sources, user, count, tag)
+    return generate_flashcards_ml(sources, user, count)
 
 
-def _generate_quiz_ml(sources, user, question_count: int, tag: str) -> Quiz:
+def _generate_quiz_ml(sources, user, question_count: int) -> Quiz:
     from ml.adapter import generate_quiz_ml
-    return generate_quiz_ml(sources, user, question_count, tag)
+    return generate_quiz_ml(sources, user, question_count)
 
 
 def _save_flashcards_from_json(
@@ -129,7 +123,6 @@ def _save_flashcards_from_json(
     if not items:
         raise GeminiGenerationError('No flashcards were generated.')
 
-    tag = combined_source_tag(source_ids)
     # Deduped against the batch itself only, not against the cards already on
     # file: those are retired by this generation (see
     # `generate_flashcards_for_sources`), so rejecting a question for matching
@@ -151,7 +144,6 @@ def _save_flashcards_from_json(
             question=question,
             answer=answer,
             difficulty=difficulty,
-            tags=tag,
             is_public=False,
         )
         created.append(card)
@@ -165,33 +157,43 @@ def _save_flashcards_from_json(
     return created
 
 
-def _replace_deck(cards: list[Flashcard], user, tag: str, notebook) -> None:
-    """Hand the new deck its notebook and retire the deck it replaces.
+def _replace_deck(cards: list[Flashcard], user, source_ids: list[int], notebook) -> None:
+    """Hand the new deck its sources and notebook, and retire the deck it replaces.
 
-    Both writes live here rather than at each creation site because there are
-    four of them (LLM, ML-primary, local fallback, regeneration) and only this
-    one runs for every provider — the local fallback in particular generates
-    from a stand-in object that has no notebook to read.
+    All three writes live here rather than at each creation site because
+    there are four of them (LLM, ML-primary, local fallback, regeneration) and
+    only this one runs for every provider — the local fallback in particular
+    generates from a stand-in object that has no notebook or sources to read.
 
-    Retirement is expressed as "every other active card on this tag" rather
+    Retirement is "every other active card of exactly this selection" rather
     than a list captured before generating, so two generations racing each
-    other still leave one deck rather than two, and any deck that stacked
-    under the old append behaviour is cleaned up the next time it is
-    regenerated. Archiving rather than deleting keeps the reviews already
-    recorded against those cards, which analytics counts.
+    other still leave one deck rather than two. Archiving rather than deleting
+    keeps the reviews already recorded against those cards, which analytics
+    counts.
 
-    Atomic: a crash between the two writes would leave the old deck and the
-    new one both live, which is the stacking this exists to prevent.
+    Atomic: a crash between the writes would leave the old deck and the new
+    one both live, or a new deck with no sources, which is the stacking and
+    the orphaning this exists to prevent.
     """
     fresh_ids = [c.id for c in cards]
+    Through = Flashcard.sources.through
     with transaction.atomic():
+        Through.objects.bulk_create(
+            [Through(flashcard_id=cid, source_id=sid)
+             for cid in fresh_ids for sid in source_ids],
+            ignore_conflicts=True)
         if notebook is not None:
             Flashcard.objects.filter(id__in=fresh_ids).update(notebook=notebook)
             for card in cards:
                 card.notebook = notebook
-        Flashcard.objects.filter(user=user, tags=tag, archived=False).exclude(
-            id__in=fresh_ids
-        ).update(archived=True, needs_regeneration=False)
+        previous = items_with_exact_sources(
+            Through.objects
+            .filter(flashcard__user=user, flashcard__archived=False)
+            .exclude(flashcard_id__in=fresh_ids)
+            .values_list('flashcard_id', 'source_id'),
+            source_ids)
+        Flashcard.objects.filter(id__in=previous).update(
+            archived=True, needs_regeneration=False)
 
 
 def generate_flashcards_for_sources(sources, user, count: int = 10,
@@ -208,19 +210,18 @@ def generate_flashcards_for_sources(sources, user, count: int = 10,
     """
     count = batch_size(count)
     source_ids = [s.id for s in sources]
-    tag = combined_source_tag(source_ids)
     # Every source in a request belongs to one notebook (the view filters them
     # by it), so the first one names the deck's owner.
     notebook = getattr(sources[0], 'notebook', None) if sources else None
 
-    cards = _generate_flashcards(sources, user, count, source_ids, tag, meta)
+    cards = _generate_flashcards(sources, user, count, source_ids, meta)
     if cards:
-        _replace_deck(cards, user, tag, notebook)
+        _replace_deck(cards, user, source_ids, notebook)
     return cards
 
 
 def _generate_flashcards(sources, user, count: int, source_ids: list[int],
-                         tag: str, meta: dict | None) -> list[Flashcard]:
+                         meta: dict | None) -> list[Flashcard]:
     """Run the provider cascade. Creates cards; does not retire anything."""
     # Validate + guard against thin sources up front, for every provider, so the
     # user gets one clear message instead of empty output or a silent fallback.
@@ -230,7 +231,7 @@ def _generate_flashcards(sources, user, count: int, source_ids: list[int],
 
     if _use_ml_primary():
         try:
-            cards = _generate_flashcards_ml(sources, user, count, tag)
+            cards = _generate_flashcards_ml(sources, user, count)
             _mark(meta, BY_EXTRACTIVE_ML)
             return cards
         except Exception as exc:
@@ -263,19 +264,19 @@ Excerpt:
     except GeminiNotConfiguredError as exc:
         if _use_local_fallback():
             _fell_back(meta, exc, 'Flashcard')
-            return fallback.generate_flashcards_fallback_multi(sources, user, count, tag)
+            return fallback.generate_flashcards_fallback_multi(sources, user, count)
         raise
     except (GeminiQuotaError, GeminiGenerationError) as exc:
         if _use_local_fallback() and (isinstance(exc, GeminiQuotaError) or is_quota_error(exc)):
             _fell_back(meta, exc, 'Flashcard')
-            return fallback.generate_flashcards_fallback_multi(sources, user, count, tag)
+            return fallback.generate_flashcards_fallback_multi(sources, user, count)
         if isinstance(exc, GeminiQuotaError):
             raise
         raise GeminiGenerationError(f'Flashcard generation failed: {exc}') from exc
     except Exception as exc:
         if _use_local_fallback():
             _fell_back(meta, exc, 'Flashcard')
-            return fallback.generate_flashcards_fallback_multi(sources, user, count, tag)
+            return fallback.generate_flashcards_fallback_multi(sources, user, count)
         raise GeminiGenerationError(f'Content generation failed: {exc}') from exc
 
 
@@ -284,7 +285,6 @@ def generate_quiz_for_sources(sources, user, question_count: int = 8,
     """Generate a quiz. Pass `meta` to learn which generator was used."""
     question_count = max(4, min(question_count, 15))
     source_ids = [s.id for s in sources]
-    tag = combined_source_tag(source_ids)
 
     # Validate + guard against thin sources up front, for every provider, so the
     # user gets one clear message instead of empty output or a silent fallback.
@@ -294,7 +294,7 @@ def generate_quiz_for_sources(sources, user, question_count: int = 8,
 
     if _use_ml_primary():
         try:
-            quiz = _generate_quiz_ml(sources, user, question_count, tag)
+            quiz = _generate_quiz_ml(sources, user, question_count)
             _mark(meta, BY_EXTRACTIVE_ML)
             return quiz
         except Exception as exc:
@@ -328,19 +328,19 @@ Excerpt:
     except GeminiNotConfiguredError as exc:
         if _use_local_fallback():
             _fell_back(meta, exc, 'Quiz')
-            return fallback.generate_quiz_fallback_multi(sources, user, question_count, tag)
+            return fallback.generate_quiz_fallback_multi(sources, user, question_count)
         raise
     except (GeminiQuotaError, GeminiGenerationError) as exc:
         if _use_local_fallback() and (isinstance(exc, GeminiQuotaError) or is_quota_error(exc)):
             _fell_back(meta, exc, 'Quiz')
-            return fallback.generate_quiz_fallback_multi(sources, user, question_count, tag)
+            return fallback.generate_quiz_fallback_multi(sources, user, question_count)
         if isinstance(exc, GeminiQuotaError):
             raise
         raise GeminiGenerationError(f'Quiz generation failed: {exc}') from exc
     except Exception as exc:
         if _use_local_fallback():
             _fell_back(meta, exc, 'Quiz')
-            return fallback.generate_quiz_fallback_multi(sources, user, question_count, tag)
+            return fallback.generate_quiz_fallback_multi(sources, user, question_count)
         raise GeminiGenerationError(f'Content generation failed: {exc}') from exc
 
     if not questions_data:
@@ -358,9 +358,7 @@ Excerpt:
         is_published=True,
     )
 
-    tag_note = f' [{tag}]'
-    quiz.description = (quiz.description or '') + tag_note
-    quiz.save(update_fields=['description'])
+    quiz.sources.set(source_ids)
 
     import random
     from .quiz_shaping import shape_quiz_question

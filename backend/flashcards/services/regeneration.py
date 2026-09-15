@@ -84,11 +84,13 @@ def replace_card(card, variant: dict):
             question=variant["question"],
             answer=variant["answer"],
             difficulty=variant.get("difficulty", "medium"),
-            tags=card.tags,
             is_public=False,
             origin=card,
             generation=card.generation + 1,
         )
+        # Inherited with the notebook: the replacement asks about the same
+        # documents, and the study page scopes by them.
+        replacement.sources.set(card.sources.all())
 
         # Unfiltered on purpose: a seed row is exactly what tells a replacement
         # when it is next due, so `.grades()` (which excludes seeds) would
