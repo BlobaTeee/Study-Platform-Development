@@ -11,6 +11,22 @@ venv/bin/python manage.py migrate
 pnpm dev:backend                                   # or: venv/bin/python manage.py runserver 8000
 ```
 
+## Tests
+
+Two suites, two interpreters — on purpose:
+
+```bash
+# API and model tests: real Postgres (a throwaway test_studyflow database),
+# Supabase bypassed, AI providers stubbed so nothing reaches the network.
+cd backend && ./venv/bin/pytest            # add --create-db after a migration change
+
+# Pure-function tests (ML pipeline, scheduling rules, timing): no Django.
+.venv/bin/pytest                           # from the repo root
+```
+
+The app role needs `CREATEDB` on the Postgres server for the first suite
+(`ALTER ROLE studyflow_user CREATEDB;` as a superuser, once).
+
 ## AI generation providers
 
 Flashcard/quiz generation goes through a pluggable provider, chosen by
