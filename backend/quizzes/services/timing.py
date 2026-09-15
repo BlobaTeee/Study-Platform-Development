@@ -28,3 +28,14 @@ def seconds_remaining(started_at, duration_minutes: int, now) -> int:
     """Whole seconds left, never negative — an overrun is simply out of time."""
     remaining = (deadline_for(started_at, duration_minutes) - now).total_seconds()
     return max(0, int(remaining))
+
+
+def plan_is_open(scheduled_for, now) -> bool:
+    """Whether a planned test may be started yet.
+
+    A plan is a "not before": the student booked a time so the paper would
+    wait for them, and letting it start early would turn planning back into
+    "start now" with extra steps. Inclusive at the booked instant, and never
+    closing afterwards — sitting a plan late is still sitting it.
+    """
+    return now >= scheduled_for

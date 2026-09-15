@@ -266,6 +266,17 @@ class MockTestViewSet(viewsets.ModelViewSet):
             if plan.sat_at is not None:
                 return Response(
                     {'detail': 'This planned test has already been sat.'}, status=400)
+            # Enforced here, not only by the disabled button: the client's
+            # clock is the student's to change. `opens_at` lets the client
+            # say when rather than just "no" if the two clocks disagree.
+            from django.utils import timezone
+            from .services.timing import plan_is_open
+            if not plan_is_open(plan.scheduled_for, timezone.now()):
+                opens = timezone.localtime(plan.scheduled_for)
+                return Response({
+                    'detail': f'This test opens at {opens:%H:%M on %d %b}.',
+                    'opens_at': plan.scheduled_for.isoformat(),
+                }, status=400)
 
         # Parse defensively rather than bare int(): a non-numeric value would
         # otherwise raise an unhandled ValueError (500) instead of a 400, and
