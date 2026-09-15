@@ -17,6 +17,12 @@ class Flashcard(models.Model):
         related_name='flashcards',
         help_text='Deleted along with its notebook.',
     )
+    # The documents this card was generated from. Empty for a card written by
+    # hand through the API. Deleting a source unlinks it here; the card stays.
+    sources = models.ManyToManyField(
+        'notebooks.Source', related_name='flashcards', blank=True,
+        help_text='The documents this card was generated from.',
+    )
     question = models.TextField()
     answer = models.TextField()
     difficulty = models.CharField(max_length=20, default='medium', choices=[('easy', 'Easy'), ('medium', 'Medium'), ('hard', 'Hard')])

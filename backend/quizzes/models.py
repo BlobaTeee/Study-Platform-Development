@@ -7,6 +7,12 @@ class Quiz(models.Model):
     topic = models.ForeignKey(Topic, on_delete=models.SET_NULL, null=True, related_name='quizzes')
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
+    # The documents this quiz was generated from; `description` used to carry
+    # this as a "[source:1,3]" suffix. Empty for a quiz authored directly.
+    sources = models.ManyToManyField(
+        'notebooks.Source', related_name='quizzes', blank=True,
+        help_text='The documents this quiz was generated from.',
+    )
     time_limit = models.IntegerField(default=0)
     is_public = models.BooleanField(default=False)
     is_published = models.BooleanField(default=False)
