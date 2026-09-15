@@ -1,7 +1,7 @@
 # Source Links as Relations — Design
 
 **Date:** 2026-09-15
-**Status:** Approved (design), pending implementation plan
+**Status:** Implemented 2026-09-15
 **Author:** pairing session
 
 ## Problem

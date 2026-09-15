@@ -10,7 +10,7 @@ class FlashcardViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['difficulty', 'topic', 'is_public']
-    search_fields = ['question', 'answer', 'tags']
+    search_fields = ['question', 'answer']
     ordering_fields = ['created_at', 'difficulty', 'views_count', 'correct_count']
     ordering = ['-created_at']
 
