@@ -94,22 +94,28 @@ of the selected sources (superset). For the pool, which already used
 
 ### Migration
 
-One migration per app, each in three steps within the file:
+Two migrations per app, so that every commit between them runs against a
+database in either state:
 
-1. `AddField` the M2M.
-2. `RunPython` forward: for each row, parse the old tag (`tags` on flashcards;
-   the `[source:…]` suffix on quiz descriptions), keep only ids that exist in
-   `notebooks.Source`, write the through rows. On quizzes, also strip the
-   suffix from `description`.
-3. `RemoveField tags` (flashcards only).
+1. **Add + copy** (first commit of the work): `AddField` the M2M, then
+   `RunPython` forward parses the old tag (`tags` on flashcards; the
+   `[source:…]` suffix on quiz descriptions), keeps only ids that exist in
+   `notebooks.Source`, and writes the through rows. The old columns are left
+   untouched, so code that still reads them keeps working.
+2. **Remove + strip** (last commit): `RemoveField tags` on flashcards;
+   `RunPython` on quizzes strips the ` [source:…]` suffix from `description`.
 
-`RunPython` reverse rebuilds the tag from the M2M (sorted ids, joined by
-commas; quizzes re-append ` [source:…]`) so `migrate <app> <previous>` yields
-the pre-change rows. Step 3 is naturally reversible by Django.
+Each `RunPython` has a reverse that rebuilds the tag from the M2M (sorted
+ids, comma-joined; quizzes re-append ` [source:…]` only if absent), so
+`migrate <app> <previous>` restores the pre-change rows for every item whose
+sources still exist. Ids that pointed at deleted sources are dropped on the
+way forward and cannot be restored — they are the orphans this change exists
+to stop carrying.
 
-The dev database has 40 flashcards and 15 quizzes, all tagged. The forward
-migration prints nothing; verification is a query after the fact (see
-Testing).
+The dev database has 40 flashcards and 15 quizzes, all tagged; measured before
+writing the plan, 20 flashcard links and 5 quiz links resolve to a live source,
+and 20 + 11 ids point at sources that no longer exist. The forward migration
+prints nothing; verification is a query after the fact (see Testing).
 
 ### Backend changes
 
@@ -172,11 +178,17 @@ product decision the study loop has not asked for; it is not made here.
   `quiz_description`. The three `parse_source_ids` tests are removed with the
   function. All `per_source_mastery` / `per_notebook_mastery` tests are
   unaffected — they already build events with `source_ids`.
-- **Migration, on the dev database**: after `migrate`, the count of through
-  rows for flashcards equals the count of ids across all old tags (computed
-  before migrating and recorded in the plan), no `Quiz.description` contains
-  `[source:`, and `migrate flashcards 0005` + `migrate quizzes 0004` then
-  `migrate` again round-trips to identical rows.
+- **Migration, on the dev database**: after the add + copy migrations,
+  `Flashcard.sources.through` has 20 rows and `Quiz.sources.through` has 5
+  (the live-source links measured above); after the remove + strip
+  migrations, no `Quiz.description` contains `[source:`. Rolling back to
+  `flashcards 0005` / `quizzes 0004` and forward again leaves every item
+  whose ids resolved unchanged; items that only carried orphan ids come back
+  with no tag, which is the expected loss.
+- **Deck retirement (`_replace_deck`)**: exercised directly in a shell
+  transaction — two cards handed to `_replace_deck` for selection `[9]`, then
+  two more for the same selection: the first two are archived, the second two
+  live, and cards of selection `[9, 11]` untouched.
 - **ORM semantics, by request (APIClient, rolled back)**: generate → the
   existing-count endpoint reports the deck; generate again → the previous deck
   is archived and the count is unchanged; a card of `[1, 3]` is returned for
