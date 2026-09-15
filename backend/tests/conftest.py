@@ -30,6 +30,37 @@ def _isolated_cache():
     cache.clear()
 
 
+class _NoProvider:
+    """Stands in for Gemini/Ollama: every call fails at once, with the error
+    the code already treats as "provider unavailable"."""
+    name = 'none'
+
+    def generate_json(self, prompt):
+        from notebooks.services.gemini_client import GeminiNotConfiguredError
+        raise GeminiNotConfiguredError('no provider in tests')
+
+    def summarize(self, text, title=''):
+        raise RuntimeError('no provider in tests')
+
+
+@pytest.fixture(autouse=True)
+def _no_outside_generation(settings, monkeypatch):
+    """No test may reach a real provider or the spaCy pipeline.
+
+    A mock test started against an empty pool tops itself up by generating;
+    a due-cards fetch may regenerate a flagged card. Left alone, either would
+    call Gemini or Ollama and wait on the network for a minute. With the
+    provider stubbed and the local fallback off, generation fails fast and
+    the view answers with whatever it does when nothing can be generated.
+    """
+    settings.USE_ML_PRIMARY = False
+    settings.USE_LOCAL_FALLBACK_ON_QUOTA = False
+    for target in ('notebooks.services.generate.get_ai_provider',
+                   'notebooks.services.ai_provider.get_ai_provider',
+                   'notebooks.services.ingest.get_ai_provider'):
+        monkeypatch.setattr(target, lambda: _NoProvider())
+
+
 @pytest.fixture
 def user(db):
     u = User.objects.create_user(username='supabase:test-user', email='student@example.com')
