@@ -119,3 +119,30 @@ def test_scores_are_reported_for_the_notebook_and_the_log(monkeypatch):
     out = sa.grade("gas", "carbon dioxide", Q, D, "support", scorer)
     assert out["scores"] == {"typed": 0.5, "reference": 0.9, "distractor_max": 0.3,
                              "similarity": sa.string_similarity("gas", "carbon dioxide")}
+
+
+# ---- the shipped thresholds are the measured ones -------------------------------
+
+def test_thresholds_match_the_notebook_report():
+    import json
+    report = Path(__file__).resolve().parents[1] / "ml_pipeline" / "reports" / "short_answer_metrics.json"
+    chosen = json.loads(report.read_text())["chosen"]
+    assert sa.T_STRING == chosen["T_STRING"]
+    assert sa.T_RATIO == chosen["T_RATIO"]
+    assert chosen["precision"] >= 0.9, "the notebook's own acceptance bar"
+
+
+# ---- no support: the scorer may doubt, not certify ---------------------------------
+
+def test_without_support_the_scorer_can_only_say_near_or_wrong(monkeypatch):
+    # Measured in notebook 04: with no passage the scorer ranks an unrelated
+    # answer above the reference for ~12% of negatives, at any T_RATIO. So a
+    # scorer "correct" needs a passage; without one the best it can do is
+    # hand the case to the LLM tier / the override as `near`.
+    monkeypatch.setattr(sa, "T_RATIO", 0.6)
+    scorer = StubScorer({"co2 gas": 0.95, "carbon dioxide": 0.9,
+                         "oxygen": 0.3, "nitrogen": 0.2, "argon": 0.1})
+    out = sa.grade("co2 gas", "carbon dioxide", Q, D, "", scorer)
+    assert (out["verdict"], out["how"]) == ("near", "scorer")
+    out = sa.grade("co2 gas", "carbon dioxide", Q, D, "Plants absorb carbon dioxide.", scorer)
+    assert out["verdict"] == "correct"

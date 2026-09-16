@@ -1,0 +1,68 @@
+{
+  "chosen": {
+    "T_STRING": 0.8,
+    "T_RATIO": 0.6,
+    "precision": 0.9851,
+    "recall": 0.9938,
+    "f1": 0.9894,
+    "near_rate": 0.0
+  },
+  "components": {
+    "exact": {
+      "precision": 1.0,
+      "recall": 0.6506,
+      "f1": 0.7883,
+      "near_rate": 0.0,
+      "near_rate_neg": 0.0
+    },
+    "string": {
+      "precision": 0.9804,
+      "recall": 0.313,
+      "f1": 0.4745,
+      "near_rate": 0.0,
+      "near_rate_neg": 0.0
+    },
+    "distractor": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "near_rate": 0.0,
+      "near_rate_neg": 0.0
+    },
+    "scorer": {
+      "precision": 0.7736,
+      "recall": 0.0301,
+      "f1": 0.058,
+      "near_rate": 0.0,
+      "near_rate_neg": 0.0433
+    },
+    "cascade": {
+      "precision": 0.9851,
+      "recall": 0.9938,
+      "f1": 0.9894,
+      "near_rate": 0.0,
+      "near_rate_neg": 0.0433
+    }
+  },
+  "no_support": {
+    "precision": 0.9936,
+    "recall": 0.9636,
+    "f1": 0.9784,
+    "near_rate": 0.0114,
+    "near_rate_neg": 0.1019
+  },
+  "llm": {
+    "n": 60,
+    "accuracy": 1.0,
+    "mean_latency_s": 0.35,
+    "near_share": 0.0245
+  },
+  "n_positive": 2722,
+  "n_negative": 3533,
+  "split": "test",
+  "criterion": "precision >= 0.90 with and without support, then max F1",
+  "caveats": [
+    "Positives are synthetic variants of the reference; most are settled by the exact and string rules, so the scorer and LLM tiers are exercised mainly by negatives.",
+    "No synthetic positive landed in the near band, so the LLM accuracy above reflects only its ability to reject wrong answers; its ability to accept a true paraphrase is unmeasured here and is what the in-app override log will show."
+  ]
+}

@@ -17,8 +17,8 @@ from difflib import SequenceMatcher
 # Thresholds set from ml_pipeline/notebooks/04_short_answer_grading.ipynb —
 # see reports/short_answer_metrics.json["chosen"]. tests/test_short_answer.py
 # asserts these equal the report, so change both together.
-T_STRING = 0.8   # placeholder until the notebook has run (Task 2)
-T_RATIO = 0.8    # placeholder until the notebook has run (Task 2)
+T_STRING = 0.8   # notebook 04, SciQ test (2,722 pos / 3,533 neg): cascade precision
+T_RATIO = 0.6    # 0.985 / recall 0.994 with support; 0.994 / 0.964 without.
 
 _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+")
 _NON_WORD = re.compile(r"[^\w\s]")
@@ -72,7 +72,12 @@ def grade(typed: str, reference: str, question: str, distractors: list[str],
     s_dmax = max((ranked[d] for d in distractors), default=0.0)
     scores = {"typed": s_typed, "reference": s_ref, "distractor_max": s_dmax,
               "similarity": similarity}
-    if s_typed >= s_dmax and s_typed >= T_RATIO * s_ref:
+    # A scorer "correct" needs a passage to rank against. Without one its only
+    # evidence is overlap with the question and length, and notebook 04 found
+    # it then ranks an unrelated answer above the reference for ~12% of wrong
+    # answers at any T_RATIO — so with no support the most it may say is
+    # "near", which hands the case to the LLM tier or the student's override.
+    if support.strip() and s_typed >= s_dmax and s_typed >= T_RATIO * s_ref:
         return _verdict("correct", "scorer", scores)
     if s_typed >= s_dmax:
         return _verdict("near", "scorer", scores)
