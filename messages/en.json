@@ -215,5 +215,33 @@
     "difficultyEasy": "easy",
     "difficultyMedium": "medium",
     "difficultyHard": "hard"
+  },
+  "quizzes": {
+    "title": "Quiz",
+    "loading": "Loading quiz…",
+    "noneForSource": "No quiz for this source yet.",
+    "generateFromNotebooks": "Generate from Notebooks",
+    "backToSources": "Back to sources",
+    "complete": "Quiz complete",
+    "scoreLine": "{score} / {total} correct ({pct}%)",
+    "questionOf": "Question {n} of {total}",
+    "typeAnswers": "Type answers",
+    "sources": "Sources",
+    "typeYourAnswer": "Type your answer",
+    "yourAnswer": "Your answer",
+    "checking": "Checking…",
+    "checkAnswer": "Check answer",
+    "finish": "Finish",
+    "nextQuestion": "Next question",
+    "true": "True",
+    "false": "False",
+    "typedUnavailable": "Typed grading isn't available right now — pick an answer instead.",
+    "gradeFailed": "Could not grade that answer. Check your connection and try again.",
+    "overrideFailed": "Could not record that. Try again.",
+    "correct": "Correct",
+    "close": "Close",
+    "notQuite": "Not quite",
+    "theAnswerIs": "The answer is <b>{answer}</b>.",
+    "iWasRight": "I was right"
   }
 }

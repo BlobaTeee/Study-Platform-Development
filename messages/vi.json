@@ -215,5 +215,33 @@
     "difficultyEasy": "dễ",
     "difficultyMedium": "trung bình",
     "difficultyHard": "khó"
+  },
+  "quizzes": {
+    "title": "Bài kiểm tra",
+    "loading": "Đang tải bài kiểm tra…",
+    "noneForSource": "Chưa có bài kiểm tra cho tài liệu này.",
+    "generateFromNotebooks": "Tạo từ Sổ tay",
+    "backToSources": "Về tài liệu",
+    "complete": "Hoàn thành bài kiểm tra",
+    "scoreLine": "Đúng {score} / {total} ({pct}%)",
+    "questionOf": "Câu {n} / {total}",
+    "typeAnswers": "Gõ câu trả lời",
+    "sources": "Tài liệu",
+    "typeYourAnswer": "Gõ câu trả lời của bạn",
+    "yourAnswer": "Câu trả lời của bạn",
+    "checking": "Đang chấm…",
+    "checkAnswer": "Kiểm tra",
+    "finish": "Hoàn thành",
+    "nextQuestion": "Câu tiếp",
+    "true": "Đúng",
+    "false": "Sai",
+    "typedUnavailable": "Hiện chưa chấm được câu trả lời tự gõ — hãy chọn đáp án.",
+    "gradeFailed": "Không chấm được câu trả lời. Kiểm tra kết nối rồi thử lại.",
+    "overrideFailed": "Không ghi nhận được. Hãy thử lại.",
+    "correct": "Đúng",
+    "close": "Gần đúng",
+    "notQuite": "Chưa đúng",
+    "theAnswerIs": "Đáp án là <b>{answer}</b>.",
+    "iWasRight": "Tôi đúng mà"
   }
 }

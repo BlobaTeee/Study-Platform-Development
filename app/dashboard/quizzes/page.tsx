@@ -10,6 +10,7 @@ import { quizzesAPI } from '@/lib/api'
 import { parseSourceIdsParam, hasAllSources } from '@/lib/source-utils'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { SourceRequired } from '@/components/source-required'
+import { useTranslations } from 'next-intl'
 import { ArrowRight, BookOpen, CheckCircle2, ChevronLeft, CircleDashed, Keyboard, XCircle } from 'lucide-react'
 
 type Question = {
@@ -42,6 +43,7 @@ type Graded = {
 const TYPED_MODE_KEY = 'quiz-typed-mode'
 
 function QuizzesStudy() {
+  const t = useTranslations('quizzes')
   const searchParams = useSearchParams()
   const sourceParam = searchParams.get('source')
   const sourceIds = useMemo(() => parseSourceIdsParam(sourceParam), [sourceParam])
@@ -135,7 +137,7 @@ function QuizzesStudy() {
   const question: Question | undefined = questions[qIndex]
   const options =
     question?.question_type === 'true_false' && (!question.options?.length)
-      ? ['True', 'False']
+      ? ['True', 'False'] // stored values; shown through optionLabel()
       : question?.options ?? []
 
   const handleSubmit = async () => {
@@ -174,9 +176,9 @@ function QuizzesStudy() {
         // No model on this server: fall back to choices for good this session.
         setTypedUnavailable(true)
         setTypedMode(false)
-        setTypedError("Typed grading isn't available right now — pick an answer instead.")
+        setTypedError(t('typedUnavailable'))
       } else {
-        setTypedError('Could not grade that answer. Check your connection and try again.')
+        setTypedError(t('gradeFailed'))
       }
     } finally {
       setGrading(false)
@@ -190,7 +192,7 @@ function QuizzesStudy() {
       setGraded({ ...graded, is_correct: true })
       setScore((s) => s + 1)
     } catch {
-      setTypedError('Could not record that. Try again.')
+      setTypedError(t('overrideFailed'))
     }
   }
 
@@ -237,16 +239,16 @@ function QuizzesStudy() {
   }
 
   if (isLoading || starting) {
-    return <p className="text-xl text-slate-500 text-center py-20">Loading quiz…</p>
+    return <p className="text-xl text-slate-500 text-center py-20">{t('loading')}</p>
   }
 
   if (!quiz || questions.length === 0) {
     return (
       <div className="text-center py-20 max-w-md mx-auto">
         <BookOpen className="size-16 text-slate-300 mx-auto mb-4" />
-        <p className="text-xl text-slate-600 mb-6">No quiz for this source yet.</p>
+        <p className="text-xl text-slate-600 mb-6">{t('noneForSource')}</p>
         <Button asChild size="lg" className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 text-lg">
-          <Link href="/dashboard/notebooks">Generate from Notebooks</Link>
+          <Link href="/dashboard/notebooks">{t('generateFromNotebooks')}</Link>
         </Button>
       </div>
     )
@@ -257,13 +259,13 @@ function QuizzesStudy() {
     return (
       <div className="rise max-w-2xl mx-auto text-center space-y-8 py-12">
         <CheckCircle2 className="size-20 text-mode-analytics mx-auto" />
-        <h1 className="font-display text-3xl font-semibold text-slate-900">Quiz complete</h1>
+        <h1 className="font-display text-3xl font-semibold text-slate-900">{t('complete')}</h1>
         <p className="font-mono text-2xl text-slate-600 tabular-nums">
-          {score} / {questions.length} correct ({pct}%)
+          {t('scoreLine', { score, total: questions.length, pct })}
         </p>
         <div className="flex gap-4 justify-center flex-wrap">
           <Button asChild size="lg" className="h-12 text-lg bg-mode-quizzes hover:bg-mode-quizzes-hover text-white">
-            <Link href="/dashboard/notebooks">Back to sources</Link>
+            <Link href="/dashboard/notebooks">{t('backToSources')}</Link>
           </Button>
         </div>
       </div>
@@ -279,11 +281,11 @@ function QuizzesStudy() {
       <div className="rise border-t-[3px] border-mode-quizzes pt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
-            Quiz
+            {t('title')}
           </p>
           <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">{quiz.title}</h1>
           <p className="font-mono text-sm text-slate-500 mt-1 tabular-nums">
-            Question {qIndex + 1} of {questions.length}
+            {t('questionOf', { n: qIndex + 1, total: questions.length })}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -301,13 +303,13 @@ function QuizzesStudy() {
               }
             >
               <Keyboard className="size-5 mr-1.5" aria-hidden />
-              Type answers
+              {t('typeAnswers')}
             </Button>
           )}
           <Button asChild variant="outline" size="lg" className="text-lg h-11">
             <Link href="/dashboard/notebooks">
               <ChevronLeft className="size-5 mr-1" />
-              Sources
+              {t('sources')}
             </Link>
           </Button>
         </div>
@@ -344,8 +346,8 @@ function QuizzesStudy() {
                 autoFocus
                 value={typed}
                 onChange={(e) => setTyped(e.target.value)}
-                placeholder="Type your answer"
-                aria-label="Your answer"
+                placeholder={t('typeYourAnswer')}
+                aria-label={t('yourAnswer')}
                 className="w-full rounded-xl border-2 border-slate-200 bg-white px-5 py-4 text-lg text-slate-900 focus:border-mode-quizzes focus:outline-none"
               />
             ) : graded ? (
@@ -371,7 +373,7 @@ function QuizzesStudy() {
                   onClick={() => setSelected(opt)}
                   className={`w-full text-left rounded-xl border-2 px-5 py-4 text-lg text-slate-900 transition-colors ${style}`}
                 >
-                  {opt}
+                  {optionLabel(opt, t)}
                 </button>
               )
             })}
@@ -391,7 +393,7 @@ function QuizzesStudy() {
             onClick={typedMode ? handleCheckTyped : handleSubmit}
             className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 px-10 text-lg"
           >
-            {grading ? 'Checking…' : 'Check answer'}
+            {grading ? t('checking') : t('checkAnswer')}
           </Button>
         ) : (
           <Button
@@ -399,7 +401,7 @@ function QuizzesStudy() {
             onClick={handleNext}
             className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 px-10 text-lg"
           >
-            {qIndex >= questions.length - 1 ? 'Finish' : 'Next question'}
+            {qIndex >= questions.length - 1 ? t('finish') : t('nextQuestion')}
             <ArrowRight className="size-5 ml-2" />
           </Button>
         )}
@@ -428,11 +430,12 @@ function TypedVerdict({
   graded: Graded
   onOverride: () => void
 }) {
+  const t = useTranslations('quizzes')
   const state = graded.is_correct
-    ? { icon: CheckCircle2, word: 'Correct', tone: 'border-emerald-400 bg-emerald-50 text-emerald-900', iconTone: 'text-emerald-600' }
+    ? { icon: CheckCircle2, word: t('correct'), tone: 'border-emerald-400 bg-emerald-50 text-emerald-900', iconTone: 'text-emerald-600' }
     : graded.verdict === 'near'
-      ? { icon: CircleDashed, word: 'Close', tone: 'border-amber-400 bg-amber-50 text-amber-900', iconTone: 'text-amber-600' }
-      : { icon: XCircle, word: 'Not quite', tone: 'border-red-300 bg-red-50 text-red-900', iconTone: 'text-red-600' }
+      ? { icon: CircleDashed, word: t('close'), tone: 'border-amber-400 bg-amber-50 text-amber-900', iconTone: 'text-amber-600' }
+      : { icon: XCircle, word: t('notQuite'), tone: 'border-red-300 bg-red-50 text-red-900', iconTone: 'text-red-600' }
   const Icon = state.icon
   return (
     <div className="space-y-4">
@@ -445,7 +448,10 @@ function TypedVerdict({
       </div>
       {!graded.is_correct && (
         <p className="text-lg text-slate-900">
-          The answer is <span className="font-semibold">{graded.reference_answer}</span>.
+          {t.rich('theAnswerIs', {
+            answer: graded.reference_answer,
+            b: (chunks) => <span className="font-semibold">{chunks}</span>,
+          })}
         </p>
       )}
       {graded.explanation && (
@@ -457,9 +463,17 @@ function TypedVerdict({
           onClick={onOverride}
           className="text-base text-slate-600 underline underline-offset-4 hover:text-slate-900"
         >
-          I was right <span className="font-mono text-xs text-slate-400">(r)</span>
+          {t('iWasRight')} <span className="font-mono text-xs text-slate-400">(r)</span>
         </button>
       )}
     </div>
   )
+}
+
+/** True/false options are stored as the English words the grader compares
+ *  against; only their display changes with the language. */
+function optionLabel(option: string, t: (key: string) => string): string {
+  if (option === 'True') return t('true')
+  if (option === 'False') return t('false')
+  return option
 }
