@@ -1,7 +1,7 @@
 # Language Switch (English / Tiếng Việt) — Design
 
 **Date:** 2026-09-17
-**Status:** Approved (design), pending implementation plan
+**Status:** Implemented 2026-09-17
 **Author:** pairing session
 
 ## Problem
@@ -164,3 +164,20 @@ Subject: *Bài thi thử {notebook} sắp tới*.
   (question text is content, not chrome).
 - A third language: add `messages/<code>.json`, a `.po`, and the
   `LANGUAGES` entry; the switch grows a segment.
+
+## Notes from implementation
+
+- Left in English on purpose: "StudyFlow", "Email" (a loanword), file-format
+  names (PDF · Word (.docx) · PowerPoint (.pptx)), the `(r)` key hint, and
+  `app/developer` (a developer-only page of links).
+- True/False quiz options are stored as the English words the grader
+  compares against; only their display is translated (`optionLabel`).
+- The parity test learned three things the design did not anticipate: an
+  ICU plural *selector* may be dropped in Vietnamese when the number is
+  shown elsewhere; words inside a plural branch are not placeholders; a
+  message made only of placeholders has nothing to translate.
+- Vietnamese "narrow" weekdays come out as T2…CN from `Intl`, which is the
+  right label for the activity strip.
+- Generation error messages that pass through `str(exc)` are translated
+  only for the source guard ("too short…", the one students meet); provider
+  failures stay as raised.

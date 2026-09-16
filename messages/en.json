@@ -20,7 +20,9 @@
     "onDate": "on {date}",
     "notStudied": "Not studied",
     "confirm": "Confirm",
-    "sources": "{count, plural, one {# source} other {# sources}}"
+    "sources": "{count, plural, one {# source} other {# sources}}",
+    "metaTitle": "StudyFlow — Smart Study Platform",
+    "metaDescription": "Turn your own notes into flashcards, quizzes and mock tests you can learn from."
   },
   "nav": {
     "home": "Home",

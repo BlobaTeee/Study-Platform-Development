@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Fraunces, IBM_Plex_Mono, Open_Sans } from 'next/font/google'
 import { NextIntlClientProvider } from 'next-intl'
-import { getLocale } from 'next-intl/server'
+import { getLocale, getTranslations } from 'next-intl/server'
 import { AuthProvider } from '@/lib/auth-context'
 import './globals.css'
 
@@ -25,12 +25,15 @@ const plexMono = IBM_Plex_Mono({
   weight: ['500', '600'],
 })
 
-export const metadata: Metadata = {
-  title: 'StudyFlow - Smart Study Platform',
-  description: 'Master your studies with flashcards, quizzes, and comprehensive learning tools',
-  icons: {
-    icon: '/icon.svg',
-  },
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('common')
+  return {
+    title: t('metaTitle'),
+    description: t('metaDescription'),
+    icons: {
+      icon: '/icon.svg',
+    },
+  }
 }
 
 export default async function RootLayout({

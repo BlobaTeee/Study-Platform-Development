@@ -20,7 +20,9 @@
     "onDate": "vào {date}",
     "notStudied": "Chưa ôn",
     "confirm": "Xác nhận",
-    "sources": "{count} tài liệu"
+    "sources": "{count} tài liệu",
+    "metaTitle": "StudyFlow — Nền tảng học tập thông minh",
+    "metaDescription": "Biến ghi chú của bạn thành thẻ, bài kiểm tra và bài thi thử để học hiệu quả."
   },
   "nav": {
     "home": "Trang chủ",
