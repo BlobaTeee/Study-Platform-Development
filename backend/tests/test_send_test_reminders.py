@@ -192,3 +192,20 @@ def test_an_unknown_timezone_on_the_profile_falls_back_to_the_servers(settings, 
 
     (_, body, _, _), = sent
     assert '+07' in body
+
+
+# ---- the log can be read back later ------------------------------------------
+
+def test_every_line_is_stamped_with_the_run_time(settings, sent, user, notebook):
+    # The command runs from a scheduler into a log file; a line without a
+    # time cannot be matched to the plan it was about.
+    import re
+    settings.EMAIL_BACKEND = SMTP
+    _plan(user, notebook, hours_ahead=0.5)
+    _plan(user, notebook, hours_ahead=-1)   # also produces a stderr line
+
+    out, err = _run()
+
+    lines = [l for l in (out + err).splitlines() if l.strip()]
+    assert lines, 'expected some output'
+    assert all(re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ', l) for l in lines), lines

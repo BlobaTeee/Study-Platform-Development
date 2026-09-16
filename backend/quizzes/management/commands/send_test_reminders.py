@@ -41,6 +41,21 @@ def _user_zone(user):
         return ZoneInfo(settings.TIME_ZONE)
 
 
+class _Stamped:
+    """Prefix every line with the run's time.
+
+    The command runs from a scheduler into a log file. A line like "Sent 1
+    reminder(s)." with no time next to it cannot be matched to the plan it
+    was about, which is what made a silent SMTP failure take an afternoon
+    to date.
+    """
+    def __init__(self, wrapped, stamp):
+        self._wrapped, self._stamp = wrapped, stamp
+
+    def write(self, msg='', *args, **kwargs):
+        self._wrapped.write(f'{self._stamp} {msg}', *args, **kwargs)
+
+
 class Command(BaseCommand):
     help = 'Email reminders for planned tests whose lead time has arrived.'
 
@@ -52,6 +67,9 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         now = timezone.now()
         dry_run = options['dry_run']
+        stamp = timezone.localtime(now).strftime('%Y-%m-%d %H:%M:%S')
+        self.stdout = _Stamped(self.stdout, stamp)
+        self.stderr = _Stamped(self.stderr, stamp)
 
         # reminder_skipped_at__isnull=True bounds this query: without it, a
         # single plan a cron outage (or a userless email) has stamped skipped
