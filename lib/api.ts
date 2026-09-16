@@ -173,6 +173,7 @@ export const analyticsAPI = {
   // How much study is owed, plus per-document mastery — both derived from the
   // user's own record. Returns counts, never card questions.
   getRecommendations: () => api.get('/analytics/sessions/recommendations/'),
+  getActivity: () => api.get('/analytics/sessions/activity/'),
 }
 
 

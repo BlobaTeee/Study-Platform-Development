@@ -7,28 +7,14 @@ import useSWR from 'swr'
 import { analyticsAPI } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { type Due, dueBreakdown, caughtUpMessage } from '@/lib/study-format'
+import { ActivityStrip, type ActivityDay, type ActivitySummary } from '@/components/activity-strip'
 import {
   ArrowRight,
   BarChart3,
-  BookMarked,
   BookOpen,
-  FileText,
   Loader2,
   Target,
-  TrendingUp,
-  Zap,
 } from 'lucide-react'
-
-type Summary = {
-  flashcards_count: number
-  quizzes_count: number
-  quiz_attempts_completed: number
-  average_quiz_score: number | null
-  flashcard_reviews: number
-  flashcard_correct: number
-  flashcard_incorrect: number
-  flashcard_accuracy: number | null
-}
 
 type WeakNotebook = {
   notebook_id: number
@@ -51,13 +37,17 @@ function notebookRecord(n: WeakNotebook): string {
 }
 
 export default function AnalyticsPage() {
-  const { data: summaryRes } = useSWR(['/analytics/summary'], () => analyticsAPI.getSummary())
   const { data: recsRes, isLoading: recsLoading } = useSWR(
     ['/analytics/recommendations'],
     () => analyticsAPI.getRecommendations()
   )
-
-  const summary: Summary | undefined = summaryRes?.data
+  const { data: activityRes } = useSWR(['/analytics/activity'], () => analyticsAPI.getActivity())
+  const activityDays: ActivityDay[] = activityRes?.data?.days ?? []
+  const activitySummary: ActivitySummary = activityRes?.data?.summary ?? {
+    reviews: 0,
+    accuracy: null,
+    mock_tests: 0,
+  }
   const due: Due = recsRes?.data?.due ?? {
     due: 0,
     overdue: 0,
@@ -67,24 +57,6 @@ export default function AnalyticsPage() {
   }
   const ready = due.due + due.new
   const weakNotebooks: WeakNotebook[] = recsRes?.data?.weak_notebooks ?? []
-
-  const stats = [
-    { label: 'Flashcards', value: summary?.flashcards_count ?? '—', icon: BookMarked, color: 'text-mode-flashcards' },
-    { label: 'Reviews', value: summary?.flashcard_reviews ?? '—', icon: Zap, color: 'text-mode-flashcards' },
-    {
-      label: 'Recall accuracy',
-      value: summary?.flashcard_accuracy != null ? `${summary.flashcard_accuracy}%` : '—',
-      icon: Target,
-      color: 'text-mode-analytics',
-    },
-    {
-      label: 'Avg quiz score',
-      value: summary?.average_quiz_score != null ? `${summary.average_quiz_score}%` : '—',
-      icon: TrendingUp,
-      color: 'text-mode-quizzes',
-    },
-    { label: 'Quizzes taken', value: summary?.quiz_attempts_completed ?? '—', icon: FileText, color: 'text-mode-quizzes' },
-  ]
 
   return (
     <div className="space-y-8 max-w-5xl">
@@ -97,29 +69,23 @@ export default function AnalyticsPage() {
           Your progress
         </h1>
         <p className="text-lg text-slate-500 mt-2 text-pretty">
-          What your schedule says is due, and where you&apos;re weakest — from your own
-          study record.
+          What your schedule says is due, how the last two weeks went, and where
+          you&apos;re weakest — from your own study record.
         </p>
       </div>
 
-      {/* Summary strip: one panel, hairline-divided cells (1px gap over a
-          slate backing) — an instrument readout rather than floating tiles. */}
-      <dl className="rise grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sheet" style={{ animationDelay: '60ms' }}>
-        {stats.map((stat) => {
-          const Icon = stat.icon
-          return (
-            <div key={stat.label} className="bg-white p-5">
-              <dt className="flex items-center gap-2 text-slate-500 text-sm">
-                <Icon className={`size-4 ${stat.color} shrink-0`} />
-                <span className="truncate">{stat.label}</span>
-              </dt>
-              <dd className="font-mono text-3xl font-semibold text-slate-900 tabular-nums mt-2">
-                {stat.value}
-              </dd>
-            </div>
-          )
-        })}
-      </dl>
+      {/* Fourteen days, one column each. Replaces the lifetime-total tiles
+          that used to sit here: those never changed from one visit to the
+          next, and could not answer "am I getting anywhere?" */}
+      <Card className="rise border-slate-200 shadow-sheet p-6" style={{ animationDelay: '60ms' }}>
+        {activityDays.length === 0 ? (
+          <div className="flex items-center gap-2 text-slate-500 py-2">
+            <Loader2 className="size-4 animate-spin" /> Loading…
+          </div>
+        ) : (
+          <ActivityStrip days={activityDays} summary={activitySummary} />
+        )}
+      </Card>
 
       {/* Review next — the page's one action. A count and a button: there is
           nothing to decide between cards, and showing their questions here would
