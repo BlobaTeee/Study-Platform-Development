@@ -7,6 +7,8 @@ Run on a schedule (cron or launchd), e.g. every fifteen minutes:
 Safe to run as often as you like: each plan's `reminder_sent_at` is stamped as
 it is sent, so a second run finds nothing to do.
 """
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from django.conf import settings
 from django.core.mail import send_mail
 from django.core.management.base import BaseCommand
@@ -29,6 +31,16 @@ NON_DELIVERING_EMAIL_BACKENDS = {
 }
 
 
+def _user_zone(user):
+    """The zone the student reads the clock in; the server's if theirs is
+    missing or no longer resolves (tzdata does retire names)."""
+    name = getattr(getattr(user, 'profile', None), 'timezone', '') or settings.TIME_ZONE
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return ZoneInfo(settings.TIME_ZONE)
+
+
 class Command(BaseCommand):
     help = 'Email reminders for planned tests whose lead time has arrived.'
 
@@ -49,7 +61,7 @@ class Command(BaseCommand):
             PlannedTest.objects.filter(
                 reminder_sent_at__isnull=True,
                 reminder_skipped_at__isnull=True,
-            ).select_related('user', 'notebook')
+            ).select_related('user', 'user__profile', 'notebook')
         )
         rows = [{
             'id': plan.id,
@@ -120,7 +132,7 @@ class Command(BaseCommand):
 
             subject, body = build_reminder(
                 notebook_title=plan.notebook.title,
-                scheduled_for=timezone.localtime(plan.scheduled_for),
+                scheduled_for=timezone.localtime(plan.scheduled_for, _user_zone(plan.user)),
                 question_count=plan.question_count,
                 duration_minutes=plan.duration_minutes,
                 url=f'{settings.FRONTEND_URL}/dashboard/tests',

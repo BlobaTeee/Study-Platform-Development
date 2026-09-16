@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth-context'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { authAPI } from '@/lib/api'
 import { AppSidebar, MobileNavBar } from '@/components/dashboard-sidebar'
 
 export default function DashboardLayout({
@@ -23,6 +24,33 @@ export default function DashboardLayout({
       router.push('/login')
     }
   }, [user, loading, router])
+
+  // Tell the API which clock this student reads, so reminder emails state
+  // the test time in it rather than in the server's zone. Once per browser
+  // session: the zone does not change under a running tab, and a PUT on
+  // every navigation would be noise. Failure is silent — the profile keeps
+  // its previous zone and the next session tries again.
+  useEffect(() => {
+    if (!user) return
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    if (!zone) return
+    const key = `tz-synced:${user.id}:${zone}`
+    try {
+      if (sessionStorage.getItem(key)) return
+    } catch {
+      /* private mode: just sync every load */
+    }
+    authAPI
+      .updateProfile({ timezone: zone })
+      .then(() => {
+        try {
+          sessionStorage.setItem(key, '1')
+        } catch {
+          /* ignore */
+        }
+      })
+      .catch(() => {})
+  }, [user])
 
   if (loading) {
     return (

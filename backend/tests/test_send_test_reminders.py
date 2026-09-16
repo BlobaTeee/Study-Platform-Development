@@ -151,3 +151,44 @@ def test_dry_run_reports_without_sending_or_stamping(settings, sent, user, noteb
     assert sent == []
     plan.refresh_from_db()
     assert plan.reminder_sent_at is None
+
+
+# ---- the time in the mail is the student's, not the server's ----------------
+
+def test_the_reminder_states_the_time_in_the_users_own_timezone(settings, sent, user, notebook):
+    settings.EMAIL_BACKEND = SMTP
+    settings.TIME_ZONE = 'Asia/Ho_Chi_Minh'
+    user.profile.timezone = 'Europe/London'
+    user.profile.save(update_fields=['timezone'])
+    from datetime import datetime, timezone as tz
+    plan = _plan(user, notebook, hours_ahead=0.5)
+    # Pin the booked instant so the expected wall-clock time is exact:
+    # 2026-09-16 14:00 UTC is 15:00 in London (BST) and 21:00 in Ho Chi Minh.
+    PlannedTest.objects.filter(id=plan.id).update(
+        scheduled_for=datetime(2026, 9, 16, 14, 0, tzinfo=tz.utc),
+        reminder_lead_hours=72)
+    monkey_now = datetime(2026, 9, 16, 13, 30, tzinfo=tz.utc)
+    import quizzes.management.commands.send_test_reminders as cmd
+    orig = cmd.timezone.now
+    cmd.timezone.now = lambda: monkey_now
+    try:
+        _run()
+    finally:
+        cmd.timezone.now = orig
+
+    (_, body, _, _), = sent
+    assert 'When: 16 September 2026 at 15:00 BST' in body
+    assert '21:00' not in body
+
+
+def test_an_unknown_timezone_on_the_profile_falls_back_to_the_servers(settings, sent, user, notebook):
+    settings.EMAIL_BACKEND = SMTP
+    settings.TIME_ZONE = 'Asia/Ho_Chi_Minh'
+    from users.models import UserProfile
+    UserProfile.objects.filter(user=user).update(timezone='Mars/Olympus_Mons')
+    _plan(user, notebook, hours_ahead=0.5)
+
+    _run()
+
+    (_, body, _, _), = sent
+    assert '+07' in body
