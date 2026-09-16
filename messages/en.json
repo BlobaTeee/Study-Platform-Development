@@ -1,0 +1,24 @@
+{
+  "common": {
+    "loading": "Loading…",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "save": "Save",
+    "retry": "Try again",
+    "language": "Language",
+    "english": "English",
+    "vietnamese": "Tiếng Việt",
+    "cards": "{count, plural, one {# card} other {# cards}}",
+    "questions": "{count, plural, one {# question} other {# questions}}",
+    "minutes": "{count, plural, one {# minute} other {# minutes}}"
+  },
+  "nav": {
+    "home": "Home",
+    "notebooks": "Notebooks",
+    "flashcards": "Flashcards",
+    "quizzes": "Quizzes",
+    "tests": "Tests",
+    "analytics": "Analytics",
+    "signOut": "Sign out"
+  }
+}

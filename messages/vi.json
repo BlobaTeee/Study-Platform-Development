@@ -1,0 +1,24 @@
+{
+  "common": {
+    "loading": "Đang tải…",
+    "cancel": "Hủy",
+    "delete": "Xóa",
+    "save": "Lưu",
+    "retry": "Thử lại",
+    "language": "Ngôn ngữ",
+    "english": "English",
+    "vietnamese": "Tiếng Việt",
+    "cards": "{count} thẻ",
+    "questions": "{count} câu",
+    "minutes": "{count} phút"
+  },
+  "nav": {
+    "home": "Trang chủ",
+    "notebooks": "Sổ tay",
+    "flashcards": "Thẻ",
+    "quizzes": "Bài kiểm tra",
+    "tests": "Thi thử",
+    "analytics": "Tiến độ",
+    "signOut": "Đăng xuất"
+  }
+}

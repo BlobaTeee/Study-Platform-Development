@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { readLocaleCookie } from '@/i18n/locale'
 import { supabase } from './supabase-client'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
@@ -16,6 +17,12 @@ api.interceptors.request.use(
     const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+    }
+    // The API translates its own messages (Django LocaleMiddleware); tell it
+    // which language this browser is showing.
+    const lang = readLocaleCookie()
+    if (lang) {
+      config.headers['Accept-Language'] = lang
     }
     return config
   },

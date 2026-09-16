@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { Fraunces, IBM_Plex_Mono, Open_Sans } from 'next/font/google'
+import { NextIntlClientProvider } from 'next-intl'
+import { getLocale } from 'next-intl/server'
 import { AuthProvider } from '@/lib/auth-context'
 import './globals.css'
 
@@ -31,22 +33,28 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
-  children, 
+export default async function RootLayout({
+  children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // From the `lang` cookie (or Accept-Language) — see i18n/request.ts. The
+  // server renders the chosen language from the first byte, so there is no
+  // flash of English for a Vietnamese reader.
+  const locale = await getLocale()
   return (
     <html
-      lang="en"
+      lang={locale}
       className={`${openSans.variable} ${fraunces.variable} ${plexMono.variable} bg-white`}
     >
       <body
         className={`${openSans.className} antialiased bg-white text-slate-900 text-[17px] leading-relaxed`}
       >
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <NextIntlClientProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   )

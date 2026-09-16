@@ -1,5 +1,8 @@
 # Build scripts pnpm may run (pnpm 10 blocks them unless listed).
-# unrs-resolver is the native resolver eslint-config-next pulls in.
+# unrs-resolver: native resolver behind eslint-config-next.
+# @swc/core, @parcel/watcher: native binaries behind next-intl's plugin.
 allowBuilds:
+  '@parcel/watcher': true
+  '@swc/core': true
   sharp: true
   unrs-resolver: true

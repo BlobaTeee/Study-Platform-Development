@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { authAPI } from '@/lib/api'
+import { isLocale, readLocaleCookie, writeLocaleCookie } from '@/i18n/locale'
 import { AppSidebar, MobileNavBar } from '@/components/dashboard-sidebar'
 
 export default function DashboardLayout({
@@ -51,6 +52,23 @@ export default function DashboardLayout({
       })
       .catch(() => {})
   }, [user])
+
+  // The language follows the account. After sign-in, if the profile says
+  // something other than what this browser is showing, adopt it and
+  // re-render — the cookie is what the server reads.
+  useEffect(() => {
+    if (!user) return
+    authAPI
+      .getProfile()
+      .then((res) => {
+        const preferred = res.data?.preferred_language
+        if (isLocale(preferred) && preferred !== readLocaleCookie()) {
+          writeLocaleCookie(preferred)
+          router.refresh()
+        }
+      })
+      .catch(() => {})
+  }, [user, router])
 
   if (loading) {
     return (
