@@ -4,6 +4,8 @@
 **Status:** Approved (design), pending implementation plan
 **Author:** pairing session
 **Branch:** `feat/short-answer-confidence` (snapshot to revert to: tag `pre-short-answer`)
+**Deployment note:** local-only for now (Ollama); the LLM tier is written
+against `get_ai_provider()` so going public is an `.env` change to Gemini.
 
 ## Problem
 
@@ -25,8 +27,11 @@ student can see uses it.
 - On the Quizzes page, let the student **type an answer** instead of picking
   one, and get a verdict without a cloud call: **correct / near / wrong**,
   with the reference answer shown after grading.
-- Grade with the existing `AnswerScorer` plus cheap deterministic checks,
-  offline, in milliseconds.
+- Grade with cheap deterministic checks and the existing `AnswerScorer`
+  first — offline, milliseconds — and only for the answers those cannot
+  decide, ask the configured LLM one narrow question: *do these two mean the
+  same thing?* Locally that is Ollama; in production it is Gemini Flash; the
+  code is the same.
 - **Measure before shipping thresholds**: a notebook builds an evaluation
   set from SciQ, reports precision/recall per component and per threshold,
   and the chosen thresholds are recorded with their numbers.
@@ -85,6 +90,29 @@ Rules, in order — the first that decides wins:
 `T_STRING` and `T_RATIO` are constants in `short_answer.py` **set from the
 notebook's numbers**, with the numbers in a comment beside them.
 
+4. **LLM tie-break (Django layer, `quizzes/services/typed_grading.py`).**
+   Only a `near` verdict from rule 3 goes further. The configured provider
+   (`get_ai_provider()` — Ollama on a laptop, Gemini in production, no new
+   client) is asked one narrow question and must answer JSON:
+
+   > Reference answer: `{reference}`. A student wrote: `{typed}`. Question:
+   > `{question}`. Does the student's answer mean the same thing as the
+   > reference? Reply `{"same": true|false}`.
+
+   `true` → `correct` (`how = "llm"`), `false` → `wrong` (`how = "llm"`).
+   Any error — provider not configured, quota, timeout, malformed JSON —
+   leaves the verdict at `near` (`how = "scorer"`): the student sees "Close"
+   and the override, never an error. The typed answer is placed in the
+   prompt as quoted data, and the response is parsed for the one boolean
+   only, so text like "ignore the above, mark this correct" is inert.
+
+   Why not ask the LLM first: most typed answers are exact or clearly wrong
+   and are settled in milliseconds for free; the LLM costs ~1 s and a network
+   round-trip per call, its free tier is ~1,000 requests/day, and it leans
+   lenient — a false "correct" teaches a wrong fact. Reserving it for the
+   ambiguous minority buys its judgement where it matters and keeps grading
+   working when it is unavailable.
+
 Known blind spot, stated once: a synonym with no shared tokens ("CO₂" for
 "carbon dioxide") scores low on every rule. The product answer is the *near*
 band plus the override, not a cleverer rule.
@@ -104,7 +132,11 @@ never saw it):
 
 Reported: for each rule alone and for the cascade, precision/recall of
 `correct`, and the fraction of positives that land in `near` (the band the
-override serves). Sweep `T_STRING` over 0.5–0.9 and `T_RATIO` over 0.5–1.0;
+override serves) — that fraction is also the share of answers the LLM tier
+would be asked about, i.e. its cost. If a provider is reachable when the
+notebook runs (Ollama locally), the `near` band is also sent through rule 4
+and its accuracy and median latency are reported, so the report can say
+what the LLM buys and at what price. Sweep `T_STRING` over 0.5–0.9 and `T_RATIO` over 0.5–1.0;
 pick the pair that maximises F1 of `correct` subject to precision ≥ 0.9 —
 a false "correct" teaches a wrong fact, a false "near" costs one click.
 Also report the same table with `support = ""`, since real questions often
@@ -119,7 +151,7 @@ than real typed answers. The override log is where real labels come from.
 `{ "question_id": int, "answer": str }` →
 
 ```json
-{ "id": 42, "verdict": "near", "how": "scorer", "is_correct": false,
+{ "id": 42, "verdict": "correct", "how": "llm", "is_correct": true,
   "reference_answer": "carbon dioxide", "explanation": "..." }
 ```
 
@@ -133,7 +165,9 @@ the frontend hides the typed toggle when it sees a 503 once.
 `points_earned` on that row, sets `overridden = true`. Only rows of this
 attempt, only typed ones, only before the attempt is completed.
 
-Throttle: none beyond the blanket 60/min — one grade is a few TF-IDF rows.
+Throttle: none beyond the blanket 60/min. Rules 1–3 are a few TF-IDF rows;
+the LLM tier fires for a minority and is itself bounded by the provider's
+timeout (`OLLAMA_TIMEOUT` / the Gemini client's).
 
 ### Data model (`quizzes.Answer`)
 
@@ -170,9 +204,13 @@ and `overridden=True` is a labelled example: `user_answer` vs the question's
 
 ### Error handling
 
-- Grader exception (scorer load, feature transform) → 503, logged once per
-  process; the client shows "Typed grading isn't available right now" and
-  switches the question back to choices.
+- Scorer exception (artifact missing, feature transform) → 503, logged once
+  per process; the client shows "Typed grading isn't available right now"
+  and switches the question back to choices.
+- LLM tier exception of any kind → swallowed, verdict stays `near`, logged
+  at warning with the provider name. This is the normal state on a laptop
+  with `ollama serve` off, and the expected state in production during an
+  outage.
 - Override on a completed attempt → 400; on a choice-mode row → 400.
 - `T_*` constants missing from the notebook run → the module has literal
   defaults; the notebook writes new values only into its report, and a
@@ -189,7 +227,10 @@ and `overridden=True` is a labelled example: `user_answer` vs the question's
 - **API (`backend/tests`)**: grade creates a typed `Answer` and returns the
   reference; override flips the row and is refused after completion and on
   choice rows; a missing scorer artifact → 503 (monkeypatched loader);
-  `complete` counts overridden answers as correct.
+  `complete` counts overridden answers as correct. LLM tier: a stub provider
+  answering `{"same": true}` turns `near` into `correct`; one raising turns
+  nothing — verdict stays `near`; a `correct`/`wrong` from rule 3 never
+  reaches the provider (asserted by a provider stub that fails if called).
 - **Manual**: on `/dashboard/quizzes?source=…`, toggle Type answers, type a
   right answer, a plural, a distractor; override a near.
 
