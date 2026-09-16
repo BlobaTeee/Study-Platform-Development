@@ -23,6 +23,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const checkAuth = async () => {
+    if (!supabase) {
+      setLoading(false)
+      return
+    }
+
+    const { data } = await supabase.auth.getSession()
+    const sessionUser = data.session?.user
+
+    if (sessionUser) {
+      setUser({
+        id: sessionUser.id,
+        username:
+          sessionUser.user_metadata?.username || sessionUser.email?.split('@')[0] || 'supabase-user',
+        email: sessionUser.email || '',
+      })
+    }
+
+    setLoading(false)
+  }
+
   useEffect(() => {
     checkAuth()
 
@@ -48,27 +69,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe()
     }
   }, [])
-
-  const checkAuth = async () => {
-    if (!supabase) {
-      setLoading(false)
-      return
-    }
-
-    const { data } = await supabase.auth.getSession()
-    const sessionUser = data.session?.user
-
-    if (sessionUser) {
-      setUser({
-        id: sessionUser.id,
-        username:
-          sessionUser.user_metadata?.username || sessionUser.email?.split('@')[0] || 'supabase-user',
-        email: sessionUser.email || '',
-      })
-    }
-
-    setLoading(false)
-  }
 
   const login = async (email: string, password: string) => {
     if (!supabase) {
