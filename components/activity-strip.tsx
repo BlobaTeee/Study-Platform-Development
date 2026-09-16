@@ -1,6 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
 
 export type ActivityDay = {
@@ -25,6 +26,8 @@ export type ActivitySummary = {
  *  One series, so no legend for the bars; the mock-test mark is the one thing
  *  that needs naming. A skipped day is a gap, on purpose. */
 export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary: ActivitySummary }) {
+  const t = useTranslations('analytics')
+  const locale = useLocale()
   const [active, setActive] = useState<number | null>(null)
   const tableId = useId()
   const max = Math.max(1, ...days.map((d) => d.reviews))
@@ -35,17 +38,15 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
     <section aria-labelledby={`${tableId}-title`}>
       <div className="mb-1 flex items-center justify-between gap-3">
         <h2 id={`${tableId}-title`} className="text-xl font-semibold text-slate-900">
-          Last 14 days
+          {t('last14')}
         </h2>
         <p className="flex items-center gap-1.5 text-sm text-slate-500">
           <span aria-hidden className="inline-block size-2 rounded-full bg-mode-quizzes ring-2 ring-white" />
-          Mock test
+          {t('mockTest')}
         </p>
       </div>
       <p className="mb-5 text-sm text-slate-500">
-        {empty
-          ? 'Nothing yet — grade some cards and the days fill in here.'
-          : summaryLine(summary)}
+        {empty ? t('stripEmpty') : summaryLine(summary, t)}
       </p>
 
       {/* The plot. Each column is the hit target for its day, taller than the
@@ -59,14 +60,14 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
             style={{ left: `${((active + 0.5) / days.length) * 100}%` }}
           >
             <span className="font-mono font-semibold tabular-nums text-slate-900">
-              {activeDay.reviews} card{activeDay.reviews === 1 ? '' : 's'}
+              {t('cardsGraded', { count: activeDay.reviews })}
             </span>
-            <span className="text-slate-500"> · {weekdayLong(activeDay.date)}</span>
+            <span className="text-slate-500"> · {weekdayLong(activeDay.date, locale)}</span>
             {activeDay.accuracy != null && (
-              <span className="text-slate-500"> · {activeDay.accuracy}% recalled</span>
+              <span className="text-slate-500"> · {t('recalledPct', { pct: activeDay.accuracy })}</span>
             )}
             {activeDay.mock_scores.map((s, i) => (
-              <span key={i} className="text-slate-500"> · mock test {Math.round(s)}%</span>
+              <span key={i} className="text-slate-500"> · {t('mockTestScore', { pct: Math.round(s) })}</span>
             ))}
           </div>
         )}
@@ -87,7 +88,7 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
                 onMouseEnter={() => setActive(i)}
                 onFocus={() => setActive(i)}
                 onBlur={() => setActive(null)}
-                aria-label={dayLabel(day)}
+                aria-label={dayLabel(day, t, locale)}
               >
                 {day.mock_scores.length > 0 && (
                   <span
@@ -117,7 +118,7 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
                 i === days.length - 1 && 'text-slate-600'
               )}
             >
-              {i === days.length - 1 ? 'now' : weekdayInitial(day.date)}
+              {i === days.length - 1 ? t('now') : weekdayInitial(day.date, locale)}
             </span>
           ))}
         </div>
@@ -126,14 +127,14 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
       {/* The same data as a table, for screen readers and for anyone the
           columns don't serve. */}
       <table id={tableId} className="sr-only">
-        <caption>Cards graded per day, last 14 days</caption>
+        <caption>{t('tableCaption')}</caption>
         <thead>
-          <tr><th>Day</th><th>Cards</th><th>Recalled</th><th>Mock tests</th></tr>
+          <tr><th>{t('colDay')}</th><th>{t('colCards')}</th><th>{t('colRecalled')}</th><th>{t('colMockTests')}</th></tr>
         </thead>
         <tbody>
           {days.map((day) => (
             <tr key={day.date}>
-              <td>{weekdayLong(day.date)}</td>
+              <td>{weekdayLong(day.date, locale)}</td>
               <td>{day.reviews}</td>
               <td>{day.accuracy == null ? '—' : `${day.accuracy}%`}</td>
               <td>{day.mock_scores.length ? day.mock_scores.map((s) => `${Math.round(s)}%`).join(', ') : '—'}</td>
@@ -145,17 +146,19 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
   )
 }
 
-function summaryLine(s: ActivitySummary): string {
-  const parts = [`${s.reviews} card${s.reviews === 1 ? '' : 's'} graded`]
-  if (s.accuracy != null) parts.push(`${s.accuracy}% recalled`)
-  if (s.mock_tests) parts.push(`${s.mock_tests} mock test${s.mock_tests === 1 ? '' : 's'}`)
+type T = (key: string, values?: Record<string, string | number>) => string
+
+function summaryLine(s: ActivitySummary, t: T): string {
+  const parts = [t('cardsGraded', { count: s.reviews })]
+  if (s.accuracy != null) parts.push(t('recalledPct', { pct: s.accuracy }))
+  if (s.mock_tests) parts.push(t('mockTests', { count: s.mock_tests }))
   return parts.join(' · ')
 }
 
-function dayLabel(day: ActivityDay): string {
-  const bits = [weekdayLong(day.date), `${day.reviews} card${day.reviews === 1 ? '' : 's'}`]
-  if (day.accuracy != null) bits.push(`${day.accuracy}% recalled`)
-  if (day.mock_scores.length) bits.push(`${day.mock_scores.length} mock test${day.mock_scores.length === 1 ? '' : 's'}`)
+function dayLabel(day: ActivityDay, t: T, locale: string): string {
+  const bits = [weekdayLong(day.date, locale), t('cardsGraded', { count: day.reviews })]
+  if (day.accuracy != null) bits.push(t('recalledPct', { pct: day.accuracy }))
+  if (day.mock_scores.length) bits.push(t('mockTests', { count: day.mock_scores.length }))
   return bits.join(', ')
 }
 
@@ -165,10 +168,12 @@ function asLocalDate(iso: string): Date {
   return new Date(`${iso}T12:00:00`)
 }
 
-function weekdayInitial(iso: string): string {
-  return asLocalDate(iso).toLocaleDateString(undefined, { weekday: 'narrow' })
+function weekdayInitial(iso: string, locale: string): string {
+  // Vietnamese "narrow" weekdays are "T2…CN" — two letters, which is the
+  // right thing to show; English gives a single letter.
+  return asLocalDate(iso).toLocaleDateString(locale, { weekday: 'narrow' })
 }
 
-function weekdayLong(iso: string): string {
-  return asLocalDate(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+function weekdayLong(iso: string, locale: string): string {
+  return asLocalDate(iso).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' })
 }

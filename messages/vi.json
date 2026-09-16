@@ -305,5 +305,30 @@
     "correctAnswer": "Đáp án đúng",
     "yourAnswer": "Câu trả lời của bạn",
     "leftUnanswered": "Bỏ trống."
+  },
+  "analytics": {
+    "eyebrow": "Tiến độ",
+    "title": "Tiến độ của bạn",
+    "lead": "Lịch ôn nói gì đang đến hạn, hai tuần qua ra sao, và bạn yếu ở đâu — từ chính quá trình học của bạn.",
+    "readyToStudy": "thẻ sẵn sàng để ôn",
+    "studyNow": "Ôn ngay",
+    "byNotebook": "Theo sổ tay",
+    "byNotebookLead": "Bạn nắm mỗi sổ tay đến đâu, tính cả thẻ lẫn bài kiểm tra. Yếu nhất trước.",
+    "byNotebookEmpty": "Chưa có gì để hiện — thêm tài liệu vào một sổ tay rồi tạo thẻ hoặc bài kiểm tra từ đó.",
+    "quizQuestions": "{count} câu kiểm tra",
+    "answers": "{count} lượt trả lời",
+    "last14": "14 ngày qua",
+    "mockTest": "Thi thử",
+    "stripEmpty": "Chưa có gì — chấm vài thẻ và các ngày sẽ hiện ở đây.",
+    "now": "nay",
+    "cardsGraded": "đã chấm {count} thẻ",
+    "recalledPct": "nhớ {pct}%",
+    "mockTests": "{count} lần thi thử",
+    "mockTestScore": "thi thử {pct}%",
+    "tableCaption": "Số thẻ đã chấm mỗi ngày, 14 ngày qua",
+    "colDay": "Ngày",
+    "colCards": "Thẻ",
+    "colRecalled": "Nhớ",
+    "colMockTests": "Thi thử"
   }
 }

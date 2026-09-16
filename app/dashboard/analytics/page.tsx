@@ -26,18 +26,21 @@ type WeakNotebook = {
   accuracy: number | null
 }
 
+type T = (key: string, values?: Record<string, string | number>) => string
+
 /** What a notebook's score rests on — flashcards you graded yourself, quiz
  *  questions the app marked, or both. Empty modes are left out rather than
  *  shown as a zero. */
-function notebookRecord(n: WeakNotebook): string {
+function notebookRecord(n: WeakNotebook, t: T, common: T): string {
   const parts: string[] = []
-  if (n.cards) parts.push(`${n.cards} card${n.cards === 1 ? '' : 's'}`)
-  if (n.questions) parts.push(`${n.questions} quiz question${n.questions === 1 ? '' : 's'}`)
-  parts.push(`${n.reviews} answer${n.reviews === 1 ? '' : 's'}`)
+  if (n.cards) parts.push(common('cards', { count: n.cards }))
+  if (n.questions) parts.push(t('quizQuestions', { count: n.questions }))
+  parts.push(t('answers', { count: n.reviews }))
   return parts.join(' · ')
 }
 
 export default function AnalyticsPage() {
+  const t = useTranslations('analytics')
   const common = useTranslations('common')
   const locale = useLocale()
   const { data: recsRes, isLoading: recsLoading } = useSWR(
@@ -65,15 +68,14 @@ export default function AnalyticsPage() {
     <div className="space-y-8 max-w-5xl">
       <div className="rise border-t-[3px] border-mode-analytics pt-4">
         <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-analytics">
-          Analytics
+          {t('eyebrow')}
         </p>
         <h1 className="font-display text-3xl md:text-4xl font-semibold text-slate-900 mt-1 flex items-center gap-3 text-balance">
           <BarChart3 className="size-8 text-mode-analytics shrink-0" />
-          Your progress
+          {t('title')}
         </h1>
         <p className="text-lg text-slate-500 mt-2 text-pretty">
-          What your schedule says is due, how the last two weeks went, and where
-          you&apos;re weakest — from your own study record.
+          {t('lead')}
         </p>
       </div>
 
@@ -111,7 +113,7 @@ export default function AnalyticsPage() {
               </span>
               <div className="min-w-0">
                 <p className="text-lg text-slate-900">
-                  card{ready === 1 ? '' : 's'} ready to study
+                  {t('readyToStudy', { count: ready })}
                 </p>
                 <p
                   className={cn(
@@ -129,7 +131,7 @@ export default function AnalyticsPage() {
               className="bg-mode-flashcards hover:bg-mode-flashcards-hover text-white h-12 px-8 text-lg shrink-0"
             >
               <Link href="/dashboard/flashcards?due=1">
-                Study now
+                {t('studyNow')}
                 <ArrowRight className="size-5 ml-2" />
               </Link>
             </Button>
@@ -142,16 +144,15 @@ export default function AnalyticsPage() {
       <Card className="rise border-slate-200 shadow-sheet p-6" style={{ animationDelay: '180ms' }}>
         <div className="flex items-center gap-2 mb-1">
           <BookOpen className="size-5 text-mode-notebooks" />
-          <h2 className="text-xl font-semibold text-slate-900">By notebook</h2>
+          <h2 className="text-xl font-semibold text-slate-900">{t('byNotebook')}</h2>
         </div>
         <p className="text-sm text-slate-500 mb-4">
-          How well you know each notebook, across flashcards and quizzes together.
-          Weakest first.
+          {t('byNotebookLead')}
         </p>
 
         {weakNotebooks.length === 0 ? (
           <p className="text-slate-500 py-6 text-center">
-            Nothing to show yet — add a source to a notebook and generate flashcards or a quiz from it.
+            {t('byNotebookEmpty')}
           </p>
         ) : (
           <ul className="divide-y divide-slate-100">
@@ -163,11 +164,11 @@ export default function AnalyticsPage() {
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-base text-slate-800 truncate">{n.title}</p>
-                    <p className="text-sm text-slate-500">{notebookRecord(n)}</p>
+                    <p className="text-sm text-slate-500">{notebookRecord(n, t, common)}</p>
                   </div>
                   {n.accuracy == null ? (
                     <span className="font-mono text-xs text-slate-600 bg-slate-100 rounded px-2 py-1 shrink-0">
-                      Not studied
+                      {common('notStudied')}
                     </span>
                   ) : (
                     <span className="font-mono text-lg font-semibold text-slate-900 tabular-nums shrink-0">

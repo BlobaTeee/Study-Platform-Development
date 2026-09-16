@@ -305,5 +305,30 @@
     "correctAnswer": "Correct answer",
     "yourAnswer": "Your answer",
     "leftUnanswered": "Left unanswered."
+  },
+  "analytics": {
+    "eyebrow": "Analytics",
+    "title": "Your progress",
+    "lead": "What your schedule says is due, how the last two weeks went, and where you're weakest — from your own study record.",
+    "readyToStudy": "{count, plural, one {card ready to study} other {cards ready to study}}",
+    "studyNow": "Study now",
+    "byNotebook": "By notebook",
+    "byNotebookLead": "How well you know each notebook, across flashcards and quizzes together. Weakest first.",
+    "byNotebookEmpty": "Nothing to show yet — add a source to a notebook and generate flashcards or a quiz from it.",
+    "quizQuestions": "{count, plural, one {# quiz question} other {# quiz questions}}",
+    "answers": "{count, plural, one {# answer} other {# answers}}",
+    "last14": "Last 14 days",
+    "mockTest": "Mock test",
+    "stripEmpty": "Nothing yet — grade some cards and the days fill in here.",
+    "now": "now",
+    "cardsGraded": "{count, plural, one {# card graded} other {# cards graded}}",
+    "recalledPct": "{pct}% recalled",
+    "mockTests": "{count, plural, one {# mock test} other {# mock tests}}",
+    "mockTestScore": "mock test {pct}%",
+    "tableCaption": "Cards graded per day, last 14 days",
+    "colDay": "Day",
+    "colCards": "Cards",
+    "colRecalled": "Recalled",
+    "colMockTests": "Mock tests"
   }
 }
