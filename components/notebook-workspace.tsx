@@ -29,6 +29,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 
 type SourceItem = {
   id: number
@@ -40,15 +41,11 @@ type SourceItem = {
   gemini_summary: string
 }
 
-// Shown when the local AI model was unreachable and generation silently
-// degraded to the basic fill-in-the-blank pipeline.
-const FALLBACK_NOTICE = (kind: string) =>
-  `The local AI model was unavailable, so these ${kind} came from the basic ` +
-  `fill-in-the-blank fallback (lower quality). Check that Ollama is running ` +
-  `— "brew services start ollama" — then generate again.`
 
 export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const router = useRouter()
+  const t = useTranslations('notebooks')
+  const common = useTranslations('common')
   const [generating, setGenerating] = useState<'flashcards' | 'quiz' | null>(null)
   const [checkedSourceIds, setCheckedSourceIds] = useState<number[]>([])
   const [activeSourceId, setActiveSourceId] = useState<number | null>(null)
@@ -168,7 +165,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
   const uploadFile = async (file: File) => {
     if (!isAllowedSourceFile(file)) {
-      setError('Unsupported file. Use PDF, Word (.docx), or PowerPoint (.pptx).')
+      setError(t('unsupportedFile'))
       return
     }
 
@@ -189,7 +186,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       refresh()
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { detail?: string } } }
-      setError(ax.response?.data?.detail || 'Upload failed')
+      setError(ax.response?.data?.detail || t('uploadFailed'))
     } finally {
       setUploading(false)
     }
@@ -205,7 +202,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
   const handleGenerateFlashcards = async () => {
     if (generationSourceIds.length === 0) {
-      setError('Select at least one ready source (checkbox) to generate flashcards.')
+      setError(t('selectToGenerateFlashcards'))
       return
     }
     // Generating replaces this selection's deck, so a second press throws away
@@ -213,9 +210,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     // impossible to undo from here if we don't.
     if (existingCards > 0) {
       const ok = await confirm({
-        title: `Replace ${existingCards} flashcard${existingCards === 1 ? '' : 's'}?`,
-        body: 'The new cards start from scratch, and your review progress on the current ones is retired.',
-        confirmLabel: 'Replace deck',
+        title: t('replaceTitle', { cards: common('cards', { count: existingCards }) }),
+        body: t('replaceBody'),
+        confirmLabel: t('replaceConfirm'),
       })
       if (!ok) return
     }
@@ -233,13 +230,13 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       // button offers to replace is the one it replaced a moment ago.
       mutate(['/notebooks/material_counts', notebookId, studyQuery])
       if (res.data.generated_by === 'extractive-fallback') {
-        setWarning(FALLBACK_NOTICE('flashcards'))
+        setWarning(t('fallbackNotice', { kind: t('kindFlashcards') }))
         return  // stay put so the downgrade is seen, not silently navigated past
       }
       router.push(`/dashboard/flashcards?due=1&source=${studyQuery}`)
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { detail?: string } } }
-      setError(ax.response?.data?.detail || 'Failed to generate flashcards')
+      setError(ax.response?.data?.detail || t('generateFlashcardsFailed'))
     } finally {
       setGenerating(null)
     }
@@ -247,7 +244,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
   const handleGenerateQuiz = async () => {
     if (generationSourceIds.length === 0) {
-      setError('Select at least one ready source (checkbox) to generate a quiz.')
+      setError(t('selectToGenerateQuiz'))
       return
     }
     setGenerating('quiz')
@@ -264,7 +261,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       // which stays on this page.
       mutate(['/notebooks/material_counts', notebookId, studyQuery])
       if (res.data.generated_by === 'extractive-fallback') {
-        setWarning(FALLBACK_NOTICE('quiz questions'))
+        setWarning(t('fallbackNotice', { kind: t('kindQuestions') }))
         return  // stay put so the downgrade is seen, not silently navigated past
       }
       const quizId = res.data.quiz?.id
@@ -275,7 +272,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       )
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { detail?: string } } }
-      setError(ax.response?.data?.detail || 'Failed to generate quiz')
+      setError(ax.response?.data?.detail || t('generateQuizFailed'))
     } finally {
       setGenerating(null)
     }
@@ -285,9 +282,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
   const handleRemoveSource = async (sourceId: number, title: string) => {
     const ok = await confirm({
-      title: `Remove "${title}"?`,
-      body: 'This deletes the file from this notebook. Generated flashcards and quizzes will remain.',
-      confirmLabel: 'Remove source',
+      title: t('removeTitle', { title }),
+      body: t('removeBody'),
+      confirmLabel: t('removeConfirm'),
     })
     if (!ok) return
     setDeletingSourceId(sourceId)
@@ -305,7 +302,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       refresh()
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { detail?: string } } }
-      setError(ax.response?.data?.detail || 'Failed to remove source')
+      setError(ax.response?.data?.detail || t('removeFailed'))
     } finally {
       setDeletingSourceId(null)
     }
@@ -322,11 +319,11 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   if (loadError || !notebook) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-        <p className="text-lg text-slate-500">Notebook not found.</p>
+        <p className="text-lg text-slate-500">{t('notFound')}</p>
         <Button asChild variant="outline">
           <Link href="/dashboard/notebooks">
             <ArrowLeft className="size-4 mr-2" />
-            All notebooks
+            {t('allNotebooks')}
           </Link>
         </Button>
       </div>
@@ -343,7 +340,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
             className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-mode-library mb-2"
           >
             <ArrowLeft className="size-4" />
-            All notebooks
+            {t('allNotebooks')}
           </Link>
           <h1 className="font-display text-2xl md:text-3xl font-semibold text-slate-900 truncate">
             {notebook.title}
@@ -375,12 +372,12 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
           <div className="p-5 border-b border-slate-200 space-y-3">
             <div>
               <h2 className="font-mono text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Sources
+                {t('sources')}
               </h2>
               <p className="text-base text-slate-500 mt-1">
-                {sources.length} {sources.length === 1 ? 'file' : 'files'}
+                {t('files', { count: sources.length })}
                 {checkedSourceIds.length > 0 && (
-                  <span className="text-mode-library"> · {checkedSourceIds.length} selected</span>
+                  <span className="text-mode-library">{t('selectedCount', { count: checkedSourceIds.length })}</span>
                 )}
               </p>
             </div>
@@ -393,7 +390,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                   onClick={selectAllReady}
                   className="text-xs h-8 flex-1"
                 >
-                  Select all
+                  {t('selectAll')}
                 </Button>
                 <Button
                   type="button"
@@ -402,7 +399,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                   onClick={clearChecked}
                   className="text-xs h-8 flex-1"
                 >
-                  Clear
+                  {t('clear')}
                 </Button>
               </div>
             )}
@@ -413,9 +410,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
               <div className="m-2 rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center">
                 <FileUp className="size-10 text-slate-300 mx-auto mb-3" />
                 <p className="text-base text-slate-500 leading-relaxed">
-                  Drag a file here or browse below
+                  {t('dragHere')}
                 </p>
-                <p className="text-sm text-slate-500 mt-2">PDF · DOCX · PPTX</p>
+                <p className="text-sm text-slate-500 mt-2">{t('formatsShort')}</p>
               </div>
             ) : (
               sources.map((src) => {
@@ -438,7 +435,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       type="checkbox"
                       checked={isChecked}
                       onChange={() => toggleSourceCheck(src.id)}
-                      title={isChecked ? 'Deselect for generation' : 'Select for generation'}
+                      title={isChecked ? t('deselectForGeneration') : t('selectForGeneration')}
                       className="mt-1 h-4 w-4 rounded border-slate-300 accent-blue-600"
                     />
                   </div>
@@ -466,7 +463,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                                   : 'text-amber-600'
                             }
                           >
-                            {src.status}
+                            {src.status === 'ready' ? t('statusReady') : src.status === 'failed' ? t('statusFailed') : t('statusProcessing')}
                           </span>
                           <span className="text-slate-500">
                             {' '}
@@ -483,7 +480,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    title="Remove source"
+                    title={t('removeSource')}
                     disabled={deletingSourceId === src.id}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -496,9 +493,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                     )}
                   >
                     {deletingSourceId === src.id ? (
-                      'Removing...'
+                      t('removing')
                     ) : (
-                      'Remove'
+                      t('remove')
                     )}
                   </Button>
                 </div>
@@ -510,7 +507,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
             <Input
               value={uploadTitle}
               onChange={(e) => setUploadTitle(e.target.value)}
-              placeholder="Title (optional)"
+              placeholder={t('titleOptional')}
             />
             <input
               ref={fileRef}
@@ -528,17 +525,17 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
               {uploading ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Processing...
+                  {t('processing')}
                 </>
               ) : (
                 <>
                   <FileUp className="size-4" />
-                  Browse files
+                  {t('browseFiles')}
                 </>
               )}
             </Button>
             <p className="text-xs text-slate-500 text-center leading-snug">
-              or drag & drop anywhere here
+              {t('orDrop')}
             </p>
           </div>
         </aside>
@@ -548,10 +545,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
             <div className="h-full flex flex-col justify-center px-4 w-full">
               <div className="w-full rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-8 py-12">
                 <FileUp className="size-16 text-slate-300 mx-auto mb-5" />
-                <h2 className="text-2xl font-semibold text-slate-900">Add sources to this notebook</h2>
+                <h2 className="text-2xl font-semibold text-slate-900">{t('addSourcesTitle')}</h2>
                 <p className="text-slate-500 mt-3 text-lg leading-relaxed">
-                  Upload files, then check one or more sources to combine them for flashcards and
-                  quizzes.
+                  {t('addSourcesBody')}
                 </p>
                 <Button
                   type="button"
@@ -562,7 +558,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                   disabled={uploading}
                 >
                   <FileUp className="size-5 mr-2" />
-                  Browse files
+                  {t('browseFiles')}
                 </Button>
               </div>
             </div>
@@ -580,7 +576,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                   <p className="text-base text-slate-500 mt-2">
                     {activeListItem.original_filename}
                     {sourceCountLabel(activeListItem.file_type, sourceDetail?.page_count ?? 0)
-                      ? ` · ${sourceCountLabel(activeListItem.file_type, sourceDetail?.page_count ?? 0)}`
+                      ? ` · ${activeListItem.file_type === 'pptx' ? t('slides', { count: sourceDetail?.page_count ?? 0 }) : t('pages', { count: sourceDetail?.page_count ?? 0 })}`
                       : ` · ${fileTypeLabel(activeListItem.file_type)}`}
                   </p>
                 </div>
@@ -596,7 +592,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                 <Card className="border-slate-200 shadow-sheet p-5">
                   <h3 className="font-mono text-xs font-semibold text-mode-library uppercase tracking-wide mb-2 flex items-center gap-1.5">
                     <Sparkles className="size-3.5" />
-                    Overview
+                    {t('overview')}
                   </h3>
                   <p className="text-lg text-slate-600 leading-relaxed">
                     {sourceDetail.gemini_summary}
@@ -606,18 +602,18 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
               <div>
                 <h3 className="text-xl font-semibold text-slate-800 mb-2">
-                  Generate study materials
+                  {t('generateTitle')}
                 </h3>
                 <p className="text-base text-slate-500 mb-5">
                   {generationSourceIds.length > 1
-                    ? `Using ${generationSourceIds.length} selected sources (combined).`
+                    ? t('usingSelected', { count: generationSourceIds.length })
                     : generationSourceIds.length === 1
-                      ? 'Using 1 selected source.'
-                      : 'Check sources on the left, or open a ready file and generate.'}
+                      ? t('usingOne')
+                      : t('checkToGenerate')}
                 </p>
                 {!canGenerate && activeListItem?.status === 'ready' && checkedSourceIds.length === 0 && (
                   <p className="text-base text-amber-600 mb-4">
-                    Check this source (checkbox) to include it in generation.
+                    {t('checkThisSource')}
                   </p>
                 )}
                 <div className="grid sm:grid-cols-2 gap-4">
@@ -629,15 +625,15 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       <h4 className="text-xl font-semibold text-slate-900">Flashcards</h4>
                       <p className="text-base text-slate-500">
                         {generationSourceIds.length > 1
-                          ? 'From all selected sources'
-                          : 'About 10 cards from selection'}
+                          ? t('fromAllSelected')
+                          : t('aboutTenCards')}
                       </p>
                       {/* Generating replaces this selection's deck rather than
                           adding to it, so saying what is about to be retired
                           matters more than a running total. */}
                       {existingCards > 0 && (
                         <p className="font-mono text-sm text-slate-600 tabular-nums">
-                          Replaces {existingCards} card{existingCards === 1 ? '' : 's'}
+                          {t('replacesCards', { cards: common('cards', { count: existingCards }) })}
                         </p>
                       )}
                       <Button
@@ -649,14 +645,14 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                         {generating === 'flashcards' ? (
                           <>
                             <Loader2 className="size-4 animate-spin" />
-                            Generating...
+                            {t('generating')}
                           </>
                         ) : (
                           <>
                             <Sparkles className="size-4" />
                             {existingCards > 0
-                              ? 'Regenerate flashcards'
-                              : 'Generate flashcards'}
+                              ? t('regenerateFlashcards')
+                              : t('generateFlashcards')}
                           </>
                         )}
                       </Button>
@@ -670,7 +666,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       </div>
                       <h4 className="text-xl font-semibold text-slate-900">Quiz</h4>
                       <p className="text-base text-slate-500">
-                        Multiple-choice from selection
+                        {t('multipleChoice')}
                       </p>
                       <Button
                         onClick={handleGenerateQuiz}
@@ -681,12 +677,12 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                         {generating === 'quiz' ? (
                           <>
                             <Loader2 className="size-4 animate-spin" />
-                            Generating...
+                            {t('generating')}
                           </>
                         ) : (
                           <>
                             <Sparkles className="size-4" />
-                            Generate quiz
+                            {t('generateQuiz')}
                           </>
                         )}
                       </Button>
@@ -699,7 +695,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                     {hasFlashcardsForSources && (
                       <Button asChild variant="outline" size="lg" className="h-12 text-base">
                         <Link href={`/dashboard/flashcards?due=1&source=${studyQuery}`}>
-                          Study flashcards
+                          {t('studyFlashcards')}
                         </Link>
                       </Button>
                     )}
@@ -708,7 +704,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                         <Link
                           href={`/dashboard/quizzes?source=${studyQuery}&quiz=${quizIdForSources}`}
                         >
-                          Take quiz
+                          {t('takeQuiz')}
                         </Link>
                       </Button>
                     )}
@@ -719,16 +715,18 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
               {sourceDetail?.text_preview && (
                 <details className="rounded-xl border border-slate-200 bg-slate-50">
                   <summary className="px-4 py-3 text-sm text-slate-500 cursor-pointer hover:text-slate-700">
-                    View extracted text
+                    {t('viewText')}
                   </summary>
                   <pre className="text-xs text-slate-500 whitespace-pre-wrap max-h-64 overflow-y-auto px-4 pb-4 border-t border-slate-200 pt-3">
                     {sourceDetail.text_preview}
                     {/* The server sends the opening only, so say so rather than
                         letting the text look like it simply stops. */}
                     {sourceDetail.text_length > sourceDetail.text_preview.length
-                      ? `\n\n… ${(
-                          sourceDetail.text_length - sourceDetail.text_preview.length
-                        ).toLocaleString()} more characters (generation reads the whole document)`
+                      ? `\n\n${t('moreCharacters', {
+                          count: (
+                            sourceDetail.text_length - sourceDetail.text_preview.length
+                          ).toLocaleString(),
+                        })}`
                       : ''}
                   </pre>
                 </details>

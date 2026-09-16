@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import useSWR from 'swr'
 import { analyticsAPI } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { useLocale, useTranslations } from 'next-intl'
 import { type Due, dueBreakdown, caughtUpMessage } from '@/lib/study-format'
 import { ActivityStrip, type ActivityDay, type ActivitySummary } from '@/components/activity-strip'
 import {
@@ -37,6 +38,8 @@ function notebookRecord(n: WeakNotebook): string {
 }
 
 export default function AnalyticsPage() {
+  const common = useTranslations('common')
+  const locale = useLocale()
   const { data: recsRes, isLoading: recsLoading } = useSWR(
     ['/analytics/recommendations'],
     () => analyticsAPI.getRecommendations()
@@ -98,7 +101,7 @@ export default function AnalyticsPage() {
         ) : ready === 0 ? (
           <div className="flex items-center gap-3 py-2">
             <Target className="size-5 text-mode-analytics shrink-0" />
-            <p className="text-lg text-slate-700">{caughtUpMessage(due)}</p>
+            <p className="text-lg text-slate-700">{caughtUpMessage(due, common, locale)}</p>
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-5">
@@ -116,7 +119,7 @@ export default function AnalyticsPage() {
                     due.overdue > 0 ? 'text-red-700' : 'text-slate-500'
                   )}
                 >
-                  {dueBreakdown(due)}
+                  {dueBreakdown(due, common)}
                 </p>
               </div>
             </div>

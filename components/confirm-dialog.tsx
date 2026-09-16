@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 
@@ -29,6 +31,7 @@ export type ConfirmOptions = {
 }
 
 export function useConfirm(): [(options: ConfirmOptions) => Promise<boolean>, ReactNode] {
+  const common = useTranslations('common')
   const [options, setOptions] = useState<ConfirmOptions | null>(null)
   const resolverRef = useRef<((value: boolean) => void) | null>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
@@ -88,7 +91,7 @@ export function useConfirm(): [(options: ConfirmOptions) => Promise<boolean>, Re
         </p>
         <div className="mt-6 flex justify-end gap-3">
           <Button type="button" variant="outline" onClick={() => settle(false)}>
-            {options.cancelLabel ?? 'Cancel'}
+            {options.cancelLabel ?? common('cancel')}
           </Button>
           <Button
             ref={confirmRef}
@@ -100,7 +103,7 @@ export function useConfirm(): [(options: ConfirmOptions) => Promise<boolean>, Re
                 : 'bg-mode-danger text-white hover:bg-mode-danger/90'
             }
           >
-            {options.confirmLabel ?? 'Confirm'}
+            {options.confirmLabel ?? common('confirm')}
           </Button>
         </div>
       </div>

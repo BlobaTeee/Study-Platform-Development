@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { FileUp } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useCallback, useRef, useState, type ReactNode } from 'react'
 
 type SourceDropZoneProps = {
@@ -17,6 +18,7 @@ export function SourceDropZone({
   children,
   className,
 }: SourceDropZoneProps) {
+  const t = useTranslations('notebooks')
   const [active, setActive] = useState(false)
   const depthRef = useRef(0)
 
@@ -81,8 +83,8 @@ export function SourceDropZone({
         >
           <div className="text-center px-8 py-6 rounded-2xl bg-white border border-mode-library/30 shadow-xl">
             <FileUp className="size-14 text-mode-library mx-auto mb-4" />
-            <p className="text-2xl font-semibold text-slate-900">Drop to add source</p>
-            <p className="text-lg text-slate-500 mt-2">PDF · Word (.docx) · PowerPoint (.pptx)</p>
+            <p className="text-2xl font-semibold text-slate-900">{t('dropToAdd')}</p>
+            <p className="text-lg text-slate-500 mt-2">{t('dropFormats')}</p>
           </div>
         </div>
       )}

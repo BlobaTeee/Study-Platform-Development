@@ -9,20 +9,25 @@ export type Due = {
   next_count: number
 }
 
+/** The shape of next-intl's `t` these helpers need: a key under `common`
+ *  and its values. Passed in rather than imported so this file stays a
+ *  plain module the pages can call from anywhere. */
+export type CommonT = (key: string, values?: Record<string, string | number>) => string
+
 /** What the ready-to-study number is made of, worst news first. */
-export function dueBreakdown(d: Due): string {
+export function dueBreakdown(d: Due, t: CommonT): string {
   const parts: string[] = []
-  if (d.overdue) parts.push(`${d.overdue} overdue`)
-  if (d.due) parts.push(`${d.due} due`)
-  if (d.new) parts.push(`${d.new} new`)
+  if (d.overdue) parts.push(t('overdueCount', { count: d.overdue }))
+  if (d.due) parts.push(t('dueCount', { count: d.due }))
+  if (d.new) parts.push(t('newCount', { count: d.new }))
   return parts.join(' · ')
 }
 
 /** An empty queue is the schedule working. Saying only "nothing due" makes that
  *  read exactly like a schedule that's broken, so name the day cards return. */
-export function caughtUpMessage(d: Due): string {
+export function caughtUpMessage(d: Due, t: CommonT, locale: string): string {
   if (!d.next_date || d.next_count === 0) {
-    return 'Nothing to study yet — generate flashcards from a notebook to start.'
+    return t('nothingToStudy')
   }
   const when = new Date(`${d.next_date}T00:00:00`)
   const today = new Date()
@@ -30,9 +35,7 @@ export function caughtUpMessage(d: Due): string {
   const days = Math.round((when.getTime() - today.getTime()) / 86_400_000)
   const label =
     days === 1
-      ? 'tomorrow'
-      : `on ${when.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
-  return `Caught up — nothing due today. ${d.next_count} card${
-    d.next_count === 1 ? '' : 's'
-  } return ${label}.`
+      ? t('tomorrow')
+      : t('onDate', { date: when.toLocaleDateString(locale, { day: 'numeric', month: 'short' }) })
+  return t('caughtUp', { cards: t('cards', { count: d.next_count }), when: label })
 }

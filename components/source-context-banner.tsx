@@ -6,8 +6,12 @@ import { useSearchParams } from 'next/navigation'
 import { notebooksAPI } from '@/lib/api'
 import { parseSourceIdsParam } from '@/lib/source-utils'
 import { ArrowLeft, FileText } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 export function SourceContextBanner() {
+  const t = useTranslations('notebooks')
+  const nav = useTranslations('nav')
+  const common = useTranslations('common')
   const searchParams = useSearchParams()
   const sourceParam = searchParams.get('source')
   const sourceIds = parseSourceIdsParam(sourceParam)
@@ -23,7 +27,7 @@ export function SourceContextBanner() {
         notebooksAPI
           .getSource(id)
           .then((res) => res.data.title as string)
-          .catch(() => `Source #${id}`)
+          .catch(() => t('sourceFallback', { id }))
       )
     ).then(setLabels)
   }, [sourceParam, sourceIds.join(',')])
@@ -35,14 +39,14 @@ export function SourceContextBanner() {
       ? labels.length <= 2
         ? labels.join(' · ')
         : `${labels.slice(0, 2).join(' · ')} +${labels.length - 2} more`
-      : `${sourceIds.length} source${sourceIds.length > 1 ? 's' : ''}`
+      : common('sources', { count: sourceIds.length })
 
   return (
     <div className="mb-6 flex items-center gap-4 rounded-xl border border-mode-library/25 bg-mode-library/5 px-5 py-4">
       <FileText className="size-6 text-mode-library shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="font-mono text-xs uppercase tracking-wide text-mode-library/80">
-          {sourceIds.length > 1 ? 'Combined sources' : 'From source'}
+          {sourceIds.length > 1 ? t('combinedSources') : t('fromSource')}
         </p>
         <p className="text-lg font-medium text-slate-900 truncate">{label}</p>
       </div>
@@ -51,7 +55,7 @@ export function SourceContextBanner() {
         className="text-base text-mode-library hover:text-mode-library-hover flex items-center gap-1 shrink-0"
       >
         <ArrowLeft className="size-5" />
-        Notebooks
+        {nav('notebooks')}
       </Link>
     </div>
   )

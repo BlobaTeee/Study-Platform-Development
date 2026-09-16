@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import useSWR, { mutate } from 'swr'
 import { notebooksAPI } from '@/lib/api'
 import { useConfirm } from '@/components/confirm-dialog'
+import { useTranslations } from 'next-intl'
 import {
   AlertCircle,
   ChevronRight,
@@ -35,6 +36,8 @@ export default function NotebooksListPage() {
   const [description, setDescription] = useState('')
   const [creating, setCreating] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const t = useTranslations('notebooks')
+  const common = useTranslations('common')
   const [confirm, confirmDialog] = useConfirm()
   const [error, setError] = useState('')
 
@@ -60,7 +63,7 @@ export default function NotebooksListPage() {
       router.push(`/dashboard/notebooks/${res.data.id}`)
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { detail?: string } } }
-      setError(ax.response?.data?.detail || 'Failed to create notebook')
+      setError(ax.response?.data?.detail || t('createFailed'))
     } finally {
       setCreating(false)
     }
@@ -70,9 +73,10 @@ export default function NotebooksListPage() {
     e.preventDefault()
     e.stopPropagation()
     const ok = await confirm({
-      title: `Delete "${nb.title}"?`,
-      body: 'Its sources and its flashcards go with it. This cannot be undone.',
-      confirmLabel: 'Delete notebook',
+      title: t('deleteTitle', { title: nb.title }),
+      body: t('deleteBody'),
+      confirmLabel: t('deleteConfirm'),
+      cancelLabel: common('cancel'),
     })
     if (!ok) return
     setDeletingId(nb.id)
@@ -82,7 +86,7 @@ export default function NotebooksListPage() {
       mutate(['/notebooks/'])
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { detail?: string } } }
-      setError(ax.response?.data?.detail || 'Failed to delete notebook')
+      setError(ax.response?.data?.detail || t('deleteFailed'))
     } finally {
       setDeletingId(null)
     }
@@ -97,13 +101,13 @@ export default function NotebooksListPage() {
       <div className="rise border-t-[3px] border-mode-library pt-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-library">
-            Library
+            {t('library')}
           </p>
           <h1 className="font-display text-3xl md:text-4xl font-semibold text-slate-900 mt-1 text-balance">
-            My notebooks
+            {t('myNotebooks')}
           </h1>
           <p className="text-base text-slate-500 mt-2 leading-relaxed max-w-md text-pretty">
-            One notebook per subject. Open one to add sources and turn them into study material.
+            {t('lead')}
           </p>
         </div>
         <Button
@@ -112,7 +116,7 @@ export default function NotebooksListPage() {
           className="bg-mode-library hover:bg-mode-library-hover shrink-0 h-12"
         >
           <Plus className="size-5 mr-2" />
-          New notebook
+          {t('newNotebook')}
         </Button>
       </div>
 
@@ -128,23 +132,23 @@ export default function NotebooksListPage() {
           <h2 className="text-xl font-semibold text-slate-900 mb-4">Create notebook</h2>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="nb-title">Name</Label>
+              <Label htmlFor="nb-title">{t('name')}</Label>
               <Input
                 id="nb-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Organic Chemistry, History Essay…"
+                placeholder={t('namePlaceholder')}
                 required
                 autoFocus
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="nb-desc">Description (optional)</Label>
+              <Label htmlFor="nb-desc">{t('description')}</Label>
               <Input
                 id="nb-desc"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="What are you studying?"
+                placeholder={t('descriptionPlaceholder')}
               />
             </div>
             <div className="flex gap-3 pt-2">
@@ -152,10 +156,10 @@ export default function NotebooksListPage() {
                 {creating ? (
                   <>
                     <Loader2 className="size-4 animate-spin mr-2" />
-                    Creating…
+                    {t('creating')}
                   </>
                 ) : (
-                  'Create & open'
+                  t('createAndOpen')
                 )}
               </Button>
               <Button
@@ -164,7 +168,7 @@ export default function NotebooksListPage() {
                 onClick={() => setShowCreate(false)}
                 className="h-11"
               >
-                Cancel
+                {common('cancel')}
               </Button>
             </div>
           </form>
@@ -178,25 +182,24 @@ export default function NotebooksListPage() {
       ) : unreachable ? (
         <Card className="border-dashed border-amber-300 bg-amber-50/60 p-12 text-center">
           <AlertCircle className="size-16 text-amber-500 mx-auto mb-4" />
-          <p className="text-xl text-amber-950 mb-2">Can&apos;t reach the server</p>
+          <p className="text-xl text-amber-950 mb-2">{t('unreachableTitle')}</p>
           <p className="text-amber-900/80 mb-6 max-w-md mx-auto">
-            Your notebooks are safe — the app just can&apos;t load them right now.
-            Make sure the backend is running, then try again.
+            {t('unreachableBody')}
           </p>
           <Button onClick={() => mutate(['/notebooks/'])} size="lg" variant="outline" className="h-12">
-            Retry
+            {t('retry')}
           </Button>
         </Card>
       ) : notebooks.length === 0 ? (
         <Card className="border-dashed border-slate-300 p-12 text-center">
           <FolderOpen className="size-16 text-slate-300 mx-auto mb-4" />
-          <p className="text-xl text-slate-700 mb-2">No notebooks yet</p>
+          <p className="text-xl text-slate-700 mb-2">{t('emptyTitle')}</p>
           <p className="text-slate-500 mb-6">
-            Start with one notebook per course or topic, then add your study files inside it.
+            {t('emptyBody')}
           </p>
           <Button onClick={() => setShowCreate(true)} size="lg" className="h-12">
             <Plus className="size-5 mr-2" />
-            Create your first notebook
+            {t('createFirst')}
           </Button>
         </Card>
       ) : (
@@ -239,7 +242,7 @@ export default function NotebooksListPage() {
                       ) : (
                         <>
                           <Trash2 className="size-4 mr-1.5" />
-                          Delete
+                          {common('delete')}
                         </>
                       )}
                     </Button>

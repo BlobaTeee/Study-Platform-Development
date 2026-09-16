@@ -7,19 +7,23 @@ import { Card } from '@/components/ui/card'
 import { analyticsAPI, notebooksAPI, reviewsAPI, streaksAPI } from '@/lib/api'
 import { type Due, dueBreakdown, caughtUpMessage } from '@/lib/study-format'
 import { cn } from '@/lib/utils'
+import { useLocale, useTranslations } from 'next-intl'
 import { ArrowRight, Flame, NotebookText, Target, Zap } from 'lucide-react'
 
 type Notebook = { id: number; title: string }
 type WeakNotebook = { notebook_id: number; title: string; accuracy: number | null }
 
-function greeting(d = new Date()): string {
+function greetingKey(d = new Date()): 'goodMorning' | 'goodAfternoon' | 'goodEvening' {
   const h = d.getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 18) return 'Good afternoon'
-  return 'Good evening'
+  if (h < 12) return 'goodMorning'
+  if (h < 18) return 'goodAfternoon'
+  return 'goodEvening'
 }
 
 export default function HomePage() {
+  const t = useTranslations('home')
+  const common = useTranslations('common')
+  const locale = useLocale()
   const { data: recsRes, isLoading: recsLoading } = useSWR(['/analytics/recommendations'], () =>
     analyticsAPI.getRecommendations()
   )
@@ -53,7 +57,7 @@ export default function HomePage() {
   const hasAnything = notebooks.length > 0
 
   if (recsLoading || notebooksLoading) {
-    return <p className="text-xl text-slate-500 text-center py-20">Loading…</p>
+    return <p className="text-xl text-slate-500 text-center py-20">{common('loading')}</p>
   }
 
   return (
@@ -62,34 +66,34 @@ export default function HomePage() {
       <div className="rise flex flex-wrap items-end justify-between gap-4 border-t-[3px] border-mode-library pt-4">
         <div>
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-library">
-            Today
+            {t('today')}
           </p>
           <h1 className="mt-1 font-display text-3xl font-semibold text-slate-900 md:text-4xl">
-            {greeting()}
+            {t(greetingKey())}
           </h1>
         </div>
         {streak > 0 ? (
           <div className="flex items-center gap-2 rounded-full bg-amber-50 px-4 py-2 text-amber-900">
             <Flame className="size-5 text-amber-500" />
             <span className="font-mono text-sm tabular-nums">
-              {streak} day streak{bestStreak > streak ? ` · best ${bestStreak}` : ''}
+              {t('streak', { count: streak })}{bestStreak > streak ? t('bestStreak', { count: bestStreak }) : ''}
             </span>
           </div>
         ) : (
-          <p className="font-mono text-sm text-slate-500">Study today to start a streak.</p>
+          <p className="font-mono text-sm text-slate-500">{t('startStreak')}</p>
         )}
       </div>
 
       {!hasAnything ? (
         <Card className="rise flex flex-col items-center gap-4 border-slate-200 p-12 text-center shadow-sheet">
           <NotebookText className="size-14 text-slate-300" />
-          <p className="text-xl text-slate-600">Create your first notebook to start studying.</p>
+          <p className="text-xl text-slate-600">{t('firstNotebook')}</p>
           <Button
             asChild
             size="lg"
             className="h-12 bg-mode-library text-lg text-white hover:bg-mode-library-hover"
           >
-            <Link href="/dashboard/notebooks">New notebook</Link>
+            <Link href="/dashboard/notebooks">{t('newNotebook')}</Link>
           </Button>
         </Card>
       ) : (
@@ -103,7 +107,7 @@ export default function HomePage() {
               {ready === 0 ? (
                 <div className="flex items-center gap-3 py-2">
                   <Target className="size-5 shrink-0 text-mode-analytics" />
-                  <p className="text-lg text-slate-700">{caughtUpMessage(due)}</p>
+                  <p className="text-lg text-slate-700">{caughtUpMessage(due, common, locale)}</p>
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-5">
@@ -113,7 +117,7 @@ export default function HomePage() {
                     </span>
                     <div className="min-w-0">
                       <p className="text-lg text-slate-900">
-                        card{ready === 1 ? '' : 's'} due today
+                        {t('cardsDueToday', { count: ready })}
                       </p>
                       <p
                         className={cn(
@@ -121,7 +125,7 @@ export default function HomePage() {
                           due.overdue > 0 ? 'text-red-700' : 'text-slate-500'
                         )}
                       >
-                        {dueBreakdown(due)}
+                        {dueBreakdown(due, common)}
                       </p>
                     </div>
                   </div>
@@ -131,7 +135,7 @@ export default function HomePage() {
                     className="h-12 shrink-0 bg-mode-flashcards px-8 text-lg text-white hover:bg-mode-flashcards-hover"
                   >
                     <Link href="/dashboard/flashcards?due=1">
-                      Study now
+                      {t('studyNow')}
                       <ArrowRight className="ml-2 size-5" />
                     </Link>
                   </Button>
@@ -145,14 +149,14 @@ export default function HomePage() {
             >
               <div className="mb-3 flex items-center gap-2 text-slate-500">
                 <Zap className="size-4 text-mode-flashcards" />
-                <span className="text-sm">This week</span>
+                <span className="text-sm">{t('thisWeek')}</span>
               </div>
               <p className="font-mono text-3xl font-semibold tabular-nums text-slate-900">
                 {reviewsThisWeek}
               </p>
               <p className="text-sm text-slate-500">
-                review{reviewsThisWeek === 1 ? '' : 's'}
-                {accuracyThisWeek != null ? ` · ${accuracyThisWeek}% recalled` : ''}
+                {t('reviews', { count: reviewsThisWeek })}
+                {accuracyThisWeek != null ? t('recalledPct', { pct: accuracyThisWeek }) : ''}
               </p>
             </Card>
           </div>
@@ -166,13 +170,13 @@ export default function HomePage() {
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <NotebookText className="size-5 text-mode-library" />
-                  <h2 className="text-xl font-semibold text-slate-900">Jump back in</h2>
+                  <h2 className="text-xl font-semibold text-slate-900">{t('jumpBackIn')}</h2>
                 </div>
                 <Link
                   href="/dashboard/notebooks"
                   className="shrink-0 text-sm font-medium text-mode-library hover:underline"
                 >
-                  All notebooks →
+                  {t('allNotebooks')}
                 </Link>
               </div>
               <ul className="divide-y divide-slate-100">
@@ -197,18 +201,18 @@ export default function HomePage() {
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <Target className="size-5 text-mode-analytics" />
-                  <h2 className="text-xl font-semibold text-slate-900">Weakest right now</h2>
+                  <h2 className="text-xl font-semibold text-slate-900">{t('weakestNow')}</h2>
                 </div>
                 <Link
                   href="/dashboard/analytics"
                   className="shrink-0 text-sm font-medium text-mode-analytics hover:underline"
                 >
-                  Analytics →
+                  {t('analyticsLink')}
                 </Link>
               </div>
               {weakNotebooks.length === 0 ? (
                 <p className="py-3 text-slate-500">
-                  Study a notebook and its recall shows up here.
+                  {t('weakestEmpty')}
                 </p>
               ) : (
                 <ul className="divide-y divide-slate-100">
@@ -216,7 +220,7 @@ export default function HomePage() {
                     <li key={n.notebook_id} className="flex items-center gap-4 py-3">
                       <span className="min-w-0 flex-1 truncate text-slate-800">{n.title}</span>
                       <span className="shrink-0 font-mono text-sm tabular-nums text-slate-600">
-                        {n.accuracy == null ? 'Not studied' : `${n.accuracy}%`}
+                        {n.accuracy == null ? common('notStudied') : `${n.accuracy}%`}
                       </span>
                     </li>
                   ))}
