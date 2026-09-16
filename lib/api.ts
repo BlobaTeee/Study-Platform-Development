@@ -83,6 +83,10 @@ export const quizzesAPI = {
   startAttempt: (quizId: number) => api.post(`/quizzes/quizzes/${quizId}/start_attempt/`, {}),
   submitAnswer: (attemptId: number, data: any) => api.post(`/quizzes/attempts/${attemptId}/submit_answer/`, data),
   completeQuiz: (attemptId: number, data: any) => api.post(`/quizzes/attempts/${attemptId}/complete/`, data),
+  gradeTypedAnswer: (attemptId: number, data: { question_id: number; answer: string }) =>
+    api.post(`/quizzes/attempts/${attemptId}/grade_typed_answer/`, data),
+  overrideAnswer: (attemptId: number, data: { answer_id: number; is_correct: boolean }) =>
+    api.post(`/quizzes/attempts/${attemptId}/override_answer/`, data),
 }
 
 export const notebooksAPI = {

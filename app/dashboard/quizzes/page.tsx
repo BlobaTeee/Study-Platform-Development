@@ -10,7 +10,7 @@ import { quizzesAPI } from '@/lib/api'
 import { parseSourceIdsParam, hasAllSources } from '@/lib/source-utils'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { SourceRequired } from '@/components/source-required'
-import { ArrowRight, BookOpen, CheckCircle2, ChevronLeft } from 'lucide-react'
+import { ArrowRight, BookOpen, CheckCircle2, ChevronLeft, CircleDashed, Keyboard, XCircle } from 'lucide-react'
 
 type Question = {
   id: number
@@ -29,6 +29,17 @@ type Quiz = {
   source_ids?: number[]
   questions: Question[]
 }
+
+type Graded = {
+  id: number
+  verdict: 'correct' | 'near' | 'wrong'
+  how: string
+  is_correct: boolean
+  reference_answer: string
+  explanation?: string | null
+}
+
+const TYPED_MODE_KEY = 'quiz-typed-mode'
 
 function QuizzesStudy() {
   const searchParams = useSearchParams()
@@ -68,6 +79,33 @@ function QuizzesStudy() {
   const [attemptId, setAttemptId] = useState<number | null>(null)
   const [starting, setStarting] = useState(false)
 
+  // Typed mode: recall instead of recognition. Off by default, remembered
+  // per browser; a 503 from the grader (no model built) turns it off again.
+  const [typedMode, setTypedMode] = useState(false)
+  const [typedUnavailable, setTypedUnavailable] = useState(false)
+  const [typed, setTyped] = useState('')
+  const [grading, setGrading] = useState(false)
+  const [graded, setGraded] = useState<Graded | null>(null)
+  const [typedError, setTypedError] = useState('')
+
+  useEffect(() => {
+    try {
+      setTypedMode(localStorage.getItem(TYPED_MODE_KEY) === '1')
+    } catch {
+      /* private mode: stays off */
+    }
+  }, [])
+
+  const toggleTypedMode = () => {
+    const next = !typedMode
+    setTypedMode(next)
+    try {
+      localStorage.setItem(TYPED_MODE_KEY, next ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }
+
   useEffect(() => {
     setQIndex(0)
     setSelected(null)
@@ -75,6 +113,9 @@ function QuizzesStudy() {
     setScore(0)
     setFinished(false)
     setAttemptId(null)
+    setTyped('')
+    setGraded(null)
+    setTypedError('')
   }, [quiz?.id])
 
   useEffect(() => {
@@ -148,6 +189,45 @@ function QuizzesStudy() {
     setSubmitted(true)
   }
 
+  const handleCheckTyped = async () => {
+    if (!typed.trim() || !attemptId || grading) return
+    setGrading(true)
+    setTypedError('')
+    try {
+      const res = await quizzesAPI.gradeTypedAnswer(attemptId, {
+        question_id: question.id,
+        answer: typed.trim(),
+      })
+      const g: Graded = res.data
+      setGraded(g)
+      if (g.is_correct) setScore((s) => s + 1)
+      setSubmitted(true)
+    } catch (err) {
+      const status = (err as { response?: { status?: number } }).response?.status
+      if (status === 503) {
+        // No model on this server: fall back to choices for good this session.
+        setTypedUnavailable(true)
+        setTypedMode(false)
+        setTypedError("Typed grading isn't available right now — pick an answer instead.")
+      } else {
+        setTypedError('Could not grade that answer. Check your connection and try again.')
+      }
+    } finally {
+      setGrading(false)
+    }
+  }
+
+  const handleOverride = async () => {
+    if (!graded || !attemptId || graded.is_correct) return
+    try {
+      await quizzesAPI.overrideAnswer(attemptId, { answer_id: graded.id, is_correct: true })
+      setGraded({ ...graded, is_correct: true })
+      setScore((s) => s + 1)
+    } catch {
+      setTypedError('Could not record that. Try again.')
+    }
+  }
+
   const handleNext = async () => {
     if (qIndex >= questions.length - 1) {
       if (attemptId) {
@@ -163,7 +243,27 @@ function QuizzesStudy() {
     setQIndex((i) => i + 1)
     setSelected(null)
     setSubmitted(false)
+    setTyped('')
+    setGraded(null)
+    setTypedError('')
   }
+
+  // Enter checks (the form), Enter again advances, `r` overrides when offered.
+  useEffect(() => {
+    if (!typedMode) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && submitted) {
+        e.preventDefault()
+        void handleNext()
+      } else if (e.key === 'r' && submitted && graded && !graded.is_correct) {
+        e.preventDefault()
+        void handleOverride()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typedMode, submitted, graded])
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
@@ -171,7 +271,7 @@ function QuizzesStudy() {
         <SourceContextBanner />
       </Suspense>
 
-      <div className="rise border-t-[3px] border-mode-quizzes pt-4 flex items-start justify-between gap-4">
+      <div className="rise border-t-[3px] border-mode-quizzes pt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
             Quiz
@@ -181,12 +281,31 @@ function QuizzesStudy() {
             Question {qIndex + 1} of {questions.length}
           </p>
         </div>
-        <Button asChild variant="outline" size="lg" className="text-lg h-11 shrink-0">
-          <Link href="/dashboard/notebooks">
-            <ChevronLeft className="size-5 mr-1" />
-            Sources
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {!typedUnavailable && (
+            <Button
+              type="button"
+              variant={typedMode ? 'default' : 'outline'}
+              size="lg"
+              aria-pressed={typedMode}
+              onClick={toggleTypedMode}
+              className={
+                typedMode
+                  ? 'h-11 text-lg bg-mode-quizzes hover:bg-mode-quizzes-hover text-white'
+                  : 'h-11 text-lg'
+              }
+            >
+              <Keyboard className="size-5 mr-1.5" aria-hidden />
+              Type answers
+            </Button>
+          )}
+          <Button asChild variant="outline" size="lg" className="text-lg h-11">
+            <Link href="/dashboard/notebooks">
+              <ChevronLeft className="size-5 mr-1" />
+              Sources
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="rise h-1.5 rounded-full bg-slate-100 overflow-hidden" style={{ animationDelay: '60ms' }}>
@@ -207,30 +326,54 @@ function QuizzesStudy() {
           {question.question_text}
         </p>
 
-        <div className="space-y-3">
-          {options.map((opt) => {
-            let style = 'border-slate-200 bg-white hover:bg-slate-50'
-            if (submitted) {
-              if (opt === question.correct_answer) style = 'border-emerald-400 bg-emerald-50'
-              else if (opt === selected) style = 'border-red-300 bg-red-50'
-            } else if (selected === opt) {
-              style = 'border-mode-quizzes bg-mode-quizzes/10'
-            }
-            return (
-              <button
-                key={opt}
-                type="button"
-                disabled={submitted}
-                onClick={() => setSelected(opt)}
-                className={`w-full text-left rounded-xl border-2 px-5 py-4 text-lg text-slate-900 transition-colors ${style}`}
-              >
-                {opt}
-              </button>
-            )
-          })}
-        </div>
+        {typedMode ? (
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!submitted) void handleCheckTyped()
+            }}
+          >
+            {!submitted ? (
+              <input
+                autoFocus
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                placeholder="Type your answer"
+                aria-label="Your answer"
+                className="w-full rounded-xl border-2 border-slate-200 bg-white px-5 py-4 text-lg text-slate-900 focus:border-mode-quizzes focus:outline-none"
+              />
+            ) : graded ? (
+              <TypedVerdict typed={typed} graded={graded} onOverride={handleOverride} />
+            ) : null}
+            {typedError && <p className="text-base text-red-700">{typedError}</p>}
+          </form>
+        ) : (
+          <div className="space-y-3">
+            {options.map((opt) => {
+              let style = 'border-slate-200 bg-white hover:bg-slate-50'
+              if (submitted) {
+                if (opt === question.correct_answer) style = 'border-emerald-400 bg-emerald-50'
+                else if (opt === selected) style = 'border-red-300 bg-red-50'
+              } else if (selected === opt) {
+                style = 'border-mode-quizzes bg-mode-quizzes/10'
+              }
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  disabled={submitted}
+                  onClick={() => setSelected(opt)}
+                  className={`w-full text-left rounded-xl border-2 px-5 py-4 text-lg text-slate-900 transition-colors ${style}`}
+                >
+                  {opt}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
-        {submitted && question.explanation && (
+        {submitted && !typedMode && question.explanation && (
           <p className="mt-6 text-lg text-slate-500 leading-relaxed">{question.explanation}</p>
         )}
       </Card>
@@ -239,11 +382,11 @@ function QuizzesStudy() {
         {!submitted ? (
           <Button
             size="lg"
-            disabled={!selected}
-            onClick={handleSubmit}
+            disabled={typedMode ? !typed.trim() || grading : !selected}
+            onClick={typedMode ? handleCheckTyped : handleSubmit}
             className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 px-10 text-lg"
           >
-            Check answer
+            {grading ? 'Checking…' : 'Check answer'}
           </Button>
         ) : (
           <Button
@@ -265,5 +408,53 @@ export default function QuizzesPage() {
     <Suspense fallback={<p className="text-xl text-slate-500 py-20 text-center">Loading…</p>}>
       <QuizzesStudy />
     </Suspense>
+  )
+}
+
+/** What the grader said about a typed answer. Colour never stands alone:
+ *  each state has its icon and its word. `near` and `wrong` offer the
+ *  override — the student's judgement is the last word, and the label. */
+function TypedVerdict({
+  typed,
+  graded,
+  onOverride,
+}: {
+  typed: string
+  graded: Graded
+  onOverride: () => void
+}) {
+  const state = graded.is_correct
+    ? { icon: CheckCircle2, word: 'Correct', tone: 'border-emerald-400 bg-emerald-50 text-emerald-900', iconTone: 'text-emerald-600' }
+    : graded.verdict === 'near'
+      ? { icon: CircleDashed, word: 'Close', tone: 'border-amber-400 bg-amber-50 text-amber-900', iconTone: 'text-amber-600' }
+      : { icon: XCircle, word: 'Not quite', tone: 'border-red-300 bg-red-50 text-red-900', iconTone: 'text-red-600' }
+  const Icon = state.icon
+  return (
+    <div className="space-y-4">
+      <div className={`rounded-xl border-2 px-5 py-4 ${state.tone}`}>
+        <p className="flex items-center gap-2 font-mono text-xs uppercase tracking-wide">
+          <Icon className={`size-4 ${state.iconTone}`} aria-hidden />
+          {state.word}
+        </p>
+        <p className="mt-1 text-lg">{typed}</p>
+      </div>
+      {!graded.is_correct && (
+        <p className="text-lg text-slate-900">
+          The answer is <span className="font-semibold">{graded.reference_answer}</span>.
+        </p>
+      )}
+      {graded.explanation && (
+        <p className="text-lg text-slate-500 leading-relaxed">{graded.explanation}</p>
+      )}
+      {!graded.is_correct && (
+        <button
+          type="button"
+          onClick={onOverride}
+          className="text-base text-slate-600 underline underline-offset-4 hover:text-slate-900"
+        >
+          I was right <span className="font-mono text-xs text-slate-400">(r)</span>
+        </button>
+      )}
+    </div>
   )
 }
