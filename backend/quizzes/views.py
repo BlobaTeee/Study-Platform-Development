@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from studyplatform.throttling import GenerationRateThrottle
@@ -16,6 +18,8 @@ from .services.paper import (
     MIN_QUESTIONS, MAX_QUESTIONS, MIN_DURATION_MINUTES, MAX_DURATION_MINUTES,
 )
 from .services.topup import questions_to_request, should_continue
+
+logger = logging.getLogger(__name__)
 
 
 class QuizViewSet(viewsets.ModelViewSet):
@@ -96,6 +100,64 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         attempt.save()
         serializer = QuizAttemptSerializer(attempt)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def grade_typed_answer(self, request, pk=None):
+        """Grade an answer the student typed rather than picked.
+
+        Writes an Answer row like submit_answer does, so `complete` scores
+        the attempt unchanged; the row also records how it was graded.
+        """
+        from .services.typed_grading import grade_typed
+
+        attempt = self.get_object()
+        if attempt.is_completed:
+            return Response({'detail': 'This attempt is already complete.'}, status=400)
+        typed = (request.data.get('answer') or '').strip()
+        if not typed:
+            return Response({'detail': 'Type an answer first.'}, status=400)
+        question = Question.objects.filter(pk=request.data.get('question_id'),
+                                           quiz=attempt.quiz).first()
+        if question is None:
+            return Response({'detail': 'Question not part of this quiz.'}, status=404)
+
+        try:
+            verdict = grade_typed(question, typed)
+        except Exception:  # noqa: BLE001 — the scorer artifact, most likely
+            logger.exception('Typed grading failed')
+            return Response({'detail': 'Typed grading is unavailable — build the model with '
+                                       '`manage.py ensure_ml_model`.'}, status=503)
+
+        is_correct = verdict['verdict'] == 'correct'
+        answer = Answer.objects.create(
+            quiz_attempt=attempt, question=question, user_answer=typed,
+            is_correct=is_correct, points_earned=1 if is_correct else 0,
+            mode='typed', verdict=verdict['verdict'], graded_how=verdict['how'],
+        )
+        return Response({
+            'id': answer.id, 'verdict': verdict['verdict'], 'how': verdict['how'],
+            'is_correct': is_correct, 'reference_answer': question.correct_answer,
+            'explanation': question.explanation,
+        })
+
+    @action(detail=True, methods=['post'])
+    def override_answer(self, request, pk=None):
+        """The student disagrees with the grader. Their call stands, and the
+        disagreement is kept: it is the label the model can learn from."""
+        attempt = self.get_object()
+        if attempt.is_completed:
+            return Response({'detail': 'This attempt is already complete.'}, status=400)
+        answer = attempt.answers.filter(id=request.data.get('answer_id')).first()
+        if answer is None:
+            return Response({'detail': 'Answer not part of this attempt.'}, status=404)
+        if answer.mode != 'typed':
+            return Response({'detail': 'Only typed answers can be overridden.'}, status=400)
+        is_correct = bool(request.data.get('is_correct'))
+        answer.is_correct = is_correct
+        answer.points_earned = 1 if is_correct else 0
+        answer.overridden = True
+        answer.save(update_fields=['is_correct', 'points_earned', 'overridden'])
+        return Response({'id': answer.id, 'is_correct': is_correct, 'overridden': True})
 
 
 def _top_up_pool(user, notebook, source_ids, pool, requested):
