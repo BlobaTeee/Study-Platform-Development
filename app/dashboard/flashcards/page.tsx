@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import useSWR from 'swr'
 import { flashcardsAPI, type ReviewGrade } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { SourceRequired } from '@/components/source-required'
 import {
@@ -32,13 +33,15 @@ type Flashcard = {
 /** The three SM-2 grades, worst recall first. Only you can judge whether you
  *  remembered a card, so grading is the one step that cannot be automated —
  *  the number keys mirror the on-screen order. */
-const GRADES: { value: ReviewGrade; label: string; hint: string; className: string }[] = [
-  { value: 'hard', label: 'Hard', hint: 'Forgot', className: 'border-red-300 bg-red-50 text-red-900 hover:bg-red-100' },
-  { value: 'good', label: 'Good', hint: 'Recalled', className: 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100' },
-  { value: 'easy', label: 'Easy', hint: 'Instantly', className: 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100' },
+const GRADES: { value: ReviewGrade; className: string }[] = [
+  { value: 'hard', className: 'border-red-300 bg-red-50 text-red-900 hover:bg-red-100' },
+  { value: 'good', className: 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100' },
+  { value: 'easy', className: 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100' },
 ]
 
 function FlashcardsStudy() {
+  const t = useTranslations('flashcards')
+  const common = useTranslations('common')
   const searchParams = useSearchParams()
   const sourceParam = searchParams.get('source')
   const sourceIds = useMemo(() => parseSourceIdsParam(sourceParam), [sourceParam])
@@ -99,7 +102,7 @@ function FlashcardsStudy() {
       try {
         const res = await flashcardsAPI.recordReview(card.id, value)
         setLastReview({
-          label: GRADES.find((g) => g.value === value)!.label,
+          label: t(value),
           interval: res.data.interval,
         })
         setGraded((g) => new Set(g).add(card.id))
@@ -109,7 +112,7 @@ function FlashcardsStudy() {
         else goNext()
       } catch {
         // Stay on the card so the grade isn't silently lost.
-        setError('Could not save that review. Is the backend running?')
+        setError(t('saveFailed'))
       } finally {
         setSaving(false)
       }
@@ -155,9 +158,9 @@ function FlashcardsStudy() {
         <p className="text-xl text-slate-600 mb-6">
           {dueMode
             ? graded.size > 0
-              ? `Caught up — ${graded.size} card${graded.size === 1 ? '' : 's'} reviewed. Nothing else is due.`
-              : 'Nothing due right now. Cards come back as their dates arrive.'
-            : 'No flashcards for this selection yet.'}
+              ? t('caughtUpReviewed', { cards: common('cards', { count: graded.size }) })
+              : t('nothingDue')
+            : t('noneForSelection')}
         </p>
         {/* Studying a document enters the scheduled queue, so "nothing due" is
             the common landing. Offering the whole document here keeps that an
@@ -167,17 +170,17 @@ function FlashcardsStudy() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button asChild size="lg" variant="outline" className="h-12 text-lg">
               <Link href={`/dashboard/flashcards?source=${sourceParam}`}>
-                Study all cards anyway
+                {t('studyAllAnyway')}
               </Link>
             </Button>
             <Button asChild size="lg" className="bg-mode-library hover:bg-mode-library-hover h-12 text-lg">
-              <Link href="/dashboard/notebooks">Back to notebooks</Link>
+              <Link href="/dashboard/notebooks">{t('backToNotebooks')}</Link>
             </Button>
           </div>
         ) : (
           <Button asChild size="lg" className="bg-mode-library hover:bg-mode-library-hover h-12 text-lg">
             <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
-              {dueMode ? 'Back to progress' : 'Go to Notebooks'}
+              {dueMode ? t('backToProgress') : t('goToNotebooks')}
             </Link>
           </Button>
         )}
@@ -198,21 +201,21 @@ function FlashcardsStudy() {
       <div className="rise border-t-[3px] border-mode-flashcards pt-4 flex items-center justify-between gap-4">
         <div>
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-flashcards">
-            Flashcards
+            {t('title')}
           </p>
           <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">
-            {dueMode ? 'Due today' : 'Study session'}
+            {dueMode ? t('dueToday') : t('studySession')}
           </h1>
           <p className="font-mono text-sm text-slate-500 mt-1 tabular-nums">
             {dueMode
-              ? `${total} left${graded.size > 0 ? ` · ${graded.size} done` : ''}`
+              ? t('leftAndDone', { left: total, done: graded.size })
               : `${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`}
           </p>
         </div>
         <Button asChild variant="outline" size="lg" className="text-lg h-11">
           <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
             <ChevronLeft className="size-5 mr-1" />
-            {dueMode ? 'Progress' : 'Notebooks'}
+            {dueMode ? t('progress') : t('backToNotebooks')}
           </Link>
         </Button>
       </div>
@@ -235,7 +238,7 @@ function FlashcardsStudy() {
         <button
           type="button"
           onClick={() => setFlipped((f) => !f)}
-          aria-label={flipped ? 'Show question' : 'Show answer'}
+          aria-label={flipped ? t('showQuestion') : t('showAnswer')}
           aria-pressed={flipped}
           className="group block w-full text-left rounded-2xl outline-none focus-visible:ring-4 focus-visible:ring-mode-flashcards/30"
         >
@@ -255,7 +258,7 @@ function FlashcardsStudy() {
           question left is how well you recalled it. */}
       {flipped ? (
         <div className="rise space-y-3" style={{ animationDelay: '180ms' }}>
-          <p className="text-center text-sm text-slate-500">How well did you recall it?</p>
+          <p className="text-center text-sm text-slate-500">{t('howWell')}</p>
           <div className="grid grid-cols-3 gap-3">
             {GRADES.map((g, i) => (
               <button
@@ -269,10 +272,10 @@ function FlashcardsStudy() {
                 )}
               >
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="text-lg font-semibold">{g.label}</span>
+                  <span className="text-lg font-semibold">{t(g.value)}</span>
                   <span className="font-mono text-xs opacity-60 tabular-nums">{i + 1}</span>
                 </span>
-                <span className="block text-sm opacity-75">{g.hint}</span>
+                <span className="block text-sm opacity-75">{t(`${g.value}Hint`)}</span>
               </button>
             ))}
           </div>
@@ -281,7 +284,7 @@ function FlashcardsStudy() {
         <div className="rise flex flex-wrap items-center justify-center gap-4" style={{ animationDelay: '180ms' }}>
           <Button variant="outline" size="lg" onClick={goPrev} className="h-12 px-6 text-lg">
             <ArrowLeft className="size-5 mr-2" />
-            Previous
+            {t('previous')}
           </Button>
           <Button
             size="lg"
@@ -289,10 +292,10 @@ function FlashcardsStudy() {
             className="bg-mode-flashcards hover:bg-mode-flashcards-hover text-white h-12 px-6 text-lg"
           >
             <RotateCcw className="size-5 mr-2" />
-            Show answer
+            {t('showAnswer')}
           </Button>
           <Button variant="outline" size="lg" onClick={goNext} className="h-12 px-6 text-lg">
-            Skip
+            {t('skip')}
             <ArrowRight className="size-5 ml-2" />
           </Button>
         </div>
@@ -306,8 +309,8 @@ function FlashcardsStudy() {
 
       <p className="rise text-center font-mono text-xs uppercase tracking-wide text-slate-500" style={{ animationDelay: '220ms' }}>
         {lastReview
-          ? `${lastReview.label} · back in ${lastReview.interval} day${lastReview.interval === 1 ? '' : 's'} · ${graded.size}/${total} graded`
-          : `Space to flip · 1-3 to grade · difficulty: ${card.difficulty}`}
+          ? t('lastReview', { grade: lastReview.label, days: lastReview.interval, graded: graded.size, total })
+          : t('hint', { difficulty: difficultyLabel(card.difficulty, t) })}
       </p>
     </div>
   )
@@ -316,6 +319,7 @@ function FlashcardsStudy() {
 /** One face of the index card. The tabbed top edge and ruled baseline are
  *  the physical cues; front is amber (prompt), back is ink (recall). */
 function IndexFace({ side, card }: { side: 'front' | 'back'; card: Flashcard }) {
+  const t = useTranslations('flashcards')
   const isFront = side === 'front'
   return (
     <div
@@ -338,7 +342,7 @@ function IndexFace({ side, card }: { side: 'front' | 'back'; card: Flashcard }) 
           isFront ? 'text-mode-flashcards' : 'text-slate-500'
         )}
       >
-        {isFront ? 'Question' : 'Answer'}
+        {isFront ? t('question') : t('answer')}
       </p>
       <p className="text-2xl md:text-3xl text-slate-900 leading-relaxed">
         {isFront ? card.question : card.answer}
@@ -355,4 +359,10 @@ export default function FlashcardsPage() {
       <FlashcardsStudy />
     </Suspense>
   )
+}
+
+function difficultyLabel(difficulty: string, t: (key: string) => string): string {
+  if (difficulty === 'easy') return t('difficultyEasy')
+  if (difficulty === 'hard') return t('difficultyHard')
+  return t('difficultyMedium')
 }

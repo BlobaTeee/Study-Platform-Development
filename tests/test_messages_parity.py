@@ -41,12 +41,14 @@ def test_every_english_key_has_a_vietnamese_one_and_vice_versa():
 PRINTED = re.compile(r"\{(\w+)\s*\}")
 
 
-def _without_plural_blocks(msg):
-    """`msg` with every `{name, plural, …}` block removed (braces balanced),
-    so the words inside a branch (`one {review}`) are not read as placeholders."""
-    out, i = [], 0
+def _plural_info(msg):
+    """(msg with every `{name, plural, …}` block removed, names of the blocks
+    that print the number with `#`). Braces are balanced by hand so the words
+    inside a branch (`one {review}`) are not read as placeholders."""
+    out, printed, i = [], set(), 0
+    opener = re.compile(r"\{(\w+)\s*,\s*plural")
     while i < len(msg):
-        m = re.compile(r"\{\w+\s*,\s*plural").search(msg, i)
+        m = opener.search(msg, i)
         if not m:
             out.append(msg[i:]); break
         out.append(msg[i:m.start()])
@@ -56,8 +58,10 @@ def _without_plural_blocks(msg):
             depth -= msg[j] == "}"
             j += 1
             if depth == 0: break
+        if "#" in msg[m.start():j]:
+            printed.add(m.group(1))
         i = j
-    return "".join(out)
+    return "".join(out), printed
 
 
 def test_placeholders_match():
@@ -68,10 +72,9 @@ def test_placeholders_match():
     en, vi = _load("en"), _load("vi")
     for key in en:
         en_all, vi_all = set(PLACEHOLDER.findall(en[key])), set(PLACEHOLDER.findall(vi[key]))
-        stripped = _without_plural_blocks(en[key])
-        # `#` inside a plural block prints the count; outside one it is just a hash.
-        count_printed = "#" in en[key] and "#" not in stripped
-        en_printed = set(PRINTED.findall(stripped)) | ({"count"} if count_printed else set())
+        stripped, printed_selectors = _plural_info(en[key])
+        # A `#` inside a plural block prints that block's number.
+        en_printed = set(PRINTED.findall(stripped)) | printed_selectors
         assert vi_all <= en_all, f"{key}: vi names {vi_all - en_all} which en does not pass"
         assert en_printed <= vi_all, f"{key}: vi drops printed {en_printed - vi_all}"
 
