@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import useSWR from 'swr'
 import { mockTestsAPI, notebooksAPI, plannedTestsAPI } from '@/lib/api'
 import { useConfirm } from '@/components/confirm-dialog'
+import { useLocale, useTranslations } from 'next-intl'
 import {
   AlertCircle,
   ArrowLeft,
@@ -79,10 +80,11 @@ type PlannedTest = {
   created_at: string
 }
 
-const REMINDER_LEAD_LABELS: Record<number, string> = {
-  1: '1 hour before',
-  24: '1 day before',
-  72: '3 days before',
+// Keys under `tests` for the three reminder leads the API accepts.
+const REMINDER_LEAD_KEYS: Record<number, 'lead1h' | 'lead1d' | 'lead3d'> = {
+  1: 'lead1h',
+  24: 'lead1d',
+  72: 'lead3d',
 }
 
 /** 400s here name the offending field instead of using `detail` — try both
@@ -107,8 +109,8 @@ function formatClock(totalSeconds: number): string {
   return `${m}:${String(sec).padStart(2, '0')}`
 }
 
-function formatScheduledFor(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+function formatScheduledFor(iso: string, locale: string): string {
+  return new Date(iso).toLocaleString(locale, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -120,10 +122,10 @@ function formatScheduledFor(iso: string): string {
 // For the disabled Start button. The card already shows the full date a line
 // above, so the button only repeats the time — unless the plan is on another
 // day, when a bare time would read as today.
-function formatOpensAt(iso: string): string {
+function formatOpensAt(iso: string, locale: string): string {
   const at = new Date(iso)
   const sameDay = at.toDateString() === new Date().toDateString()
-  return at.toLocaleString(undefined, {
+  return at.toLocaleString(locale, {
     ...(sameDay ? {} : { month: 'short', day: 'numeric' }),
     hour: 'numeric',
     minute: '2-digit',
@@ -131,6 +133,9 @@ function formatOpensAt(iso: string): string {
 }
 
 function MockTestsInner() {
+  const t = useTranslations('tests')
+  const common = useTranslations('common')
+  const locale = useLocale()
   const router = useRouter()
   const searchParams = useSearchParams()
   const idParam = searchParams.get('id')
@@ -272,7 +277,7 @@ function MockTestsInner() {
       // the tick effect below to stand down; the "try again" affordance in
       // the UI is the only thing allowed to attempt it again after that.
       submittingRef.current = false
-      setSubmitError(apiErrorMessage(err, 'Could not submit the test. Check your connection and try again.'))
+      setSubmitError(apiErrorMessage(err, t('submitFailed')))
     } finally {
       setSubmitting(false)
     }
@@ -352,11 +357,11 @@ function MockTestsInner() {
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!notebookId) {
-      setSetupError('Choose a notebook first.')
+      setSetupError(t('chooseNotebook'))
       return
     }
     if (questionCount === '' || durationMinutes === '') {
-      setSetupError('Enter both the number of questions and the duration.')
+      setSetupError(t('enterCountAndDuration'))
       return
     }
     setStarting(true)
@@ -368,7 +373,7 @@ function MockTestsInner() {
         duration_minutes: durationMinutes,
       })
     } catch (err) {
-      setSetupError(apiErrorMessage(err, 'Could not start the test. Is the backend running?'))
+      setSetupError(apiErrorMessage(err, t('startFailed')))
     } finally {
       setStarting(false)
     }
@@ -386,7 +391,7 @@ function MockTestsInner() {
       })
       void mutatePlans()
     } catch (err) {
-      setPlanError(apiErrorMessage(err, 'Could not start the test. Is the backend running?'))
+      setPlanError(apiErrorMessage(err, t('startFailed')))
     } finally {
       setStartingPlanId(null)
     }
@@ -395,15 +400,15 @@ function MockTestsInner() {
   const handleCreatePlan = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!planNotebookId) {
-      setPlanError('Choose a notebook first.')
+      setPlanError(t('chooseNotebook'))
       return
     }
     if (!planScheduledFor) {
-      setPlanError('Pick a date and time.')
+      setPlanError(t('pickDateTime'))
       return
     }
     if (planQuestionCount === '' || planDurationMinutes === '') {
-      setPlanError('Enter both the number of questions and the duration.')
+      setPlanError(t('enterCountAndDuration'))
       return
     }
     setPlanCreating(true)
@@ -431,7 +436,7 @@ function MockTestsInner() {
       // A past scheduled_for comes back as a field error naming
       // scheduled_for ("Pick a time in the future.") — surface it as-is
       // rather than a generic failure.
-      setPlanError(apiErrorMessage(err, 'Could not plan the test. Is the backend running?'))
+      setPlanError(apiErrorMessage(err, t('planFailed')))
     } finally {
       setPlanCreating(false)
     }
@@ -444,7 +449,7 @@ function MockTestsInner() {
       await plannedTestsAPI.remove(id)
       void mutatePlans()
     } catch {
-      setPlanError('Could not cancel that plan. Is the backend running?')
+      setPlanError(t('cancelFailed'))
     } finally {
       setCancelingPlanId(null)
     }
@@ -465,7 +470,7 @@ function MockTestsInner() {
           void handleSubmit()
           return
         }
-        setSaveError('Could not save that answer. Is the backend running?')
+        setSaveError(t('saveFailed'))
       }
     },
     [test, handleSubmit]
@@ -503,9 +508,10 @@ function MockTestsInner() {
     const unanswered = paper.length - Object.keys(answers).length
     if (unanswered > 0) {
       const ok = await confirm({
-        title: `${unanswered} ${unanswered === 1 ? 'question' : 'questions'} still unanswered`,
-        body: 'Submitting now marks them wrong. You cannot return to this paper afterwards.',
-        confirmLabel: 'Submit anyway',
+        title: t('unansweredTitle', { questions: common('questions', { count: unanswered }) }),
+        body: t('unansweredBody'),
+        confirmLabel: t('submitAnyway'),
+        cancelLabel: common('cancel'),
       })
       if (!ok) return
     }
@@ -521,13 +527,13 @@ function MockTestsInner() {
         <div className="rise border-t-[3px] border-mode-quizzes pt-4 flex items-start justify-between gap-4">
           <div>
             <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
-              Mock test
+              {t('eyebrow')}
             </p>
-            <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">Reviewed</h1>
+            <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">{t('reviewed')}</h1>
           </div>
           <Button variant="outline" size="lg" className="text-lg h-11 shrink-0" onClick={handleNewTest}>
             <ChevronLeft className="size-5 mr-1" />
-            New test
+            {t('newTest')}
           </Button>
         </div>
 
@@ -535,7 +541,7 @@ function MockTestsInner() {
           <p className="font-mono text-4xl font-semibold text-slate-900 tabular-nums">
             {result.correct_count} / {result.question_count}
           </p>
-          <p className="font-mono text-sm text-slate-500 mt-2 tabular-nums">{pct}% correct</p>
+          <p className="font-mono text-sm text-slate-500 mt-2 tabular-nums">{t('pctCorrect', { pct })}</p>
         </Card>
 
         <div className="space-y-5">
@@ -567,19 +573,19 @@ function MockTestsInner() {
                       {opt}
                       {opt === q.correct_answer && (
                         <span className="ml-2 font-mono text-xs uppercase tracking-wide text-emerald-700">
-                          Correct answer
+                          {t('correctAnswer')}
                         </span>
                       )}
                       {opt === q.user_answer && opt !== q.correct_answer && (
                         <span className="ml-2 font-mono text-xs uppercase tracking-wide text-red-700">
-                          Your answer
+                          {t('yourAnswer')}
                         </span>
                       )}
                     </div>
                   )
                 })}
                 {!q.user_answer && (
-                  <p className="text-sm text-slate-500 italic">Left unanswered.</p>
+                  <p className="text-sm text-slate-500 italic">{t('leftUnanswered')}</p>
                 )}
               </div>
 
@@ -595,7 +601,7 @@ function MockTestsInner() {
 
   // ---- Resuming ----
   if (resuming) {
-    return <p className="text-xl text-slate-500 text-center py-20">Loading test…</p>
+    return <p className="text-xl text-slate-500 text-center py-20">{t('loadingTest')}</p>
   }
 
   // ---- Sitting ----
@@ -612,13 +618,13 @@ function MockTestsInner() {
         <div className="rise border-t-[3px] border-mode-quizzes pt-4 flex items-start justify-between gap-4">
           <div>
             <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
-              Mock test
+              {t('eyebrow')}
             </p>
             <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">
               {test.notebook_title}
             </h1>
             <p className="font-mono text-sm text-slate-500 mt-1 tabular-nums">
-              Question {qIndex + 1} of {paper.length} · {answeredCount} answered
+              {t('questionOf', { n: qIndex + 1, total: paper.length, answered: answeredCount })}
             </p>
           </div>
           <div
@@ -633,15 +639,14 @@ function MockTestsInner() {
               <p className="font-mono text-lg font-semibold tabular-nums">
                 {secondsRemaining !== null ? formatClock(secondsRemaining) : '—:—'}
               </p>
-              <p className="text-[11px] uppercase tracking-wide">Time remaining</p>
+              <p className="text-[11px] uppercase tracking-wide">{t('timeRemaining')}</p>
             </div>
           </div>
         </div>
 
         {test.short_paper && (
           <p className="rise text-sm text-slate-500">
-            This notebook could only supply {test.question_count} question{test.question_count === 1 ? '' : 's'}, even
-            after generating more, so the paper is shorter than requested.
+            {t('shortPaper', { questions: common('questions', { count: test.question_count }) })}
           </p>
         )}
 
@@ -664,7 +669,7 @@ function MockTestsInner() {
                 type="button"
                 onClick={() => setQIndex(i)}
                 aria-current={isCurrent}
-                aria-label={`Question ${i + 1}${isAnswered ? ', answered' : ', not answered'}`}
+                aria-label={`${t('questionLabel', { n: i + 1 })}, ${isAnswered ? t('answered') : t('notAnswered')}`}
                 className={`size-9 rounded-md border-2 font-mono text-sm tabular-nums transition-colors outline-none focus-visible:ring-4 focus-visible:ring-mode-quizzes/30 ${
                   isCurrent
                     ? 'border-mode-quizzes bg-mode-quizzes text-white'
@@ -728,7 +733,7 @@ function MockTestsInner() {
               onClick={() => void handleSubmit()}
               className="border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
             >
-              Try submitting again
+              {t('trySubmitAgain')}
             </Button>
           </div>
         )}
@@ -742,7 +747,7 @@ function MockTestsInner() {
             className="h-12 px-6 text-lg"
           >
             <ArrowLeft className="size-5 mr-2" />
-            Previous
+            {t('previous')}
           </Button>
           {qIndex < paper.length - 1 ? (
             <Button
@@ -750,7 +755,7 @@ function MockTestsInner() {
               onClick={goNext}
               className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 px-6 text-lg"
             >
-              Next question
+              {t('nextQuestion')}
               <ArrowRight className="size-5 ml-2" />
             </Button>
           ) : null}
@@ -762,7 +767,7 @@ function MockTestsInner() {
             className="h-12 px-6 text-lg border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
           >
             {submitting ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
-            Submit test
+            {t('submitTest')}
           </Button>
         </div>
       </div>
@@ -774,30 +779,29 @@ function MockTestsInner() {
     <div className="max-w-2xl mx-auto space-y-8">
       <div className="rise border-t-[3px] border-mode-quizzes pt-4">
         <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
-          Mock test
+          {t('eyebrow')}
         </p>
-        <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">Sit a timed test</h1>
+        <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">{t('sitTitle')}</h1>
         <p className="text-base text-slate-500 mt-2 leading-relaxed">
-          Pick a notebook, a paper length and a duration. Once the test starts, the paper is fixed and the
-          clock runs until you submit or time runs out.
+          {t('sitLead')}
         </p>
       </div>
 
       {notebooksLoading ? (
-        <p className="text-lg text-slate-500 text-center py-12">Loading notebooks…</p>
+        <p className="text-lg text-slate-500 text-center py-12">{t('loadingNotebooks')}</p>
       ) : notebooks.length === 0 ? (
         <div className="text-center py-16 max-w-md mx-auto">
           <BookOpen className="size-16 text-slate-300 mx-auto mb-4" />
-          <p className="text-xl text-slate-600 mb-6">No notebooks yet.</p>
+          <p className="text-xl text-slate-600 mb-6">{t('noNotebooks')}</p>
           <Button asChild size="lg" className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 text-lg">
-            <Link href="/dashboard/notebooks">Go to Notebooks</Link>
+            <Link href="/dashboard/notebooks">{t('goToNotebooks')}</Link>
           </Button>
         </div>
       ) : (
         <Card className="rise border-slate-200 shadow-sheet p-6 md:p-8" style={{ animationDelay: '60ms' }}>
           <form onSubmit={handleStart} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="test-notebook">Notebook</Label>
+              <Label htmlFor="test-notebook">{t('notebook')}</Label>
               <select
                 id="test-notebook"
                 value={notebookId}
@@ -814,7 +818,7 @@ function MockTestsInner() {
 
             <div className="grid sm:grid-cols-2 gap-5">
               <div className="space-y-2">
-                <Label htmlFor="test-count">Questions</Label>
+                <Label htmlFor="test-count">{t('questions')}</Label>
                 <Input
                   id="test-count"
                   type="number"
@@ -829,7 +833,7 @@ function MockTestsInner() {
                 <p className="text-sm text-slate-500">Between 5 and 50.</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="test-duration">Duration (minutes)</Label>
+                <Label htmlFor="test-duration">{t('duration')}</Label>
                 <Input
                   id="test-duration"
                   type="number"
@@ -861,10 +865,10 @@ function MockTestsInner() {
               {starting ? (
                 <>
                   <Loader2 className="size-4 animate-spin mr-2" />
-                  Building your paper…
+                  {t('buildingPaper')}
                 </>
               ) : (
-                'Start test'
+                t('startTest')
               )}
             </Button>
             {/* Starting is instant when the notebook already holds enough
@@ -872,8 +876,7 @@ function MockTestsInner() {
                 rest. Without saying so, the second case reads as a hang. */}
             {starting && (
               <p className="text-sm text-slate-500 text-center">
-                If this notebook needs more questions, they are being generated
-                now. This can take up to a minute.
+                {t('generatingNote')}
               </p>
             )}
           </form>
@@ -883,11 +886,11 @@ function MockTestsInner() {
       <div className="rise space-y-6" style={{ animationDelay: '120ms' }}>
         <div>
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
-            Planned tests
+            {t('plannedTests')}
           </p>
-          <h2 className="font-display text-2xl font-semibold text-slate-900 mt-1">Plan ahead</h2>
+          <h2 className="font-display text-2xl font-semibold text-slate-900 mt-1">{t('planAhead')}</h2>
           <p className="text-base text-slate-500 mt-2 leading-relaxed">
-            Schedule a test for later and get a reminder before it is due.
+            {t('planLead')}
           </p>
         </div>
 
@@ -895,7 +898,7 @@ function MockTestsInner() {
           <Card className="border-slate-200 shadow-sheet p-6 md:p-8">
             <form onSubmit={handleCreatePlan} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="plan-notebook">Notebook</Label>
+                <Label htmlFor="plan-notebook">{t('notebook')}</Label>
                 <select
                   id="plan-notebook"
                   value={planNotebookId}
@@ -911,7 +914,7 @@ function MockTestsInner() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="plan-when">Date and time</Label>
+                <Label htmlFor="plan-when">{t('dateTime')}</Label>
                 <Input
                   id="plan-when"
                   type="datetime-local"
@@ -923,7 +926,7 @@ function MockTestsInner() {
 
               <div className="grid sm:grid-cols-3 gap-5">
                 <div className="space-y-2">
-                  <Label htmlFor="plan-count">Questions</Label>
+                  <Label htmlFor="plan-count">{t('questions')}</Label>
                   <Input
                     id="plan-count"
                     type="number"
@@ -937,7 +940,7 @@ function MockTestsInner() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="plan-duration">Duration (minutes)</Label>
+                  <Label htmlFor="plan-duration">{t('duration')}</Label>
                   <Input
                     id="plan-duration"
                     type="number"
@@ -951,16 +954,16 @@ function MockTestsInner() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="plan-reminder">Reminder</Label>
+                  <Label htmlFor="plan-reminder">{t('reminder')}</Label>
                   <select
                     id="plan-reminder"
                     value={planReminderLead}
                     onChange={(e) => setPlanReminderLead(Number(e.target.value))}
                     className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-base text-slate-900 shadow-sm outline-none focus-visible:border-mode-quizzes focus-visible:ring-mode-quizzes/25 focus-visible:ring-[4px]"
                   >
-                    <option value={1}>1 hour before</option>
-                    <option value={24}>1 day before</option>
-                    <option value={72}>3 days before</option>
+                    <option value={1}>{t('lead1h')}</option>
+                    <option value={24}>{t('lead1d')}</option>
+                    <option value={72}>{t('lead3d')}</option>
                   </select>
                 </div>
               </div>
@@ -981,10 +984,10 @@ function MockTestsInner() {
                 {planCreating ? (
                   <>
                     <Loader2 className="size-4 animate-spin mr-2" />
-                    Planning…
+                    {t('planning')}
                   </>
                 ) : (
-                  'Plan test'
+                  t('planTest')
                 )}
               </Button>
             </form>
@@ -994,7 +997,7 @@ function MockTestsInner() {
         {plansLoading ? (
           <p className="text-lg text-slate-500 text-center py-8">Loading planned tests…</p>
         ) : plans.length === 0 ? (
-          <p className="text-base text-slate-500 text-center py-8">No tests planned.</p>
+          <p className="text-base text-slate-500 text-center py-8">{t('noPlans')}</p>
         ) : (
           <div className="space-y-3">
             {plans.map((plan) => (
@@ -1004,10 +1007,10 @@ function MockTestsInner() {
                     <p className="text-lg font-medium text-slate-900 truncate">{plan.notebook_title}</p>
                     <p className="flex items-center gap-1.5 text-sm text-slate-500 mt-1">
                       <CalendarClock className="size-4 shrink-0" aria-hidden />
-                      {formatScheduledFor(plan.scheduled_for)}
+                      {formatScheduledFor(plan.scheduled_for, locale)}
                     </p>
                     <p className="font-mono text-sm text-slate-500 mt-1 tabular-nums">
-                      {plan.question_count} questions · {plan.duration_minutes} min
+                      {t('planShape', { questions: common('questions', { count: plan.question_count }), minutes: common('minutes', { count: plan.duration_minutes }) })}
                     </p>
                     {plan.sat_at ? (
                       // Sat takes priority over the reminder line: once a plan
@@ -1016,17 +1019,17 @@ function MockTestsInner() {
                       // not colour alone, same as the reminder states below.
                       <p className="flex items-center gap-1.5 text-sm text-mode-quizzes mt-2">
                         <CheckCircle2 className="size-4 shrink-0" aria-hidden />
-                        Sat — this plan has been fulfilled
+                        {t('sat')}
                       </p>
                     ) : plan.reminder_sent_at ? (
                       <p className="flex items-center gap-1.5 text-sm text-mode-quizzes mt-2">
                         <BellRing className="size-4 shrink-0" aria-hidden />
-                        Reminder sent
+                        {t('reminderSent')}
                       </p>
                     ) : (
                       <p className="flex items-center gap-1.5 text-sm text-slate-500 mt-2">
                         <Bell className="size-4 shrink-0" aria-hidden />
-                        Reminder {REMINDER_LEAD_LABELS[plan.reminder_lead_hours] ?? `${plan.reminder_lead_hours}h before`}
+                        {t('reminderLead', { lead: REMINDER_LEAD_KEYS[plan.reminder_lead_hours] ? t(REMINDER_LEAD_KEYS[plan.reminder_lead_hours]).toLowerCase() : t('leadHours', { count: plan.reminder_lead_hours }).toLowerCase() })}
                       </p>
                     )}
                   </div>
@@ -1051,10 +1054,10 @@ function MockTestsInner() {
                         >
                           {busy ? <Loader2 className="size-4 animate-spin mr-1.5" /> : null}
                           {busy
-                            ? 'Building…'
+                            ? t('building')
                             : isOpen
-                              ? 'Start now'
-                              : `Opens ${formatOpensAt(plan.scheduled_for)}`}
+                              ? t('startNow')
+                              : t('opensAt', { time: formatOpensAt(plan.scheduled_for, locale) })}
                         </Button>
                       )
                     })()}
@@ -1071,7 +1074,7 @@ function MockTestsInner() {
                       ) : (
                         <>
                           <Trash2 className="size-4 mr-1.5" />
-                          Cancel
+                          {t('cancel')}
                         </>
                       )}
                     </Button>

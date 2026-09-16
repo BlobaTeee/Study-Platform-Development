@@ -86,5 +86,8 @@ def test_no_message_is_left_empty_or_untranslated():
         # A Vietnamese message identical to the English one is allowed only
         # for proper nouns, loanwords and symbols (StudyFlow, Email, EN, ·).
         if vi[key] == en[key]:
-            assert (not re.search(r"[a-z]{4,}", en[key])
+            # Strip placeholders first: a message that is only placeholders
+            # and punctuation ("{questions} · {minutes}") has no words to translate.
+            words = re.sub(r"\{[^}]*\}", "", en[key])
+            assert (not re.search(r"[a-z]{4,}", words)
                     or en[key] in IDENTICAL_OK), key
