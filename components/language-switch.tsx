@@ -53,12 +53,20 @@ export function LanguageSwitch({ compact = false }: { compact?: boolean }) {
             aria-checked={active}
             onClick={() => void choose(code)}
             className={cn(
-              'rounded px-2.5 py-1 font-mono text-xs uppercase tracking-wide transition-colors',
+              'whitespace-nowrap rounded px-2.5 py-1 font-mono text-xs uppercase tracking-wide transition-colors',
               active ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
             )}
             title={names[code]}
           >
-            {compact ? short[code] : names[code]}
+            {compact ? (
+              short[code]
+            ) : (
+              <>
+                {/* The full name needs room; on a phone the code is enough. */}
+                <span className="sm:hidden">{short[code]}</span>
+                <span className="hidden sm:inline">{names[code]}</span>
+              </>
+            )}
           </button>
         )
       })}

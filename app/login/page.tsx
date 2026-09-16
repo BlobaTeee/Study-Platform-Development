@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { AuthBrandPanel } from '@/components/auth-brand-panel'
+import { LanguageSwitch } from '@/components/language-switch'
+import { useTranslations } from 'next-intl'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -16,6 +18,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const t = useTranslations('auth')
+  const nav = useTranslations('nav')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,7 +30,7 @@ export default function LoginPage() {
       await login(email, password)
       router.push('/dashboard/notebooks')
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please try again.')
+      setError(err.message || t('loginFailed'))
     } finally {
       setLoading(false)
     }
@@ -38,21 +42,26 @@ export default function LoginPage() {
 
       <section className="flex items-center justify-center bg-white px-6 py-14">
         <div className="w-full max-w-sm">
-          <div className="lg:hidden mb-8">
-            <h1 className="font-display text-3xl font-semibold text-slate-900">StudyFlow</h1>
-            <p className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500 mt-1">
-              Study workspace
-            </p>
+          <div className="flex items-start justify-between gap-4 mb-8">
+            <div className="lg:hidden">
+              <h1 className="font-display text-3xl font-semibold text-slate-900">StudyFlow</h1>
+              <p className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500 mt-1">
+                {nav('tagline')}
+              </p>
+            </div>
+            <div className="ml-auto">
+              <LanguageSwitch />
+            </div>
           </div>
 
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-library">
-            Welcome back
+            {t('welcomeBack')}
           </p>
           <h2 className="font-display text-3xl font-semibold text-slate-900 mt-1">
-            Sign in to your notebooks
+            {t('signInTitle')}
           </h2>
           <p className="text-base text-slate-500 mt-2">
-            Pick up where you left off and keep studying.
+            {t('signInLead')}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4 mt-8">
@@ -63,11 +72,11 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('email')}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="you@university.edu"
+                placeholder={t('emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
@@ -76,11 +85,11 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t('password')}</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Your password"
+                placeholder={t('passwordPlaceholder')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -94,20 +103,20 @@ export default function LoginPage() {
               size="lg"
               className="w-full font-semibold bg-mode-library hover:bg-mode-library-hover"
             >
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? t('signingIn') : t('signIn')}
             </Button>
           </form>
 
           <div className="text-center text-sm text-slate-600 mt-6">
-            Don&apos;t have an account?{' '}
+            {t('noAccount')}{' '}
             <Link href="/register" className="font-semibold text-mode-library hover:text-mode-library-hover">
-              Create one
+              {t('createOne')}
             </Link>
           </div>
 
           <div className="text-center text-xs text-slate-400 mt-4">
             <Link href="/developer" className="hover:text-slate-600 underline underline-offset-4">
-              Admin &amp; database links
+              {t('adminLinks')}
             </Link>
           </div>
         </div>

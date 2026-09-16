@@ -5,6 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useTranslations } from 'next-intl'
+import { LanguageSwitch } from '@/components/language-switch'
 import {
   BarChart3,
   ClipboardList,
@@ -20,7 +22,8 @@ import {
 
 type NavItem = {
   href: string
-  label: string
+  /** key under the `nav` namespace */
+  label: 'home' | 'notebooks' | 'tests' | 'analytics'
   icon: LucideIcon
   /** tint used for the active state, one per study mode */
   activeClass: string
@@ -29,25 +32,25 @@ type NavItem = {
 const navItems: NavItem[] = [
   {
     href: '/dashboard',
-    label: 'Home',
+    label: 'home',
     icon: Home,
     activeClass: 'bg-mode-library/10 text-mode-library',
   },
   {
     href: '/dashboard/notebooks',
-    label: 'Notebooks',
+    label: 'notebooks',
     icon: NotebookText,
     activeClass: 'bg-mode-library/10 text-mode-library',
   },
   {
     href: '/dashboard/tests',
-    label: 'Tests',
+    label: 'tests',
     icon: ClipboardList,
     activeClass: 'bg-mode-quizzes/10 text-mode-quizzes',
   },
   {
     href: '/dashboard/analytics',
-    label: 'Analytics',
+    label: 'analytics',
     icon: BarChart3,
     activeClass: 'bg-mode-analytics/10 text-mode-analytics',
   },
@@ -86,6 +89,7 @@ function SidebarBody({
   const { logout } = useAuth()
   const router = useRouter()
   const isActive = useIsActive()
+  const t = useTranslations('nav')
 
   const handleLogout = () => {
     onNavigate?.()
@@ -112,7 +116,7 @@ function SidebarBody({
               StudyFlow
             </span>
             <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-slate-500">
-              Study workspace
+              {t('tagline')}
             </span>
           </span>
         )}
@@ -127,7 +131,7 @@ function SidebarBody({
               key={item.href}
               href={item.href}
               onClick={onNavigate}
-              title={collapsed ? item.label : undefined}
+              title={collapsed ? t(item.label) : undefined}
               aria-current={active ? 'page' : undefined}
               className={cn(
                 'flex h-11 items-center gap-3 rounded-lg px-3 text-base font-medium transition-colors',
@@ -139,18 +143,25 @@ function SidebarBody({
               )}
             >
               <Icon className="size-[18px] shrink-0" strokeWidth={active ? 2.25 : 2} />
-              {!collapsed && item.label}
+              {!collapsed && t(item.label)}
             </Link>
           )
         })}
       </nav>
 
       <div className="space-y-1 pt-4">
+        {/* The language switch needs room for two labels; the icon-only rail
+            hides it, and expanding the rail brings it back. */}
+        {!collapsed && (
+          <div className="px-3 pb-2">
+            <LanguageSwitch compact />
+          </div>
+        )}
         {footerSlot}
         <button
           type="button"
           onClick={handleLogout}
-          title={collapsed ? 'Log out' : undefined}
+          title={collapsed ? t('signOut') : undefined}
           className={cn(
             'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-base font-medium transition-colors',
             'text-slate-500 hover:bg-red-50 hover:text-mode-danger',
@@ -159,7 +170,7 @@ function SidebarBody({
           )}
         >
           <LogOut className="size-[18px] shrink-0" />
-          {!collapsed && 'Log out'}
+          {!collapsed && t('signOut')}
         </button>
       </div>
     </div>
@@ -171,6 +182,7 @@ const COLLAPSE_KEY = 'sf-sidebar-collapsed'
 /** Persistent left rail on desktop. Collapses to an icon-only rail; state is remembered. */
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false)
+  const t = useTranslations('nav')
 
   useEffect(() => {
     try {
@@ -207,8 +219,8 @@ export function AppSidebar() {
           <button
             type="button"
             onClick={toggle}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? t('expandSidebar') : t('collapseSidebar')}
+            aria-label={collapsed ? t('expandSidebar') : t('collapseSidebar')}
             className={cn(
               'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-base font-medium transition-colors',
               'text-slate-500 hover:bg-slate-100 hover:text-slate-700',
@@ -221,7 +233,7 @@ export function AppSidebar() {
             ) : (
               <>
                 <PanelLeftClose className="size-[18px] shrink-0" />
-                Collapse
+                {t('collapse')}
               </>
             )}
           </button>
@@ -235,6 +247,7 @@ export function AppSidebar() {
 export function MobileNavBar() {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
+  const t = useTranslations('nav')
 
   // Close the drawer whenever the route changes.
   useEffect(() => {
@@ -247,7 +260,7 @@ export function MobileNavBar() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="Open menu"
+          aria-label={t('openMenu')}
           className="grid size-11 place-items-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode-library/30"
         >
           <Menu className="size-5" />
@@ -272,7 +285,7 @@ export function MobileNavBar() {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              aria-label="Close menu"
+              aria-label={t('closeMenu')}
               className="absolute right-3 top-3 grid size-11 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-slate-300"
             >
               <X className="size-5" />

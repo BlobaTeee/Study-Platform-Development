@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { Mail } from 'lucide-react'
 import { AuthBrandPanel } from '@/components/auth-brand-panel'
+import { LanguageSwitch } from '@/components/language-switch'
+import { useTranslations } from 'next-intl'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -20,13 +22,15 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [sentTo, setSentTo] = useState('')
+  const t = useTranslations('auth')
+  const nav = useTranslations('nav')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match')
+      setError(t('passwordsMismatch'))
       return
     }
 
@@ -40,7 +44,7 @@ export default function RegisterPage() {
         router.push('/dashboard/notebooks')
       }
     } catch (err: any) {
-      setError(err.message || 'Registration failed. Please try again.')
+      setError(err.message || t('registerFailed'))
     } finally {
       setLoading(false)
     }
@@ -52,11 +56,16 @@ export default function RegisterPage() {
 
       <section className="flex items-center justify-center bg-white px-6 py-14">
         <div className="w-full max-w-sm">
-          <div className="lg:hidden mb-8">
-            <h1 className="font-display text-3xl font-semibold text-slate-900">StudyFlow</h1>
-            <p className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500 mt-1">
-              Study workspace
-            </p>
+          <div className="flex items-start justify-between gap-4 mb-8">
+            <div className="lg:hidden">
+              <h1 className="font-display text-3xl font-semibold text-slate-900">StudyFlow</h1>
+              <p className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500 mt-1">
+                {nav('tagline')}
+              </p>
+            </div>
+            <div className="ml-auto">
+              <LanguageSwitch />
+            </div>
           </div>
 
           {sentTo ? (
@@ -65,41 +74,42 @@ export default function RegisterPage() {
                 <Mail className="size-6 text-mode-library" />
               </div>
               <h2 className="font-display text-3xl font-semibold text-slate-900 mt-5">
-                Check your email
+                {t('checkEmail')}
               </h2>
               <p className="text-base text-slate-600 mt-2 leading-relaxed">
-                We sent a confirmation link to{' '}
-                <span className="font-semibold text-slate-900">{sentTo}</span>. Open it to
-                activate your account, then sign in.
+                {t.rich('sentConfirmation', {
+                  email: sentTo,
+                  b: (chunks) => <span className="font-semibold text-slate-900">{chunks}</span>,
+                })}
               </p>
               <Button
                 onClick={() => router.push('/login')}
                 size="lg"
                 className="w-full mt-8 font-semibold bg-mode-library hover:bg-mode-library-hover"
               >
-                Go to sign in
+                {t('goToSignIn')}
               </Button>
               <p className="text-center text-sm text-slate-600 mt-6">
-                Wrong address?{' '}
+                {t('wrongAddress')}{' '}
                 <button
                   type="button"
                   onClick={() => setSentTo('')}
                   className="font-semibold text-mode-library hover:text-mode-library-hover"
                 >
-                  Start over
+                  {t('startOver')}
                 </button>
               </p>
             </div>
           ) : (
           <>
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-library">
-            Get started
+            {t('getStarted')}
           </p>
           <h2 className="font-display text-3xl font-semibold text-slate-900 mt-1">
-            Create your account
+            {t('createTitle')}
           </h2>
           <p className="text-base text-slate-500 mt-2">
-            Organize each subject into its own notebook.
+            {t('createLead')}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4 mt-8">
@@ -110,11 +120,11 @@ export default function RegisterPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">{t('username')}</Label>
               <Input
                 id="username"
                 type="text"
-                placeholder="Choose a username"
+                placeholder={t('usernamePlaceholder')}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
@@ -123,11 +133,11 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('email')}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="you@university.edu"
+                placeholder={t('emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
@@ -136,11 +146,11 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t('password')}</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Create a password"
+                placeholder={t('createPasswordPlaceholder')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
@@ -149,11 +159,11 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm password</Label>
+              <Label htmlFor="confirm-password">{t('confirmPassword')}</Label>
               <Input
                 id="confirm-password"
                 type="password"
-                placeholder="Re-enter your password"
+                placeholder={t('confirmPasswordPlaceholder')}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 autoComplete="new-password"
@@ -167,14 +177,14 @@ export default function RegisterPage() {
               size="lg"
               className="w-full font-semibold bg-mode-library hover:bg-mode-library-hover"
             >
-              {loading ? 'Creating account…' : 'Create account'}
+              {loading ? t('creatingAccount') : t('createAccount')}
             </Button>
           </form>
 
           <div className="text-center text-sm text-slate-600 mt-6">
-            Already have an account?{' '}
+            {t('haveAccount')}{' '}
             <Link href="/login" className="font-semibold text-mode-library hover:text-mode-library-hover">
-              Sign in
+              {t('signIn')}
             </Link>
           </div>
           </>

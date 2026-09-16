@@ -44,6 +44,6 @@ def test_no_message_is_left_empty_or_untranslated():
     for key in en:
         assert en[key].strip() and vi[key].strip(), key
         # A Vietnamese message identical to the English one is allowed only
-        # for proper nouns and symbols (StudyFlow, EN, ·).
+        # for proper nouns, loanwords and symbols (StudyFlow, Email, EN, ·).
         if vi[key] == en[key]:
-            assert not re.search(r"[a-z]{4,}", en[key]) or en[key] in ("StudyFlow", "English"), key
+            assert not re.search(r"[a-z]{4,}", en[key]) or en[key] in ("StudyFlow", "English", "Email"), key
