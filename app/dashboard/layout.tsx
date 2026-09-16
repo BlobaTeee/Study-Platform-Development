@@ -53,16 +53,22 @@ export default function DashboardLayout({
       .catch(() => {})
   }, [user])
 
-  // The language follows the account. After sign-in, if the profile says
-  // something other than what this browser is showing, adopt it and
-  // re-render — the cookie is what the server reads.
+  // Language: the cookie is the truth on this browser, the profile is the
+  // memory across browsers. On sign-in, a choice already made here (the
+  // switch on the login page) is pushed up to the account; a browser with no
+  // choice yet adopts the account's. Either way the two end up agreeing.
   useEffect(() => {
     if (!user) return
+    const chosenHere = readLocaleCookie()
     authAPI
       .getProfile()
       .then((res) => {
         const preferred = res.data?.preferred_language
-        if (isLocale(preferred) && preferred !== readLocaleCookie()) {
+        if (chosenHere) {
+          if (preferred !== chosenHere) {
+            authAPI.updateProfile({ preferred_language: chosenHere }).catch(() => {})
+          }
+        } else if (isLocale(preferred)) {
           writeLocaleCookie(preferred)
           router.refresh()
         }
