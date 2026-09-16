@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -128,6 +128,28 @@ function QuizzesStudy() {
       .finally(() => setStarting(false))
   }, [quiz, attemptId, starting, questions.length])
 
+  // Enter checks (the form), Enter again advances, `r` overrides when
+  // offered. Declared here, before any early return, so React sees the same
+  // hooks on every render; the handlers arrive via keysRef (set below).
+  const keysRef = useRef<{ next: () => void; override: () => void }>({
+    next: () => {},
+    override: () => {},
+  })
+  useEffect(() => {
+    if (!typedMode) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && submitted) {
+        e.preventDefault()
+        keysRef.current.next()
+      } else if (e.key === 'r' && submitted && graded && !graded.is_correct) {
+        e.preventDefault()
+        keysRef.current.override()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [typedMode, submitted, graded])
+
   if (!sourceParam || sourceIds.length === 0) {
     return <SourceRequired type="quiz" />
   }
@@ -248,22 +270,10 @@ function QuizzesStudy() {
     setTypedError('')
   }
 
-  // Enter checks (the form), Enter again advances, `r` overrides when offered.
-  useEffect(() => {
-    if (!typedMode) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && submitted) {
-        e.preventDefault()
-        void handleNext()
-      } else if (e.key === 'r' && submitted && graded && !graded.is_correct) {
-        e.preventDefault()
-        void handleOverride()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typedMode, submitted, graded])
+  // The keyboard effect above reaches these through a ref: they need
+  // `question`, which only exists past the early returns, while hooks must
+  // run in the same order on every render.
+  keysRef.current = { next: () => void handleNext(), override: () => void handleOverride() }
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
