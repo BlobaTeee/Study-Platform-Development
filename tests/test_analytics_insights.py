@@ -243,3 +243,69 @@ def test_event_pointing_at_an_orphan_source_is_ignored():
     # A source deleted from its notebook, or one that never existed.
     out = ins.per_notebook_mastery([_fc([99], correct=1)], NB_OF, NB_TITLES)
     assert out == []
+
+
+# ---- daily_activity ----------------------------------------------------------
+# The Analytics page shows the last fourteen days as one strip. Every day is
+# present, studied or not — a gap is information — oldest first.
+
+from datetime import date as _date
+
+
+def _rev(day, result="good"):
+    return {"date": _date(2026, 9, day), "result": result}
+
+
+def test_activity_covers_every_day_of_the_window_oldest_first():
+    out = ins.daily_activity([], [], today=_date(2026, 9, 16), days=14)
+    assert [d["date"] for d in out["days"]] == [
+        _date(2026, 9, 3) + __import__("datetime").timedelta(days=i) for i in range(14)]
+    assert out["days"][-1]["date"] == _date(2026, 9, 16)
+
+
+def test_a_day_with_no_study_is_present_with_zeros_and_no_accuracy():
+    out = ins.daily_activity([], [], today=_date(2026, 9, 16), days=3)
+    assert out["days"][0] == {"date": _date(2026, 9, 14), "reviews": 0, "correct": 0,
+                              "accuracy": None, "mock_scores": []}
+
+
+def test_reviews_are_counted_and_graded_per_day():
+    reviews = [_rev(15, "good"), _rev(15, "hard"), _rev(15, "easy"), _rev(16, "again")]
+    out = ins.daily_activity(reviews, [], today=_date(2026, 9, 16), days=3)
+    d15, d16 = out["days"][1], out["days"][2]
+    assert (d15["reviews"], d15["correct"], d15["accuracy"]) == (3, 2, 66.7)
+    assert (d16["reviews"], d16["correct"], d16["accuracy"]) == (1, 0, 0.0)
+
+
+def test_mock_test_scores_land_on_their_day():
+    tests = [{"date": _date(2026, 9, 15), "score": 40.0},
+             {"date": _date(2026, 9, 15), "score": 65.0}]
+    out = ins.daily_activity([], tests, today=_date(2026, 9, 16), days=3)
+    assert out["days"][1]["mock_scores"] == [40.0, 65.0]
+    assert out["days"][2]["mock_scores"] == []
+
+
+def test_activity_outside_the_window_is_ignored():
+    out = ins.daily_activity([_rev(1)], [{"date": _date(2026, 9, 1), "score": 90.0}],
+                             today=_date(2026, 9, 16), days=14)
+    assert sum(d["reviews"] for d in out["days"]) == 0
+    assert all(d["mock_scores"] == [] for d in out["days"])
+
+
+def test_summary_totals_the_window():
+    reviews = [_rev(10, "good"), _rev(12, "hard"), _rev(16, "good"), _rev(16, "good")]
+    tests = [{"date": _date(2026, 9, 12), "score": 50.0}]
+    out = ins.daily_activity(reviews, tests, today=_date(2026, 9, 16), days=14)
+    assert out["summary"] == {"reviews": 4, "accuracy": 75.0, "mock_tests": 1}
+
+
+def test_summary_accuracy_is_none_when_nothing_was_reviewed():
+    out = ins.daily_activity([], [], today=_date(2026, 9, 16), days=14)
+    assert out["summary"] == {"reviews": 0, "accuracy": None, "mock_tests": 0}
+
+
+def test_unknown_grades_are_not_counted():
+    # A seed row or a retired grade must not move the numbers.
+    out = ins.daily_activity([_rev(16, "seed"), _rev(16, "good")], [],
+                             today=_date(2026, 9, 16), days=1)
+    assert (out["days"][0]["reviews"], out["days"][0]["correct"]) == (1, 1)

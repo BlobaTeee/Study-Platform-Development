@@ -6,9 +6,10 @@ from rest_framework.response import Response
 
 from flashcards.models import Flashcard
 from notebooks.models import Notebook, Source
-from quizzes.models import Answer, Question, Quiz, QuizAttempt
+from quizzes.models import Answer, MockTest, Question, Quiz, QuizAttempt
 from study_sessions import scheduling
 from study_sessions.models import CardReview
+from users.timezones import zone_for
 from . import insights
 
 
@@ -146,3 +147,33 @@ class AnalyticsViewSet(viewsets.ViewSet):
             'weak_notebooks': insights.per_notebook_mastery(
                 events, source_to_notebook, notebook_titles),
         })
+
+    ACTIVITY_DAYS = 14
+
+    @action(detail=False, methods=['get'])
+    def activity(self, request):
+        """The last fourteen days of study, one entry per day.
+
+        Days are the student's, not the server's: a review at 00:30 their time
+        belongs to the night they sat up for, and the reminder email already
+        speaks in their zone, so this must too.
+        """
+        user = request.user
+        zone = zone_for(user)
+        today = timezone.now().astimezone(zone).date()
+
+        reviews = [
+            {'date': when.astimezone(zone).date(), 'result': result}
+            for when, result in CardReview.objects.grades().filter(user=user)
+            .values_list('review_date', 'result')
+        ]
+        mock_tests = [
+            {'date': when.astimezone(zone).date(), 'score': score}
+            for when, score in MockTest.objects.filter(user=user, completed_at__isnull=False)
+            .values_list('completed_at', 'score')
+        ]
+        data = insights.daily_activity(reviews, mock_tests, today=today,
+                                       days=self.ACTIVITY_DAYS)
+        for day in data['days']:
+            day['date'] = day['date'].isoformat()
+        return Response(data)

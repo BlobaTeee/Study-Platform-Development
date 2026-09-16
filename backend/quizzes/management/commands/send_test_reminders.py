@@ -7,8 +7,6 @@ Run on a schedule (cron or launchd), e.g. every fifteen minutes:
 Safe to run as often as you like: each plan's `reminder_sent_at` is stamped as
 it is sent, so a second run finds nothing to do.
 """
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-
 from django.conf import settings
 from django.core.mail import send_mail
 from django.core.management.base import BaseCommand
@@ -17,6 +15,7 @@ from django.utils import timezone
 from quizzes.models import PlannedTest
 from quizzes.services.reminder_email import build_reminder
 from quizzes.services.reminders import due_reminders, missed_reminders
+from users.timezones import zone_for
 
 # Backends that accept a message without actually delivering it anywhere a
 # recipient would see it. A deployment that forgets to set EMAIL_HOST falls
@@ -29,16 +28,6 @@ NON_DELIVERING_EMAIL_BACKENDS = {
     'django.core.mail.backends.dummy.EmailBackend',
     'django.core.mail.backends.locmem.EmailBackend',
 }
-
-
-def _user_zone(user):
-    """The zone the student reads the clock in; the server's if theirs is
-    missing or no longer resolves (tzdata does retire names)."""
-    name = getattr(getattr(user, 'profile', None), 'timezone', '') or settings.TIME_ZONE
-    try:
-        return ZoneInfo(name)
-    except (ZoneInfoNotFoundError, ValueError):
-        return ZoneInfo(settings.TIME_ZONE)
 
 
 class _Stamped:
@@ -150,7 +139,7 @@ class Command(BaseCommand):
 
             subject, body = build_reminder(
                 notebook_title=plan.notebook.title,
-                scheduled_for=timezone.localtime(plan.scheduled_for, _user_zone(plan.user)),
+                scheduled_for=timezone.localtime(plan.scheduled_for, zone_for(plan.user)),
                 question_count=plan.question_count,
                 duration_minutes=plan.duration_minutes,
                 url=f'{settings.FRONTEND_URL}/dashboard/tests',

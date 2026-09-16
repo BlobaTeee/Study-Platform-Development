@@ -162,3 +162,56 @@ def per_notebook_mastery(events: list[dict], source_to_notebook: dict[int, int],
         return {source_to_notebook[sid] for sid in event.get("source_ids", [])
                 if sid in source_to_notebook}
     return _mastery(events, notebooks_of, notebook_titles, "notebook_id")
+
+
+def daily_activity(reviews: list[dict], mock_tests: list[dict], today, days: int) -> dict:
+    """The last `days` days of study, one entry per day, oldest first.
+
+    `reviews` are ``{"date": date, "result": str}`` — already in the student's
+    own zone, which is the caller's job; a review at 00:30 belongs to the day
+    the student was awake for, not the server's. `mock_tests` are
+    ``{"date": date, "score": float}``.
+
+    Every day of the window is present even with nothing in it: the Analytics
+    strip shows a gap for a skipped day, and it can only do that if the day is
+    there to be empty. Grades outside the known set (seed rows, retired
+    grades) are not counted, same as everywhere else in this module.
+    """
+    from datetime import timedelta
+
+    start = today - timedelta(days=days - 1)
+    buckets = {
+        start + timedelta(days=i): {"reviews": 0, "correct": 0, "mock_scores": []}
+        for i in range(days)
+    }
+    for review in reviews:
+        bucket = buckets.get(review["date"])
+        result = review.get("result")
+        if bucket is None or (result not in CORRECT_RESULTS and result not in INCORRECT_RESULTS):
+            continue
+        bucket["reviews"] += 1
+        if result in CORRECT_RESULTS:
+            bucket["correct"] += 1
+    for test in mock_tests:
+        bucket = buckets.get(test["date"])
+        if bucket is not None:
+            bucket["mock_scores"].append(test["score"])
+
+    def accuracy(correct, reviews):
+        return round(correct / reviews * 100, 1) if reviews else None
+
+    out_days = [
+        {"date": day, "reviews": b["reviews"], "correct": b["correct"],
+         "accuracy": accuracy(b["correct"], b["reviews"]), "mock_scores": b["mock_scores"]}
+        for day, b in buckets.items()
+    ]
+    total_reviews = sum(d["reviews"] for d in out_days)
+    total_correct = sum(d["correct"] for d in out_days)
+    return {
+        "days": out_days,
+        "summary": {
+            "reviews": total_reviews,
+            "accuracy": accuracy(total_correct, total_reviews),
+            "mock_tests": sum(len(d["mock_scores"]) for d in out_days),
+        },
+    }
