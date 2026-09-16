@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -128,74 +128,18 @@ function QuizzesStudy() {
       .finally(() => setStarting(false))
   }, [quiz, attemptId, starting, questions.length])
 
-  // Enter checks (the form), Enter again advances, `r` overrides when
-  // offered. Declared here, before any early return, so React sees the same
-  // hooks on every render; the handlers arrive via keysRef (set below).
-  const keysRef = useRef<{ next: () => void; override: () => void }>({
-    next: () => {},
-    override: () => {},
-  })
-  useEffect(() => {
-    if (!typedMode) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && submitted) {
-        e.preventDefault()
-        keysRef.current.next()
-      } else if (e.key === 'r' && submitted && graded && !graded.is_correct) {
-        e.preventDefault()
-        keysRef.current.override()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [typedMode, submitted, graded])
-
-  if (!sourceParam || sourceIds.length === 0) {
-    return <SourceRequired type="quiz" />
-  }
-
-  if (isLoading || starting) {
-    return <p className="text-xl text-slate-500 text-center py-20">Loading quiz…</p>
-  }
-
-  if (!quiz || questions.length === 0) {
-    return (
-      <div className="text-center py-20 max-w-md mx-auto">
-        <BookOpen className="size-16 text-slate-300 mx-auto mb-4" />
-        <p className="text-xl text-slate-600 mb-6">No quiz for this source yet.</p>
-        <Button asChild size="lg" className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 text-lg">
-          <Link href="/dashboard/notebooks">Generate from Notebooks</Link>
-        </Button>
-      </div>
-    )
-  }
-
-  if (finished) {
-    const pct = Math.round((score / questions.length) * 100)
-    return (
-      <div className="rise max-w-2xl mx-auto text-center space-y-8 py-12">
-        <CheckCircle2 className="size-20 text-mode-analytics mx-auto" />
-        <h1 className="font-display text-3xl font-semibold text-slate-900">Quiz complete</h1>
-        <p className="font-mono text-2xl text-slate-600 tabular-nums">
-          {score} / {questions.length} correct ({pct}%)
-        </p>
-        <div className="flex gap-4 justify-center flex-wrap">
-          <Button asChild size="lg" className="h-12 text-lg bg-mode-quizzes hover:bg-mode-quizzes-hover text-white">
-            <Link href="/dashboard/notebooks">Back to sources</Link>
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  const question = questions[qIndex]
+  // Declared before the early returns so the handlers and the keyboard
+  // effect can be too (hooks must run in the same order every render). At
+  // runtime this is undefined before the quiz loads; the handlers guard on
+  // it. TypeScript narrows it back to Question from the indexed read.
+  const question: Question | undefined = questions[qIndex]
   const options =
-    question.question_type === 'true_false' && (!question.options?.length)
+    question?.question_type === 'true_false' && (!question.options?.length)
       ? ['True', 'False']
-      : question.options ?? []
+      : question?.options ?? []
 
   const handleSubmit = async () => {
-    if (!selected || !attemptId) return
+    if (!selected || !attemptId || !question) return
     const correct = selected === question.correct_answer
     if (correct) setScore((s) => s + 1)
 
@@ -212,7 +156,7 @@ function QuizzesStudy() {
   }
 
   const handleCheckTyped = async () => {
-    if (!typed.trim() || !attemptId || grading) return
+    if (!typed.trim() || !attemptId || grading || !question) return
     setGrading(true)
     setTypedError('')
     try {
@@ -270,10 +214,61 @@ function QuizzesStudy() {
     setTypedError('')
   }
 
-  // The keyboard effect above reaches these through a ref: they need
-  // `question`, which only exists past the early returns, while hooks must
-  // run in the same order on every render.
-  keysRef.current = { next: () => void handleNext(), override: () => void handleOverride() }
+  // Enter checks (the form), Enter again advances, `r` overrides when
+  // offered. Declared with the handlers, before any early return, so React
+  // sees the same hooks on every render.
+  useEffect(() => {
+    if (!typedMode) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && submitted) {
+        e.preventDefault()
+        void handleNext()
+      } else if (e.key === 'r' && submitted && graded && !graded.is_correct) {
+        e.preventDefault()
+        void handleOverride()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [typedMode, submitted, graded, handleNext, handleOverride])
+
+  if (!sourceParam || sourceIds.length === 0) {
+    return <SourceRequired type="quiz" />
+  }
+
+  if (isLoading || starting) {
+    return <p className="text-xl text-slate-500 text-center py-20">Loading quiz…</p>
+  }
+
+  if (!quiz || questions.length === 0) {
+    return (
+      <div className="text-center py-20 max-w-md mx-auto">
+        <BookOpen className="size-16 text-slate-300 mx-auto mb-4" />
+        <p className="text-xl text-slate-600 mb-6">No quiz for this source yet.</p>
+        <Button asChild size="lg" className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 text-lg">
+          <Link href="/dashboard/notebooks">Generate from Notebooks</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  if (finished) {
+    const pct = Math.round((score / questions.length) * 100)
+    return (
+      <div className="rise max-w-2xl mx-auto text-center space-y-8 py-12">
+        <CheckCircle2 className="size-20 text-mode-analytics mx-auto" />
+        <h1 className="font-display text-3xl font-semibold text-slate-900">Quiz complete</h1>
+        <p className="font-mono text-2xl text-slate-600 tabular-nums">
+          {score} / {questions.length} correct ({pct}%)
+        </p>
+        <div className="flex gap-4 justify-center flex-wrap">
+          <Button asChild size="lg" className="h-12 text-lg bg-mode-quizzes hover:bg-mode-quizzes-hover text-white">
+            <Link href="/dashboard/notebooks">Back to sources</Link>
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
