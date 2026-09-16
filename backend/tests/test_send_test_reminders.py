@@ -209,3 +209,16 @@ def test_every_line_is_stamped_with_the_run_time(settings, sent, user, notebook)
     lines = [l for l in (out + err).splitlines() if l.strip()]
     assert lines, 'expected some output'
     assert all(re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ', l) for l in lines), lines
+
+
+def test_a_vietnamese_profile_gets_the_vietnamese_reminder(settings, sent, user, notebook):
+    settings.EMAIL_BACKEND = SMTP
+    user.profile.preferred_language = 'vi'
+    user.profile.save(update_fields=['preferred_language'])
+    _plan(user, notebook, hours_ahead=0.5)
+
+    _run()
+
+    (subject, body, _, _), = sent
+    assert subject.startswith('Bài thi thử')
+    assert 'Làm bài tại' in body

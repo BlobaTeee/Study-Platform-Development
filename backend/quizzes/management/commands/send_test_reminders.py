@@ -143,6 +143,7 @@ class Command(BaseCommand):
                 question_count=plan.question_count,
                 duration_minutes=plan.duration_minutes,
                 url=f'{settings.FRONTEND_URL}/dashboard/tests',
+                lang=getattr(getattr(plan.user, 'profile', None), 'preferred_language', 'en'),
             )
 
             if dry_run:
