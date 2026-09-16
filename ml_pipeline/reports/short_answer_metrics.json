@@ -2,10 +2,10 @@
   "chosen": {
     "T_STRING": 0.8,
     "T_RATIO": 0.6,
-    "precision": 0.9851,
-    "recall": 0.9938,
-    "f1": 0.9894,
-    "near_rate": 0.0
+    "precision": 0.9916,
+    "recall": 0.993,
+    "f1": 0.9923,
+    "near_rate": 0.0007
   },
   "components": {
     "exact": {
@@ -30,38 +30,40 @@
       "near_rate_neg": 0.0
     },
     "scorer": {
-      "precision": 0.7736,
-      "recall": 0.0301,
-      "f1": 0.058,
+      "precision": 0.9302,
+      "recall": 0.0294,
+      "f1": 0.057,
       "near_rate": 0.0,
-      "near_rate_neg": 0.0433
+      "near_rate_neg": 0.0481
     },
     "cascade": {
-      "precision": 0.9851,
-      "recall": 0.9938,
-      "f1": 0.9894,
-      "near_rate": 0.0,
-      "near_rate_neg": 0.0433
+      "precision": 0.9916,
+      "recall": 0.993,
+      "f1": 0.9923,
+      "near_rate": 0.0007,
+      "near_rate_neg": 0.049
     }
   },
   "no_support": {
     "precision": 0.9936,
     "recall": 0.9636,
     "f1": 0.9784,
-    "near_rate": 0.0114,
-    "near_rate_neg": 0.1019
+    "near_rate": 0.0118,
+    "near_rate_neg": 0.1022
   },
   "llm": {
     "n": 60,
-    "accuracy": 1.0,
-    "mean_latency_s": 0.35,
-    "near_share": 0.0245
+    "accuracy": 0.9833,
+    "mean_latency_s": 0.68,
+    "near_share": 0.028
   },
   "n_positive": 2722,
   "n_negative": 3533,
   "split": "test",
   "criterion": "precision >= 0.90 with and without support, then max F1",
+  "long_reference_share": 0.0037,
   "caveats": [
+    "The scorer is consulted only for references of <= 4 words (SciQ's range). A real question with a 14-word reference had the scorer rate the reference 0.012 and an unrelated answer 0.023; 41% of this app's generated questions have answers over 4 words, and those go to the LLM tier as `near` instead.",
     "Positives are synthetic variants of the reference; most are settled by the exact and string rules, so the scorer and LLM tiers are exercised mainly by negatives.",
     "No synthetic positive landed in the near band, so the LLM accuracy above reflects only its ability to reject wrong answers; its ability to accept a true paraphrase is unmeasured here and is what the in-app override log will show."
   ]

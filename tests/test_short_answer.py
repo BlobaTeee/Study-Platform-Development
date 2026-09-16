@@ -89,9 +89,9 @@ def test_a_typed_answer_that_is_a_distractor_is_wrong_without_the_scorer():
 
 def test_scorer_ranks_a_good_paraphrase_correct(monkeypatch):
     monkeypatch.setattr(sa, "T_RATIO", 0.8)
-    scorer = StubScorer({"co2 gas": 0.85, "carbon dioxide": 0.9,
+    scorer = StubScorer({"dioxide gas": 0.85, "carbon dioxide": 0.9,
                          "oxygen": 0.3, "nitrogen": 0.2, "argon": 0.1})
-    out = sa.grade("co2 gas", "carbon dioxide", Q, D, "support", scorer)
+    out = sa.grade("dioxide gas", "carbon dioxide", Q, D, "support", scorer)
     assert (out["verdict"], out["how"]) == ("correct", "scorer")
     assert scorer.calls == 1
 
@@ -140,9 +140,32 @@ def test_without_support_the_scorer_can_only_say_near_or_wrong(monkeypatch):
     # scorer "correct" needs a passage; without one the best it can do is
     # hand the case to the LLM tier / the override as `near`.
     monkeypatch.setattr(sa, "T_RATIO", 0.6)
-    scorer = StubScorer({"co2 gas": 0.95, "carbon dioxide": 0.9,
+    scorer = StubScorer({"dioxide gas": 0.95, "carbon dioxide": 0.9,
                          "oxygen": 0.3, "nitrogen": 0.2, "argon": 0.1})
-    out = sa.grade("co2 gas", "carbon dioxide", Q, D, "", scorer)
+    out = sa.grade("dioxide gas", "carbon dioxide", Q, D, "", scorer)
     assert (out["verdict"], out["how"]) == ("near", "scorer")
-    out = sa.grade("co2 gas", "carbon dioxide", Q, D, "Plants absorb carbon dioxide.", scorer)
+    out = sa.grade("dioxide gas", "carbon dioxide", Q, D, "Plants absorb carbon dioxide.", scorer)
     assert out["verdict"] == "correct"
+
+
+# ---- the scorer only judges what it was trained on ----------------------------------
+
+def test_a_sentence_length_reference_skips_the_scorer_and_goes_to_near(monkeypatch):
+    # The scorer was trained on SciQ's 1-3 word answers. On a 14-word
+    # reference it gave the reference itself 0.012 and an unrelated typed
+    # answer 0.023 — "correct". Long references go to the LLM tier instead.
+    monkeypatch.setattr(sa, "T_RATIO", 0.6)
+    ref = "Individuals struggle with personal financial management, lacking insights into spending"
+    out = sa.grade("something unrelated entirely", ref, "What is the issue?", ["a", "b"],
+                   "support text", ExplodingScorer())
+    assert (out["verdict"], out["how"]) == ("near", "long-reference")
+
+
+def test_a_typed_answer_sharing_no_word_with_a_short_reference_cannot_be_scorer_correct(monkeypatch):
+    # No shared token means the scorer has nothing to anchor on; the LLM
+    # (or the override) decides — never a silent "correct".
+    monkeypatch.setattr(sa, "T_RATIO", 0.6)
+    scorer = StubScorer({"unrelated words": 0.95, "carbon dioxide": 0.9,
+                         "oxygen": 0.3, "nitrogen": 0.2, "argon": 0.1})
+    out = sa.grade("unrelated words", "carbon dioxide", Q, D, "support", scorer)
+    assert (out["verdict"], out["how"]) == ("near", "scorer")
