@@ -1,2 +1,5 @@
+# Build scripts pnpm may run (pnpm 10 blocks them unless listed).
+# unrs-resolver is the native resolver eslint-config-next pulls in.
 allowBuilds:
   sharp: true
+  unrs-resolver: true
