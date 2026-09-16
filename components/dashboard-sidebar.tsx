@@ -150,9 +150,14 @@ function SidebarBody({
       </nav>
 
       <div className="space-y-1 pt-4">
-        {/* The language switch needs room for two labels; the icon-only rail
-            hides it, and expanding the rail brings it back. */}
-        {!collapsed && (
+        {/* Two segments when there is room; on the icon-only rail, one square
+            button showing the current code that switches on press — a reader
+            who keeps the rail collapsed must still be able to find this. */}
+        {collapsed ? (
+          <div className="flex justify-center pb-1">
+            <LanguageSwitch variant="toggle" />
+          </div>
+        ) : (
           <div className="px-3 pb-2">
             <LanguageSwitch compact />
           </div>

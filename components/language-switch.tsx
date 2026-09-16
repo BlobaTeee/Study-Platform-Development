@@ -11,8 +11,18 @@ import { LOCALES, writeLocaleCookie, type Locale } from '@/i18n/locale'
 /** EN · VI. Each segment names itself in its own language, so a reader who
  *  cannot read the current one can still find theirs. The cookie is written
  *  first — it is what the server renders from — then the profile, when
- *  signed in, so the choice follows the account. */
-export function LanguageSwitch({ compact = false }: { compact?: boolean }) {
+ *  signed in, so the choice follows the account.
+ *
+ *  `variant="toggle"` is one square button for places two segments will not
+ *  fit (the collapsed sidebar rail): it shows the current code and switches
+ *  to the other language on press. */
+export function LanguageSwitch({
+  compact = false,
+  variant = 'segments',
+}: {
+  compact?: boolean
+  variant?: 'segments' | 'toggle'
+}) {
   const t = useTranslations('common')
   const locale = useLocale() as Locale
   const router = useRouter()
@@ -35,6 +45,21 @@ export function LanguageSwitch({ compact = false }: { compact?: boolean }) {
     }
     router.refresh()
     setBusy(false)
+  }
+
+  if (variant === 'toggle') {
+    const other: Locale = locale === 'en' ? 'vi' : 'en'
+    return (
+      <button
+        type="button"
+        onClick={() => void choose(other)}
+        title={`${t('language')}: ${names[locale]} → ${names[other]}`}
+        aria-label={`${t('language')}: ${names[locale]}`}
+        className="grid size-11 place-items-center rounded-lg font-mono text-xs font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-slate-300"
+      >
+        {short[locale]}
+      </button>
+    )
   }
 
   return (
