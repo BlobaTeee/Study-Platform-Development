@@ -74,6 +74,10 @@ Rules, in order — the first that decides wins:
 2. **Near-string match.** Normalised similarity (token Jaccard, and character
    ratio for one-word answers) ≥ `T_STRING` → `correct` (`how = "string"`).
    Catches plurals, hyphenation, a dropped word in a multi-word answer.
+2b. **Equals a distractor.** Normalised typed answer equal to one of the
+   question's distractors → `wrong` (`how = "distractor"`). The distractors
+   are the known-wrong answers; matching one is not ambiguous, and left to
+   rule 3 it would tie with itself.
 3. **Scorer ranking.** `scorer.rank(question, [typed, reference, *distractors],
    support)`. Let `s_typed`, `s_ref`, `s_dmax` be the probabilities.
    - `s_typed >= s_dmax` and `s_typed >= T_RATIO * s_ref` → `correct`
