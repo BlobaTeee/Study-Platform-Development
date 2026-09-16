@@ -80,6 +80,16 @@ class Answer(models.Model):
     user_answer = models.TextField()
     is_correct = models.BooleanField(default=False)
     points_earned = models.IntegerField(default=0)
+    # How this answer was produced and graded. 'choice' rows are exact-match
+    # multiple choice, as always. 'typed' rows went through the short-answer
+    # grader: `verdict` is what it said, `graded_how` which rule decided
+    # (exact/string/distractor/scorer/llm), and `overridden` that the student
+    # disagreed — which makes the row a labelled example for retraining.
+    MODE_CHOICES = [('choice', 'Multiple choice'), ('typed', 'Typed')]
+    mode = models.CharField(max_length=10, choices=MODE_CHOICES, default='choice')
+    verdict = models.CharField(max_length=10, blank=True, default='')
+    graded_how = models.CharField(max_length=10, blank=True, default='')
+    overridden = models.BooleanField(default=False)
     answered_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
