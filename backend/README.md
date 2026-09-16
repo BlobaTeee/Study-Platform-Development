@@ -7,6 +7,7 @@ python -m venv venv
 venv/bin/python -m pip install -r requirements.txt
 venv/bin/python -m spacy download en_core_web_sm   # extractive ML
 venv/bin/python manage.py ensure_ml_model          # build the answer-scorer artifact
+venv/bin/python manage.py compilemessages         # API messages in Vietnamese
 venv/bin/python manage.py migrate
 pnpm dev:backend                                   # or: venv/bin/python manage.py runserver 8000
 ```

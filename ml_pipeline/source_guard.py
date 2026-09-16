@@ -19,7 +19,12 @@ class InsufficientSourceTextError(ValueError):
     """Raised when a source is too thin to generate the requested content.
 
     Subclasses ValueError so the DRF view returns it as a 400 with the message.
+    Carries what it measured so the API can restate it in the user's language.
     """
+
+    def __init__(self, message: str, *, kind: str, count: int, min_words: int):
+        super().__init__(message)
+        self.kind, self.count, self.min_words = kind, count, min_words
 
 
 def word_count(text: str) -> int:
@@ -33,5 +38,6 @@ def check_source_text(text: str, *, kind: str, min_words: int) -> None:
         raise InsufficientSourceTextError(
             f"This source is too short to generate a {kind} "
             f"({count} words; needs at least {min_words}). "
-            "Add more text or choose a longer document."
+            "Add more text or choose a longer document.",
+            kind=kind, count=count, min_words=min_words,
         )

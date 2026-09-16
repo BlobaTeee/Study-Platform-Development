@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as _
 from rest_framework import serializers
 from .models import (
     Quiz, Question, QuizAttempt, Answer, MockTest, MockTestQuestion, PlannedTest,
@@ -135,11 +136,11 @@ class PlannedTestSerializer(serializers.ModelSerializer):
         # other users.
         user = self.context['request'].user
         if value.user_id != user.id:
-            raise serializers.ValidationError('Notebook not found.')
+            raise serializers.ValidationError(_('Notebook not found.'))
         return value
 
     def validate_scheduled_for(self, value):
         from django.utils import timezone
         if value <= timezone.now():
-            raise serializers.ValidationError('Pick a time in the future.')
+            raise serializers.ValidationError(_('Pick a time in the future.'))
         return value

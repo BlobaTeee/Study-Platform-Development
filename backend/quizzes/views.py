@@ -2,6 +2,7 @@ import logging
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from django.utils.translation import gettext as _
 from studyplatform.throttling import GenerationRateThrottle
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -55,7 +56,7 @@ class QuestionViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         quiz = Quiz.objects.get(pk=self.request.data.get('quiz'))
         if quiz.user != self.request.user:
-            return Response({'detail': 'Not allowed'}, status=status.HTTP_403_FORBIDDEN)
+            return Response({'detail': _('Not allowed.')}, status=status.HTTP_403_FORBIDDEN)
         serializer.save()
 
 
@@ -112,14 +113,14 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
 
         attempt = self.get_object()
         if attempt.is_completed:
-            return Response({'detail': 'This attempt is already complete.'}, status=400)
+            return Response({'detail': _('This attempt is already complete.')}, status=400)
         typed = (request.data.get('answer') or '').strip()
         if not typed:
-            return Response({'detail': 'Type an answer first.'}, status=400)
+            return Response({'detail': _('Type an answer first.')}, status=400)
         question = Question.objects.filter(pk=request.data.get('question_id'),
                                            quiz=attempt.quiz).first()
         if question is None:
-            return Response({'detail': 'Question not part of this quiz.'}, status=404)
+            return Response({'detail': _('Question not part of this quiz.')}, status=404)
 
         try:
             verdict = grade_typed(question, typed)
@@ -146,12 +147,12 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         disagreement is kept: it is the label the model can learn from."""
         attempt = self.get_object()
         if attempt.is_completed:
-            return Response({'detail': 'This attempt is already complete.'}, status=400)
+            return Response({'detail': _('This attempt is already complete.')}, status=400)
         answer = attempt.answers.filter(id=request.data.get('answer_id')).first()
         if answer is None:
-            return Response({'detail': 'Answer not part of this attempt.'}, status=404)
+            return Response({'detail': _('Answer not part of this attempt.')}, status=404)
         if answer.mode != 'typed':
-            return Response({'detail': 'Only typed answers can be overridden.'}, status=400)
+            return Response({'detail': _('Only typed answers can be overridden.')}, status=400)
         is_correct = bool(request.data.get('is_correct'))
         answer.is_correct = is_correct
         answer.points_earned = 1 if is_correct else 0
@@ -286,7 +287,7 @@ class MockTestViewSet(viewsets.ModelViewSet):
         notebook = Notebook.objects.filter(
             id=request.data.get('notebook'), user=request.user).first()
         if notebook is None:
-            return Response({'detail': 'Notebook not found.'}, status=404)
+            return Response({'detail': _('Notebook not found.')}, status=404)
 
         plan = None
         planned_test_id = request.data.get('planned_test')
@@ -298,10 +299,10 @@ class MockTestViewSet(viewsets.ModelViewSet):
             plan = PlannedTest.objects.filter(
                 id=planned_test_id, user=request.user).first()
             if plan is None:
-                return Response({'detail': 'Planned test not found.'}, status=404)
+                return Response({'detail': _('Planned test not found.')}, status=404)
             if plan.sat_at is not None:
                 return Response(
-                    {'detail': 'This planned test has already been sat.'}, status=400)
+                    {'detail': _('This planned test has already been sat.')}, status=400)
             # Enforced here, not only by the disabled button: the client's
             # clock is the student's to change. `opens_at` lets the client
             # say when rather than just "no" if the two clocks disagree.
@@ -310,7 +311,7 @@ class MockTestViewSet(viewsets.ModelViewSet):
             if not plan_is_open(plan.scheduled_for, timezone.now()):
                 opens = timezone.localtime(plan.scheduled_for)
                 return Response({
-                    'detail': f'This test opens at {opens:%H:%M on %d %b}.',
+                    'detail': _('This test opens at %(when)s.') % {'when': f'{opens:%H:%M %d/%m}'},
                     'opens_at': plan.scheduled_for.isoformat(),
                 }, status=400)
 
@@ -322,12 +323,12 @@ class MockTestViewSet(viewsets.ModelViewSet):
             requested = clamp_int(request.data.get('question_count'),
                                    MIN_QUESTIONS, MAX_QUESTIONS, default=20)
         except ValueError as exc:
-            return Response({'detail': f'question_count: {exc}'}, status=400)
+            return Response({'detail': _('Number of questions: %(why)s') % {'why': exc}}, status=400)
         try:
             duration = clamp_int(request.data.get('duration_minutes'),
                                   MIN_DURATION_MINUTES, MAX_DURATION_MINUTES, default=30)
         except ValueError as exc:
-            return Response({'detail': f'duration_minutes: {exc}'}, status=400)
+            return Response({'detail': _('Duration: %(why)s') % {'why': exc}}, status=400)
 
         source_ids = set(notebook.sources.values_list('id', flat=True))
         pool = _question_pool(request.user, source_ids)
@@ -342,9 +343,9 @@ class MockTestViewSet(viewsets.ModelViewSet):
 
         if not pool:
             return Response(
-                {'detail': 'No questions could be generated for this notebook. '
-                           'Check its documents have finished processing, then '
-                           'try generating a quiz from them.'},
+                {'detail': _('No questions could be generated for this notebook. '
+                             'Check its documents have finished processing, then '
+                             'try generating a quiz from them.')},
                 status=400,
             )
 
@@ -413,16 +414,16 @@ class MockTestViewSet(viewsets.ModelViewSet):
 
         test = self.get_object()
         if test.completed_at:
-            return Response({'detail': 'This test has already been submitted.'}, status=400)
+            return Response({'detail': _('This test has already been submitted.')}, status=400)
 
         now = timezone.now()
         if not answers_are_open(test.started_at, test.duration_minutes, now):
-            return Response({'detail': 'Time is up for this test.',
+            return Response({'detail': _('Time is up for this test.'),
                              'seconds_remaining': 0}, status=409)
 
         row = test.paper.filter(id=request.data.get('paper_question_id')).first()
         if row is None:
-            return Response({'detail': 'Question not part of this test.'}, status=404)
+            return Response({'detail': _('Question not part of this test.')}, status=404)
 
         # `.get('answer', '')` only falls back to '' when the key is *absent*;
         # a payload of {"answer": null} would otherwise stringify to the

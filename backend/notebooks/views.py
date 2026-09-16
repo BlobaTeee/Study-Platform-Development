@@ -1,6 +1,25 @@
 from rest_framework import mixins, viewsets, permissions, status
 from rest_framework.decorators import action
+from django.utils.translation import gettext as _
 from studyplatform.throttling import GenerationRateThrottle
+from ml_pipeline.source_guard import InsufficientSourceTextError
+
+
+def _user_error(exc) -> str:
+    """What to tell the student about a failed generation.
+
+    The source guard's message is the one they meet most, so it is restated
+    in their language from the numbers the exception carries; provider
+    errors are technical and stay as raised.
+    """
+    if isinstance(exc, InsufficientSourceTextError):
+        kind = {'flashcard set': _('flashcard set'), 'quiz': _('quiz')}.get(exc.kind, exc.kind)
+        return _('This source is too short to generate a %(kind)s (%(count)s words; '
+                 'needs at least %(min)s). Add more text or choose a longer document.') % {
+            'kind': kind, 'count': exc.count, 'min': exc.min_words}
+    if str(exc) == 'No sources selected.':
+        return _('No sources selected.')
+    return str(exc)
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.conf import settings
@@ -59,19 +78,19 @@ class NotebookViewSet(viewsets.ModelViewSet):
         uploaded = request.FILES.get('file')
 
         if not uploaded:
-            return Response({'detail': 'No file provided. Use form field "file".'}, status=400)
+            return Response({'detail': _('No file provided.')}, status=400)
 
         file_type = file_type_from_filename(uploaded.name)
         if not file_type:
             return Response(
-                {'detail': f'Unsupported file type. Supported: {SUPPORTED_FORMATS}.'},
+                {'detail': _('Unsupported file type. Supported: %(formats)s.') % {'formats': SUPPORTED_FORMATS}},
                 status=400,
             )
 
         max_bytes = getattr(settings, 'MAX_PDF_UPLOAD_MB', 10) * 1024 * 1024
         if uploaded.size > max_bytes:
             return Response(
-                {'detail': f'File too large. Max size is {settings.MAX_PDF_UPLOAD_MB} MB.'},
+                {'detail': _('File too large. Max size is %(mb)s MB.') % {'mb': settings.MAX_PDF_UPLOAD_MB}},
                 status=400,
             )
 
@@ -99,13 +118,13 @@ class NotebookViewSet(viewsets.ModelViewSet):
             source_ids = [source_ids]
         source_ids = [int(i) for i in source_ids]
         if not source_ids:
-            return Response({'detail': 'Provide source_ids (array of source IDs).'}, status=400)
+            return Response({'detail': _('Choose at least one source.')}, status=400)
 
         sources = list(
             Source.objects.filter(notebook=notebook, id__in=source_ids).order_by('id')
         )
         if len(sources) != len(source_ids):
-            return Response({'detail': 'One or more sources not found in this notebook.'}, status=400)
+            return Response({'detail': _('One or more sources are not in this notebook.')}, status=400)
 
         count = int(request.data.get('count', 10))
         meta = {}
@@ -114,7 +133,7 @@ class NotebookViewSet(viewsets.ModelViewSet):
         except GeminiNotConfiguredError as exc:
             return Response({'detail': str(exc)}, status=503)
         except (GeminiGenerationError, ValueError) as exc:
-            return Response({'detail': str(exc)}, status=400)
+            return Response({'detail': _user_error(exc)}, status=400)
 
         serializer = FlashcardSerializer(cards, many=True, context={'request': request})
         return Response({
@@ -174,13 +193,13 @@ class NotebookViewSet(viewsets.ModelViewSet):
             source_ids = [source_ids]
         source_ids = [int(i) for i in source_ids]
         if not source_ids:
-            return Response({'detail': 'Provide source_ids (array of source IDs).'}, status=400)
+            return Response({'detail': _('Choose at least one source.')}, status=400)
 
         sources = list(
             Source.objects.filter(notebook=notebook, id__in=source_ids).order_by('id')
         )
         if len(sources) != len(source_ids):
-            return Response({'detail': 'One or more sources not found in this notebook.'}, status=400)
+            return Response({'detail': _('One or more sources are not in this notebook.')}, status=400)
 
         question_count = int(request.data.get('question_count', 8))
         meta = {}
@@ -190,7 +209,7 @@ class NotebookViewSet(viewsets.ModelViewSet):
         except GeminiNotConfiguredError as exc:
             return Response({'detail': str(exc)}, status=503)
         except (GeminiGenerationError, ValueError) as exc:
-            return Response({'detail': str(exc)}, status=400)
+            return Response({'detail': _user_error(exc)}, status=400)
 
         serializer = QuizSerializer(quiz, context={'request': request})
         return Response({
@@ -227,7 +246,7 @@ class SourceViewSet(
         except GeminiNotConfiguredError as exc:
             return Response({'detail': str(exc)}, status=503)
         except (GeminiGenerationError, ValueError) as exc:
-            return Response({'detail': str(exc)}, status=400)
+            return Response({'detail': _user_error(exc)}, status=400)
 
         serializer = FlashcardSerializer(cards, many=True, context={'request': request})
         return Response({
@@ -247,7 +266,7 @@ class SourceViewSet(
         except GeminiNotConfiguredError as exc:
             return Response({'detail': str(exc)}, status=503)
         except (GeminiGenerationError, ValueError) as exc:
-            return Response({'detail': str(exc)}, status=400)
+            return Response({'detail': _user_error(exc)}, status=400)
 
         serializer = QuizSerializer(quiz, context={'request': request})
         return Response({

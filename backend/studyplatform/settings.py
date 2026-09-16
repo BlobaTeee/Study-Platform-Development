@@ -40,6 +40,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -80,6 +81,13 @@ LANGUAGE_CODE = 'en-us'
 TIME_ZONE = config('TIME_ZONE', default='Asia/Ho_Chi_Minh')
 USE_I18N = True
 USE_TZ = True
+
+# The API answers in the language the frontend is showing: the axios client
+# sends Accept-Language from its `lang` cookie and LocaleMiddleware activates
+# it. Translations live in backend/locale/<code>/LC_MESSAGES/django.po;
+# `manage.py compilemessages` builds the .mo files (gitignored) at setup.
+LANGUAGES = [('en', 'English'), ('vi', 'Tiếng Việt')]
+LOCALE_PATHS = [BASE_DIR / 'locale']
 
 STATIC_URL = 'static/'
 

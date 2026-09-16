@@ -40,3 +40,6 @@ datasets/raw/AI Flashcards/*.csv
 
 # OS
 .DS_Store
+
+# Compiled gettext catalogues (manage.py compilemessages)
+*.mo
