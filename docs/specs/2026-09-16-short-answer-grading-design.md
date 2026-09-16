@@ -1,7 +1,7 @@
 # Short-Answer Grading — Design
 
 **Date:** 2026-09-16
-**Status:** Approved (design), pending implementation plan
+**Status:** Implemented 2026-09-16 (branch unmerged; user to trial)
 **Author:** pairing session
 **Branch:** `feat/short-answer-confidence` (snapshot to revert to: tag `pre-short-answer`)
 **Deployment note:** local-only for now (Ollama); the LLM tier is written
@@ -246,3 +246,32 @@ and `overridden=True` is a labelled example: `user_answer` vs the question's
   entry point, and `Answer(mode='typed')` rows are the data.
 - Provenance (idea 1 of the previous list) would give the grader a real
   `support` passage instead of the explanation; it stacks on this.
+
+## Results (notebook 04, SciQ test split, 2,722 positives / 3,533 negatives)
+
+| | precision of "correct" | recall | near band |
+|---|---|---|---|
+| Cascade, with support | 0.992 | 0.993 | 0.1% of positives |
+| Cascade, no support | 0.994 | 0.964 | 1.2% of positives, 10.2% of negatives |
+
+Chosen `T_STRING = 0.8`, `T_RATIO = 0.6` under "precision ≥ 0.90 with and
+without support, then best F1".
+
+Two rules were added after measurement, both from evidence rather than the
+original design:
+
+- **No support → the scorer may say `near`, never `correct`.** Without a
+  passage it ranked an unrelated answer above the reference for ~12% of
+  wrong answers at every `T_RATIO`; the gate took no-support precision from
+  0.876 to 0.994.
+- **Reference over 4 words → skip the scorer, go to the LLM tier.** A real
+  generated question with a 14-word reference had the scorer rate the
+  reference 0.012 and "something unrelated entirely" 0.023. SciQ answers are
+  one to three words; 41% of this app's generated questions are longer. The
+  scorer also needs at least one shared word to certify a short answer.
+
+LLM tier (Ollama llama3.2:3b, 60 near-band cases): accuracy 0.983,
+mean 0.68 s per call. The near band held almost only negatives, so
+this measures rejection; on a real long-reference question the model
+rejected a genuine paraphrase that omitted one clause — strict, which is
+the intended direction, and the case the override exists for.
