@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-17 23:02+0700\n"
+"POT-Creation-Date: 2026-09-18 02:02+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -56,6 +56,13 @@ msgstr "Trang này quá lớn để nhập."
 #: notebooks/services/fetch_page.py:57
 msgid "No readable text was found on that page."
 msgstr "Không tìm thấy văn bản đọc được trên trang đó."
+
+#: notebooks/services/generate.py:36
+msgid ""
+"This document is in Vietnamese, which needs an AI provider (Ollama or "
+"Gemini) — the offline generator only handles English. Check the provider and "
+"try again."
+msgstr "Tài liệu này là tiếng Việt nên cần AI provider (Ollama hoặc Gemini) — trình tạo offline chỉ hỗ trợ tiếng Anh. Hãy kiểm tra provider rồi thử lại."
 
 #: notebooks/views.py:16
 msgid "flashcard set"

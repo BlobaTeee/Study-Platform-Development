@@ -2,6 +2,8 @@ import logging
 
 from django.conf import settings
 from django.db import transaction
+from django.utils.translation import gettext as _
+from ml_pipeline.language import detect_language, language_name
 from flashcards.models import Flashcard
 from quizzes.models import Quiz, Question
 from .gemini_client import (
@@ -20,6 +22,19 @@ logger = logging.getLogger(__name__)
 # Values reported back as `generated_by`, so a silent fallback is visible.
 BY_EXTRACTIVE_ML = 'extractive-ml'
 BY_EXTRACTIVE_FALLBACK = 'extractive-fallback'
+
+
+def _needs_provider(lang: str) -> bool:
+    """The extractive pipeline is spaCy's English model; on Vietnamese text
+    it produces cloze cards around the wrong words. Rather than hand those
+    over, a Vietnamese source is generated only by a provider."""
+    return lang == 'vi'
+
+
+def _provider_required_error(exc) -> GeminiGenerationError:
+    return GeminiGenerationError(
+        _('This document is in Vietnamese, which needs an AI provider (Ollama or Gemini) — '
+          'the offline generator only handles English. Check the provider and try again.'))
 
 
 def _mark(meta, provider: str, reason: str = ''):
@@ -228,8 +243,9 @@ def _generate_flashcards(sources, user, count: int, source_ids: list[int],
     text = _sources_text(sources)
     from ml_pipeline.source_guard import check_source_text, MIN_WORDS_FLASHCARDS
     check_source_text(text, kind='flashcard set', min_words=MIN_WORDS_FLASHCARDS)
+    lang = detect_language(text)
 
-    if _use_ml_primary():
+    if _use_ml_primary() and not _needs_provider(lang):
         try:
             cards = _generate_flashcards_ml(sources, user, count)
             _mark(meta, BY_EXTRACTIVE_ML)
@@ -244,6 +260,7 @@ def _generate_flashcards(sources, user, count: int, source_ids: list[int],
 
     def build_prompt(chunk: str, n: int) -> str:
         return f"""Create exactly {n} study flashcards from this excerpt.
+Write in {language_name(lang)}, the language of the excerpt.
 Each flashcard must be answerable from the excerpt alone.
 Ask about concepts, definitions, mechanisms, reasons and relationships — the
 things a student must understand. Do not ask about incidental figures (page
@@ -267,11 +284,15 @@ Excerpt:
         return cards
     except GeminiNotConfiguredError as exc:
         if _use_local_fallback():
+            if _needs_provider(lang):
+                raise _provider_required_error(exc) from exc
             _fell_back(meta, exc, 'Flashcard')
             return fallback.generate_flashcards_fallback_multi(sources, user, count)
         raise
     except (GeminiQuotaError, GeminiGenerationError) as exc:
         if _use_local_fallback() and (isinstance(exc, GeminiQuotaError) or is_quota_error(exc)):
+            if _needs_provider(lang):
+                raise _provider_required_error(exc) from exc
             _fell_back(meta, exc, 'Flashcard')
             return fallback.generate_flashcards_fallback_multi(sources, user, count)
         if isinstance(exc, GeminiQuotaError):
@@ -279,6 +300,8 @@ Excerpt:
         raise GeminiGenerationError(f'Flashcard generation failed: {exc}') from exc
     except Exception as exc:
         if _use_local_fallback():
+            if _needs_provider(lang):
+                raise _provider_required_error(exc) from exc
             _fell_back(meta, exc, 'Flashcard')
             return fallback.generate_flashcards_fallback_multi(sources, user, count)
         raise GeminiGenerationError(f'Content generation failed: {exc}') from exc
@@ -324,8 +347,9 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Qui
     text = _sources_text(sources)
     from ml_pipeline.source_guard import check_source_text, MIN_WORDS_QUIZ
     check_source_text(text, kind='quiz', min_words=MIN_WORDS_QUIZ)
+    lang = detect_language(text)
 
-    if _use_ml_primary():
+    if _use_ml_primary() and not _needs_provider(lang):
         try:
             quiz = _generate_quiz_ml(sources, user, question_count)
             _mark(meta, BY_EXTRACTIVE_ML)
@@ -340,6 +364,7 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Qui
 
     def build_prompt(chunk: str, n: int) -> str:
         return f"""Create exactly {n} multiple-choice questions from this excerpt.
+Write in {language_name(lang)}, the language of the excerpt.
 For each question give: the question, the single correct answer, and exactly 3
 plausible but incorrect answers (distractors) on the same topic. Do NOT put the
 correct answer in the distractors, and make the distractors distinct.
@@ -363,11 +388,15 @@ Excerpt:
         _mark(meta, provider.name)
     except GeminiNotConfiguredError as exc:
         if _use_local_fallback():
+            if _needs_provider(lang):
+                raise _provider_required_error(exc) from exc
             _fell_back(meta, exc, 'Quiz')
             return fallback.generate_quiz_fallback_multi(sources, user, question_count)
         raise
     except (GeminiQuotaError, GeminiGenerationError) as exc:
         if _use_local_fallback() and (isinstance(exc, GeminiQuotaError) or is_quota_error(exc)):
+            if _needs_provider(lang):
+                raise _provider_required_error(exc) from exc
             _fell_back(meta, exc, 'Quiz')
             return fallback.generate_quiz_fallback_multi(sources, user, question_count)
         if isinstance(exc, GeminiQuotaError):
@@ -375,6 +404,8 @@ Excerpt:
         raise GeminiGenerationError(f'Quiz generation failed: {exc}') from exc
     except Exception as exc:
         if _use_local_fallback():
+            if _needs_provider(lang):
+                raise _provider_required_error(exc) from exc
             _fell_back(meta, exc, 'Quiz')
             return fallback.generate_quiz_fallback_multi(sources, user, question_count)
         raise GeminiGenerationError(f'Content generation failed: {exc}') from exc

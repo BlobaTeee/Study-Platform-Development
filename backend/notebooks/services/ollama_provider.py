@@ -136,9 +136,11 @@ class OllamaProvider:
             raise OllamaError(f"model did not return valid JSON: {exc}") from exc
 
     def summarize(self, text: str, title: str = "") -> str:
+        from ml_pipeline.language import detect_language, language_name
         prompt = (
             f"Summarize the following document titled {title!r} in 2-3 sentences "
-            f"as a study overview.\n\n{text[:8000]}"
+            f"as a study overview. Write in {language_name(detect_language(text))}, "
+            f"the language of the document.\n\n{text[:8000]}"
         )
         return self._generate(
             prompt, system="You are a concise study assistant.", json_mode=False
