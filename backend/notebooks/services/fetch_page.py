@@ -30,29 +30,43 @@ class PageFetchError(ValueError):
     """The link could not be turned into a source; `str(exc)` is user-facing."""
 
 
-def fetch_page(url: str) -> tuple[str, str]:
-    """(title, text) of the page at `url`."""
+class FetchedPage:
+    """What a link resolved to: an HTML page (title + text) or a PDF (bytes)."""
+    def __init__(self, kind: str, title: str = '', text: str = '', pdf: bytes = b''):
+        self.kind, self.title, self.text, self.pdf = kind, title, text, pdf
+
+
+def fetch_page(url: str) -> FetchedPage:
     ok, why = is_public_url(url)
     if not ok:
         raise PageFetchError(_(why))
     try:
         resp = requests.get(url, timeout=TIMEOUT_SECONDS, stream=True,
                             headers={'User-Agent': USER_AGENT}, allow_redirects=True)
-        resp.raise_for_status()
     except requests.RequestException as exc:
         raise PageFetchError(_('Could not fetch that link (%(why)s).') % {'why': exc.__class__.__name__}) from exc
-    except Exception as exc:  # raise_for_status on a stub, odd transports
-        raise PageFetchError(_('Could not fetch that link.')) from exc
 
-    ctype = (resp.headers.get('Content-Type') or '').lower()
-    if 'html' not in ctype and 'xml' not in ctype:
-        raise PageFetchError(_('That link is not a web page. Upload the file instead.'))
+    status = getattr(resp, 'status_code', 200)
+    if status in (401, 403, 429, 503):
+        # Publishers (ACM, Elsevier, …) sit behind a bot challenge or a
+        # paywall. Nothing here can, or should, get past that; the student
+        # can save the file in their browser and upload it.
+        raise PageFetchError(_('That site blocks automated access. Download the file in your '
+                               'browser and upload it here instead.'))
+    if status >= 400:
+        raise PageFetchError(_('Could not fetch that link (HTTP %(status)s).') % {'status': status})
 
     body = resp.content
     if len(body) > MAX_BYTES:
         raise PageFetchError(_('That page is too large to import.'))
 
+    ctype = (resp.headers.get('Content-Type') or '').lower()
+    if 'pdf' in ctype or body[:5] == b'%PDF-':
+        return FetchedPage('pdf', pdf=body)
+    if 'html' not in ctype and 'xml' not in ctype:
+        raise PageFetchError(_('That link is not a web page or a PDF. Upload the file instead.'))
+
     title, text = html_to_text(body.decode(getattr(resp, 'encoding', None) or 'utf-8', errors='replace'))
     if not text.strip():
         raise PageFetchError(_('No readable text was found on that page.'))
-    return title, text
+    return FetchedPage('html', title=title, text=text)

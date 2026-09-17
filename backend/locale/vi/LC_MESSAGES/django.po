@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 02:02+0700\n"
+"POT-Creation-Date: 2026-09-18 03:52+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,10 +19,8 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 
 #: notebooks/services/fetch_page.py:22
-#, fuzzy
-#| msgid "Only typed answers can be overridden."
 msgid "Only http and https links can be added."
-msgstr "Chỉ câu trả lời tự gõ mới sửa được điểm."
+msgstr "Chỉ thêm được liên kết http hoặc https."
 
 #: notebooks/services/fetch_page.py:23
 msgid "That link has no host."
@@ -36,24 +34,31 @@ msgstr "Không tìm thấy máy chủ đó."
 msgid "Links to private or local addresses cannot be added."
 msgstr "Không thể thêm liên kết tới địa chỉ nội bộ hoặc cục bộ."
 
-#: notebooks/services/fetch_page.py:43
+#: notebooks/services/fetch_page.py:47
 #, python-format
 msgid "Could not fetch that link (%(why)s)."
 msgstr "Không tải được liên kết đó (%(why)s)."
 
-#: notebooks/services/fetch_page.py:45
-msgid "Could not fetch that link."
-msgstr "Không tải được liên kết đó."
+#: notebooks/services/fetch_page.py:54
+msgid ""
+"That site blocks automated access. Download the file in your browser and "
+"upload it here instead."
+msgstr "Trang này chặn truy cập tự động. Hãy tải file về bằng trình duyệt rồi tải lên ở đây."
 
-#: notebooks/services/fetch_page.py:49
-msgid "That link is not a web page. Upload the file instead."
-msgstr "Liên kết này không phải trang web. Hãy tải file lên thay vì dán link."
+#: notebooks/services/fetch_page.py:57
+#, python-format
+msgid "Could not fetch that link (HTTP %(status)s)."
+msgstr "Không tải được liên kết đó (HTTP %(status)s)."
 
-#: notebooks/services/fetch_page.py:53
+#: notebooks/services/fetch_page.py:61
 msgid "That page is too large to import."
 msgstr "Trang này quá lớn để nhập."
 
-#: notebooks/services/fetch_page.py:57
+#: notebooks/services/fetch_page.py:67
+msgid "That link is not a web page or a PDF. Upload the file instead."
+msgstr "Liên kết này không phải trang web hay PDF. Hãy tải file lên thay vì dán link."
+
+#: notebooks/services/fetch_page.py:71
 msgid "No readable text was found on that page."
 msgstr "Không tìm thấy văn bản đọc được trên trang đó."
 
@@ -62,7 +67,9 @@ msgid ""
 "This document is in Vietnamese, which needs an AI provider (Ollama or "
 "Gemini) — the offline generator only handles English. Check the provider and "
 "try again."
-msgstr "Tài liệu này là tiếng Việt nên cần AI provider (Ollama hoặc Gemini) — trình tạo offline chỉ hỗ trợ tiếng Anh. Hãy kiểm tra provider rồi thử lại."
+msgstr ""
+"Tài liệu này là tiếng Việt nên cần AI provider (Ollama hoặc Gemini) — trình "
+"tạo offline chỉ hỗ trợ tiếng Anh. Hãy kiểm tra provider rồi thử lại."
 
 #: notebooks/views.py:16
 msgid "flashcard set"
@@ -91,34 +98,36 @@ msgid "That text is too short to study from. Paste at least %(n)s words."
 msgstr "Đoạn văn bản quá ngắn để học. Hãy dán ít nhất %(n)s từ."
 
 #: notebooks/views.py:100
-#, fuzzy
-#| msgid "Type an answer first."
 msgid "Paste a link first."
-msgstr "Hãy gõ câu trả lời trước."
+msgstr "Hãy dán liên kết trước."
 
-#: notebooks/views.py:107
+#: notebooks/views.py:123
+msgid "No readable text was found in that PDF. It may be scanned images only."
+msgstr "Không tìm thấy văn bản đọc được trong PDF đó. Có thể file chỉ gồm ảnh scan."
+
+#: notebooks/views.py:133
 msgid "That page has too little text to study from."
 msgstr "Trang này có quá ít văn bản để học."
 
-#: notebooks/views.py:122
+#: notebooks/views.py:148
 msgid "No file provided."
 msgstr "Chưa có file nào được gửi."
 
-#: notebooks/views.py:127
+#: notebooks/views.py:153
 #, python-format
 msgid "Unsupported file type. Supported: %(formats)s."
 msgstr "Định dạng file không được hỗ trợ. Hỗ trợ: %(formats)s."
 
-#: notebooks/views.py:134
+#: notebooks/views.py:160
 #, python-format
 msgid "File too large. Max size is %(mb)s MB."
 msgstr "File quá lớn. Tối đa %(mb)s MB."
 
-#: notebooks/views.py:162 notebooks/views.py:237
+#: notebooks/views.py:188 notebooks/views.py:263
 msgid "Choose at least one source."
 msgstr "Hãy chọn ít nhất một tài liệu."
 
-#: notebooks/views.py:168 notebooks/views.py:243
+#: notebooks/views.py:194 notebooks/views.py:269
 msgid "One or more sources are not in this notebook."
 msgstr "Có tài liệu không thuộc sổ tay này."
 
@@ -196,3 +205,6 @@ msgstr "Đã hết giờ làm bài."
 #: quizzes/views.py:429
 msgid "Question not part of this test."
 msgstr "Câu hỏi không thuộc bài thi này."
+
+#~ msgid "Could not fetch that link."
+#~ msgstr "Không tải được liên kết đó."

@@ -111,10 +111,10 @@ def test_a_network_failure_is_a_400_with_a_reason(client, notebook, monkeypatch,
     assert 'fetch' in res.json()['detail'].lower() or 'reach' in res.json()['detail'].lower()
 
 
-def test_a_non_html_response_is_refused(client, notebook, monkeypatch, public_dns):
+def test_a_non_html_non_pdf_response_is_refused(client, notebook, monkeypatch, public_dns):
     monkeypatch.setattr('notebooks.services.fetch_page.requests.get',
-                        lambda url, **kw: _Resp('%PDF-1.4 ...', ctype='application/pdf'))
-    res = _add_url(client, notebook, url='https://example.com/paper.pdf')
+                        lambda url, **kw: _Resp('PK\x03\x04...', ctype='application/zip'))
+    res = _add_url(client, notebook, url='https://example.com/archive.zip')
     assert res.status_code == 400
     assert 'page' in res.json()['detail'].lower()
 
@@ -123,3 +123,46 @@ def test_another_users_notebook_is_not_found(client, other_user):
     from notebooks.models import Notebook
     theirs = Notebook.objects.create(user=other_user, title='Theirs')
     assert _add_text(client, theirs, text=WORDS).status_code == 404
+
+
+# ---- links that are PDFs, and sites that block automated access ------------------
+
+def test_a_site_that_blocks_automated_access_says_so(client, notebook, monkeypatch, public_dns):
+    # ACM, Elsevier and the like sit behind a bot challenge: HTTP 403 with
+    # a Cloudflare page. The student can still download the file themselves.
+    monkeypatch.setattr('notebooks.services.fetch_page.requests.get',
+                        lambda url, **kw: _Resp('<html>Just a moment…</html>', status=403))
+    res = _add_url(client, notebook, url='https://dl.acm.org/doi/pdf/10.1145/1629607.1629613')
+    assert res.status_code == 400
+    detail = res.json()['detail'].lower()
+    assert 'block' in detail and 'upload' in detail
+
+
+def test_a_pdf_link_becomes_a_pdf_source(client, notebook, monkeypatch, public_dns):
+    pdf_bytes = b'%PDF-1.4 fake'
+    class PdfResp(_Resp):
+        def __init__(self):
+            super().__init__('', ctype='application/pdf'); self.content = pdf_bytes
+    monkeypatch.setattr('notebooks.services.fetch_page.requests.get', lambda url, **kw: PdfResp())
+    monkeypatch.setattr('notebooks.views.extract_text_from_document',
+                        lambda path, kind: ('Extracted paper text. ' + WORDS, 7))
+
+    res = _add_url(client, notebook, url='https://arxiv.org/pdf/1234.5678v1.pdf', title='Paper')
+
+    assert res.status_code == 201, res.json()
+    src = Source.objects.get(id=res.json()['id'])
+    assert (src.file_type, src.status, src.page_count, src.original_filename) == \
+        ('pdf', 'ready', 7, 'https://arxiv.org/pdf/1234.5678v1.pdf')
+    assert src.file and src.file.read() == pdf_bytes
+    assert src.extracted_text.startswith('Extracted paper text.')
+
+
+def test_a_pdf_link_that_yields_no_text_is_refused(client, notebook, monkeypatch, public_dns):
+    class PdfResp(_Resp):
+        def __init__(self):
+            super().__init__('', ctype='application/pdf'); self.content = b'%PDF-1.4 scanned'
+    monkeypatch.setattr('notebooks.services.fetch_page.requests.get', lambda url, **kw: PdfResp())
+    monkeypatch.setattr('notebooks.views.extract_text_from_document', lambda path, kind: ('', 3))
+    res = _add_url(client, notebook, url='https://arxiv.org/pdf/scan.pdf')
+    assert res.status_code == 400
+    assert Source.objects.filter(file_type='pdf', original_filename__startswith='https').count() == 0

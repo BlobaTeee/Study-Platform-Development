@@ -41,3 +41,14 @@ def test_profile_language_accepts_only_the_supported_ones(client, user):
     assert ok.status_code == 200 and ok.json()['preferred_language'] == 'vi'
     bad = client.put('/api/users/profiles/update_profile/', {'preferred_language': 'fr'}, format='json')
     assert bad.status_code == 400 and 'preferred_language' in bad.json()
+
+
+def test_no_translation_is_left_fuzzy():
+    # makemessages guesses a translation for a new msgid that resembles an
+    # old one and marks it fuzzy; compilemessages then skips it, so the
+    # message silently ships in English — or, worse, the guess is wrong and
+    # gets copied as if it were right. The header entry is fuzzy by design.
+    from pathlib import Path
+    po = Path(__file__).resolve().parents[1] / 'locale' / 'vi' / 'LC_MESSAGES' / 'django.po'
+    body = po.read_text().split('msgid ""', 1)[1]          # everything after the header
+    assert '#, fuzzy' not in body, 'run makemessages, fix the fuzzy entries by hand, remove the flag'

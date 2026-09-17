@@ -31,7 +31,7 @@ from .serializers import (
     NotebookCreateSerializer,
     SourceSerializer,
 )
-from .services.document_extract import file_type_from_filename, title_from_filename
+from .services.document_extract import extract_text_from_document, file_type_from_filename, title_from_filename
 from .services.ingest import process_source, finish_text_source
 from .services.fetch_page import PageFetchError, fetch_page
 from .services.textnorm import normalise_text
@@ -99,13 +99,39 @@ class NotebookViewSet(viewsets.ModelViewSet):
         if not url:
             return Response({'detail': _('Paste a link first.')}, status=400)
         try:
-            page_title, text = fetch_page(url)
+            page = fetch_page(url)
         except PageFetchError as exc:
             return Response({'detail': str(exc)}, status=400)
-        text = normalise_text(text)
+
+        if page.kind == 'pdf':
+            # A PDF link is an upload the student did not have to do by hand:
+            # keep the file, run the same extraction, name it from the URL.
+            from django.core.files.base import ContentFile
+            from urllib.parse import urlparse
+            import os
+            name = os.path.basename(urlparse(url).path) or 'document.pdf'
+            if not name.lower().endswith('.pdf'):
+                name += '.pdf'
+            title = (request.data.get('title') or '').strip() or title_from_filename(name)
+            source = Source.objects.create(notebook=notebook, title=title[:255], file_type='pdf',
+                                           original_filename=url[:255])
+            source.file.save(name, ContentFile(page.pdf), save=True)
+            text, page_count = extract_text_from_document(source.file.path, 'pdf')
+            text = normalise_text(text)
+            if word_count(text) < MIN_WORDS_FLASHCARDS:
+                source.delete()
+                return Response({'detail': _('No readable text was found in that PDF. It may be '
+                                             'scanned images only.')}, status=400)
+            source.extracted_text = text
+            source.page_count = page_count
+            finish_text_source(source)
+            notebook.save(update_fields=['updated_at'])
+            return Response(SourceSerializer(source, context={'request': request}).data, status=201)
+
+        text = normalise_text(page.text)
         if word_count(text) < MIN_WORDS_FLASHCARDS:
             return Response({'detail': _('That page has too little text to study from.')}, status=400)
-        title = (request.data.get('title') or '').strip() or page_title or default_title(text)
+        title = (request.data.get('title') or '').strip() or page.title or default_title(text)
         source = Source.objects.create(notebook=notebook, title=title[:255], file_type='url',
                                        original_filename=url[:255], extracted_text=text)
         finish_text_source(source)
