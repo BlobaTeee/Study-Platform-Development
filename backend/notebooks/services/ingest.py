@@ -1,4 +1,5 @@
 from .document_extract import extract_text_from_document
+from .textnorm import normalise_text
 from .ai_provider import get_ai_provider
 
 EMPTY_TEXT_MESSAGES = {
@@ -14,6 +15,7 @@ def process_source(source) -> None:
     try:
         path = source.file.path
         text, page_count = extract_text_from_document(path, file_type)
+        text = normalise_text(text)
         source.page_count = page_count
         source.extracted_text = text
 

@@ -46,9 +46,9 @@ def test_archived_cards_are_not_counted(client, user, notebook):
 
 def test_reports_the_newest_quiz_for_that_exact_selection(client, user, notebook):
     cells, genetics = notebook.sources.order_by('id')
-    older = Quiz.objects.create(user=user, title='old'); older.sources.set([cells])
-    newer = Quiz.objects.create(user=user, title='new'); newer.sources.set([cells])
-    both = Quiz.objects.create(user=user, title='both'); both.sources.set([cells, genetics])
+    older = Quiz.objects.create(user=user, title='old', is_published=True); older.sources.set([cells])
+    newer = Quiz.objects.create(user=user, title='new', is_published=True); newer.sources.set([cells])
+    both = Quiz.objects.create(user=user, title='both', is_published=True); both.sources.set([cells, genetics])
 
     assert _counts(client, notebook, [cells])['quiz_id'] == newer.id
     assert _counts(client, notebook, [cells, genetics])['quiz_id'] == both.id

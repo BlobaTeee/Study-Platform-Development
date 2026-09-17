@@ -33,7 +33,10 @@ class QuizViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return Quiz.objects.filter(user=self.request.user) | Quiz.objects.filter(is_public=True)
+        # Retired quizzes (replaced by a regeneration) stay in the database for
+        # their attempts, but are not offered to study from.
+        return (Quiz.objects.filter(user=self.request.user, is_published=True)
+                | Quiz.objects.filter(is_public=True, is_published=True))
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -229,7 +232,7 @@ def _question_pool(user, source_ids):
         return []
     pool: dict[int, list[int]] = {}
     for row in (Question.objects
-                .filter(quiz__user=user, quiz__sources__in=source_ids)
+                .filter(quiz__user=user, quiz__is_published=True, quiz__sources__in=source_ids)
                 .values('id', 'quiz__sources')):
         pool.setdefault(row['id'], []).append(row['quiz__sources'])
     return [{'id': qid, 'source_ids': ids} for qid, ids in pool.items()]

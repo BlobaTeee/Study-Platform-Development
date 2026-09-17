@@ -82,3 +82,29 @@ def test_accepts_alternate_keys():
     assert out["question_text"] == "Q?"
     assert out["correct_answer"] == "x"
     assert "x" in out["options"]
+
+
+# ---- option-letter prefixes -------------------------------------------------------
+# Some models answer "C) Creating engaging interfaces…" with distractors
+# "A) …", "B) …". Stored like that, the letters break exact-match grading and
+# the typed-answer grader, and the review shows them. They are not content.
+
+def test_strip_option_prefix_handles_the_common_shapes():
+    for raw in ("C) Creating engaging interfaces", "c) Creating engaging interfaces",
+                "(C) Creating engaging interfaces", "C. Creating engaging interfaces",
+                "C: Creating engaging interfaces", "  B)  Creating engaging interfaces "):
+        assert qs.strip_option_prefix(raw) == "Creating engaging interfaces", raw
+
+
+def test_strip_option_prefix_leaves_real_answers_alone():
+    for raw in ("A protein", "B cells", "C++ templates", "D-day", "Accountability", "12"):
+        assert qs.strip_option_prefix(raw) == raw, raw
+
+
+def test_shaping_strips_prefixes_from_answer_and_distractors():
+    out = qs.shape_quiz_question(
+        {"question_text": "Focus of IxD?", "correct_answer": "C) Engaging interfaces",
+         "distractors": ["A) Pretty graphics", "B) Open-source software", "D) Fast databases"]},
+        _rng())
+    assert out["correct_answer"] == "Engaging interfaces"
+    assert set(out["options"]) == {"Engaging interfaces", "Pretty graphics", "Open-source software", "Fast databases"}

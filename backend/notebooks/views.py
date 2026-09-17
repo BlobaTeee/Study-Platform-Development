@@ -177,7 +177,7 @@ class NotebookViewSet(viewsets.ModelViewSet):
             source_ids)
         quizzes = items_with_exact_sources(
             Quiz.sources.through.objects
-            .filter(quiz__user=request.user)
+            .filter(quiz__user=request.user, quiz__is_published=True)
             .values_list('quiz_id', 'source_id'),
             source_ids)
         quiz_id = (Quiz.objects.filter(id__in=quizzes).order_by('-created_at')

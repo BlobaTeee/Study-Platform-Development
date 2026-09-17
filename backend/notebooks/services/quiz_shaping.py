@@ -9,7 +9,19 @@ back-compatibility. No Django imports so it can be unit-tested in isolation.
 """
 from __future__ import annotations
 
+import re
+
 MAX_OPTIONS = 4  # correct answer + up to 3 distractors
+
+# "C) …", "(c) …", "B. …", "D: …" — a single letter A–D (the only letters a
+# four-option paper uses) followed by a separator. "C++ templates", "B cells"
+# and "D-day" do not match: no separator, or the letter is part of a word.
+_OPTION_PREFIX = re.compile(r"^\(?[A-Da-d][\).:]\s+")
+
+
+def strip_option_prefix(text: str) -> str:
+    """The option without the letter a model sometimes numbers it with."""
+    return _OPTION_PREFIX.sub("", text.strip()).strip()
 
 
 def shape_quiz_question(raw: dict, rng) -> dict | None:
@@ -19,7 +31,7 @@ def shape_quiz_question(raw: dict, rng) -> dict | None:
     with ``correct_answer in options`` and 2..MAX_OPTIONS options.
     """
     question = (raw.get("question_text") or raw.get("question") or "").strip()
-    correct = (raw.get("correct_answer") or raw.get("answer") or "").strip()
+    correct = strip_option_prefix(raw.get("correct_answer") or raw.get("answer") or "")
     if not question or not correct:
         return None
 
@@ -27,7 +39,8 @@ def shape_quiz_question(raw: dict, rng) -> dict | None:
     candidates = raw.get("distractors")
     if not candidates:
         candidates = raw.get("options") or []
-    distractors = [str(d).strip() for d in candidates if str(d).strip()]
+    distractors = [strip_option_prefix(str(d)) for d in candidates if str(d).strip()]
+    distractors = [d for d in distractors if d]
 
     # Drop anything equal to the correct answer or duplicated (case-insensitive).
     seen = {correct.lower()}

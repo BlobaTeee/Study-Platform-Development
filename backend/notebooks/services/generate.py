@@ -245,6 +245,10 @@ def _generate_flashcards(sources, user, count: int, source_ids: list[int],
     def build_prompt(chunk: str, n: int) -> str:
         return f"""Create exactly {n} study flashcards from this excerpt.
 Each flashcard must be answerable from the excerpt alone.
+Ask about concepts, definitions, mechanisms, reasons and relationships — the
+things a student must understand. Do not ask about incidental figures (page
+counts, sample sizes, dates of publication) unless the number is itself the
+point of the passage.
 
 Return ONLY valid JSON:
 {{"flashcards": [{{"question": "...", "answer": "...", "difficulty": "easy|medium|hard"}}]}}
@@ -280,9 +284,38 @@ Excerpt:
         raise GeminiGenerationError(f'Content generation failed: {exc}') from exc
 
 
+def retire_previous_quizzes(quiz: Quiz, user, source_ids: list[int]) -> None:
+    """Unpublish every other quiz of exactly this selection.
+
+    Regenerating used to append: each press stacked another quiz on the same
+    sources, and the mock-test pool drew near-duplicate — sometimes
+    contradicting — questions from all of them. Retired quizzes are hidden
+    from the quiz list and the pool but kept, with their attempts, because
+    the answers on them are still evidence of what the student knows.
+    """
+    Through = Quiz.sources.through
+    previous = items_with_exact_sources(
+        Through.objects
+        .filter(quiz__user=user, quiz__is_published=True)
+        .exclude(quiz_id=quiz.id)
+        .values_list('quiz_id', 'source_id'),
+        source_ids)
+    Quiz.objects.filter(id__in=previous).update(is_published=False)
+
+
 def generate_quiz_for_sources(sources, user, question_count: int = 8,
                               meta: dict | None = None) -> Quiz:
-    """Generate a quiz. Pass `meta` to learn which generator was used."""
+    """Generate a quiz for this selection, replacing the one it already has.
+
+    Pass `meta` to learn which generator was used.
+    """
+    quiz = _generate_quiz(sources, user, question_count, meta)
+    retire_previous_quizzes(quiz, user, [s.id for s in sources])
+    return quiz
+
+
+def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Quiz:
+    """Run the provider cascade. Creates the quiz; does not retire anything."""
     question_count = max(4, min(question_count, 15))
     source_ids = [s.id for s in sources]
 
@@ -310,6 +343,9 @@ def generate_quiz_for_sources(sources, user, question_count: int = 8,
 For each question give: the question, the single correct answer, and exactly 3
 plausible but incorrect answers (distractors) on the same topic. Do NOT put the
 correct answer in the distractors, and make the distractors distinct.
+Each distractor must be clearly wrong according to the excerpt — never a
+synonym, a near-synonym, or a partial restatement of the correct answer.
+Write answers and distractors as plain text: no "A)", "B." or similar prefixes.
 Each question must be answerable from the excerpt alone.
 
 Return ONLY valid JSON in exactly this shape:
