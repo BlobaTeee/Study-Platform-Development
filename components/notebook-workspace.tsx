@@ -11,6 +11,7 @@ import { notebooksAPI } from '@/lib/api'
 import {
   SOURCE_ACCEPT,
   fileTypeLabel,
+  type SourceKind,
   formatSourceIdsForQuery,
   isAllowedSourceFile,
   sourceCountLabel,
@@ -21,6 +22,8 @@ import { useConfirm } from '@/components/confirm-dialog'
 import {
   AlertCircle,
   ArrowLeft,
+  ClipboardPaste,
+  Link2,
   FileText,
   FileUp,
   HelpCircle,
@@ -34,7 +37,7 @@ import { useTranslations } from 'next-intl'
 type SourceItem = {
   id: number
   title: string
-  file_type?: 'pdf' | 'docx' | 'pptx'
+  file_type?: SourceKind
   original_filename: string
   page_count: number
   status: string
@@ -51,6 +54,11 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const [activeSourceId, setActiveSourceId] = useState<number | null>(null)
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploading, setUploading] = useState(false)
+  // A source without a file: pasted text or a link. One small inline form,
+  // one of two shapes, so a first-time visitor with nothing to upload still
+  // gets to a deck in under a minute.
+  const [composer, setComposer] = useState<'text' | 'url' | null>(null)
+  const [composerBody, setComposerBody] = useState('')
   const [error, setError] = useState('')
   // Set when generation silently degraded to the extractive fallback, so a
   // lower-quality result is never mistaken for the real generator's output.
@@ -187,6 +195,30 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { detail?: string } } }
       setError(ax.response?.data?.detail || t('uploadFailed'))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleAddComposed = async () => {
+    if (!composer || !composerBody.trim() || uploading) return
+    setUploading(true)
+    setError('')
+    try {
+      const title = uploadTitle.trim() || undefined
+      const res =
+        composer === 'text'
+          ? await notebooksAPI.addTextSource(notebookId, { text: composerBody, title })
+          : await notebooksAPI.addUrlSource(notebookId, { url: composerBody.trim(), title })
+      setUploadTitle('')
+      setComposerBody('')
+      setComposer(null)
+      setActiveSourceId(res.data.id)
+      setCheckedSourceIds((prev) => (prev.includes(res.data.id) ? prev : [...prev, res.data.id]))
+      refresh()
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { detail?: string } } }
+      setError(ax.response?.data?.detail || (composer === 'text' ? t('addTextFailed') : t('addLinkFailed')))
     } finally {
       setUploading(false)
     }
@@ -467,7 +499,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                           </span>
                           <span className="text-slate-500">
                             {' '}
-                            · {fileTypeLabel(src.file_type)}
+                            · {src.file_type === 'text' ? t('typeText') : src.file_type === 'url' ? t('typeLink') : fileTypeLabel(src.file_type)}
                             {sourceCountLabel(src.file_type, src.page_count)
                               ? ` · ${sourceCountLabel(src.file_type, src.page_count)}`
                               : ''}
@@ -537,6 +569,65 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
             <p className="text-xs text-slate-500 text-center leading-snug">
               {t('orDrop')}
             </p>
+            <div className="flex gap-2 pt-1">
+              <Button
+                type="button"
+                variant={composer === 'text' ? 'default' : 'outline'}
+                size="sm"
+                className="h-9 flex-1 text-sm"
+                aria-pressed={composer === 'text'}
+                onClick={() => setComposer(composer === 'text' ? null : 'text')}
+              >
+                <ClipboardPaste className="size-4 mr-1.5" aria-hidden />
+                {t('pasteText')}
+              </Button>
+              <Button
+                type="button"
+                variant={composer === 'url' ? 'default' : 'outline'}
+                size="sm"
+                className="h-9 flex-1 text-sm"
+                aria-pressed={composer === 'url'}
+                onClick={() => setComposer(composer === 'url' ? null : 'url')}
+              >
+                <Link2 className="size-4 mr-1.5" aria-hidden />
+                {t('addLink')}
+              </Button>
+            </div>
+            {composer && (
+              <form
+                className="space-y-2 pt-1"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void handleAddComposed()
+                }}
+              >
+                {composer === 'text' ? (
+                  <textarea
+                    autoFocus
+                    value={composerBody}
+                    onChange={(e) => setComposerBody(e.target.value)}
+                    placeholder={t('pastePlaceholder')}
+                    rows={6}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-mode-library focus:outline-none"
+                  />
+                ) : (
+                  <Input
+                    autoFocus
+                    type="url"
+                    value={composerBody}
+                    onChange={(e) => setComposerBody(e.target.value)}
+                    placeholder={t('urlPlaceholder')}
+                  />
+                )}
+                <Button
+                  type="submit"
+                  disabled={uploading || !composerBody.trim()}
+                  className="w-full bg-mode-library hover:bg-mode-library-hover h-10 text-sm"
+                >
+                  {uploading ? t('adding') : t('addSource')}
+                </Button>
+              </form>
+            )}
           </div>
         </aside>
 
@@ -574,10 +665,25 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                     {sourceDetail?.title}
                   </h2>
                   <p className="text-base text-slate-500 mt-2">
-                    {activeListItem.original_filename}
-                    {sourceCountLabel(activeListItem.file_type, sourceDetail?.page_count ?? 0)
-                      ? ` · ${activeListItem.file_type === 'pptx' ? t('slides', { count: sourceDetail?.page_count ?? 0 }) : t('pages', { count: sourceDetail?.page_count ?? 0 })}`
-                      : ` · ${fileTypeLabel(activeListItem.file_type)}`}
+                    {activeListItem.file_type === 'url' ? (
+                      <a
+                        href={activeListItem.original_filename}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-mode-library hover:underline break-all"
+                      >
+                        {activeListItem.original_filename}
+                      </a>
+                    ) : (
+                      activeListItem.original_filename
+                    )}
+                    {activeListItem.file_type === 'text'
+                      ? t('typeText')
+                      : activeListItem.file_type === 'url'
+                        ? ` · ${t('typeLink')}`
+                        : sourceCountLabel(activeListItem.file_type, sourceDetail?.page_count ?? 0)
+                          ? ` · ${activeListItem.file_type === 'pptx' ? t('slides', { count: sourceDetail?.page_count ?? 0 }) : t('pages', { count: sourceDetail?.page_count ?? 0 })}`
+                          : ` · ${fileTypeLabel(activeListItem.file_type)}`}
                   </p>
                 </div>
               </div>

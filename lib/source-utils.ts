@@ -1,4 +1,7 @@
+/** Uploaded file kinds. */
 export type SourceFileType = 'pdf' | 'docx' | 'pptx'
+/** Every kind of source, including the two with no file behind them. */
+export type SourceKind = SourceFileType | 'text' | 'url'
 
 const EXTENSIONS: SourceFileType[] = ['pdf', 'docx', 'pptx']
 

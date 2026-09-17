@@ -9,6 +9,17 @@ EMPTY_TEXT_MESSAGES = {
 }
 
 
+def finish_text_source(source) -> None:
+    """Mark a source whose text is already in hand as ready, with a summary
+    if a provider is reachable. Shared by pasted text and fetched pages."""
+    try:
+        source.gemini_summary = get_ai_provider().summarize(source.extracted_text, source.title)
+    except Exception:
+        source.gemini_summary = ''
+    source.status = 'ready'
+    source.save()
+
+
 def process_source(source) -> None:
     """Extract text from document and optionally generate summary with AI provider."""
     file_type = getattr(source, 'file_type', None) or 'pdf'

@@ -183,7 +183,18 @@
     "replaceBody": "Bộ thẻ mới bắt đầu từ đầu; tiến độ ôn trên bộ hiện tại sẽ được lưu trữ lại.",
     "replaceConfirm": "Thay bộ thẻ",
     "generateFlashcardsFailed": "Không tạo được thẻ",
-    "generateQuizFailed": "Không tạo được bài kiểm tra"
+    "generateQuizFailed": "Không tạo được bài kiểm tra",
+    "pasteText": "Dán văn bản",
+    "addLink": "Thêm liên kết",
+    "pastePlaceholder": "Dán ghi chú, một chương sách, bản ghi bài giảng…",
+    "urlPlaceholder": "https://…",
+    "addSource": "Thêm",
+    "adding": "Đang thêm…",
+    "addTextFailed": "Không thêm được văn bản",
+    "addLinkFailed": "Không thêm được liên kết",
+    "typeText": "Văn bản dán",
+    "typeLink": "Trang web",
+    "openPage": "Mở trang"
   },
   "flashcards": {
     "title": "Thẻ",

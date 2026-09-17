@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-17 02:56+0700\n"
+"POT-Creation-Date: 2026-09-17 23:02+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,6 +17,46 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
+
+#: notebooks/services/fetch_page.py:22
+#, fuzzy
+#| msgid "Only typed answers can be overridden."
+msgid "Only http and https links can be added."
+msgstr "Chỉ câu trả lời tự gõ mới sửa được điểm."
+
+#: notebooks/services/fetch_page.py:23
+msgid "That link has no host."
+msgstr "Liên kết này không có tên máy chủ."
+
+#: notebooks/services/fetch_page.py:24
+msgid "That host could not be found."
+msgstr "Không tìm thấy máy chủ đó."
+
+#: notebooks/services/fetch_page.py:25
+msgid "Links to private or local addresses cannot be added."
+msgstr "Không thể thêm liên kết tới địa chỉ nội bộ hoặc cục bộ."
+
+#: notebooks/services/fetch_page.py:43
+#, python-format
+msgid "Could not fetch that link (%(why)s)."
+msgstr "Không tải được liên kết đó (%(why)s)."
+
+#: notebooks/services/fetch_page.py:45
+msgid "Could not fetch that link."
+msgstr "Không tải được liên kết đó."
+
+#: notebooks/services/fetch_page.py:49
+msgid "That link is not a web page. Upload the file instead."
+msgstr "Liên kết này không phải trang web. Hãy tải file lên thay vì dán link."
+
+#: notebooks/services/fetch_page.py:53
+msgid "That page is too large to import."
+msgstr "Trang này quá lớn để nhập."
+
+#: notebooks/services/fetch_page.py:57
+msgid "No readable text was found on that page."
+msgstr "Không tìm thấy văn bản đọc được trên trang đó."
+
 #: notebooks/views.py:16
 msgid "flashcard set"
 msgstr "bộ thẻ"
@@ -30,35 +70,52 @@ msgstr "bài kiểm tra"
 msgid ""
 "This source is too short to generate a %(kind)s (%(count)s words; needs at "
 "least %(min)s). Add more text or choose a longer document."
-msgstr "Tài liệu này quá ngắn để tạo %(kind)s (%(count)s từ; cần ít nhất %(min)s). Hãy thêm nội dung hoặc chọn tài liệu dài hơn."
+msgstr ""
+"Tài liệu này quá ngắn để tạo %(kind)s (%(count)s từ; cần ít nhất %(min)s). "
+"Hãy thêm nội dung hoặc chọn tài liệu dài hơn."
 
 #: notebooks/views.py:21
 msgid "No sources selected."
 msgstr "Chưa chọn tài liệu nào."
 
-#: notebooks/views.py:81
+#: notebooks/views.py:84
+#, python-format
+msgid "That text is too short to study from. Paste at least %(n)s words."
+msgstr "Đoạn văn bản quá ngắn để học. Hãy dán ít nhất %(n)s từ."
+
+#: notebooks/views.py:100
+#, fuzzy
+#| msgid "Type an answer first."
+msgid "Paste a link first."
+msgstr "Hãy gõ câu trả lời trước."
+
+#: notebooks/views.py:107
+msgid "That page has too little text to study from."
+msgstr "Trang này có quá ít văn bản để học."
+
+#: notebooks/views.py:122
 msgid "No file provided."
 msgstr "Chưa có file nào được gửi."
 
-#: notebooks/views.py:86
+#: notebooks/views.py:127
 #, python-format
 msgid "Unsupported file type. Supported: %(formats)s."
 msgstr "Định dạng file không được hỗ trợ. Hỗ trợ: %(formats)s."
 
-#: notebooks/views.py:93
+#: notebooks/views.py:134
 #, python-format
 msgid "File too large. Max size is %(mb)s MB."
 msgstr "File quá lớn. Tối đa %(mb)s MB."
 
-#: notebooks/views.py:121 notebooks/views.py:196
+#: notebooks/views.py:162 notebooks/views.py:237
 msgid "Choose at least one source."
 msgstr "Hãy chọn ít nhất một tài liệu."
 
-#: notebooks/views.py:127 notebooks/views.py:202
+#: notebooks/views.py:168 notebooks/views.py:243
 msgid "One or more sources are not in this notebook."
 msgstr "Có tài liệu không thuộc sổ tay này."
 
-#: quizzes/serializers.py:139 quizzes/views.py:290
+#: quizzes/serializers.py:139 quizzes/views.py:293
 msgid "Notebook not found."
 msgstr "Không tìm thấy sổ tay."
 
@@ -66,67 +123,69 @@ msgstr "Không tìm thấy sổ tay."
 msgid "Pick a time in the future."
 msgstr "Chọn một thời điểm trong tương lai."
 
-#: quizzes/views.py:59
+#: quizzes/views.py:62
 msgid "Not allowed."
 msgstr "Không được phép."
 
-#: quizzes/views.py:116 quizzes/views.py:150
+#: quizzes/views.py:119 quizzes/views.py:153
 msgid "This attempt is already complete."
 msgstr "Lượt làm bài này đã hoàn thành."
 
-#: quizzes/views.py:119
+#: quizzes/views.py:122
 msgid "Type an answer first."
 msgstr "Hãy gõ câu trả lời trước."
 
-#: quizzes/views.py:123
+#: quizzes/views.py:126
 msgid "Question not part of this quiz."
 msgstr "Câu hỏi không thuộc bài kiểm tra này."
 
-#: quizzes/views.py:153
+#: quizzes/views.py:156
 msgid "Answer not part of this attempt."
 msgstr "Câu trả lời không thuộc lượt làm bài này."
 
-#: quizzes/views.py:155
+#: quizzes/views.py:158
 msgid "Only typed answers can be overridden."
 msgstr "Chỉ câu trả lời tự gõ mới sửa được điểm."
 
-#: quizzes/views.py:302
+#: quizzes/views.py:305
 msgid "Planned test not found."
 msgstr "Không tìm thấy lịch thi thử."
 
-#: quizzes/views.py:305
+#: quizzes/views.py:308
 msgid "This planned test has already been sat."
 msgstr "Lịch thi thử này đã được thi."
 
-#: quizzes/views.py:314
+#: quizzes/views.py:317
 #, python-format
 msgid "This test opens at %(when)s."
 msgstr "Bài thi này mở lúc %(when)s."
 
-#: quizzes/views.py:326
+#: quizzes/views.py:329
 #, python-format
 msgid "Number of questions: %(why)s"
 msgstr "Số câu hỏi: %(why)s"
 
-#: quizzes/views.py:331
+#: quizzes/views.py:334
 #, python-format
 msgid "Duration: %(why)s"
 msgstr "Thời lượng: %(why)s"
 
-#: quizzes/views.py:346
+#: quizzes/views.py:349
 msgid ""
 "No questions could be generated for this notebook. Check its documents have "
 "finished processing, then try generating a quiz from them."
-msgstr "Chưa tạo được câu hỏi nào cho sổ tay này. Hãy kiểm tra các tài liệu đã xử lý xong, rồi thử tạo bài kiểm tra từ chúng."
+msgstr ""
+"Chưa tạo được câu hỏi nào cho sổ tay này. Hãy kiểm tra các tài liệu đã xử lý "
+"xong, rồi thử tạo bài kiểm tra từ chúng."
 
-#: quizzes/views.py:417
+#: quizzes/views.py:420
 msgid "This test has already been submitted."
 msgstr "Bài thi này đã được nộp."
 
-#: quizzes/views.py:421
+#: quizzes/views.py:424
 msgid "Time is up for this test."
 msgstr "Đã hết giờ làm bài."
 
-#: quizzes/views.py:426
+#: quizzes/views.py:429
 msgid "Question not part of this test."
 msgstr "Câu hỏi không thuộc bài thi này."

@@ -114,6 +114,10 @@ export const notebooksAPI = {
   },
   uploadPdf: (notebookId: number, file: File, title?: string) =>
     notebooksAPI.uploadSource(notebookId, file, title),
+  addTextSource: (notebookId: number, data: { text: string; title?: string }) =>
+    api.post(`/notebooks/notebooks/${notebookId}/add_text/`, data),
+  addUrlSource: (notebookId: number, data: { url: string; title?: string }) =>
+    api.post(`/notebooks/notebooks/${notebookId}/add_url/`, data),
   // How many flashcards this exact source selection already holds. Generating
   // appends, so the page needs this to say what a press will add to.
   getMaterialCounts: (notebookId: number, sourceIds: number[]) =>

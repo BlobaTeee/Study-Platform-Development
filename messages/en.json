@@ -183,7 +183,18 @@
     "replaceBody": "The new cards start from scratch, and your review progress on the current ones is retired.",
     "replaceConfirm": "Replace deck",
     "generateFlashcardsFailed": "Failed to generate flashcards",
-    "generateQuizFailed": "Failed to generate quiz"
+    "generateQuizFailed": "Failed to generate quiz",
+    "pasteText": "Paste text",
+    "addLink": "Add link",
+    "pastePlaceholder": "Paste your notes, a chapter, a transcript…",
+    "urlPlaceholder": "https://…",
+    "addSource": "Add",
+    "adding": "Adding…",
+    "addTextFailed": "Could not add that text",
+    "addLinkFailed": "Could not add that link",
+    "typeText": "Pasted text",
+    "typeLink": "Web page",
+    "openPage": "Open page"
   },
   "flashcards": {
     "title": "Flashcards",

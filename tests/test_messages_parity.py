@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1] / "messages"
 # Messages that are legitimately the same in both languages: proper nouns,
 # loanwords, and format names.
-IDENTICAL_OK = {"StudyFlow", "English", "Email", "PDF · Word (.docx) · PowerPoint (.pptx)", "PDF · DOCX · PPTX"}
+IDENTICAL_OK = {"StudyFlow", "English", "Email", "PDF · Word (.docx) · PowerPoint (.pptx)", "PDF · DOCX · PPTX", "https://…"}
 # An ICU argument is `{name}` or `{name, plural, …}`; the text inside a plural
 # branch (`{# cards}`) is not one, so the name must be followed by `,` or `}`.
 PLACEHOLDER = re.compile(r"\{(\w+)\s*[,}]")

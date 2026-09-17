@@ -32,7 +32,11 @@ from .serializers import (
     SourceSerializer,
 )
 from .services.document_extract import file_type_from_filename, title_from_filename
-from .services.ingest import process_source
+from .services.ingest import process_source, finish_text_source
+from .services.fetch_page import PageFetchError, fetch_page
+from .services.textnorm import normalise_text
+from .services.web_source import default_title
+from ml_pipeline.source_guard import MIN_WORDS_FLASHCARDS, word_count
 from .services.gemini_client import GeminiNotConfiguredError, GeminiGenerationError
 from .services.decks import items_with_exact_sources
 from .services.generate import (
@@ -70,6 +74,43 @@ class NotebookViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def add_text(self, request, pk=None):
+        """A source from pasted text: no file, ready at once."""
+        notebook = self.get_object()
+        text = normalise_text(request.data.get('text') or '').strip()
+        if word_count(text) < MIN_WORDS_FLASHCARDS:
+            return Response({'detail': _('That text is too short to study from. Paste at least '
+                                         '%(n)s words.') % {'n': MIN_WORDS_FLASHCARDS}}, status=400)
+        title = (request.data.get('title') or '').strip() or default_title(text)
+        source = Source.objects.create(notebook=notebook, title=title[:255], file_type='text',
+                                       extracted_text=text)
+        finish_text_source(source)
+        notebook.save(update_fields=['updated_at'])
+        return Response(SourceSerializer(source, context={'request': request}).data, status=201)
+
+    @action(detail=True, methods=['post'])
+    def add_url(self, request, pk=None):
+        """A source from a web page. The fetch is guarded against private
+        addresses and bounded in time and size (see services/fetch_page)."""
+        notebook = self.get_object()
+        url = (request.data.get('url') or '').strip()
+        if not url:
+            return Response({'detail': _('Paste a link first.')}, status=400)
+        try:
+            page_title, text = fetch_page(url)
+        except PageFetchError as exc:
+            return Response({'detail': str(exc)}, status=400)
+        text = normalise_text(text)
+        if word_count(text) < MIN_WORDS_FLASHCARDS:
+            return Response({'detail': _('That page has too little text to study from.')}, status=400)
+        title = (request.data.get('title') or '').strip() or page_title or default_title(text)
+        source = Source.objects.create(notebook=notebook, title=title[:255], file_type='url',
+                                       original_filename=url[:255], extracted_text=text)
+        finish_text_source(source)
+        notebook.save(update_fields=['updated_at'])
+        return Response(SourceSerializer(source, context={'request': request}).data, status=201)
 
     @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser])
     def upload_pdf(self, request, pk=None):

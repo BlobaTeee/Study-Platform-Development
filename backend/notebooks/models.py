@@ -26,12 +26,17 @@ class Source(models.Model):
         ('pdf', 'PDF'),
         ('docx', 'Word'),
         ('pptx', 'PowerPoint'),
+        ('text', 'Pasted text'),
+        ('url', 'Web page'),
     ]
 
     notebook = models.ForeignKey(Notebook, on_delete=models.CASCADE, related_name='sources')
     title = models.CharField(max_length=255)
-    file = models.FileField(upload_to='notebook_sources/%Y/%m/')
+    # Blank for pasted text and fetched pages: their text arrives already
+    # extracted, so there is nothing to keep on disk.
+    file = models.FileField(upload_to='notebook_sources/%Y/%m/', blank=True)
     file_type = models.CharField(max_length=10, choices=FILE_TYPE_CHOICES, default='pdf')
+    # For uploads, the name the file came with; for a web page, its URL.
     original_filename = models.CharField(max_length=255, blank=True)
     page_count = models.PositiveIntegerField(default=0)
     extracted_text = models.TextField(blank=True, default='')
