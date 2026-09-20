@@ -36,8 +36,12 @@ class QuizViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         # Retired quizzes (replaced by a regeneration) stay in the database for
         # their attempts, but are not offered to study from.
-        return (Quiz.objects.filter(user=self.request.user, is_published=True)
-                | Quiz.objects.filter(is_public=True, is_published=True))
+        mine = Quiz.objects.filter(user=self.request.user, is_published=True)
+        # Public quizzes are readable by anyone, writable by their owner only
+        # (a 404 on write, like a missing id — see FlashcardViewSet).
+        if self.request.method not in permissions.SAFE_METHODS:
+            return mine
+        return mine | Quiz.objects.filter(is_public=True, is_published=True)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)

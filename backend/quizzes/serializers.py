@@ -8,9 +8,27 @@ from .models import (
 class QuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Question
-        fields = ['id', 'quiz', 'question_text', 'question_type', 'options', 'correct_answer', 
+        fields = ['id', 'quiz', 'question_text', 'question_type', 'options', 'correct_answer',
                   'explanation', 'order', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
+
+    def validate_quiz(self, quiz):
+        # A question can only live in the caller's own quiz — otherwise an
+        # edit could plant a question in someone else's paper.
+        request = self.context.get('request')
+        if request is not None and quiz.user_id != request.user.id:
+            raise serializers.ValidationError(_('Not your quiz.'))
+        return quiz
+
+    def validate(self, attrs):
+        # Editing an answer key that no option carries would make the
+        # question unanswerable; check the pair as it will be after the edit.
+        options = attrs.get('options', getattr(self.instance, 'options', None))
+        answer = attrs.get('correct_answer', getattr(self.instance, 'correct_answer', None))
+        if options and answer is not None and answer not in options:
+            raise serializers.ValidationError(
+                {'correct_answer': _('The correct answer must be one of the options.')})
+        return attrs
 
 
 class QuizSerializer(serializers.ModelSerializer):

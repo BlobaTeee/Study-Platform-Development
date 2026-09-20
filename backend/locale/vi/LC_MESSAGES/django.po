@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 03:52+0700\n"
+"POT-Creation-Date: 2026-09-20 20:49+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,51 +18,43 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: notebooks/services/fetch_page.py:22
 msgid "Only http and https links can be added."
 msgstr "Chỉ thêm được liên kết http hoặc https."
 
-#: notebooks/services/fetch_page.py:23
 msgid "That link has no host."
 msgstr "Liên kết này không có tên máy chủ."
 
-#: notebooks/services/fetch_page.py:24
 msgid "That host could not be found."
 msgstr "Không tìm thấy máy chủ đó."
 
-#: notebooks/services/fetch_page.py:25
 msgid "Links to private or local addresses cannot be added."
 msgstr "Không thể thêm liên kết tới địa chỉ nội bộ hoặc cục bộ."
 
-#: notebooks/services/fetch_page.py:47
 #, python-format
 msgid "Could not fetch that link (%(why)s)."
 msgstr "Không tải được liên kết đó (%(why)s)."
 
-#: notebooks/services/fetch_page.py:54
 msgid ""
 "That site blocks automated access. Download the file in your browser and "
 "upload it here instead."
-msgstr "Trang này chặn truy cập tự động. Hãy tải file về bằng trình duyệt rồi tải lên ở đây."
+msgstr ""
+"Trang này chặn truy cập tự động. Hãy tải file về bằng trình duyệt rồi tải "
+"lên ở đây."
 
-#: notebooks/services/fetch_page.py:57
 #, python-format
 msgid "Could not fetch that link (HTTP %(status)s)."
 msgstr "Không tải được liên kết đó (HTTP %(status)s)."
 
-#: notebooks/services/fetch_page.py:61
 msgid "That page is too large to import."
 msgstr "Trang này quá lớn để nhập."
 
-#: notebooks/services/fetch_page.py:67
 msgid "That link is not a web page or a PDF. Upload the file instead."
-msgstr "Liên kết này không phải trang web hay PDF. Hãy tải file lên thay vì dán link."
+msgstr ""
+"Liên kết này không phải trang web hay PDF. Hãy tải file lên thay vì dán link."
 
-#: notebooks/services/fetch_page.py:71
 msgid "No readable text was found on that page."
 msgstr "Không tìm thấy văn bản đọc được trên trang đó."
 
-#: notebooks/services/generate.py:36
 msgid ""
 "This document is in Vietnamese, which needs an AI provider (Ollama or "
 "Gemini) — the offline generator only handles English. Check the provider and "
@@ -71,15 +63,12 @@ msgstr ""
 "Tài liệu này là tiếng Việt nên cần AI provider (Ollama hoặc Gemini) — trình "
 "tạo offline chỉ hỗ trợ tiếng Anh. Hãy kiểm tra provider rồi thử lại."
 
-#: notebooks/views.py:16
 msgid "flashcard set"
 msgstr "bộ thẻ"
 
-#: notebooks/views.py:16
 msgid "quiz"
 msgstr "bài kiểm tra"
 
-#: notebooks/views.py:17
 #, python-format
 msgid ""
 "This source is too short to generate a %(kind)s (%(count)s words; needs at "
@@ -88,105 +77,91 @@ msgstr ""
 "Tài liệu này quá ngắn để tạo %(kind)s (%(count)s từ; cần ít nhất %(min)s). "
 "Hãy thêm nội dung hoặc chọn tài liệu dài hơn."
 
-#: notebooks/views.py:21
 msgid "No sources selected."
 msgstr "Chưa chọn tài liệu nào."
 
-#: notebooks/views.py:84
 #, python-format
 msgid "That text is too short to study from. Paste at least %(n)s words."
 msgstr "Đoạn văn bản quá ngắn để học. Hãy dán ít nhất %(n)s từ."
 
-#: notebooks/views.py:100
 msgid "Paste a link first."
 msgstr "Hãy dán liên kết trước."
 
-#: notebooks/views.py:123
 msgid "No readable text was found in that PDF. It may be scanned images only."
-msgstr "Không tìm thấy văn bản đọc được trong PDF đó. Có thể file chỉ gồm ảnh scan."
+msgstr ""
+"Không tìm thấy văn bản đọc được trong PDF đó. Có thể file chỉ gồm ảnh scan."
 
-#: notebooks/views.py:133
 msgid "That page has too little text to study from."
 msgstr "Trang này có quá ít văn bản để học."
 
-#: notebooks/views.py:148
 msgid "No file provided."
 msgstr "Chưa có file nào được gửi."
 
-#: notebooks/views.py:153
 #, python-format
 msgid "Unsupported file type. Supported: %(formats)s."
 msgstr "Định dạng file không được hỗ trợ. Hỗ trợ: %(formats)s."
 
-#: notebooks/views.py:160
 #, python-format
 msgid "File too large. Max size is %(mb)s MB."
 msgstr "File quá lớn. Tối đa %(mb)s MB."
 
-#: notebooks/views.py:188 notebooks/views.py:263
 msgid "Choose at least one source."
 msgstr "Hãy chọn ít nhất một tài liệu."
 
-#: notebooks/views.py:194 notebooks/views.py:269
 msgid "One or more sources are not in this notebook."
 msgstr "Có tài liệu không thuộc sổ tay này."
 
-#: quizzes/serializers.py:139 quizzes/views.py:293
+msgid "Not your quiz."
+msgstr "Đây không phải quiz của bạn."
+
+msgid "The correct answer must be one of the options."
+msgstr "Đáp án đúng phải là một trong các phương án."
+
 msgid "Notebook not found."
 msgstr "Không tìm thấy sổ tay."
 
-#: quizzes/serializers.py:145
 msgid "Pick a time in the future."
 msgstr "Chọn một thời điểm trong tương lai."
 
-#: quizzes/views.py:62
 msgid "Not allowed."
 msgstr "Không được phép."
 
-#: quizzes/views.py:119 quizzes/views.py:153
 msgid "This attempt is already complete."
 msgstr "Lượt làm bài này đã hoàn thành."
 
-#: quizzes/views.py:122
 msgid "Type an answer first."
 msgstr "Hãy gõ câu trả lời trước."
 
-#: quizzes/views.py:126
 msgid "Question not part of this quiz."
 msgstr "Câu hỏi không thuộc bài kiểm tra này."
 
-#: quizzes/views.py:156
 msgid "Answer not part of this attempt."
 msgstr "Câu trả lời không thuộc lượt làm bài này."
 
-#: quizzes/views.py:158
 msgid "Only typed answers can be overridden."
 msgstr "Chỉ câu trả lời tự gõ mới sửa được điểm."
 
-#: quizzes/views.py:305
 msgid "Planned test not found."
 msgstr "Không tìm thấy lịch thi thử."
 
-#: quizzes/views.py:308
 msgid "This planned test has already been sat."
 msgstr "Lịch thi thử này đã được thi."
 
-#: quizzes/views.py:317
 #, python-format
 msgid "This test opens at %(when)s."
 msgstr "Bài thi này mở lúc %(when)s."
 
-#: quizzes/views.py:329
 #, python-format
 msgid "Number of questions: %(why)s"
 msgstr "Số câu hỏi: %(why)s"
 
-#: quizzes/views.py:334
 #, python-format
 msgid "Duration: %(why)s"
 msgstr "Thời lượng: %(why)s"
 
-#: quizzes/views.py:349
+msgid "Nothing in the mistake bank for this notebook yet."
+msgstr "Ngân hàng lỗi sai của sổ tay này chưa có câu nào."
+
 msgid ""
 "No questions could be generated for this notebook. Check its documents have "
 "finished processing, then try generating a quiz from them."
@@ -194,15 +169,12 @@ msgstr ""
 "Chưa tạo được câu hỏi nào cho sổ tay này. Hãy kiểm tra các tài liệu đã xử lý "
 "xong, rồi thử tạo bài kiểm tra từ chúng."
 
-#: quizzes/views.py:420
 msgid "This test has already been submitted."
 msgstr "Bài thi này đã được nộp."
 
-#: quizzes/views.py:424
 msgid "Time is up for this test."
 msgstr "Đã hết giờ làm bài."
 
-#: quizzes/views.py:429
 msgid "Question not part of this test."
 msgstr "Câu hỏi không thuộc bài thi này."
 

@@ -18,8 +18,13 @@ class FlashcardViewSet(viewsets.ModelViewSet):
         # Archived originals are replaced-but-not-deleted history, not live
         # cards; exclude them on both sides of the union or a public archived
         # card would still surface here even though due_today never offers it.
-        return (Flashcard.objects.filter(user=self.request.user, archived=False)
-                | Flashcard.objects.filter(is_public=True, archived=False))
+        mine = Flashcard.objects.filter(user=self.request.user, archived=False)
+        # Anyone may read a public card; only its owner may change or delete
+        # it. Narrowing the queryset (rather than checking in perform_update)
+        # makes someone else's card a 404 on write, exactly like a missing one.
+        if self.request.method not in permissions.SAFE_METHODS:
+            return mine
+        return mine | Flashcard.objects.filter(is_public=True, archived=False)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
