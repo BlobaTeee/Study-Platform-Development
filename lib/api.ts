@@ -87,6 +87,11 @@ export const quizzesAPI = {
   getQuizzes: (params?: any) => api.get('/quizzes/quizzes/', { params }),
   getAttempts: () => api.get('/quizzes/attempts/'),
   createQuiz: (data: any) => api.post('/quizzes/quizzes/', data),
+  // Fixing a generated question. The server rejects a correct_answer that is
+  // not one of the options, and a quiz that is not the caller's.
+  updateQuestion: (id: number, data: { question_text?: string; options?: string[]; correct_answer?: string; explanation?: string }) =>
+    api.patch(`/quizzes/questions/${id}/`, data),
+  deleteQuestion: (id: number) => api.delete(`/quizzes/questions/${id}/`),
   startAttempt: (quizId: number) => api.post(`/quizzes/quizzes/${quizId}/start_attempt/`, {}),
   submitAnswer: (attemptId: number, data: any) => api.post(`/quizzes/attempts/${attemptId}/submit_answer/`, data),
   completeQuiz: (attemptId: number, data: any) => api.post(`/quizzes/attempts/${attemptId}/complete/`, data),

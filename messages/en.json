@@ -227,7 +227,13 @@
     "goToNotebooks": "Go to Notebooks",
     "difficultyEasy": "easy",
     "difficultyMedium": "medium",
-    "difficultyHard": "hard"
+    "difficultyHard": "hard",
+    "editCard": "Edit card",
+    "deleteCard": "Delete card",
+    "bothSidesRequired": "Both sides of the card need text.",
+    "deleteTitle": "Delete this card?",
+    "deleteBody": "It leaves your deck and its review history for good.",
+    "deleteFailed": "Could not delete the card. Try again."
   },
   "quizzes": {
     "title": "Quiz",
@@ -255,7 +261,19 @@
     "close": "Close",
     "notQuite": "Not quite",
     "theAnswerIs": "The answer is <b>{answer}</b>.",
-    "iWasRight": "I was right"
+    "iWasRight": "I was right",
+    "somethingWrong": "Something wrong with this question?",
+    "editQuestion": "Edit",
+    "deleteQuestion": "Delete",
+    "questionLabel": "Question",
+    "optionsLabel": "Options",
+    "markCorrect": "Mark as the correct answer",
+    "optionsHint": "Pick the correct one with the dot on the left.",
+    "explanationLabel": "Explanation (optional)",
+    "saveFailed": "Could not save the question. Try again.",
+    "deleteTitle": "Delete this question?",
+    "deleteBody": "It leaves this quiz and future mock tests for good. Papers already sat keep their copy.",
+    "deleteFailed": "Could not delete the question. Try again."
   },
   "tests": {
     "eyebrow": "Mock test",

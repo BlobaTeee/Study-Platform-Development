@@ -227,7 +227,13 @@
     "goToNotebooks": "Đến Sổ tay",
     "difficultyEasy": "dễ",
     "difficultyMedium": "trung bình",
-    "difficultyHard": "khó"
+    "difficultyHard": "khó",
+    "editCard": "Sửa thẻ",
+    "deleteCard": "Xoá thẻ",
+    "bothSidesRequired": "Cả hai mặt thẻ đều cần có nội dung.",
+    "deleteTitle": "Xoá thẻ này?",
+    "deleteBody": "Thẻ và lịch sử ôn tập của nó sẽ bị xoá vĩnh viễn.",
+    "deleteFailed": "Không xoá được thẻ. Hãy thử lại."
   },
   "quizzes": {
     "title": "Bài kiểm tra",
@@ -255,7 +261,19 @@
     "close": "Gần đúng",
     "notQuite": "Chưa đúng",
     "theAnswerIs": "Đáp án là <b>{answer}</b>.",
-    "iWasRight": "Tôi đúng mà"
+    "iWasRight": "Tôi đúng mà",
+    "somethingWrong": "Câu này có vấn đề?",
+    "editQuestion": "Sửa",
+    "deleteQuestion": "Xoá",
+    "questionLabel": "Câu hỏi",
+    "optionsLabel": "Phương án",
+    "markCorrect": "Đánh dấu là đáp án đúng",
+    "optionsHint": "Chọn đáp án đúng bằng chấm tròn bên trái.",
+    "explanationLabel": "Giải thích (không bắt buộc)",
+    "saveFailed": "Không lưu được câu hỏi. Hãy thử lại.",
+    "deleteTitle": "Xoá câu hỏi này?",
+    "deleteBody": "Câu hỏi sẽ rời khỏi quiz này và các bài thi thử sau. Bài đã thi vẫn giữ bản sao.",
+    "deleteFailed": "Không xoá được câu hỏi. Hãy thử lại."
   },
   "tests": {
     "eyebrow": "Thi thử",

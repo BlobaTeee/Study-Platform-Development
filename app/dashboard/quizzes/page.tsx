@@ -10,8 +10,10 @@ import { quizzesAPI } from '@/lib/api'
 import { parseSourceIdsParam, hasAllSources } from '@/lib/source-utils'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { SourceRequired } from '@/components/source-required'
+import { useConfirm } from '@/components/confirm-dialog'
+import { QuestionEditor, type EditableQuestion } from '@/components/question-editor'
 import { useTranslations } from 'next-intl'
-import { ArrowRight, BookOpen, CheckCircle2, ChevronLeft, CircleDashed, Keyboard, XCircle } from 'lucide-react'
+import { ArrowRight, BookOpen, CheckCircle2, ChevronLeft, CircleDashed, Keyboard, Pencil, Trash2, XCircle } from 'lucide-react'
 
 type Question = {
   id: number
@@ -44,6 +46,7 @@ const TYPED_MODE_KEY = 'quiz-typed-mode'
 
 function QuizzesStudy() {
   const t = useTranslations('quizzes')
+  const common = useTranslations('common')
   const searchParams = useSearchParams()
   const sourceParam = searchParams.get('source')
   const sourceIds = useMemo(() => parseSourceIdsParam(sourceParam), [sourceParam])
@@ -68,9 +71,23 @@ function QuizzesStudy() {
     return quizzes[0]
   }, [quizzes, quizIdParam])
 
+  // The AI wrote these questions; the student is the editor. Edits and
+  // deletions sit on top of the fetched quiz so the attempt in progress
+  // keeps its order and its answers.
+  const [edits, setEdits] = useState<Record<number, Partial<Question>>>({})
+  const [removed, setRemoved] = useState<Set<number>>(new Set())
+  const [editing, setEditing] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
+
   const questions = useMemo(
-    () => [...(quiz?.questions ?? [])].sort((a, b) => a.order - b.order),
-    [quiz]
+    () =>
+      [...(quiz?.questions ?? [])]
+        .filter((q) => !removed.has(q.id))
+        .map((q) => (edits[q.id] ? { ...q, ...edits[q.id] } : q))
+        .sort((a, b) => a.order - b.order),
+    [quiz, edits, removed]
   )
 
   const [qIndex, setQIndex] = useState(0)
@@ -118,6 +135,8 @@ function QuizzesStudy() {
     setTyped('')
     setGraded(null)
     setTypedError('')
+    setEditing(false)
+    setEditError('')
   }, [quiz?.id])
 
   useEffect(() => {
@@ -216,11 +235,67 @@ function QuizzesStudy() {
     setTypedError('')
   }
 
+  const saveQuestion = async (patch: EditableQuestion) => {
+    if (!question) return
+    setBusy(true)
+    setEditError('')
+    try {
+      await quizzesAPI.updateQuestion(question.id, patch)
+      setEdits((e) => ({ ...e, [question.id]: patch }))
+      setEditing(false)
+    } catch (err) {
+      const data = (err as { response?: { data?: Record<string, unknown> } }).response?.data
+      const field = data && (data.correct_answer ?? data.detail)
+      setEditError(Array.isArray(field) ? String(field[0]) : typeof field === 'string' ? field : t('saveFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const deleteQuestion = async () => {
+    if (!question) return
+    const ok = await confirm({
+      title: t('deleteTitle'),
+      body: t('deleteBody'),
+      confirmLabel: common('delete'),
+      cancelLabel: common('cancel'),
+    })
+    if (!ok) return
+    setBusy(true)
+    setEditError('')
+    try {
+      await quizzesAPI.deleteQuestion(question.id)
+      setRemoved((r) => new Set(r).add(question.id))
+      // The next question slides into this slot; if this was the last one,
+      // the attempt is over.
+      if (qIndex >= questions.length - 1) {
+        if (attemptId) {
+          try {
+            await quizzesAPI.completeQuiz(attemptId, {})
+          } catch {
+            /* ignore */
+          }
+        }
+        setFinished(true)
+        return
+      }
+      setSelected(null)
+      setSubmitted(false)
+      setTyped('')
+      setGraded(null)
+      setTypedError('')
+    } catch {
+      setEditError(t('deleteFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // Enter checks (the form), Enter again advances, `r` overrides when
   // offered. Declared with the handlers, before any early return, so React
   // sees the same hooks on every render.
   useEffect(() => {
-    if (!typedMode) return
+    if (!typedMode || editing) return  // Enter in the editor must not advance
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && submitted) {
         e.preventDefault()
@@ -232,7 +307,7 @@ function QuizzesStudy() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [typedMode, submitted, graded, handleNext, handleOverride])
+  }, [typedMode, submitted, graded, handleNext, handleOverride, editing])
 
   if (!sourceParam || sourceIds.length === 0) {
     return <SourceRequired type="quiz" />
@@ -322,6 +397,18 @@ function QuizzesStudy() {
         />
       </div>
 
+      {editing ? (
+        <QuestionEditor
+          question={{ ...question, options }}
+          busy={busy}
+          error={editError}
+          onCancel={() => {
+            setEditing(false)
+            setEditError('')
+          }}
+          onSave={saveQuestion}
+        />
+      ) : (
       <Card className="rise border-slate-200 shadow-sheet p-8 md:p-10" style={{ animationDelay: '120ms' }}>
         <div className="flex items-center gap-3 mb-6">
           <span className="font-mono text-sm font-semibold text-mode-quizzes tabular-nums">
@@ -384,7 +471,9 @@ function QuizzesStudy() {
           <p className="mt-6 text-lg text-slate-500 leading-relaxed">{question.explanation}</p>
         )}
       </Card>
+      )}
 
+      {!editing && (
       <div className="flex justify-center gap-4">
         {!submitted ? (
           <Button
@@ -406,6 +495,34 @@ function QuizzesStudy() {
           </Button>
         )}
       </div>
+      )}
+
+      {/* Only once the answer is showing: editing earlier would reveal it. */}
+      {submitted && !editing && (
+        <div className="rise flex flex-wrap justify-center items-center gap-x-5 gap-y-1 text-sm text-slate-500">
+          <span>{t('somethingWrong')}</span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setEditing(true)}
+            className="inline-flex items-center gap-1.5 hover:text-slate-900 disabled:opacity-50"
+          >
+            <Pencil className="size-3.5" aria-hidden />
+            {t('editQuestion')}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void deleteQuestion()}
+            className="inline-flex items-center gap-1.5 hover:text-red-700 disabled:opacity-50"
+          >
+            <Trash2 className="size-3.5" aria-hidden />
+            {t('deleteQuestion')}
+          </button>
+          {editError && <p role="alert" className="w-full text-center text-red-700">{editError}</p>}
+        </div>
+      )}
+      {confirmDialog}
     </div>
   )
 }
