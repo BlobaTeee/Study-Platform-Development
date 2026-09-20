@@ -322,7 +322,12 @@
     "fromPassage": "Từ đoạn văn gốc",
     "openInNotebook": "Mở trong sổ tay",
     "showPassage": "Xem đoạn văn",
-    "hidePassage": "Ẩn đoạn văn"
+    "hidePassage": "Ẩn đoạn văn",
+    "mistakeBank": "Ngân hàng lỗi sai: {count, plural, =0 {chưa có} other {# câu}}",
+    "retakeMistakes": "Làm lại",
+    "mistakeBankHint": "Câu trả lời sai nằm ở đây cho đến khi bạn trả lời đúng hai lần liên tiếp.",
+    "mistakesAfterTest": "{count, plural, other {# câu}} đang nằm trong ngân hàng lỗi sai của bạn.",
+    "bankClear": "Ngân hàng lỗi sai của sổ tay này đã trống."
   },
   "analytics": {
     "eyebrow": "Tiến độ",

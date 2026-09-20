@@ -160,7 +160,14 @@ export const mockTestsAPI = {
     question_count?: number
     duration_minutes?: number
     planned_test?: number
+    // The paper is exactly this notebook's mistake bank; question_count is ignored.
+    mistakes_only?: boolean
   }) => api.post('/quizzes/mock-tests/', data),
+  // Questions answered wrong and not yet answered right twice since — no answers included.
+  mistakes: (notebook: number) =>
+    api.get<{ count: number; questions: { id: number; question_text: string }[] }>(
+      `/quizzes/mistakes/?notebook=${notebook}`
+    ),
   get: (id: number) => api.get(`/quizzes/mock-tests/${id}/`),
   // Deliberately returns no marking — feedback waits until the paper is handed in.
   answer: (id: number, paperQuestionId: number, answer: string) =>

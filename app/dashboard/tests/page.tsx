@@ -62,10 +62,13 @@ type MockTest = {
 
 type SubmitResult = {
   id: number
+  notebook: number
   score: number
   completed_at: string
   question_count: number
   correct_count: number
+  // Size of the notebook's mistake bank after this sitting was marked.
+  mistake_count: number
   paper: PaperQuestion[]
 }
 
@@ -154,6 +157,11 @@ function MockTestsInner() {
   const [starting, setStarting] = useState(false)
   const [confirm, confirmDialog] = useConfirm()
   const [setupError, setSetupError] = useState('')
+  // Keyed by notebook so a count fetched for the previous pick never shows
+  // under the new one; `mistakeCount` below is null until this one's arrives.
+  const [bank, setBank] = useState<{ notebook: number; count: number } | null>(null)
+  const mistakeCount = bank && bank.notebook === notebookId ? bank.count : null
+  const [retaking, setRetaking] = useState(false)
 
   const {
     data: plansData,
@@ -204,6 +212,26 @@ function MockTestsInner() {
   useEffect(() => {
     if (!planNotebookId && notebooks.length > 0) setPlanNotebookId(notebooks[0].id)
   }, [notebooks, planNotebookId])
+
+  // The bank is per notebook, so it follows the picker. `result` is in the
+  // deps so the count refreshes when a sitting is marked and again when
+  // the student comes back to setup.
+  useEffect(() => {
+    if (!notebookId) return
+    let cancelled = false
+    const notebook = Number(notebookId)
+    mockTestsAPI
+      .mistakes(notebook)
+      .then((res) => {
+        if (!cancelled) setBank({ notebook, count: res.data.count })
+      })
+      .catch(() => {
+        // Leave it unknown: the setup form just omits the line.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [notebookId, result])
 
   // Resuming after a refresh: the deadline the server hands back is the only
   // clock worth trusting, so re-fetching the test is how the countdown
@@ -343,9 +371,10 @@ function MockTestsInner() {
   const beginTest = useCallback(
     async (params: {
       notebook: number
-      question_count: number
+      question_count?: number
       duration_minutes: number
       planned_test?: number
+      mistakes_only?: boolean
     }) => {
       const res = await mockTestsAPI.start(params)
       setAnswers({})
@@ -379,6 +408,20 @@ function MockTestsInner() {
       setSetupError(apiErrorMessage(err, t('startFailed')))
     } finally {
       setStarting(false)
+    }
+  }
+
+  // Sits the whole bank for a notebook: from the setup form (its duration
+  // field) or straight from a review (the default duration).
+  const handleRetakeMistakes = async (notebook: number, duration: number) => {
+    setRetaking(true)
+    setSetupError('')
+    try {
+      await beginTest({ notebook, duration_minutes: duration, mistakes_only: true })
+    } catch (err) {
+      setSetupError(apiErrorMessage(err, t('startFailed')))
+    } finally {
+      setRetaking(false)
     }
   }
 
@@ -545,6 +588,29 @@ function MockTestsInner() {
             {result.correct_count} / {result.question_count}
           </p>
           <p className="font-mono text-sm text-slate-500 mt-2 tabular-nums">{t('pctCorrect', { pct })}</p>
+        </Card>
+
+        {/* The bank, not just this paper's misses: a question cleared today
+            drops out, one missed last week and again today is still one. */}
+        <Card className="rise border-slate-200 shadow-sheet p-5 md:p-6 items-center text-center gap-3" style={{ animationDelay: '80ms' }}>
+          <p className="text-base text-slate-700">
+            {result.mistake_count > 0
+              ? t('mistakesAfterTest', { count: result.mistake_count })
+              : t('bankClear')}
+          </p>
+          {result.mistake_count > 0 && (
+            <Button
+              variant="outline"
+              size="lg"
+              disabled={retaking}
+              className="h-11 text-base border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
+              onClick={() => void handleRetakeMistakes(result.notebook, 30)}
+            >
+              {retaking ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+              {t('retakeMistakes')}
+            </Button>
+          )}
+          {setupError && <p className="text-sm text-red-700">{setupError}</p>}
         </Card>
 
         <div className="space-y-5">
@@ -884,6 +950,27 @@ function MockTestsInner() {
               <p className="text-sm text-slate-500 text-center">
                 {t('generatingNote')}
               </p>
+            )}
+
+            {mistakeCount !== null && (
+              <div className="border-t border-slate-200 pt-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-base text-slate-700">{t('mistakeBank', { count: mistakeCount })}</p>
+                  <p className="text-sm text-slate-500">{t('mistakeBankHint')}</p>
+                </div>
+                {mistakeCount > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={retaking || starting || durationMinutes === ''}
+                    className="h-10 border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
+                    onClick={() => void handleRetakeMistakes(Number(notebookId), Number(durationMinutes))}
+                  >
+                    {retaking ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+                    {t('retakeMistakes')}
+                  </Button>
+                )}
+              </div>
             )}
           </form>
         </Card>

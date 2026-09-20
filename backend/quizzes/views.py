@@ -557,6 +557,7 @@ class MockTestViewSet(viewsets.ModelViewSet):
             rows = test.paper.all()
         return {
             'id': test.id,
+            'notebook': test.notebook_id,
             'score': test.score,
             'completed_at': test.completed_at,
             'question_count': test.question_count,

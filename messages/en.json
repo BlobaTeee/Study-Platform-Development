@@ -322,7 +322,12 @@
     "fromPassage": "From the source text",
     "openInNotebook": "Open in notebook",
     "showPassage": "Show passage",
-    "hidePassage": "Hide passage"
+    "hidePassage": "Hide passage",
+    "mistakeBank": "Mistake bank: {count, plural, =0 {nothing yet} one {# question} other {# questions}}",
+    "retakeMistakes": "Redo them",
+    "mistakeBankHint": "Questions you got wrong stay here until you answer them right twice in a row.",
+    "mistakesAfterTest": "{count, plural, one {# question is} other {# questions are}} in your mistake bank now.",
+    "bankClear": "Nothing left in your mistake bank for this notebook."
   },
   "analytics": {
     "eyebrow": "Analytics",
