@@ -375,6 +375,8 @@ class MockTestViewSet(viewsets.ModelViewSet):
                     options=questions_by_id[entry['id']].options,
                     correct_answer=questions_by_id[entry['id']].correct_answer,
                     explanation=questions_by_id[entry['id']].explanation,
+                    source_id=questions_by_id[entry['id']].source_id,
+                    source_excerpt=questions_by_id[entry['id']].source_excerpt,
                 )
                 for i, entry in enumerate(chosen)
             ])

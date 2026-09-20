@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import useSWR from 'swr'
 import { mockTestsAPI, notebooksAPI, plannedTestsAPI } from '@/lib/api'
 import { useConfirm } from '@/components/confirm-dialog'
+import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
 import {
   AlertCircle,
@@ -41,6 +42,8 @@ type PaperQuestion = {
   correct_answer?: string
   explanation?: string
   is_correct?: boolean
+  source?: { id: number; title: string; notebook: number } | null
+  source_excerpt?: string
 }
 
 type MockTest = {
@@ -592,6 +595,9 @@ function MockTestsInner() {
               {q.explanation && (
                 <p className="text-base text-slate-500 leading-relaxed">{q.explanation}</p>
               )}
+              {(q.source || q.source_excerpt) && (
+                <Provenance source={q.source ?? null} excerpt={q.source_excerpt ?? ''} />
+              )}
             </Card>
           ))}
         </div>
@@ -1094,5 +1100,52 @@ export default function MockTestsPage() {
     <Suspense fallback={<p className="text-xl text-slate-500 py-20 text-center">Loading…</p>}>
       <MockTestsInner />
     </Suspense>
+  )
+}
+
+/** Where a question came from, so a wrong answer points at the place to
+ *  reread. The passage is the chunk the generator saw, folded to three lines
+ *  until asked for; the link opens the notebook on that very document. A
+ *  question whose source was deleted keeps its passage and loses the link. */
+function Provenance({
+  source,
+  excerpt,
+}: {
+  source: { id: number; title: string; notebook: number } | null
+  excerpt: string
+}) {
+  const t = useTranslations('tests')
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-wide text-slate-500">
+          <BookOpen className="size-3.5" aria-hidden />
+          {source ? t('fromSource', { title: source.title }) : t('fromPassage')}
+        </p>
+        {source && (
+          <Link
+            href={`/dashboard/notebooks/${source.notebook}?source=${source.id}`}
+            className="text-sm font-medium text-mode-library hover:underline"
+          >
+            {t('openInNotebook')} →
+          </Link>
+        )}
+      </div>
+      {excerpt && (
+        <>
+          <p className={cn('mt-2 text-sm leading-relaxed text-slate-700', !open && 'line-clamp-3')}>
+            {excerpt}
+          </p>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="mt-1 text-xs text-slate-500 underline underline-offset-4 hover:text-slate-900"
+          >
+            {open ? t('hidePassage') : t('showPassage')}
+          </button>
+        </>
+      )}
+    </div>
   )
 }

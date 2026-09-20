@@ -38,6 +38,12 @@ class Question(models.Model):
     ]
 
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions')
+    # Where this question came from: the one source whose text held the
+    # passage it was generated from, and that passage. Null/blank when the
+    # passage straddled two documents or the question predates provenance.
+    source = models.ForeignKey('notebooks.Source', on_delete=models.SET_NULL, null=True,
+                               blank=True, related_name='questions')
+    source_excerpt = models.TextField(blank=True, default='')
     question_text = models.TextField()
     question_type = models.CharField(max_length=20, choices=QUESTION_TYPES)
     options = models.JSONField(default=list)
@@ -185,6 +191,11 @@ class MockTestQuestion(models.Model):
     options = models.JSONField(default=list)
     correct_answer = models.CharField(max_length=500, default='')
     explanation = models.TextField(blank=True, null=True)
+    # Frozen with the rest so the review can say "reread this" even after
+    # the quiz is regenerated; SET_NULL keeps the passage if the source goes.
+    source = models.ForeignKey('notebooks.Source', on_delete=models.SET_NULL, null=True,
+                               blank=True, related_name='+')
+    source_excerpt = models.TextField(blank=True, default='')
 
     class Meta:
         ordering = ['order']

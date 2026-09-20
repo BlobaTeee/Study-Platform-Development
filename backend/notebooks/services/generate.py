@@ -1,4 +1,5 @@
 import logging
+import re
 
 from django.conf import settings
 from django.db import transaction
@@ -15,6 +16,7 @@ from .gemini_client import (
 from .ai_provider import get_ai_provider
 from . import dedupe, fallback
 from .decks import items_with_exact_sources
+from .provenance import excerpt_of, source_of
 from .deck_limits import batch_size
 
 logger = logging.getLogger(__name__)
@@ -52,16 +54,21 @@ def _fell_back(meta, exc, kind: str):
     return _mark(meta, BY_EXTRACTIVE_FALLBACK, str(exc))
 
 
-def _document_chunks(text: str) -> list[str]:
-    """The most informative excerpts of the document, in reading order.
+def _document_chunks(sources) -> list[str]:
+    """The most informative excerpts across the selected documents.
 
     Generating from one 12k-char prompt truncated long documents and made small
-    local models lose the plot; a few focused excerpts cover the whole document
-    with prompts a 3B model handles reliably.
+    local models lose the plot; a few focused excerpts cover the material with
+    prompts a 3B model handles reliably. Each document is chunked on its own,
+    so no excerpt straddles two of them: the model never sees a passage that
+    changes subject mid-way, and every question can be traced to one source.
     """
     from ml_pipeline.services.chunking import chunk_text, select_chunks
     k = getattr(settings, 'RAG_CHUNKS', 3)
-    return select_chunks(chunk_text(text), k=k) or [text[:12000]]
+    chunks = []
+    for source in sources:
+        chunks.extend(chunk_text(source.extracted_text[:18000]))
+    return select_chunks(chunks, k=k) or [_sources_text(sources)[:12000]]
 
 
 def _generate_over_chunks(provider, chunks, per_chunk, build_prompt, key, limit):
@@ -83,6 +90,7 @@ def _generate_over_chunks(provider, chunks, per_chunk, build_prompt, key, limit)
             if not dedup or dedup in seen:
                 continue
             seen.add(dedup)
+            item['_excerpt'] = chunk   # provenance: the passage this came from
             items.append(item)
         if len(items) >= limit:
             break
@@ -97,6 +105,16 @@ def _use_local_fallback() -> bool:
 
 def _use_ml_primary() -> bool:
     return getattr(settings, 'USE_ML_PRIMARY', False)
+
+
+_DOC_HEADER = re.compile(r'^### Document: .*$', re.M)
+
+
+def _without_document_headers(passage: str) -> str:
+    """A chunk may carry the "### Document: <title>" line `_sources_text`
+    inserts between documents; it is not in any source's text, and not
+    something to reread."""
+    return _DOC_HEADER.sub('', passage).strip()
 
 
 def _sources_text(sources) -> str:
@@ -255,7 +273,7 @@ def _generate_flashcards(sources, user, count: int, source_ids: list[int],
                 raise GeminiGenerationError(f'ML flashcard generation failed: {exc}') from exc
 
     label = _titles_label(sources)
-    chunks = _document_chunks(text)
+    chunks = _document_chunks(sources)
     per_chunk = -(-count // len(chunks))  # ceil, so the excerpts cover `count`
 
     def build_prompt(chunk: str, n: int) -> str:
@@ -359,7 +377,7 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Qui
                 raise GeminiGenerationError(f'ML quiz generation failed: {exc}') from exc
 
     label = _titles_label(sources)
-    chunks = _document_chunks(text)
+    chunks = _document_chunks(sources)
     per_chunk = -(-question_count // len(chunks))  # ceil, so excerpts cover the count
 
     def build_prompt(chunk: str, n: int) -> str:
@@ -430,6 +448,7 @@ Excerpt:
     import random
     from .quiz_shaping import shape_quiz_question
     rng = random.Random(42)
+    source_texts = [(s.id, s.extracted_text) for s in sources]
 
     order = 0
     for q in questions_data[:question_count]:
@@ -437,6 +456,10 @@ Excerpt:
         if shaped is None:
             continue  # unanswerable (no question/answer/distractor) -> skip
 
+        # The chunk the model saw is what the student should reread; the one
+        # source containing it is where. A chunk cut across two documents
+        # keeps its passage but names no source.
+        passage = _without_document_headers(q.get('_excerpt') or '')
         Question.objects.create(
             quiz=quiz,
             question_text=shaped['question_text'],
@@ -445,6 +468,8 @@ Excerpt:
             correct_answer=shaped['correct_answer'],
             explanation=shaped['explanation'],
             order=order,
+            source_id=source_of(passage, source_texts),
+            source_excerpt=excerpt_of(passage),
         )
         order += 1
 

@@ -317,7 +317,12 @@
     "pctCorrect": "Đúng {pct}%",
     "correctAnswer": "Đáp án đúng",
     "yourAnswer": "Câu trả lời của bạn",
-    "leftUnanswered": "Bỏ trống."
+    "leftUnanswered": "Bỏ trống.",
+    "fromSource": "Từ {title}",
+    "fromPassage": "Từ đoạn văn gốc",
+    "openInNotebook": "Mở trong sổ tay",
+    "showPassage": "Xem đoạn văn",
+    "hidePassage": "Ẩn đoạn văn"
   },
   "analytics": {
     "eyebrow": "Tiến độ",

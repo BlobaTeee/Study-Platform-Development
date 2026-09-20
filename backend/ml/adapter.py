@@ -60,8 +60,14 @@ def generate_quiz_ml(sources, user, question_count: int) -> Quiz:
     # its links with it.
     quiz.sources.set([s.id for s in sources])
 
+    from notebooks.services.provenance import excerpt_of, source_of
+    source_texts = [(s.id, s.extracted_text) for s in sources]
+
     order = 0
     for q in data.get("questions", [])[:question_count]:
+        # The extractive generator's explanation is the sentence the question
+        # was built from — exactly the passage provenance wants.
+        passage = q.get("explanation") or ""
         Question.objects.create(
             quiz=quiz,
             question_text=q["question_text"],
@@ -70,6 +76,8 @@ def generate_quiz_ml(sources, user, question_count: int) -> Quiz:
             correct_answer=q["correct_answer"],
             explanation=q.get("explanation"),
             order=order,
+            source_id=source_of(passage, source_texts),
+            source_excerpt=excerpt_of(passage),
         )
         order += 1
 

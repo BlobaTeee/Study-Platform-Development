@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -133,6 +133,17 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     setCheckedSourceIds([])
     setSourceDetail(null)
   }, [notebookId])
+
+  // `?source=<id>` — a mock-test review's "Open in notebook" lands here and
+  // should open that document, not the empty state. Only on arrival: once
+  // the student clicks another document the URL no longer decides.
+  const searchParams = useSearchParams()
+  const requestedSourceId = Number(searchParams.get('source')) || null
+  useEffect(() => {
+    if (!requestedSourceId || activeSourceId !== null) return
+    if (sources.some((s) => s.id === requestedSourceId)) setActiveSourceId(requestedSourceId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedSourceId, sources.length])
 
   const toggleSourceCheck = (id: number) => {
     setCheckedSourceIds((prev) =>

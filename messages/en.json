@@ -317,7 +317,12 @@
     "pctCorrect": "{pct}% correct",
     "correctAnswer": "Correct answer",
     "yourAnswer": "Your answer",
-    "leftUnanswered": "Left unanswered."
+    "leftUnanswered": "Left unanswered.",
+    "fromSource": "From {title}",
+    "fromPassage": "From the source text",
+    "openInNotebook": "Open in notebook",
+    "showPassage": "Show passage",
+    "hidePassage": "Hide passage"
   },
   "analytics": {
     "eyebrow": "Analytics",

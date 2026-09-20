@@ -84,11 +84,20 @@ class MockTestQuestionReviewSerializer(serializers.ModelSerializer):
     time this is rendered (its quiz deleted or regenerated long after the
     sitting), and the review must stay complete regardless.
     """
+    source = serializers.SerializerMethodField()
+
     class Meta:
         model = MockTestQuestion
         fields = ['id', 'order', 'question_text', 'options', 'user_answer',
-                  'correct_answer', 'explanation', 'is_correct']
+                  'correct_answer', 'explanation', 'is_correct', 'source', 'source_excerpt']
         read_only_fields = fields
+
+    def get_source(self, obj):
+        """Where to reread: null once the source is gone (the passage stays)."""
+        src = obj.source
+        if src is None:
+            return None
+        return {'id': src.id, 'title': src.title, 'notebook': src.notebook_id}
 
 
 class MockTestSerializer(serializers.ModelSerializer):
