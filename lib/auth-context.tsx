@@ -15,6 +15,11 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   register: (username: string, email: string, password: string) => Promise<{ needsConfirmation: boolean }>
   logout: () => Promise<void>
+  /** Emails a recovery link that lands on /reset-password. Resolves whether or
+   *  not the address has an account, so the form cannot be used to find out. */
+  requestPasswordReset: (email: string) => Promise<void>
+  /** Sets a new password for the session the recovery link opened. */
+  updatePassword: (password: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -119,8 +124,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }
 
+  const requestPasswordReset = async (email: string) => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.')
+    }
+    // The link carries a recovery session in its hash; supabase-js picks it
+    // up on /reset-password and fires PASSWORD_RECOVERY. The URL must be on
+    // the project's redirect allow-list (Authentication → URL Configuration).
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    if (error) throw new Error(error.message)
+  }
+
+  const updatePassword = async (password: string) => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.')
+    }
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) throw new Error(error.message)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, requestPasswordReset, updatePassword }}>
       {children}
     </AuthContext.Provider>
   )
