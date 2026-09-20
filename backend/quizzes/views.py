@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from django.utils.translation import gettext as _
 from studyplatform.throttling import GenerationRateThrottle
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import (
@@ -258,6 +259,44 @@ def _source_accuracy(user, source_ids):
     return source_accuracy(rows)
 
 
+def _owed_question_ids(user, notebook) -> set[int]:
+    """The notebook's questions this student has missed and not yet cleared
+    (see services.mistakes for the rule). Evidence is every graded answer in
+    a quiz attempt or a submitted mock test; a mock-test row is dated by the
+    sitting, since a skipped question has no answered_at of its own.
+    """
+    from .services.mistakes import owed_question_ids
+    in_notebook = {'question__quiz__sources__notebook': notebook}
+    quiz_events = (Answer.objects
+                   .filter(quiz_attempt__user=user, **in_notebook)
+                   .values_list('question_id', 'answered_at', 'is_correct'))
+    test_events = (MockTestQuestion.objects
+                   .filter(mock_test__user=user, mock_test__completed_at__isnull=False,
+                           question__isnull=False, **in_notebook)
+                   .values_list('question_id', 'mock_test__completed_at', 'is_correct'))
+    return owed_question_ids([*quiz_events.distinct(), *test_events.distinct()])
+
+
+class MistakeBankView(APIView):
+    """What the student still owes in one notebook — the questions, never
+    their answers, so the list can't double as a crib sheet."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from notebooks.models import Notebook
+        notebook = Notebook.objects.filter(
+            id=request.query_params.get('notebook'), user=request.user).first()
+        if notebook is None:
+            return Response({'detail': _('Notebook not found.')}, status=404)
+        owed = _owed_question_ids(request.user, notebook)
+        rows = (Question.objects.filter(id__in=owed)
+                .values('id', 'question_text', 'source_id', 'source__title'))
+        return Response({'count': len(owed), 'questions': [
+            {'id': r['id'], 'question_text': r['question_text'],
+             'source': {'id': r['source_id'], 'title': r['source__title']}}
+            for r in rows]})
+
+
 class MockTestViewSet(viewsets.ModelViewSet):
     """Sit a timed paper drawn from a whole notebook."""
     serializer_class = MockTestSerializer
@@ -334,15 +373,27 @@ class MockTestViewSet(viewsets.ModelViewSet):
             return Response({'detail': _('Duration: %(why)s') % {'why': exc}}, status=400)
 
         source_ids = set(notebook.sources.values_list('id', flat=True))
-        pool = _question_pool(request.user, source_ids)
-
-        # Top up before judging the pool, not after: a notebook whose documents
-        # have never been made into a quiz can now still be sat, which is the
-        # case this used to reject outright.
+        mistakes_only = bool(request.data.get('mistakes_only'))
         generated = False
-        if len(pool) < requested:
-            pool, generated = _top_up_pool(
-                request.user, notebook, source_ids, pool, requested)
+        if mistakes_only:
+            # A retake paper is exactly the bank, however long that is: no
+            # top-up (new questions were never missed) and no cap, so the
+            # student clears the whole thing in one sitting.
+            owed = _owed_question_ids(request.user, notebook)
+            if not owed:
+                return Response(
+                    {'detail': _('Nothing in the mistake bank for this notebook yet.')},
+                    status=400)
+            pool = [{'id': qid, 'source_ids': []} for qid in owed]
+            requested = len(pool)
+        else:
+            pool = _question_pool(request.user, source_ids)
+            # Top up before judging the pool, not after: a notebook whose
+            # documents have never been made into a quiz can now still be
+            # sat, which is the case this used to reject outright.
+            if len(pool) < requested:
+                pool, generated = _top_up_pool(
+                    request.user, notebook, source_ids, pool, requested)
 
         if not pool:
             return Response(
@@ -510,6 +561,9 @@ class MockTestViewSet(viewsets.ModelViewSet):
             'completed_at': test.completed_at,
             'question_count': test.question_count,
             'correct_count': sum(1 for r in rows if r.is_correct),
+            # What the bank holds now, this sitting included — the review
+            # can say "N questions to redo" without a second request.
+            'mistake_count': len(_owed_question_ids(test.user, test.notebook)),
             'paper': MockTestQuestionReviewSerializer(rows, many=True).data,
         }
 
