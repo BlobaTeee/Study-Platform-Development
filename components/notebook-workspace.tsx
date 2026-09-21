@@ -30,6 +30,7 @@ import {
   Loader2,
   Sparkles,
   Zap,
+  Download,
   Pencil,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -64,6 +65,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   // Renaming: null when not editing, else the draft title.
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
+  const [exporting, setExporting] = useState<'flashcards' | 'questions' | null>(null)
   // Set when generation silently degraded to the extractive fallback, so a
   // lower-quality result is never mistaken for the real generator's output.
   const [warning, setWarning] = useState('')
@@ -398,10 +400,29 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     }
   }
 
+  const exportCsv = async (kind: 'flashcards' | 'questions') => {
+    setExporting(kind)
+    setError('')
+    try {
+      const res = await notebooksAPI.exportCsv(notebook.id, kind)
+      const name = /filename="?([^"]+)"?/.exec(res.headers['content-disposition'] ?? '')?.[1]
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name ?? `${kind}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setError(t('exportFailed'))
+    } finally {
+      setExporting(null)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full min-h-0 bg-white">
       {confirmDialog}
-      <div className="border-t-[3px] border-mode-library flex items-center justify-between gap-4 px-5 md:px-6 py-4 border-b border-slate-200 shrink-0">
+      <div className="border-t-[3px] border-mode-library flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 md:px-6 py-4 border-b border-slate-200 shrink-0">
         <div className="min-w-0 flex-1">
           <Link
             href="/dashboard/notebooks"
@@ -457,6 +478,28 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
               {notebook.description}
             </p>
           )}
+        </div>
+        {/* Your data, as a file: opens in Excel, imports into Anki. */}
+        <div className="flex items-center gap-1 basis-full sm:basis-auto shrink-0 text-sm text-slate-500">
+          <Download className="size-4" aria-hidden />
+          <span className="mr-1">{t('export')}</span>
+          <button
+            type="button"
+            disabled={exporting !== null}
+            onClick={() => void exportCsv('flashcards')}
+            className="rounded-md px-2 py-1 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
+          >
+            {t('exportCards')}
+          </button>
+          <span aria-hidden>·</span>
+          <button
+            type="button"
+            disabled={exporting !== null}
+            onClick={() => void exportCsv('questions')}
+            className="rounded-md px-2 py-1 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
+          >
+            {t('exportQuestions')}
+          </button>
         </div>
       </div>
 

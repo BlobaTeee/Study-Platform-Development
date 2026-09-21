@@ -49,14 +49,6 @@ export const authAPI = {
   deleteAccount: () => api.delete('/users/profiles/me/'),
 }
 
-export const materialsAPI = {
-  getTopics: () => api.get('/materials/topics/'),
-  getMaterials: (params?: any) => api.get('/materials/study-materials/', { params }),
-  createMaterial: (data: any) => api.post('/materials/study-materials/', data),
-  updateMaterial: (id: number, data: any) => api.put(`/materials/study-materials/${id}/`, data),
-  deleteMaterial: (id: number) => api.delete(`/materials/study-materials/${id}/`),
-}
-
 /** How well you recalled a card, worst first. Drives the SM-2 schedule. */
 export type ReviewGrade = 'hard' | 'good' | 'easy'
 
@@ -108,6 +100,10 @@ export const notebooksAPI = {
   getNotebook: (id: number) => api.get(`/notebooks/notebooks/${id}/`),
   createNotebook: (data: { title: string; description?: string }) =>
     api.post('/notebooks/notebooks/', data),
+  // A CSV of the notebook's live cards or published questions. Fetched with
+  // the auth header (a plain <a href> could not carry it) and saved client-side.
+  exportCsv: (id: number, kind: 'flashcards' | 'questions') =>
+    api.get<Blob>(`/notebooks/notebooks/${id}/export/`, { params: { kind }, responseType: 'blob' }),
   updateNotebook: (id: number, data: { title?: string; description?: string }) =>
     api.patch(`/notebooks/notebooks/${id}/`, data),
   deleteNotebook: (id: number) => api.delete(`/notebooks/notebooks/${id}/`),

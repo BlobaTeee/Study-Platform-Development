@@ -213,6 +213,42 @@ class NotebookViewSet(viewsets.ModelViewSet):
         }, status=201)
 
     @action(detail=True, methods=['get'])
+    def export(self, request, pk=None):
+        """The notebook's live cards or published questions as a CSV download
+        — the student's data in a form that opens in Excel and imports into
+        Anki. Live only: an archived card or a retired quiz is history."""
+        from django.http import HttpResponse
+        from django.utils.text import slugify
+        from flashcards.models import Flashcard
+        from quizzes.models import Question
+        from .services.export_csv import flashcards_csv, questions_csv
+
+        notebook = self.get_object()
+        kind = request.query_params.get('kind')
+        if kind == 'flashcards':
+            cards = list(Flashcard.objects
+                         .filter(user=request.user, archived=False, sources__notebook=notebook)
+                         .distinct().order_by('id').prefetch_related('sources'))
+            for c in cards:
+                c.source_titles = [s.title for s in c.sources.all()]
+            body = flashcards_csv(cards)
+        elif kind == 'questions':
+            questions = list(Question.objects
+                             .filter(quiz__user=request.user, quiz__is_published=True,
+                                     quiz__sources__notebook=notebook)
+                             .distinct().order_by('quiz_id', 'order', 'id').select_related('source'))
+            for q in questions:
+                q.source_title = q.source.title if q.source else ''
+            body = questions_csv(questions)
+        else:
+            return Response({'detail': _('kind must be flashcards or questions.')}, status=400)
+
+        filename = f"{slugify(notebook.title) or 'notebook'}-{kind}.csv"
+        res = HttpResponse(body, content_type='text/csv; charset=utf-8')
+        res['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return res
+
+    @action(detail=True, methods=['get'])
     def material_counts(self, request, pk=None):
         """What this exact source selection already has: cards, and a quiz.
 

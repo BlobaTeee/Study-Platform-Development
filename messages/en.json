@@ -221,7 +221,11 @@
     "typeLink": "Web page",
     "openPage": "Open page",
     "renameNotebook": "Rename notebook",
-    "renameFailed": "Could not rename the notebook. Try again."
+    "renameFailed": "Could not rename the notebook. Try again.",
+    "export": "Export CSV:",
+    "exportCards": "cards",
+    "exportQuestions": "questions",
+    "exportFailed": "Could not export. Try again."
   },
   "flashcards": {
     "title": "Flashcards",

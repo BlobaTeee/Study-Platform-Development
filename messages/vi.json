@@ -221,7 +221,11 @@
     "typeLink": "Trang web",
     "openPage": "Mở trang",
     "renameNotebook": "Đổi tên sổ tay",
-    "renameFailed": "Không đổi tên được sổ tay. Hãy thử lại."
+    "renameFailed": "Không đổi tên được sổ tay. Hãy thử lại.",
+    "export": "Xuất CSV:",
+    "exportCards": "thẻ",
+    "exportQuestions": "câu hỏi",
+    "exportFailed": "Không xuất được. Hãy thử lại."
   },
   "flashcards": {
     "title": "Thẻ",
