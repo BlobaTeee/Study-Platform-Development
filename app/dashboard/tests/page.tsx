@@ -13,6 +13,7 @@ import { useConfirm } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
 import { WeakConcepts } from '@/components/weak-concepts'
+import { WhyWrong } from '@/components/why-wrong'
 import {
   AlertCircle,
   ArrowLeft,
@@ -45,6 +46,7 @@ type PaperQuestion = {
   is_correct?: boolean
   source?: { id: number; title: string; notebook: number } | null
   source_excerpt?: string
+  ai_explanation?: string
 }
 
 type MockTest = {
@@ -661,6 +663,9 @@ function MockTestsInner() {
 
               {q.explanation && (
                 <p className="text-base text-slate-500 leading-relaxed">{q.explanation}</p>
+              )}
+              {!q.is_correct && (
+                <WhyWrong testId={result.id} paperQuestionId={q.id} initial={q.ai_explanation} />
               )}
               {(q.source || q.source_excerpt) && (
                 <Provenance source={q.source ?? null} excerpt={q.source_excerpt ?? ''} />

@@ -197,6 +197,11 @@ export const mockTestsAPI = {
       answer,
     }),
   submit: (id: number) => api.post(`/quizzes/mock-tests/${id}/submit/`, {}),
+  // "Why?" on one wrong answer of a submitted paper. Stored server-side; 503 = no provider.
+  explain: (id: number, paperQuestionId: number) =>
+    api.post<{ id: number; explanation: string }>(`/quizzes/mock-tests/${id}/explain/`, {
+      paper_question_id: paperQuestionId,
+    }),
 }
 
 export const plannedTestsAPI = {

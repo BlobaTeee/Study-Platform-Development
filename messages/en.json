@@ -382,7 +382,11 @@
     "practise": "Practise",
     "writingPractice": "Writing…",
     "practiceNote": "The AI is writing five new questions on this concept from your own material. Up to a minute.",
-    "practiceFailed": "Could not write the practice quiz. Try again in a minute."
+    "practiceFailed": "Could not write the practice quiz. Try again in a minute.",
+    "whyButton": "Why is this wrong?",
+    "whyLoading": "Reading the passage…",
+    "whyTitle": "Why",
+    "whyFailed": "Could not write an explanation. Try again in a minute."
   },
   "analytics": {
     "eyebrow": "Analytics",

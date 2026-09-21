@@ -382,7 +382,11 @@
     "practise": "Luyện",
     "writingPractice": "Đang viết…",
     "practiceNote": "AI đang viết 5 câu mới về khái niệm này từ chính tài liệu của bạn. Có thể mất tới một phút.",
-    "practiceFailed": "Không tạo được bài luyện. Hãy thử lại sau một phút."
+    "practiceFailed": "Không tạo được bài luyện. Hãy thử lại sau một phút.",
+    "whyButton": "Vì sao sai?",
+    "whyLoading": "Đang đọc đoạn nguồn…",
+    "whyTitle": "Vì sao",
+    "whyFailed": "Không viết được lời giải thích. Hãy thử lại sau một phút."
   },
   "analytics": {
     "eyebrow": "Tiến độ",
