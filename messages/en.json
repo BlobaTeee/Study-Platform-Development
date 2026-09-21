@@ -376,7 +376,13 @@
     "retakeMistakes": "Redo them",
     "mistakeBankHint": "Questions you got wrong stay here until you answer them right twice in a row.",
     "mistakesAfterTest": "{count, plural, one {# question is} other {# questions are}} in your mistake bank now.",
-    "bankClear": "Nothing left in your mistake bank for this notebook."
+    "bankClear": "Nothing left in your mistake bank for this notebook.",
+    "weakConcepts": "What you keep missing",
+    "conceptMissed": "{count, plural, one {# question} other {# questions}}",
+    "practise": "Practise",
+    "writingPractice": "Writing…",
+    "practiceNote": "The AI is writing five new questions on this concept from your own material. Up to a minute.",
+    "practiceFailed": "Could not write the practice quiz. Try again in a minute."
   },
   "analytics": {
     "eyebrow": "Analytics",

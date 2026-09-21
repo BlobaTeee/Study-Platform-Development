@@ -1,0 +1,91 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
+import { Loader2, Target } from 'lucide-react'
+import { mockTestsAPI, type WeakConcept } from '@/lib/api'
+import { Button } from '@/components/ui/button'
+
+/** What the student keeps missing in one notebook, named, with a way to
+ *  practise each concept: a fresh quiz written from the passages the missed
+ *  questions came from. `refreshKey` re-fetches after a sitting is marked. */
+export function WeakConcepts({ notebook, refreshKey }: { notebook: number; refreshKey: unknown }) {
+  const t = useTranslations('tests')
+  const router = useRouter()
+  const [state, setState] = useState<{ notebook: number; concepts: WeakConcept[] } | null>(null)
+  const [practising, setPractising] = useState<string | null>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    mockTestsAPI
+      .weakConcepts(notebook)
+      .then((res) => {
+        if (!cancelled) setState({ notebook, concepts: res.data.concepts })
+      })
+      .catch(() => {
+        /* the row simply stays absent */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [notebook, refreshKey])
+
+  const concepts = state && state.notebook === notebook ? state.concepts : null
+  if (!concepts || concepts.length === 0) return null
+
+  const practise = async (c: WeakConcept) => {
+    setPractising(c.key)
+    setError('')
+    try {
+      const res = await mockTestsAPI.practiceConcept({
+        notebook,
+        question_ids: c.question_ids,
+        label: c.label,
+      })
+      router.push(`/dashboard/quizzes?source=${res.data.source_ids.join(',')}&quiz=${res.data.quiz_id}`)
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+      setError(detail || t('practiceFailed'))
+      setPractising(null)
+    }
+  }
+
+  return (
+    <div className="border-t border-slate-200 pt-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Target className="size-4 text-mode-quizzes" aria-hidden />
+        <p className="text-base text-slate-700">{t('weakConcepts')}</p>
+      </div>
+      <ul className="space-y-2">
+        {concepts.map((c) => (
+          <li key={c.key} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <div className="min-w-0 flex-1 basis-64">
+              <p className="text-base text-slate-900">
+                {c.label}
+                <span className="ml-2 font-mono text-xs text-slate-500 tabular-nums">
+                  {t('conceptMissed', { count: c.count })}
+                </span>
+              </p>
+              <p className="text-sm text-slate-500 line-clamp-1">{c.sample[0]}</p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={practising !== null}
+              onClick={() => void practise(c)}
+              className="h-9 shrink-0 border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
+            >
+              {practising === c.key ? <Loader2 className="size-4 animate-spin mr-1.5" aria-hidden /> : null}
+              {practising === c.key ? t('writingPractice') : t('practise')}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {practising && <p className="text-sm text-slate-500">{t('practiceNote')}</p>}
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    </div>
+  )
+}

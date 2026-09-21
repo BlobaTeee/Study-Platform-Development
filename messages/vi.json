@@ -376,7 +376,13 @@
     "retakeMistakes": "Làm lại",
     "mistakeBankHint": "Câu trả lời sai nằm ở đây cho đến khi bạn trả lời đúng hai lần liên tiếp.",
     "mistakesAfterTest": "{count, plural, other {# câu}} đang nằm trong ngân hàng lỗi sai của bạn.",
-    "bankClear": "Ngân hàng lỗi sai của sổ tay này đã trống."
+    "bankClear": "Ngân hàng lỗi sai của sổ tay này đã trống.",
+    "weakConcepts": "Điểm bạn hay sai",
+    "conceptMissed": "{count, plural, other {# câu}}",
+    "practise": "Luyện",
+    "writingPractice": "Đang viết…",
+    "practiceNote": "AI đang viết 5 câu mới về khái niệm này từ chính tài liệu của bạn. Có thể mất tới một phút.",
+    "practiceFailed": "Không tạo được bài luyện. Hãy thử lại sau một phút."
   },
   "analytics": {
     "eyebrow": "Tiến độ",

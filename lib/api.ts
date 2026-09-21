@@ -155,6 +155,14 @@ export const notebooksAPI = {
     }),
 }
 
+export type WeakConcept = {
+  key: string
+  label: string
+  question_ids: number[]
+  count: number
+  sample: string[]
+}
+
 export const mockTestsAPI = {
   // Starting a test freezes its paper server-side, so a refresh cannot reshuffle it.
   // `planned_test`, when present, is how the server links this sitting back
@@ -172,6 +180,14 @@ export const mockTestsAPI = {
   mistakes: (notebook: number) =>
     api.get<{ count: number; questions: { id: number; question_text: string }[] }>(
       `/quizzes/mistakes/?notebook=${notebook}`
+    ),
+  // The mistake bank grouped into named concepts, biggest first.
+  weakConcepts: (notebook: number) =>
+    api.get<{ concepts: WeakConcept[] }>(`/quizzes/weak-concepts/?notebook=${notebook}`),
+  // A fresh five-question quiz on one concept. 503 = no provider right now.
+  practiceConcept: (data: { notebook: number; question_ids: number[]; label: string }) =>
+    api.post<{ quiz_id: number; question_count: number; source_ids: number[] }>(
+      '/quizzes/weak-concepts/practice/', data
     ),
   get: (id: number) => api.get(`/quizzes/mock-tests/${id}/`),
   // Deliberately returns no marking — feedback waits until the paper is handed in.

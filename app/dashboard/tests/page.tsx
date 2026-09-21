@@ -12,6 +12,7 @@ import { mockTestsAPI, notebooksAPI, plannedTestsAPI } from '@/lib/api'
 import { useConfirm } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
+import { WeakConcepts } from '@/components/weak-concepts'
 import {
   AlertCircle,
   ArrowLeft,
@@ -971,6 +972,10 @@ function MockTestsInner() {
                   </Button>
                 )}
               </div>
+            )}
+
+            {mistakeCount !== null && mistakeCount > 0 && notebookId && (
+              <WeakConcepts notebook={Number(notebookId)} refreshKey={result} />
             )}
           </form>
         </Card>
