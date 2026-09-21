@@ -13,6 +13,7 @@ import { useConfirm } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
 import { WeakConcepts } from '@/components/weak-concepts'
+import { PageHeader } from '@/components/page-header'
 import { WhyWrong } from '@/components/why-wrong'
 import {
   AlertCircle,
@@ -573,60 +574,44 @@ function MockTestsInner() {
     const reviewPaper = [...result.paper].sort((a, b) => a.order - b.order)
     return (
       <div className="max-w-3xl mx-auto space-y-8">
-        <div className="rise border-t-[3px] border-mode-quizzes pt-4 flex items-start justify-between gap-4">
-          <div>
-            <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
-              {t('eyebrow')}
-            </p>
-            <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">{t('reviewed')}</h1>
-          </div>
-          <Button variant="outline" size="lg" className="text-lg h-11 shrink-0" onClick={handleNewTest}>
-            <ChevronLeft className="size-5 mr-1" />
-            {t('newTest')}
-          </Button>
-        </div>
+        <PageHeader
+          title={t('reviewed')}
+          meta={`${result.correct_count} / ${result.question_count}`}
+          action={
+            <Button variant="outline" onClick={handleNewTest}>
+              <ChevronLeft aria-hidden />
+              {t('newTest')}
+            </Button>
+          }
+        />
 
-        <Card className="rise border-slate-200 shadow-sheet p-8 md:p-10 text-center" style={{ animationDelay: '60ms' }}>
-          <p className="font-mono text-4xl font-semibold text-slate-900 tabular-nums">
-            {result.correct_count} / {result.question_count}
-          </p>
-          <p className="font-mono text-sm text-slate-500 mt-2 tabular-nums">{t('pctCorrect', { pct })}</p>
-        </Card>
-
-        {/* The bank, not just this paper's misses: a question cleared today
-            drops out, one missed last week and again today is still one. */}
-        <Card className="rise border-slate-200 shadow-sheet p-5 md:p-6 items-center text-center gap-3" style={{ animationDelay: '80ms' }}>
-          <p className="text-base text-slate-700">
+        {/* The score, then the bank - not just this paper's misses: a
+            question cleared today drops out, one missed last week and again
+            today is still one. */}
+        <div className="sheet flex flex-wrap items-center gap-x-8 gap-y-4 p-6 md:p-8">
+          <p className="font-display text-5xl font-semibold tabular-nums text-slate-900">{pct}%</p>
+          <p className="min-w-0 flex-1 basis-64 text-base text-slate-700">
             {result.mistake_count > 0
               ? t('mistakesAfterTest', { count: result.mistake_count })
               : t('bankClear')}
           </p>
           {result.mistake_count > 0 && (
-            <Button
-              variant="outline"
-              size="lg"
-              disabled={retaking}
-              className="h-11 text-base border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
-              onClick={() => void handleRetakeMistakes(result.notebook, 30)}
-            >
-              {retaking ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+            <Button variant="tinted" disabled={retaking} onClick={() => void handleRetakeMistakes(result.notebook, 30)}>
+              {retaking ? <Loader2 className="animate-spin" aria-hidden /> : null}
               {t('retakeMistakes')}
             </Button>
           )}
-          {setupError && <p className="text-sm text-red-700">{setupError}</p>}
-        </Card>
+          {setupError && <p className="basis-full text-sm text-red-700">{setupError}</p>}
+        </div>
 
         <div className="space-y-5">
           {reviewPaper.map((q, i) => (
             <Card
               key={q.id}
-              className="rise border-slate-200 shadow-sheet p-6 md:p-8"
-              style={{ animationDelay: `${100 + i * 40}ms` }}
+              className="p-6 md:p-8"
             >
-              <div className="flex items-start gap-3 mb-4">
-                <span className="font-mono text-sm font-semibold text-mode-quizzes tabular-nums shrink-0">
-                  Q{String(q.order).padStart(2, '0')}
-                </span>
+              <div className="mb-4 flex items-start gap-3">
+                <span className="shrink-0 font-mono text-sm text-slate-500 tabular-nums">{q.order}</span>
                 {q.is_correct ? (
                   <CheckCircle2 className="size-5 text-emerald-600 shrink-0 mt-0.5" aria-hidden />
                 ) : (
@@ -644,14 +629,10 @@ function MockTestsInner() {
                     <div key={opt} className={`rounded-lg border-2 px-4 py-2.5 text-base ${style}`}>
                       {opt}
                       {opt === q.correct_answer && (
-                        <span className="ml-2 font-mono text-xs uppercase tracking-wide text-emerald-700">
-                          {t('correctAnswer')}
-                        </span>
+                        <span className="ml-2 text-sm font-medium text-emerald-700">{t('correctAnswer')}</span>
                       )}
                       {opt === q.user_answer && opt !== q.correct_answer && (
-                        <span className="ml-2 font-mono text-xs uppercase tracking-wide text-red-700">
-                          {t('yourAnswer')}
-                        </span>
+                        <span className="ml-2 text-sm font-medium text-red-700">{t('yourAnswer')}</span>
                       )}
                     </div>
                   )
@@ -693,51 +674,43 @@ function MockTestsInner() {
         {/* Only this branch confirms anything (submitting with blanks), so the
             dialog belongs here rather than in every return. */}
         {confirmDialog}
-        <div className="rise border-t-[3px] border-mode-quizzes pt-4 flex items-start justify-between gap-4">
-          <div>
-            <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
-              {t('eyebrow')}
-            </p>
-            <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">
-              {test.notebook_title}
-            </h1>
-            <p className="font-mono text-sm text-slate-500 mt-1 tabular-nums">
-              {t('questionOf', { n: qIndex + 1, total: paper.length, answered: answeredCount })}
-            </p>
-          </div>
-          <div
-            className={`flex items-center gap-2 rounded-lg border-2 px-4 py-2 shrink-0 ${
-              low ? 'border-red-300 bg-red-50 text-red-800' : 'border-mode-quizzes bg-mode-quizzes/10 text-mode-quizzes'
-            }`}
-            role="timer"
-            aria-live="polite"
-          >
-            <Clock className="size-5" aria-hidden />
-            <div className="leading-tight">
-              <p className="font-mono text-lg font-semibold tabular-nums">
-                {secondsRemaining !== null ? formatClock(secondsRemaining) : '—:—'}
-              </p>
-              <p className="text-[11px] uppercase tracking-wide">{t('timeRemaining')}</p>
+        <PageHeader
+          title={test.notebook_title}
+          meta={t('questionOf', { n: qIndex + 1, total: paper.length, answered: answeredCount })}
+          action={
+            <div
+              className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 ${
+                low ? 'border-red-300 bg-red-50 text-red-800' : 'border-slate-300 bg-white text-slate-900'
+              }`}
+              role="timer"
+              aria-live="polite"
+              title={t('timeRemaining')}
+            >
+              <Clock className="size-4" aria-hidden />
+              <span className="font-mono text-lg font-semibold tabular-nums">
+                {secondsRemaining !== null ? formatClock(secondsRemaining) : '--:--'}
+              </span>
+              <span className="sr-only">{t('timeRemaining')}</span>
             </div>
-          </div>
-        </div>
+          }
+        />
 
         {test.short_paper && (
-          <p className="rise text-sm text-slate-500">
+          <p className="text-sm text-slate-600">
             {t('shortPaper', { questions: common('questions', { count: test.question_count }) })}
           </p>
         )}
 
-        <div className="rise h-1.5 rounded-full bg-slate-100 overflow-hidden" style={{ animationDelay: '60ms' }}>
+        <div className="h-1 overflow-hidden rounded-full bg-slate-200">
           <div
-            className="h-full bg-mode-quizzes transition-all duration-300 motion-reduce:transition-none"
+            className="h-full bg-mode transition-[width] duration-300 motion-reduce:transition-none"
             style={{ width: `${((qIndex + 1) / Math.max(1, paper.length)) * 100}%` }}
           />
         </div>
 
         {/* Question palette: jump to any question, answered ones marked so
             no state is carried by colour alone. */}
-        <div className="rise flex flex-wrap gap-2" style={{ animationDelay: '90ms' }}>
+        <div className="flex flex-wrap gap-2">
           {paper.map((q, i) => {
             const isAnswered = answers[q.id] !== undefined
             const isCurrent = i === qIndex
@@ -748,11 +721,11 @@ function MockTestsInner() {
                 onClick={() => setQIndex(i)}
                 aria-current={isCurrent}
                 aria-label={`${t('questionLabel', { n: i + 1 })}, ${isAnswered ? t('answered') : t('notAnswered')}`}
-                className={`size-9 rounded-md border-2 font-mono text-sm tabular-nums transition-colors outline-none focus-visible:ring-4 focus-visible:ring-mode-quizzes/30 ${
+                className={`size-9 rounded-md border font-mono text-sm tabular-nums transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30 ${
                   isCurrent
-                    ? 'border-mode-quizzes bg-mode-quizzes text-white'
+                    ? 'border-mode bg-mode text-white'
                     : isAnswered
-                      ? 'border-mode-quizzes/40 bg-mode-quizzes/10 text-mode-quizzes'
+                      ? 'border-mode/40 bg-mode/10 text-mode'
                       : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
                 }`}
               >
@@ -763,9 +736,10 @@ function MockTestsInner() {
         </div>
 
         {question && (
-          <Card className="rise border-slate-200 shadow-sheet p-8 md:p-10" style={{ animationDelay: '120ms' }}>
-            <div className="flex items-center gap-3 mb-6">
-              <span className="font-mono text-sm font-semibold text-mode-quizzes tabular-nums">
+          <Card className="relative p-8 md:p-10">
+            <span className="absolute left-8 -top-px h-[3px] w-12 rounded-b-full bg-mode md:left-10" aria-hidden />
+            <div className="mb-6 flex items-center gap-3">
+              <span className="font-mono text-sm text-slate-500 tabular-nums">
                 Q{String(qIndex + 1).padStart(2, '0')}
               </span>
               <span className="h-px flex-1 bg-slate-100" aria-hidden />
@@ -785,7 +759,7 @@ function MockTestsInner() {
                     aria-checked={isSelected}
                     onClick={() => selectAnswer(question, opt)}
                     className={`w-full text-left rounded-xl border-2 px-5 py-4 text-lg text-slate-900 transition-colors outline-none focus-visible:ring-4 focus-visible:ring-mode-quizzes/30 motion-reduce:transition-none ${
-                      isSelected ? 'border-mode-quizzes bg-mode-quizzes/10' : 'border-slate-200 bg-white hover:bg-slate-50'
+                      isSelected ? 'border-mode bg-mode/10' : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
                     {opt}
@@ -797,20 +771,15 @@ function MockTestsInner() {
         )}
 
         {saveError && (
-          <p role="alert" className="rise text-center text-sm text-red-700">
+          <p role="alert" className="text-center text-sm text-red-700">
             {saveError}
           </p>
         )}
 
         {submitError && (
-          <div role="alert" className="rise flex flex-col items-center gap-3 text-center">
+          <div role="alert" className="flex flex-col items-center gap-3 text-center">
             <p className="text-sm text-red-700">{submitError}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleSubmit()}
-              className="border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
-            >
+            <Button variant="tinted" size="sm" onClick={() => void handleSubmit()}>
               {t('trySubmitAgain')}
             </Button>
           </div>
@@ -822,7 +791,6 @@ function MockTestsInner() {
             size="lg"
             onClick={goPrev}
             disabled={qIndex === 0}
-            className="h-12 px-6 text-lg"
           >
             <ArrowLeft className="size-5 mr-2" />
             {t('previous')}
@@ -831,19 +799,13 @@ function MockTestsInner() {
             <Button
               size="lg"
               onClick={goNext}
-              className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 px-6 text-lg"
+              className="px-8"
             >
               {t('nextQuestion')}
               <ArrowRight className="size-5 ml-2" />
             </Button>
           ) : null}
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={handleSubmitClick}
-            disabled={submitting}
-            className="h-12 px-6 text-lg border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
-          >
+          <Button variant="tinted" size="lg" onClick={handleSubmitClick} disabled={submitting}>
             {submitting ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
             {t('submitTest')}
           </Button>
@@ -855,15 +817,7 @@ function MockTestsInner() {
   // ---- Setup ----
   return (
     <div className="max-w-2xl mx-auto space-y-8">
-      <div className="rise border-t-[3px] border-mode-quizzes pt-4">
-        <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
-          {t('eyebrow')}
-        </p>
-        <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">{t('sitTitle')}</h1>
-        <p className="text-base text-slate-500 mt-2 leading-relaxed">
-          {t('sitLead')}
-        </p>
-      </div>
+      <PageHeader title={t('sitTitle')} lead={t('sitLead')} />
 
       {notebooksLoading ? (
         <p className="text-lg text-slate-500 text-center py-12">{t('loadingNotebooks')}</p>
@@ -871,12 +825,12 @@ function MockTestsInner() {
         <div className="text-center py-16 max-w-md mx-auto">
           <BookOpen className="size-16 text-slate-300 mx-auto mb-4" />
           <p className="text-xl text-slate-600 mb-6">{t('noNotebooks')}</p>
-          <Button asChild size="lg" className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 text-lg">
+          <Button asChild size="lg">
             <Link href="/dashboard/notebooks">{t('goToNotebooks')}</Link>
           </Button>
         </div>
       ) : (
-        <Card className="rise border-slate-200 shadow-sheet p-6 md:p-8" style={{ animationDelay: '60ms' }}>
+        <Card className="p-6 md:p-8">
           <form onSubmit={handleStart} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="test-notebook">{t('notebook')}</Label>
@@ -884,7 +838,7 @@ function MockTestsInner() {
                 id="test-notebook"
                 value={notebookId}
                 onChange={(e) => setNotebookId(Number(e.target.value))}
-                className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-base text-slate-900 shadow-sm outline-none focus-visible:border-mode-quizzes focus-visible:ring-mode-quizzes/25 focus-visible:ring-[4px]"
+                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-base text-slate-900 outline-none focus-visible:border-mode focus-visible:ring-[3px] focus-visible:ring-mode/25"
               >
                 {notebooks.map((nb) => (
                   <option key={nb.id} value={nb.id}>
@@ -908,7 +862,7 @@ function MockTestsInner() {
                     setQuestionCount(v === '' ? '' : Number(v))
                   }}
                 />
-                <p className="text-sm text-slate-500">Between 5 and 50.</p>
+                <p className="text-sm text-slate-600">{t('countRange')}</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="test-duration">{t('duration')}</Label>
@@ -923,7 +877,7 @@ function MockTestsInner() {
                     setDurationMinutes(v === '' ? '' : Number(v))
                   }}
                 />
-                <p className="text-sm text-slate-500">Between 5 and 180.</p>
+                <p className="text-sm text-slate-600">{t('durationRange')}</p>
               </div>
             </div>
 
@@ -938,7 +892,7 @@ function MockTestsInner() {
               type="submit"
               size="lg"
               disabled={starting || !notebookId}
-              className="w-full bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 text-lg"
+              className="w-full"
             >
               {starting ? (
                 <>
@@ -967,9 +921,8 @@ function MockTestsInner() {
                 {mistakeCount > 0 && (
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="tinted"
                     disabled={retaking || starting || durationMinutes === ''}
-                    className="h-10 border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
                     onClick={() => void handleRetakeMistakes(Number(notebookId), Number(durationMinutes))}
                   >
                     {retaking ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
@@ -986,19 +939,16 @@ function MockTestsInner() {
         </Card>
       )}
 
-      <div className="rise space-y-6" style={{ animationDelay: '120ms' }}>
+      <div className="space-y-6 border-t border-slate-200 pt-8">
         <div>
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
-            {t('plannedTests')}
-          </p>
-          <h2 className="font-display text-2xl font-semibold text-slate-900 mt-1">{t('planAhead')}</h2>
+          <h2 className="font-display text-2xl font-semibold text-slate-900">{t('planAhead')}</h2>
           <p className="text-base text-slate-500 mt-2 leading-relaxed">
             {t('planLead')}
           </p>
         </div>
 
         {notebooks.length > 0 && (
-          <Card className="border-slate-200 shadow-sheet p-6 md:p-8">
+          <Card className="p-6 md:p-8">
             <form onSubmit={handleCreatePlan} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="plan-notebook">{t('notebook')}</Label>
@@ -1006,7 +956,7 @@ function MockTestsInner() {
                   id="plan-notebook"
                   value={planNotebookId}
                   onChange={(e) => setPlanNotebookId(Number(e.target.value))}
-                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-base text-slate-900 shadow-sm outline-none focus-visible:border-mode-quizzes focus-visible:ring-mode-quizzes/25 focus-visible:ring-[4px]"
+                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-base text-slate-900 outline-none focus-visible:border-mode focus-visible:ring-[3px] focus-visible:ring-mode/25"
                 >
                   {notebooks.map((nb) => (
                     <option key={nb.id} value={nb.id}>
@@ -1023,7 +973,6 @@ function MockTestsInner() {
                   type="datetime-local"
                   value={planScheduledFor}
                   onChange={(e) => setPlanScheduledFor(e.target.value)}
-                  className="h-11"
                 />
               </div>
 
@@ -1062,7 +1011,7 @@ function MockTestsInner() {
                     id="plan-reminder"
                     value={planReminderLead}
                     onChange={(e) => setPlanReminderLead(Number(e.target.value))}
-                    className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-base text-slate-900 shadow-sm outline-none focus-visible:border-mode-quizzes focus-visible:ring-mode-quizzes/25 focus-visible:ring-[4px]"
+                    className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-base text-slate-900 outline-none focus-visible:border-mode focus-visible:ring-[3px] focus-visible:ring-mode/25"
                   >
                     <option value={1}>{t('lead1h')}</option>
                     <option value={24}>{t('lead1d')}</option>
@@ -1082,7 +1031,7 @@ function MockTestsInner() {
                 type="submit"
                 size="lg"
                 disabled={planCreating || !planNotebookId}
-                className="w-full bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 text-lg"
+                className="w-full"
               >
                 {planCreating ? (
                   <>
@@ -1112,7 +1061,7 @@ function MockTestsInner() {
                       <CalendarClock className="size-4 shrink-0" aria-hidden />
                       {formatScheduledFor(plan.scheduled_for, locale)}
                     </p>
-                    <p className="font-mono text-sm text-slate-500 mt-1 tabular-nums">
+                    <p className="mt-1 text-sm text-slate-600">
                       {t('planShape', { questions: common('questions', { count: plan.question_count }), minutes: common('minutes', { count: plan.duration_minutes }) })}
                     </p>
                     {plan.sat_at ? (
@@ -1149,11 +1098,10 @@ function MockTestsInner() {
                       return (
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="tinted"
                           size="sm"
                           onClick={() => void handleStartFromPlan(plan)}
                           disabled={busy || !isOpen}
-                          className="border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
                         >
                           {busy ? <Loader2 className="size-4 animate-spin mr-1.5" /> : null}
                           {busy
@@ -1216,7 +1164,7 @@ function Provenance({
   return (
     <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-wide text-slate-500">
+        <p className="flex items-center gap-1.5 text-sm font-medium text-slate-600">
           <BookOpen className="size-3.5" aria-hidden />
           {source ? t('fromSource', { title: source.title }) : t('fromPassage')}
         </p>

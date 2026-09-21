@@ -403,7 +403,9 @@
     "whyFailed": "Không viết được lời giải thích. Hãy thử lại sau một phút.",
     "continuePractice": "Luyện tiếp",
     "showMore": "Xem thêm {count}",
-    "showFewer": "Thu gọn"
+    "showFewer": "Thu gọn",
+    "countRange": "Từ 5 đến 50.",
+    "durationRange": "Từ 5 đến 180."
   },
   "analytics": {
     "eyebrow": "Tiến độ",

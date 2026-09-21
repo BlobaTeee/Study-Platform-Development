@@ -117,13 +117,13 @@ export function AskTutor({ cardId }: { cardId: number }) {
               placeholder={t('tutorPlaceholder')}
               maxLength={500}
               disabled={busy}
-              className="h-11 flex-1 min-w-0 rounded-lg border border-slate-300 px-3.5 text-base text-slate-900 outline-none focus-visible:border-mode-flashcards focus-visible:ring-mode-flashcards/25 focus-visible:ring-[4px]"
+              className="h-11 flex-1 min-w-0 rounded-lg border border-slate-300 px-3.5 text-base text-slate-900 outline-none focus-visible:border-mode focus-visible:ring-mode/25 focus-visible:ring-[4px]"
             />
             <button
               type="submit"
               disabled={busy || !draft.trim()}
               aria-label={t('send')}
-              className="grid size-11 shrink-0 place-items-center rounded-lg bg-mode-flashcards text-white hover:bg-mode-flashcards-hover disabled:opacity-50"
+              className="grid size-11 shrink-0 place-items-center rounded-lg bg-mode text-white hover:bg-mode-hover disabled:opacity-50"
             >
               <Send className="size-4" aria-hidden />
             </button>

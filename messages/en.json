@@ -403,7 +403,9 @@
     "whyFailed": "Could not write an explanation. Try again in a minute.",
     "continuePractice": "Continue",
     "showMore": "Show {count} more",
-    "showFewer": "Show fewer"
+    "showFewer": "Show fewer",
+    "countRange": "Between 5 and 50.",
+    "durationRange": "Between 5 and 180."
   },
   "analytics": {
     "eyebrow": "Analytics",
