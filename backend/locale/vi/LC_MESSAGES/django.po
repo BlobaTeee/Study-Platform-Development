@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-21 14:26+0700\n"
+"POT-Creation-Date: 2026-09-21 14:56+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -126,6 +126,18 @@ msgstr "Không tìm thấy sổ tay."
 msgid "Pick a time in the future."
 msgstr "Chọn một thời điểm trong tương lai."
 
+msgid "These questions have no source text to practise from."
+msgstr "Các câu này không có văn bản nguồn để luyện."
+
+msgid "Practice needs the AI provider, which is not available right now."
+msgstr "Luyện tập cần AI, hiện đang không khả dụng."
+
+msgid "Could not write the practice questions. Try again in a minute."
+msgstr "Không viết được câu luyện tập. Hãy thử lại sau một phút."
+
+msgid "Practice on a concept you kept missing"
+msgstr "Luyện một khái niệm bạn hay sai"
+
 msgid "Not allowed."
 msgstr "Không được phép."
 
@@ -143,6 +155,15 @@ msgstr "Câu trả lời không thuộc lượt làm bài này."
 
 msgid "Only typed answers can be overridden."
 msgstr "Chỉ câu trả lời tự gõ mới sửa được điểm."
+
+msgid "question_ids must be a non-empty list."
+msgstr "question_ids phải là danh sách không rỗng."
+
+msgid "Those questions are not in your mistake bank for this notebook."
+msgstr "Các câu đó không nằm trong ngân hàng lỗi sai của sổ tay này."
+
+msgid "a weak concept"
+msgstr "một khái niệm còn yếu"
 
 msgid "Planned test not found."
 msgstr "Không tìm thấy lịch thi thử."

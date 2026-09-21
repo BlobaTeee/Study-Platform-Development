@@ -57,7 +57,9 @@ def _no_outside_generation(settings, monkeypatch):
     settings.USE_LOCAL_FALLBACK_ON_QUOTA = False
     for target in ('notebooks.services.generate.get_ai_provider',
                    'notebooks.services.ai_provider.get_ai_provider',
-                   'notebooks.services.ingest.get_ai_provider'):
+                   'notebooks.services.ingest.get_ai_provider',
+                   'quizzes.services.concepts.get_ai_provider',
+                   'quizzes.services.practice.get_ai_provider'):
         monkeypatch.setattr(target, lambda: _NoProvider())
 
 

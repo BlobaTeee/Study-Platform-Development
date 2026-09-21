@@ -301,6 +301,52 @@ class MistakeBankView(APIView):
             for r in rows]})
 
 
+class WeakConceptsView(APIView):
+    """The mistake bank grouped into named concepts, biggest first."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from notebooks.models import Notebook
+        from .services.concepts import concepts_for
+        notebook = Notebook.objects.filter(
+            id=request.query_params.get('notebook'), user=request.user).first()
+        if notebook is None:
+            return Response({'detail': _('Notebook not found.')}, status=404)
+        owed = _owed_question_ids(request.user, notebook)
+        questions = Question.objects.filter(id__in=owed).order_by('id')
+        return Response({'concepts': concepts_for(questions)})
+
+
+class PracticeConceptView(APIView):
+    """Write a fresh five-question paper on one weak concept."""
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [GenerationRateThrottle]
+
+    def post(self, request):
+        from notebooks.models import Notebook
+        from .services.practice import PracticeUnavailable, generate_practice_quiz
+        notebook = Notebook.objects.filter(id=request.data.get('notebook'), user=request.user).first()
+        if notebook is None:
+            return Response({'detail': _('Notebook not found.')}, status=404)
+        ids = request.data.get('question_ids') or []
+        if not isinstance(ids, list) or not all(isinstance(i, int) for i in ids) or not ids:
+            return Response({'detail': _('question_ids must be a non-empty list.')}, status=400)
+        # Only this student's own missed questions in this notebook can seed a
+        # paper — anything else is a 400, not a peek at someone's questions.
+        allowed = _owed_question_ids(request.user, notebook)
+        if not set(ids) <= allowed:
+            return Response({'detail': _('Those questions are not in your mistake bank for this notebook.')},
+                            status=400)
+        questions = list(Question.objects.filter(id__in=ids).select_related('source').order_by('id'))
+        label = (str(request.data.get('label') or '')).strip()[:80] or _('a weak concept')
+        try:
+            quiz = generate_practice_quiz(request.user, notebook, label, questions)
+        except PracticeUnavailable as exc:
+            return Response({'detail': str(exc)}, status=503)
+        return Response({'quiz_id': quiz.id, 'question_count': quiz.questions.count(),
+                         'source_ids': sorted(quiz.sources.values_list('id', flat=True))}, status=201)
+
+
 class MockTestViewSet(viewsets.ModelViewSet):
     """Sit a timed paper drawn from a whole notebook."""
     serializer_class = MockTestSerializer
