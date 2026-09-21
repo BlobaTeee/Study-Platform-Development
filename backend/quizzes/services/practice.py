@@ -94,7 +94,7 @@ def novel_questions(generated: list[dict], missed_texts: list[str]) -> list[dict
     return kept
 
 
-def generate_practice_quiz(user, notebook, label: str, questions) -> Quiz:
+def generate_practice_quiz(user, notebook, label: str, questions, key: str = '') -> Quiz:
     sources = list(notebook.sources.all())
     passages = passages_for(questions, sources)
     if not passages:
@@ -158,7 +158,7 @@ Return ONLY valid JSON in exactly this shape:
     quiz = Quiz.objects.create(
         user=user, title=f'Practice: {label}'[:255],
         description=_('Practice on a concept you kept missing')[:2000],
-        time_limit=0, is_public=False, is_published=True,
+        time_limit=0, is_public=False, is_published=True, practice_key=key[:12],
     )
     quiz.sources.set(used_sources or [s.id for s in sources])
     # Provenance: the concept's first passage stands for the paper — each

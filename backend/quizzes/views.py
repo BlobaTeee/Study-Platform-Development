@@ -314,7 +314,7 @@ class WeakConceptsView(APIView):
             return Response({'detail': _('Notebook not found.')}, status=404)
         owed = _owed_question_ids(request.user, notebook)
         questions = Question.objects.filter(id__in=owed).order_by('id')
-        return Response({'concepts': concepts_for(questions)})
+        return Response({'concepts': concepts_for(questions, user=request.user)})
 
 
 class PracticeConceptView(APIView):
@@ -339,12 +339,22 @@ class PracticeConceptView(APIView):
                             status=400)
         questions = list(Question.objects.filter(id__in=ids).select_related('source').order_by('id'))
         label = (str(request.data.get('label') or '')).strip()[:80] or _('a weak concept')
+        key = (str(request.data.get('key') or '')).strip()[:12]
+
+        def payload(quiz):
+            return {'quiz_id': quiz.id, 'question_count': quiz.questions.count(),
+                    'source_ids': sorted(quiz.sources.values_list('id', flat=True))}
+
+        # One live practice quiz per concept: a second press reopens it.
+        if key:
+            existing = Quiz.objects.filter(user=request.user, is_published=True, practice_key=key).first()
+            if existing is not None:
+                return Response(payload(existing), status=200)
         try:
-            quiz = generate_practice_quiz(request.user, notebook, label, questions)
+            quiz = generate_practice_quiz(request.user, notebook, label, questions, key=key)
         except PracticeUnavailable as exc:
             return Response({'detail': str(exc)}, status=503)
-        return Response({'quiz_id': quiz.id, 'question_count': quiz.questions.count(),
-                         'source_ids': sorted(quiz.sources.values_list('id', flat=True))}, status=201)
+        return Response(payload(quiz), status=201)
 
 
 class MockTestViewSet(viewsets.ModelViewSet):

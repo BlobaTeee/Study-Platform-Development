@@ -386,7 +386,10 @@
     "whyButton": "Why is this wrong?",
     "whyLoading": "Reading the passage…",
     "whyTitle": "Why",
-    "whyFailed": "Could not write an explanation. Try again in a minute."
+    "whyFailed": "Could not write an explanation. Try again in a minute.",
+    "continuePractice": "Continue",
+    "showMore": "Show {count} more",
+    "showFewer": "Show fewer"
   },
   "analytics": {
     "eyebrow": "Analytics",

@@ -386,7 +386,10 @@
     "whyButton": "Vì sao sai?",
     "whyLoading": "Đang đọc đoạn nguồn…",
     "whyTitle": "Vì sao",
-    "whyFailed": "Không viết được lời giải thích. Hãy thử lại sau một phút."
+    "whyFailed": "Không viết được lời giải thích. Hãy thử lại sau một phút.",
+    "continuePractice": "Luyện tiếp",
+    "showMore": "Xem thêm {count}",
+    "showFewer": "Thu gọn"
   },
   "analytics": {
     "eyebrow": "Tiến độ",

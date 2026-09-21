@@ -134,9 +134,10 @@ def test_a_model_that_only_parrots_the_misses_gets_one_more_try(client, user, no
     assert res.json()['question_count'] == 2
 
 
-def _practice(client, notebook, ids, label='Phones'):
+def _practice(client, notebook, ids, label='Phones', key='k1'):
     return client.post('/api/quizzes/weak-concepts/practice/',
-                       {'notebook': notebook.id, 'question_ids': ids, 'label': label}, format='json')
+                       {'notebook': notebook.id, 'question_ids': ids, 'label': label, 'key': key},
+                       format='json')
 
 
 def test_practice_makes_a_fresh_quiz_on_the_concept(client, user, notebook, monkeypatch):
@@ -155,6 +156,43 @@ def test_practice_makes_a_fresh_quiz_on_the_concept(client, user, notebook, monk
     # The model is told what was missed, and given the passage to write from.
     assert PHONES[0][0] in writer.prompts[0]
     assert 'Sentence number' in writer.prompts[0]
+
+
+def test_practising_the_same_concept_twice_reopens_the_same_quiz(client, user, notebook, monkeypatch):
+    writer = _Writer(); writer.prompts = []
+    monkeypatch.setattr('quizzes.services.practice.get_ai_provider', lambda: writer)
+    phones = _missed(user, notebook, PHONES)
+    key = _concepts(client, notebook)[0]['key']
+
+    first = _practice(client, notebook, [q.id for q in phones], key=key)
+    second = _practice(client, notebook, [q.id for q in phones], key=key)
+
+    assert first.status_code == 201 and second.status_code == 200
+    assert second.json()['quiz_id'] == first.json()['quiz_id']
+    assert len(writer.prompts) == 1
+    # And the concept list now points at it.
+    assert _concepts(client, notebook)[0]['practice_quiz_id'] == first.json()['quiz_id']
+
+
+def test_a_practice_quiz_is_retired_once_its_concept_is_cleared(client, user, notebook, monkeypatch):
+    monkeypatch.setattr('quizzes.services.practice.get_ai_provider', lambda: _Writer())
+    phones = _missed(user, notebook, PHONES)
+    _missed(user, notebook, CARS)
+    key = _concepts(client, notebook)[0]['key']
+    quiz_id = _practice(client, notebook, [q.id for q in phones], key=key).json()['quiz_id']
+
+    # Two right answers in a row clear every phone question from the bank.
+    for _ in range(2):
+        test = MockTest.objects.create(user=user, notebook=notebook, question_count=3, duration_minutes=5,
+                                       completed_at=timezone.now(), score=100)
+        for i, q in enumerate(phones):
+            MockTestQuestion.objects.create(mock_test=test, question=q, order=i, question_text=q.question_text,
+                                            options=q.options, correct_answer=q.correct_answer,
+                                            user_answer=q.correct_answer, is_correct=True)
+    concepts = _concepts(client, notebook)
+
+    assert all(c['key'] != key for c in concepts)
+    assert Quiz.objects.get(id=quiz_id).is_published is False
 
 
 def test_practice_does_not_retire_the_students_other_quizzes(client, user, notebook, monkeypatch):

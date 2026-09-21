@@ -161,6 +161,8 @@ export type WeakConcept = {
   question_ids: number[]
   count: number
   sample: string[]
+  // The live practice quiz already written for this concept, if any.
+  practice_quiz_id: number | null
 }
 
 export const mockTestsAPI = {
@@ -185,7 +187,7 @@ export const mockTestsAPI = {
   weakConcepts: (notebook: number) =>
     api.get<{ concepts: WeakConcept[] }>(`/quizzes/weak-concepts/?notebook=${notebook}`),
   // A fresh five-question quiz on one concept. 503 = no provider right now.
-  practiceConcept: (data: { notebook: number; question_ids: number[]; label: string }) =>
+  practiceConcept: (data: { notebook: number; question_ids: number[]; label: string; key: string }) =>
     api.post<{ quiz_id: number; question_count: number; source_ids: number[] }>(
       '/quizzes/weak-concepts/practice/', data
     ),

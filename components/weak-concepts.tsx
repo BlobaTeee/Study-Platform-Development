@@ -10,12 +10,16 @@ import { Button } from '@/components/ui/button'
 /** What the student keeps missing in one notebook, named, with a way to
  *  practise each concept: a fresh quiz written from the passages the missed
  *  questions came from. `refreshKey` re-fetches after a sitting is marked. */
+const SHOWN = 3
+
 export function WeakConcepts({ notebook, refreshKey }: { notebook: number; refreshKey: unknown }) {
   const t = useTranslations('tests')
   const router = useRouter()
   const [state, setState] = useState<{ notebook: number; concepts: WeakConcept[] } | null>(null)
   const [practising, setPractising] = useState<string | null>(null)
   const [error, setError] = useState('')
+  // Three is what fits a glance; the rest fold away until asked for.
+  const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -34,6 +38,8 @@ export function WeakConcepts({ notebook, refreshKey }: { notebook: number; refre
 
   const concepts = state && state.notebook === notebook ? state.concepts : null
   if (!concepts || concepts.length === 0) return null
+  const shown = showAll ? concepts : concepts.slice(0, SHOWN)
+  const hidden = concepts.length - shown.length
 
   const practise = async (c: WeakConcept) => {
     setPractising(c.key)
@@ -43,6 +49,7 @@ export function WeakConcepts({ notebook, refreshKey }: { notebook: number; refre
         notebook,
         question_ids: c.question_ids,
         label: c.label,
+        key: c.key,
       })
       router.push(`/dashboard/quizzes?source=${res.data.source_ids.join(',')}&quiz=${res.data.quiz_id}`)
     } catch (err) {
@@ -59,7 +66,7 @@ export function WeakConcepts({ notebook, refreshKey }: { notebook: number; refre
         <p className="text-base text-slate-700">{t('weakConcepts')}</p>
       </div>
       <ul className="space-y-2">
-        {concepts.map((c) => (
+        {shown.map((c) => (
           <li key={c.key} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
             <div className="min-w-0 flex-1 basis-64">
               <p className="text-base text-slate-900">
@@ -79,11 +86,24 @@ export function WeakConcepts({ notebook, refreshKey }: { notebook: number; refre
               className="h-9 shrink-0 border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
             >
               {practising === c.key ? <Loader2 className="size-4 animate-spin mr-1.5" aria-hidden /> : null}
-              {practising === c.key ? t('writingPractice') : t('practise')}
+              {practising === c.key
+                ? t('writingPractice')
+                : c.practice_quiz_id
+                  ? t('continuePractice')
+                  : t('practise')}
             </Button>
           </li>
         ))}
       </ul>
+      {(hidden > 0 || showAll) && concepts.length > SHOWN && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="text-sm text-slate-500 hover:text-slate-900 underline underline-offset-4"
+        >
+          {showAll ? t('showFewer') : t('showMore', { count: hidden })}
+        </button>
+      )}
       {practising && <p className="text-sm text-slate-500">{t('practiceNote')}</p>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
     </div>

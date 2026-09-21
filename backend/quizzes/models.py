@@ -16,6 +16,10 @@ class Quiz(models.Model):
     time_limit = models.IntegerField(default=0)
     is_public = models.BooleanField(default=False)
     is_published = models.BooleanField(default=False)
+    # Set on a practice quiz: the weak concept it was written for (the
+    # concept's key). One live practice quiz per concept; retired when the
+    # concept leaves the mistake bank. Empty for every other quiz.
+    practice_key = models.CharField(max_length=12, blank=True, default='', db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

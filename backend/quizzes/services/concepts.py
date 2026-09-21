@@ -18,9 +18,13 @@ logger = logging.getLogger(__name__)
 LABEL_TTL = 60 * 60 * 24
 
 
-def concepts_for(questions) -> list[dict]:
+def concepts_for(questions, user=None) -> list[dict]:
     """`questions` are Question rows (any order). Returns concepts biggest
-    first: {key, label, question_ids, count, sample}."""
+    first: {key, label, question_ids, count, sample, practice_quiz_id}.
+
+    With `user`, also keeps that user's practice quizzes tidy: the one
+    written for a concept still here is linked; one whose concept has been
+    cleared (or has changed shape) is retired, so practice never piles up."""
     questions = list(questions)
     texts = [f'{q.question_text} {q.correct_answer} {q.source_excerpt or ""}' for q in questions]
     plain = [q.question_text for q in questions]
@@ -36,8 +40,21 @@ def concepts_for(questions) -> list[dict]:
             'question_ids': ids,
             'count': len(ids),
             'sample': [q.question_text for q in members[:3]],
+            'practice_quiz_id': None,
         })
+    if user is not None:
+        _link_and_retire_practice(user, out)
     return out
+
+
+def _link_and_retire_practice(user, concepts: list[dict]) -> None:
+    from quizzes.models import Quiz
+    live = Quiz.objects.filter(user=user, is_published=True).exclude(practice_key='')
+    by_key = {q.practice_key: q.id for q in live}
+    keys = {c['key'] for c in concepts}
+    for c in concepts:
+        c['practice_quiz_id'] = by_key.get(c['key'])
+    live.exclude(practice_key__in=keys).update(is_published=False)
 
 
 def _label(key: str, question_texts: list[str], fallback_terms: list[str]) -> str:
