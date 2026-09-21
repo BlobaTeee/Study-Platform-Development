@@ -92,7 +92,11 @@
     "passwordTooShort": "Dùng ít nhất {min} ký tự.",
     "savePassword": "Lưu mật khẩu",
     "savingPassword": "Đang lưu…",
-    "resetFailed": "Không lưu được mật khẩu. Hãy yêu cầu liên kết mới rồi thử lại."
+    "resetFailed": "Không lưu được mật khẩu. Hãy yêu cầu liên kết mới rồi thử lại.",
+    "continueWithGoogle": "Tiếp tục với Google",
+    "continueWithGitHub": "Tiếp tục với GitHub",
+    "orDivider": "hoặc dùng email",
+    "oauthFailed": "Không bắt đầu được đăng nhập với nhà cung cấp đó. Hãy thử lại."
   },
   "home": {
     "today": "Hôm nay",

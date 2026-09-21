@@ -92,7 +92,11 @@
     "passwordTooShort": "Use at least {min} characters.",
     "savePassword": "Save password",
     "savingPassword": "Saving…",
-    "resetFailed": "Could not save the password. Request a new link and try again."
+    "resetFailed": "Could not save the password. Request a new link and try again.",
+    "continueWithGoogle": "Continue with Google",
+    "continueWithGitHub": "Continue with GitHub",
+    "orDivider": "or with email",
+    "oauthFailed": "Could not start sign-in with that provider. Try again."
   },
   "home": {
     "today": "Today",

@@ -47,6 +47,17 @@ def test_first_request_provisions_a_user_and_profile(accept_token):
     assert res.json()['email'] == 'new@example.com'
 
 
+def test_a_google_or_github_sign_in_is_named_from_the_providers_metadata(accept_token):
+    # OAuth sign-ups carry no `username`; Google sets full_name, GitHub
+    # user_name. Neither should fall through to the raw email prefix.
+    accept_token({'sub': UID, 'email': 'lan.nguyen@gmail.com',
+                  'user_metadata': {'full_name': 'Lan Nguyễn', 'name': 'Lan Nguyễn',
+                                    'avatar_url': 'https://x/y.png'}})
+
+    assert _client_with_token().get(URL).status_code == 200
+    assert User.objects.get(profile__supabase_uid=UID).first_name == 'Lan Nguyễn'
+
+
 def test_later_requests_reuse_the_same_user(accept_token):
     accept_token({'sub': UID, 'email': 'new@example.com'})
     _client_with_token().get(URL)

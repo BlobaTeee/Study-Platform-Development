@@ -20,9 +20,24 @@ interface AuthContextType {
   requestPasswordReset: (email: string) => Promise<void>
   /** Sets a new password for the session the recovery link opened. */
   updatePassword: (password: string) => Promise<void>
+  /** Leaves for the provider's consent page; the browser comes back to `/`
+   *  with a session in the URL and the root page routes to the dashboard. */
+  loginWithProvider: (provider: OAuthProvider) => Promise<void>
 }
 
+export type OAuthProvider = 'google' | 'github'
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+/** Email sign-ups set `username`; Google and GitHub set `full_name` / `name`
+ *  / `user_name` instead. Fall back to the local part of the email. */
+function displayName(meta: Record<string, unknown> | undefined, email: string | undefined): string {
+  for (const key of ['username', 'full_name', 'name', 'user_name']) {
+    const v = meta?.[key]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  }
+  return email?.split('@')[0] || 'supabase-user'
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -40,8 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (sessionUser) {
       setUser({
         id: sessionUser.id,
-        username:
-          sessionUser.user_metadata?.username || sessionUser.email?.split('@')[0] || 'supabase-user',
+        username: displayName(sessionUser.user_metadata, sessionUser.email),
         email: sessionUser.email || '',
       })
     }
@@ -60,8 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         setUser({
           id: session.user.id,
-          username:
-            session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'supabase-user',
+          username: displayName(session.user.user_metadata, session.user.email),
           email: session.user.email || '',
         })
       } else {
@@ -145,8 +158,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw new Error(error.message)
   }
 
+  const loginWithProvider = async (provider: OAuthProvider) => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.')
+    }
+    // `redirectTo` must be on the project's redirect allow-list; the
+    // provider itself must be enabled under Authentication → Providers.
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: `${window.location.origin}/` },
+    })
+    if (error) throw new Error(error.message)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, requestPasswordReset, updatePassword }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, logout, requestPasswordReset, updatePassword, loginWithProvider }}
+    >
       {children}
     </AuthContext.Provider>
   )

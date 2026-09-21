@@ -53,8 +53,11 @@ class SupabaseJWTAuthentication(BaseAuthentication):
             raise AuthenticationFailed('Supabase token is missing a subject claim.')
 
         email = payload.get('email') or ''
+        # Email sign-ups carry `username`; Google/GitHub carry a name instead.
+        meta = payload.get('user_metadata') or {}
         username = (
-            (payload.get('user_metadata') or {}).get('username')
+            next((meta[k] for k in ('username', 'full_name', 'name', 'user_name')
+                  if isinstance(meta.get(k), str) and meta[k].strip()), None)
             or (email.split('@')[0] if email else supabase_uid)
         )
 

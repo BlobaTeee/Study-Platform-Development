@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { AuthBrandPanel } from '@/components/auth-brand-panel'
 import { LanguageSwitch } from '@/components/language-switch'
+import { OAuthButtons } from '@/components/oauth-buttons'
 import { useTranslations } from 'next-intl'
 
 export default function LoginPage() {
@@ -64,7 +65,9 @@ export default function LoginPage() {
             {t('signInLead')}
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4 mt-8">
+          <OAuthButtons onError={setError} />
+
+          <form onSubmit={handleSubmit} className="space-y-4 mt-6">
             {error && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
                 <p className="text-sm text-red-700">{error}</p>
