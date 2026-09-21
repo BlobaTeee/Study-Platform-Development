@@ -218,7 +218,9 @@
     "addLinkFailed": "Could not add that link",
     "typeText": "Pasted text",
     "typeLink": "Web page",
-    "openPage": "Open page"
+    "openPage": "Open page",
+    "renameNotebook": "Rename notebook",
+    "renameFailed": "Could not rename the notebook. Try again."
   },
   "flashcards": {
     "title": "Flashcards",

@@ -106,6 +106,8 @@ export const notebooksAPI = {
   getNotebook: (id: number) => api.get(`/notebooks/notebooks/${id}/`),
   createNotebook: (data: { title: string; description?: string }) =>
     api.post('/notebooks/notebooks/', data),
+  updateNotebook: (id: number, data: { title?: string; description?: string }) =>
+    api.patch(`/notebooks/notebooks/${id}/`, data),
   deleteNotebook: (id: number) => api.delete(`/notebooks/notebooks/${id}/`),
   getSource: (id: number) => api.get(`/notebooks/sources/${id}/`),
   deleteSource: (id: number) => api.delete(`/notebooks/sources/${id}/`),

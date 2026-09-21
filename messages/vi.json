@@ -218,7 +218,9 @@
     "addLinkFailed": "Không thêm được liên kết",
     "typeText": "Văn bản dán",
     "typeLink": "Trang web",
-    "openPage": "Mở trang"
+    "openPage": "Mở trang",
+    "renameNotebook": "Đổi tên sổ tay",
+    "renameFailed": "Không đổi tên được sổ tay. Hãy thử lại."
   },
   "flashcards": {
     "title": "Thẻ",

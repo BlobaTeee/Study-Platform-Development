@@ -30,6 +30,7 @@ import {
   Loader2,
   Sparkles,
   Zap,
+  Pencil,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
@@ -60,6 +61,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const [composer, setComposer] = useState<'text' | 'url' | null>(null)
   const [composerBody, setComposerBody] = useState('')
   const [error, setError] = useState('')
+  // Renaming: null when not editing, else the draft title.
+  const [titleDraft, setTitleDraft] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState(false)
   // Set when generation silently degraded to the extractive fallback, so a
   // lower-quality result is never mistaken for the real generator's output.
   const [warning, setWarning] = useState('')
@@ -373,6 +377,27 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     )
   }
 
+  const saveTitle = async () => {
+    const title = (titleDraft ?? '').trim()
+    if (!title || title === notebook.title) {
+      setTitleDraft(null)
+      return
+    }
+    setRenaming(true)
+    setError('')
+    try {
+      await notebooksAPI.updateNotebook(notebook.id, { title })
+      setTitleDraft(null)
+      // The header reads from this key; the sidebar/list from the other.
+      mutate(swrKey)
+      mutate(['/notebooks/'])
+    } catch {
+      setError(t('renameFailed'))
+    } finally {
+      setRenaming(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full min-h-0 bg-white">
       {confirmDialog}
@@ -385,9 +410,48 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
             <ArrowLeft className="size-4" />
             {t('allNotebooks')}
           </Link>
-          <h1 className="font-display text-2xl md:text-3xl font-semibold text-slate-900 truncate">
-            {notebook.title}
-          </h1>
+          {titleDraft !== null ? (
+            <form
+              className="flex flex-wrap items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                void saveTitle()
+              }}
+            >
+              <Input
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setTitleDraft(null)
+                }}
+                aria-label={t('renameNotebook')}
+                autoFocus
+                maxLength={200}
+                className="h-11 text-xl font-display font-semibold basis-full sm:basis-auto sm:flex-1"
+              />
+              <Button type="submit" size="lg" className="h-11 bg-mode-library hover:bg-mode-library-hover text-white" disabled={renaming || !titleDraft.trim()}>
+                {common('save')}
+              </Button>
+              <Button type="button" size="lg" variant="outline" className="h-11" disabled={renaming} onClick={() => setTitleDraft(null)}>
+                {common('cancel')}
+              </Button>
+            </form>
+          ) : (
+            <div className="flex items-center gap-2 min-w-0">
+              <h1 className="font-display text-2xl md:text-3xl font-semibold text-slate-900 truncate">
+                {notebook.title}
+              </h1>
+              <button
+                type="button"
+                onClick={() => setTitleDraft(notebook.title)}
+                aria-label={t('renameNotebook')}
+                title={t('renameNotebook')}
+                className="shrink-0 rounded-md p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100"
+              >
+                <Pencil className="size-4" aria-hidden />
+              </button>
+            </div>
+          )}
           {notebook.description && (
             <p className="text-base text-slate-500 mt-1 line-clamp-2">
               {notebook.description}
