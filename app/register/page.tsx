@@ -24,7 +24,6 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [sentTo, setSentTo] = useState('')
   const t = useTranslations('auth')
-  const nav = useTranslations('nav')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,9 +59,6 @@ export default function RegisterPage() {
           <div className="flex items-start justify-between gap-4 mb-8">
             <div className="lg:hidden">
               <h1 className="font-display text-3xl font-semibold text-slate-900">StudyFlow</h1>
-              <p className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500 mt-1">
-                {nav('tagline')}
-              </p>
             </div>
             <div className="ml-auto">
               <LanguageSwitch />
@@ -74,7 +70,7 @@ export default function RegisterPage() {
               <div className="flex size-12 items-center justify-center rounded-full bg-mode-library/10">
                 <Mail className="size-6 text-mode-library" />
               </div>
-              <h2 className="font-display text-3xl font-semibold text-slate-900 mt-5">
+              <h2 className="font-display text-[2rem] font-semibold leading-tight text-slate-900 mt-5">
                 {t('checkEmail')}
               </h2>
               <p className="text-base text-slate-600 mt-2 leading-relaxed">
@@ -86,7 +82,7 @@ export default function RegisterPage() {
               <Button
                 onClick={() => router.push('/login')}
                 size="lg"
-                className="w-full mt-8 font-semibold bg-mode-library hover:bg-mode-library-hover"
+                className="w-full mt-8"
               >
                 {t('goToSignIn')}
               </Button>
@@ -103,10 +99,7 @@ export default function RegisterPage() {
             </div>
           ) : (
           <>
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-library">
-            {t('getStarted')}
-          </p>
-          <h2 className="font-display text-3xl font-semibold text-slate-900 mt-1">
+          <h2 className="font-display text-[2rem] font-semibold leading-tight text-slate-900">
             {t('createTitle')}
           </h2>
           <p className="text-base text-slate-500 mt-2">
@@ -178,7 +171,7 @@ export default function RegisterPage() {
               type="submit"
               disabled={loading}
               size="lg"
-              className="w-full font-semibold bg-mode-library hover:bg-mode-library-hover"
+              className="w-full"
             >
               {loading ? t('creatingAccount') : t('createAccount')}
             </Button>

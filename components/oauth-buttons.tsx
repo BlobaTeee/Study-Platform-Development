@@ -33,7 +33,7 @@ export function OAuthButtons({ onError }: { onError: (message: string) => void }
           size="lg"
           disabled={pending !== null}
           onClick={() => void go('google')}
-          className="w-full font-semibold"
+          className="w-full"
         >
           <GoogleMark />
           {t('continueWithGoogle')}
@@ -44,7 +44,7 @@ export function OAuthButtons({ onError }: { onError: (message: string) => void }
           size="lg"
           disabled={pending !== null}
           onClick={() => void go('github')}
-          className="w-full font-semibold"
+          className="w-full"
         >
           <GitHubMark />
           {t('continueWithGitHub')}
@@ -52,7 +52,7 @@ export function OAuthButtons({ onError }: { onError: (message: string) => void }
       </div>
       <div className="flex items-center gap-3 mt-6" aria-hidden>
         <span className="h-px flex-1 bg-slate-200" />
-        <span className="font-mono text-xs uppercase tracking-[0.14em] text-slate-400">{t('orDivider')}</span>
+        <span className="text-sm text-slate-500">{t('orDivider')}</span>
         <span className="h-px flex-1 bg-slate-200" />
       </div>
     </div>

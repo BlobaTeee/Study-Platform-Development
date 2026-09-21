@@ -37,15 +37,15 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
   return (
     <section aria-labelledby={`${tableId}-title`}>
       <div className="mb-1 flex items-center justify-between gap-3">
-        <h2 id={`${tableId}-title`} className="text-xl font-semibold text-slate-900">
+        <h2 id={`${tableId}-title`} className="text-base font-semibold text-slate-900">
           {t('last14')}
         </h2>
-        <p className="flex items-center gap-1.5 text-sm text-slate-500">
+        <p className="flex items-center gap-1.5 text-sm text-slate-600">
           <span aria-hidden className="inline-block size-2 rounded-full bg-mode-quizzes ring-2 ring-white" />
           {t('mockTest')}
         </p>
       </div>
-      <p className="mb-5 text-sm text-slate-500">
+      <p className="mb-5 text-sm text-slate-600">
         {empty ? t('stripEmpty') : summaryLine(summary, t)}
       </p>
 
@@ -114,8 +114,8 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
             <span
               key={day.date}
               className={cn(
-                'flex-1 text-center font-mono text-[11px] uppercase text-slate-400',
-                i === days.length - 1 && 'text-slate-600'
+                'flex-1 text-center font-mono text-[11px] text-slate-500',
+                i === days.length - 1 && 'font-semibold text-slate-900'
               )}
             >
               {i === days.length - 1 ? t('now') : weekdayInitial(day.date, locale)}

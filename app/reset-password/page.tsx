@@ -20,7 +20,6 @@ export default function ResetPasswordPage() {
   const router = useRouter()
   const { user, loading, updatePassword } = useAuth()
   const t = useTranslations('auth')
-  const nav = useTranslations('nav')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
@@ -57,19 +56,12 @@ export default function ResetPasswordPage() {
           <div className="flex items-start justify-between gap-4 mb-8">
             <div className="lg:hidden">
               <h1 className="font-display text-3xl font-semibold text-slate-900">StudyFlow</h1>
-              <p className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500 mt-1">
-                {nav('tagline')}
-              </p>
             </div>
             <div className="ml-auto">
               <LanguageSwitch />
             </div>
           </div>
-
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-library">
-            {t('forgotEyebrow')}
-          </p>
-          <h2 className="font-display text-3xl font-semibold text-slate-900 mt-1">{t('resetTitle')}</h2>
+          <h2 className="font-display text-[2rem] font-semibold leading-tight text-slate-900">{t('resetTitle')}</h2>
 
           {loading ? (
             <p className="text-base text-slate-500 mt-8">{t('checkingLink')}</p>
@@ -78,7 +70,7 @@ export default function ResetPasswordPage() {
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-sm text-amber-900">{t('resetLinkInvalid')}</p>
               </div>
-              <Button asChild size="lg" className="w-full font-semibold bg-mode-library hover:bg-mode-library-hover">
+              <Button asChild size="lg" className="w-full">
                 <Link href="/forgot-password">{t('requestNewLink')}</Link>
               </Button>
             </div>
@@ -119,7 +111,7 @@ export default function ResetPasswordPage() {
                   type="submit"
                   disabled={saving}
                   size="lg"
-                  className="w-full font-semibold bg-mode-library hover:bg-mode-library-hover"
+                  className="w-full"
                 >
                   {saving ? t('savingPassword') : t('savePassword')}
                 </Button>

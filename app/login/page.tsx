@@ -20,7 +20,6 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const t = useTranslations('auth')
-  const nav = useTranslations('nav')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,19 +45,12 @@ export default function LoginPage() {
           <div className="flex items-start justify-between gap-4 mb-8">
             <div className="lg:hidden">
               <h1 className="font-display text-3xl font-semibold text-slate-900">StudyFlow</h1>
-              <p className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500 mt-1">
-                {nav('tagline')}
-              </p>
             </div>
             <div className="ml-auto">
               <LanguageSwitch />
             </div>
           </div>
-
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-library">
-            {t('welcomeBack')}
-          </p>
-          <h2 className="font-display text-3xl font-semibold text-slate-900 mt-1">
+          <h2 className="font-display text-[2rem] font-semibold leading-tight text-slate-900">
             {t('signInTitle')}
           </h2>
           <p className="text-base text-slate-500 mt-2">
@@ -109,7 +101,7 @@ export default function LoginPage() {
               type="submit"
               disabled={loading}
               size="lg"
-              className="w-full font-semibold bg-mode-library hover:bg-mode-library-hover"
+              className="w-full"
             >
               {loading ? t('signingIn') : t('signIn')}
             </Button>

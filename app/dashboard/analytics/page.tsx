@@ -2,20 +2,14 @@
 
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { PageHeader } from '@/components/page-header'
 import useSWR from 'swr'
 import { analyticsAPI } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
-import { type Due, dueBreakdown, caughtUpMessage } from '@/lib/study-format'
+import { type Due, caughtUpMessage } from '@/lib/study-format'
 import { ActivityStrip, type ActivityDay, type ActivitySummary } from '@/components/activity-strip'
-import {
-  ArrowRight,
-  BarChart3,
-  BookOpen,
-  Loader2,
-  Target,
-} from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 
 type WeakNotebook = {
   notebook_id: number
@@ -65,123 +59,91 @@ export default function AnalyticsPage() {
   const weakNotebooks: WeakNotebook[] = recsRes?.data?.weak_notebooks ?? []
 
   return (
-    <div className="space-y-8 max-w-5xl">
-      <div className="rise border-t-[3px] border-mode-analytics pt-4">
-        <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-analytics">
-          {t('eyebrow')}
-        </p>
-        <h1 className="font-display text-3xl md:text-4xl font-semibold text-slate-900 mt-1 flex items-center gap-3 text-balance">
-          <BarChart3 className="size-8 text-mode-analytics shrink-0" />
-          {t('title')}
-        </h1>
-        <p className="text-lg text-slate-500 mt-2 text-pretty">
-          {t('lead')}
-        </p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader title={t('title')} lead={t('lead')} />
 
-      {/* Fourteen days, one column each. Replaces the lifetime-total tiles
-          that used to sit here: those never changed from one visit to the
-          next, and could not answer "am I getting anywhere?" */}
-      <Card className="rise border-slate-200 shadow-sheet p-6" style={{ animationDelay: '60ms' }}>
-        {activityDays.length === 0 ? (
-          <div className="flex items-center gap-2 text-slate-500 py-2">
-            <Loader2 className="size-4 animate-spin" /> Loading…
-          </div>
-        ) : (
-          <ActivityStrip days={activityDays} summary={activitySummary} />
-        )}
-      </Card>
+      {/* One instrument panel: fourteen days on top, what is owed as one
+          line under it, then the notebooks. Hairlines, not tiles. */}
+      <div className="sheet">
+        {/* Fourteen days, one column each. Replaces the lifetime-total tiles
+            that used to sit here: those never changed from one visit to the
+            next, and could not answer "am I getting anywhere?" */}
+        <section className="p-6 md:p-8">
+          {activityDays.length === 0 ? (
+            <div className="h-40 animate-pulse rounded-lg bg-slate-100 motion-reduce:animate-none" aria-busy />
+          ) : (
+            <ActivityStrip days={activityDays} summary={activitySummary} />
+          )}
+        </section>
 
-      {/* Review next — the page's one action. A count and a button: there is
-          nothing to decide between cards, and showing their questions here would
-          be a free look at what you're about to be tested on. */}
-      <Card className="rise border-slate-200 shadow-sheet p-6" style={{ animationDelay: '120ms' }}>
-        {recsLoading ? (
-          <div className="flex items-center gap-2 text-slate-500 py-2">
-            <Loader2 className="size-4 animate-spin" /> Loading…
-          </div>
-        ) : ready === 0 ? (
-          <div className="flex items-center gap-3 py-2">
-            <Target className="size-5 text-mode-analytics shrink-0" />
-            <p className="text-lg text-slate-700">{caughtUpMessage(due, common, locale)}</p>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center justify-between gap-5">
-            <div className="flex items-baseline gap-4 min-w-0">
-              <span className="font-mono text-5xl font-semibold text-slate-900 tabular-nums">
-                {ready}
-              </span>
-              <div className="min-w-0">
-                <p className="text-lg text-slate-900">
-                  {t('readyToStudy', { count: ready })}
-                </p>
-                <p
-                  className={cn(
-                    'font-mono text-sm tabular-nums',
-                    due.overdue > 0 ? 'text-red-700' : 'text-slate-500'
-                  )}
-                >
-                  {dueBreakdown(due, common)}
-                </p>
-              </div>
-            </div>
-            <Button
-              asChild
-              size="lg"
-              className="bg-mode-flashcards hover:bg-mode-flashcards-hover text-white h-12 px-8 text-lg shrink-0"
-            >
-              <Link href="/dashboard/flashcards?due=1">
-                {t('studyNow')}
-                <ArrowRight className="size-5 ml-2" />
-              </Link>
-            </Button>
-          </div>
-        )}
-      </Card>
-
-      {/* Weakest notebooks. Each row links to its notebook: that is where
-          the sources live and where the next set of cards gets generated. */}
-      <Card className="rise border-slate-200 shadow-sheet p-6" style={{ animationDelay: '180ms' }}>
-        <div className="flex items-center gap-2 mb-1">
-          <BookOpen className="size-5 text-mode-notebooks" />
-          <h2 className="text-xl font-semibold text-slate-900">{t('byNotebook')}</h2>
-        </div>
-        <p className="text-sm text-slate-500 mb-4">
-          {t('byNotebookLead')}
-        </p>
-
-        {weakNotebooks.length === 0 ? (
-          <p className="text-slate-500 py-6 text-center">
-            {t('byNotebookEmpty')}
-          </p>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {weakNotebooks.map((n) => (
-              <li key={n.notebook_id}>
-                <Link
-                  href={`/dashboard/notebooks/${n.notebook_id}`}
-                  className="flex items-center gap-4 py-3 -mx-2 px-2 rounded-md hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mode-notebooks"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-base text-slate-800 truncate">{n.title}</p>
-                    <p className="text-sm text-slate-500">{notebookRecord(n, t, common)}</p>
-                  </div>
-                  {n.accuracy == null ? (
-                    <span className="font-mono text-xs text-slate-600 bg-slate-100 rounded px-2 py-1 shrink-0">
-                      {common('notStudied')}
-                    </span>
-                  ) : (
-                    <span className="font-mono text-lg font-semibold text-slate-900 tabular-nums shrink-0">
-                      {n.accuracy}%
-                    </span>
-                  )}
-                  <ArrowRight className="size-4 text-slate-400 shrink-0" aria-hidden />
+        {/* Review next: the page's one action. A count and a button - showing
+            the cards here would be a free look at what you're about to be
+            tested on. */}
+        <section data-mode="flashcards" className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-slate-200 px-6 py-5 md:px-8">
+          {recsLoading ? (
+            <div className="h-6 w-64 animate-pulse rounded bg-slate-100 motion-reduce:animate-none" aria-busy />
+          ) : ready === 0 ? (
+            <p className="text-base text-slate-700">{caughtUpMessage(due, common, locale)}</p>
+          ) : (
+            <>
+              <p className="min-w-0 text-base text-slate-900">
+                <span className="font-mono text-2xl font-semibold tabular-nums">{ready}</span>{' '}
+                {t('readyToStudy', { count: ready })}
+                {due.overdue > 0 && (
+                  <span className="ml-2 text-sm text-red-700">{common('overdueCount', { count: due.overdue })}</span>
+                )}
+              </p>
+              <Button asChild>
+                <Link href="/dashboard/flashcards?due=1">
+                  {t('studyNow')}
+                  <ArrowRight aria-hidden />
                 </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+              </Button>
+            </>
+          )}
+        </section>
+
+        {/* Weakest notebooks. Each row links to its notebook: that is where
+            the sources live and where the next set of cards gets generated. */}
+        <section data-mode="library" className="border-t border-slate-200 p-6 md:p-8">
+          <h2 className="text-base font-semibold text-slate-900">{t('byNotebook')}</h2>
+          <p className="mt-1 text-sm text-slate-600">{t('byNotebookLead')}</p>
+
+          {weakNotebooks.length === 0 ? (
+            <p className="py-6 text-slate-600">{t('byNotebookEmpty')}</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-slate-100">
+              {weakNotebooks.map((n) => (
+                <li key={n.notebook_id}>
+                  <Link
+                    href={`/dashboard/notebooks/${n.notebook_id}`}
+                    className="-mx-2 flex items-center gap-4 rounded-md px-2 py-3 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-base text-slate-900">{n.title}</p>
+                      <p className="text-sm text-slate-600">{notebookRecord(n, t, common)}</p>
+                    </div>
+                    {n.accuracy == null ? (
+                      <span className="shrink-0 text-sm text-slate-500">{common('notStudied')}</span>
+                    ) : (
+                      <span className="flex shrink-0 items-center gap-3">
+                        <span className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100" aria-hidden>
+                          <span
+                            className={cn('block h-full rounded-full', n.accuracy >= 70 ? 'bg-mode-analytics' : n.accuracy >= 40 ? 'bg-mode-flashcards' : 'bg-red-400')}
+                            style={{ width: `${Math.max(4, Math.min(100, n.accuracy))}%` }}
+                          />
+                        </span>
+                        <span className="w-12 text-right font-mono text-base tabular-nums text-slate-900">{n.accuracy}%</span>
+                      </span>
+                    )}
+                    <ArrowRight className="size-4 shrink-0 text-slate-400" aria-hidden />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
   )
 }
