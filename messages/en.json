@@ -264,7 +264,18 @@
     "bothSidesRequired": "Both sides of the card need text.",
     "deleteTitle": "Delete this card?",
     "deleteBody": "It leaves your deck and its review history for good.",
-    "deleteFailed": "Could not delete the card. Try again."
+    "deleteFailed": "Could not delete the card. Try again.",
+    "askTutor": "Still unclear? Ask about this card",
+    "tutorTitle": "Ask about this card",
+    "questionsLeft": "{count, plural, =0 {no questions left} one {# question left} other {# questions left}}",
+    "promptSimpler": "Explain it more simply",
+    "promptExample": "Give an example from my material",
+    "promptWhyNot": "Why is my answer wrong?",
+    "tutorPlaceholder": "What is unclear?",
+    "send": "Send",
+    "tutorThinking": "Reading your material…",
+    "tutorFailed": "The tutor could not answer just now. Try again in a minute.",
+    "tutorDone": "Three questions on this card — try recalling it again, then come back if it is still unclear."
   },
   "quizzes": {
     "title": "Quiz",

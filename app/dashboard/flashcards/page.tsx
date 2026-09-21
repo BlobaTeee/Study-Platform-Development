@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { useConfirm } from '@/components/confirm-dialog'
+import { AskTutor } from '@/components/ask-tutor'
 import { SourceRequired } from '@/components/source-required'
 import {
   hasAllSources,
@@ -402,6 +403,10 @@ function FlashcardsStudy() {
           {error}
         </p>
       )}
+
+      {/* The tutor: only with the answer showing, and never while editing.
+          Keyed by card so a new card starts a new, empty thread. */}
+      {flipped && !draft && <AskTutor key={card.id} cardId={card.id} />}
 
       {/* Quiet on purpose: fixing a card is the exception, recalling it the rule. */}
       {!draft && (

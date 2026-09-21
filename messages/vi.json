@@ -264,7 +264,18 @@
     "bothSidesRequired": "Cả hai mặt thẻ đều cần có nội dung.",
     "deleteTitle": "Xoá thẻ này?",
     "deleteBody": "Thẻ và lịch sử ôn tập của nó sẽ bị xoá vĩnh viễn.",
-    "deleteFailed": "Không xoá được thẻ. Hãy thử lại."
+    "deleteFailed": "Không xoá được thẻ. Hãy thử lại.",
+    "askTutor": "Vẫn chưa rõ? Hỏi thêm về thẻ này",
+    "tutorTitle": "Hỏi về thẻ này",
+    "questionsLeft": "{count, plural, =0 {hết lượt hỏi} other {còn # lượt hỏi}}",
+    "promptSimpler": "Giải thích đơn giản hơn",
+    "promptExample": "Cho ví dụ từ tài liệu của tôi",
+    "promptWhyNot": "Vì sao câu trả lời của tôi sai?",
+    "tutorPlaceholder": "Chỗ nào chưa rõ?",
+    "send": "Gửi",
+    "tutorThinking": "Đang đọc tài liệu của bạn…",
+    "tutorFailed": "Gia sư chưa trả lời được lúc này. Hãy thử lại sau một phút.",
+    "tutorDone": "Đã hỏi ba câu về thẻ này — hãy thử nhớ lại lần nữa, nếu vẫn chưa rõ thì quay lại sau."
   },
   "quizzes": {
     "title": "Bài kiểm tra",
