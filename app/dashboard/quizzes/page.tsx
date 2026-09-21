@@ -297,6 +297,9 @@ function QuizzesStudy() {
   useEffect(() => {
     if (!typedMode || editing) return  // Enter in the editor must not advance
     const onKey = (e: KeyboardEvent) => {
+      // "r" typed into a field is a letter, not an override.
+      const el = e.target as HTMLElement | null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && e.key !== 'Enter') return
       if (e.key === 'Enter' && submitted) {
         e.preventDefault()
         void handleNext()

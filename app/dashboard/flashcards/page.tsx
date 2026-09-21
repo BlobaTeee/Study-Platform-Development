@@ -141,6 +141,9 @@ function FlashcardsStudy() {
   useEffect(() => {
     if (total === 0 || draft) return  // typing in the editor must not flip or grade
     const onKey = (e: KeyboardEvent) => {
+      // Any field on the page (the tutor's question box, say) keeps its
+      // keys: a space there is a space, a "2" is a "2".
+      if (isTypingTarget(e.target)) return
       if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault()
         setFlipped((f) => !f)
@@ -440,6 +443,14 @@ function FlashcardsStudy() {
       </p>
     </div>
   )
+}
+
+/** True when the key event comes from somewhere the user is typing. */
+function isTypingTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  if (!el) return false
+  const tag = el.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
 }
 
 /** One face of the index card. The tabbed top edge and ruled baseline are
