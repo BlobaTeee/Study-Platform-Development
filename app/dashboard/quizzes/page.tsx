@@ -12,8 +12,9 @@ import { SourceContextBanner } from '@/components/source-context-banner'
 import { SourceRequired } from '@/components/source-required'
 import { useConfirm } from '@/components/confirm-dialog'
 import { QuestionEditor, type EditableQuestion } from '@/components/question-editor'
+import { PageHeader } from '@/components/page-header'
 import { useTranslations } from 'next-intl'
-import { ArrowRight, BookOpen, CheckCircle2, ChevronLeft, CircleDashed, Keyboard, Pencil, Trash2, XCircle } from 'lucide-react'
+import { ArrowRight, CheckCircle2, CircleDashed, Keyboard, Pencil, Trash2, XCircle } from 'lucide-react'
 
 type Question = {
   id: number
@@ -317,17 +318,19 @@ function QuizzesStudy() {
   }
 
   if (isLoading || starting) {
-    return <p className="text-xl text-slate-500 text-center py-20">{t('loading')}</p>
+    return <p className="py-20 text-center text-base text-slate-500">{t('loading')}</p>
   }
 
   if (!quiz || questions.length === 0) {
     return (
-      <div className="text-center py-20 max-w-md mx-auto">
-        <BookOpen className="size-16 text-slate-300 mx-auto mb-4" />
-        <p className="text-xl text-slate-600 mb-6">{t('noneForSource')}</p>
-        <Button asChild size="lg" className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 text-lg">
-          <Link href="/dashboard/notebooks">{t('generateFromNotebooks')}</Link>
-        </Button>
+      <div className="mx-auto max-w-3xl">
+        <PageHeader title={t('title')} />
+        <div className="sheet mt-8 flex flex-col items-start gap-5 p-8">
+          <p className="max-w-[48ch] text-lg leading-relaxed text-slate-700">{t('noneForSource')}</p>
+          <Button asChild>
+            <Link href="/dashboard/notebooks">{t('generateFromNotebooks')}</Link>
+          </Button>
+        </div>
       </div>
     )
   }
@@ -335,14 +338,12 @@ function QuizzesStudy() {
   if (finished) {
     const pct = Math.round((score / questions.length) * 100)
     return (
-      <div className="rise max-w-2xl mx-auto text-center space-y-8 py-12">
-        <CheckCircle2 className="size-20 text-mode-analytics mx-auto" />
-        <h1 className="font-display text-3xl font-semibold text-slate-900">{t('complete')}</h1>
-        <p className="font-mono text-2xl text-slate-600 tabular-nums">
-          {t('scoreLine', { score, total: questions.length, pct })}
-        </p>
-        <div className="flex gap-4 justify-center flex-wrap">
-          <Button asChild size="lg" className="h-12 text-lg bg-mode-quizzes hover:bg-mode-quizzes-hover text-white">
+      <div className="mx-auto max-w-3xl">
+        <PageHeader title={t('complete')} />
+        <div className="sheet mt-8 flex flex-col items-start gap-6 p-8 md:p-10">
+          <p className="font-display text-5xl font-semibold tabular-nums text-slate-900">{pct}%</p>
+          <p className="text-lg text-slate-700">{t('scoreLine', { score, total: questions.length, pct })}</p>
+          <Button asChild>
             <Link href="/dashboard/notebooks">{t('backToSources')}</Link>
           </Button>
         </div>
@@ -356,46 +357,27 @@ function QuizzesStudy() {
         <SourceContextBanner />
       </Suspense>
 
-      <div className="rise border-t-[3px] border-mode-quizzes pt-4 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-quizzes">
-            {t('title')}
-          </p>
-          <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">{quiz.title}</h1>
-          <p className="font-mono text-sm text-slate-500 mt-1 tabular-nums">
-            {t('questionOf', { n: qIndex + 1, total: questions.length })}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {!typedUnavailable && (
+      <PageHeader
+        title={quiz.title}
+        meta={t('questionOf', { n: qIndex + 1, total: questions.length })}
+        action={
+          !typedUnavailable ? (
             <Button
               type="button"
-              variant={typedMode ? 'default' : 'outline'}
-              size="lg"
+              variant={typedMode ? 'tinted' : 'outline'}
               aria-pressed={typedMode}
               onClick={toggleTypedMode}
-              className={
-                typedMode
-                  ? 'h-11 text-lg bg-mode-quizzes hover:bg-mode-quizzes-hover text-white'
-                  : 'h-11 text-lg'
-              }
             >
-              <Keyboard className="size-5 mr-1.5" aria-hidden />
+              <Keyboard aria-hidden />
               {t('typeAnswers')}
             </Button>
-          )}
-          <Button asChild variant="outline" size="lg" className="text-lg h-11">
-            <Link href="/dashboard/notebooks">
-              <ChevronLeft className="size-5 mr-1" />
-              {t('sources')}
-            </Link>
-          </Button>
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
 
-      <div className="rise h-1.5 rounded-full bg-slate-100 overflow-hidden" style={{ animationDelay: '60ms' }}>
+      <div className="h-1 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(((qIndex + 1) / questions.length) * 100)}>
         <div
-          className="h-full bg-mode-quizzes transition-all duration-300"
+          className="h-full bg-mode transition-[width] duration-300 motion-reduce:transition-none"
           style={{ width: `${((qIndex + 1) / questions.length) * 100}%` }}
         />
       </div>
@@ -412,14 +394,9 @@ function QuizzesStudy() {
           onSave={saveQuestion}
         />
       ) : (
-      <Card className="rise border-slate-200 shadow-sheet p-8 md:p-10" style={{ animationDelay: '120ms' }}>
-        <div className="flex items-center gap-3 mb-6">
-          <span className="font-mono text-sm font-semibold text-mode-quizzes tabular-nums">
-            Q{String(qIndex + 1).padStart(2, '0')}
-          </span>
-          <span className="h-px flex-1 bg-slate-100" aria-hidden />
-        </div>
-        <p className="text-2xl md:text-3xl text-slate-900 leading-relaxed mb-8">
+      <Card className="relative p-8 md:p-10">
+        <span className="absolute left-8 -top-px h-[3px] w-12 rounded-b-full bg-mode md:left-10" aria-hidden />
+        <p className="mb-8 text-2xl leading-relaxed text-slate-900 md:text-[1.75rem] text-pretty">
           {question.question_text}
         </p>
 
@@ -438,7 +415,7 @@ function QuizzesStudy() {
                 onChange={(e) => setTyped(e.target.value)}
                 placeholder={t('typeYourAnswer')}
                 aria-label={t('yourAnswer')}
-                className="w-full rounded-xl border-2 border-slate-200 bg-white px-5 py-4 text-lg text-slate-900 focus:border-mode-quizzes focus:outline-none"
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-lg text-slate-900 outline-none focus-visible:border-mode focus-visible:ring-[3px] focus-visible:ring-mode/25"
               />
             ) : graded ? (
               <TypedVerdict typed={typed} graded={graded} onOverride={handleOverride} />
@@ -450,10 +427,10 @@ function QuizzesStudy() {
             {options.map((opt) => {
               let style = 'border-slate-200 bg-white hover:bg-slate-50'
               if (submitted) {
-                if (opt === question.correct_answer) style = 'border-emerald-400 bg-emerald-50'
-                else if (opt === selected) style = 'border-red-300 bg-red-50'
+                if (opt === question.correct_answer) style = 'border-emerald-400 bg-emerald-50 text-emerald-950'
+                else if (opt === selected) style = 'border-red-300 bg-red-50 text-red-950'
               } else if (selected === opt) {
-                style = 'border-mode-quizzes bg-mode-quizzes/10'
+                style = 'border-mode bg-mode/10'
               }
               return (
                 <button
@@ -461,7 +438,7 @@ function QuizzesStudy() {
                   type="button"
                   disabled={submitted}
                   onClick={() => setSelected(opt)}
-                  className={`w-full text-left rounded-xl border-2 px-5 py-4 text-lg text-slate-900 transition-colors ${style}`}
+                  className={`w-full rounded-lg border px-4 py-3 text-left text-lg text-slate-900 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30 ${style}`}
                 >
                   {optionLabel(opt, t)}
                 </button>
@@ -483,18 +460,14 @@ function QuizzesStudy() {
             size="lg"
             disabled={typedMode ? !typed.trim() || grading : !selected}
             onClick={typedMode ? handleCheckTyped : handleSubmit}
-            className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 px-10 text-lg"
+            className="px-8"
           >
             {grading ? t('checking') : t('checkAnswer')}
           </Button>
         ) : (
-          <Button
-            size="lg"
-            onClick={handleNext}
-            className="bg-mode-quizzes hover:bg-mode-quizzes-hover text-white h-12 px-10 text-lg"
-          >
+          <Button size="lg" onClick={handleNext} className="px-8">
             {qIndex >= questions.length - 1 ? t('finish') : t('nextQuestion')}
-            <ArrowRight className="size-5 ml-2" />
+            <ArrowRight aria-hidden />
           </Button>
         )}
       </div>
@@ -502,7 +475,7 @@ function QuizzesStudy() {
 
       {/* Only once the answer is showing: editing earlier would reveal it. */}
       {submitted && !editing && (
-        <div className="rise flex flex-wrap justify-center items-center gap-x-5 gap-y-1 text-sm text-slate-500">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-sm text-slate-600">
           <span>{t('somethingWrong')}</span>
           <button
             type="button"

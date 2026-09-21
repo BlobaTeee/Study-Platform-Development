@@ -37,26 +37,19 @@ export function SourceContextBanner() {
   const label =
     labels.length > 0
       ? labels.length <= 2
-        ? labels.join(' · ')
-        : `${labels.slice(0, 2).join(' · ')} +${labels.length - 2} more`
+        ? labels.join(', ')
+        : `${labels.slice(0, 2).join(', ')} +${labels.length - 2}`
       : common('sources', { count: sourceIds.length })
 
   return (
-    <div className="mb-6 flex items-center gap-4 rounded-xl border border-mode-library/25 bg-mode-library/5 px-5 py-4">
-      <FileText className="size-6 text-mode-library shrink-0" />
-      <div className="flex-1 min-w-0">
-        <p className="font-mono text-xs uppercase tracking-wide text-mode-library/80">
-          {sourceIds.length > 1 ? t('combinedSources') : t('fromSource')}
-        </p>
-        <p className="text-lg font-medium text-slate-900 truncate">{label}</p>
-      </div>
-      <Link
-        href="/dashboard/notebooks"
-        className="text-base text-mode-library hover:text-mode-library-hover flex items-center gap-1 shrink-0"
-      >
-        <ArrowLeft className="size-5" />
+    <p className="mb-4 flex min-w-0 items-center gap-2 text-sm text-slate-600">
+      <FileText className="size-4 shrink-0 text-slate-500" aria-hidden />
+      <span className="shrink-0">{sourceIds.length > 1 ? t('combinedSources') : t('fromSource')}:</span>
+      <span className="min-w-0 truncate font-medium text-slate-900">{label}</span>
+      <Link href="/dashboard/notebooks" className="ml-auto inline-flex shrink-0 items-center gap-1 font-medium text-mode hover:underline">
+        <ArrowLeft className="size-4" aria-hidden />
         {nav('notebooks')}
       </Link>
-    </div>
+    </p>
   )
 }
