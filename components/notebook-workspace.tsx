@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import useSWR, { mutate } from 'swr'
 import { notebooksAPI } from '@/lib/api'
@@ -24,11 +23,9 @@ import {
   ArrowLeft,
   ClipboardPaste,
   Link2,
-  FileText,
   FileUp,
   HelpCircle,
   Loader2,
-  Sparkles,
   Zap,
   Download,
   Pencil,
@@ -145,9 +142,14 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   // the student clicks another document the URL no longer decides.
   const searchParams = useSearchParams()
   const requestedSourceId = Number(searchParams.get('source')) || null
+  // Otherwise the first document opens: a notebook with material should
+  // never greet its owner with "add a document".
   useEffect(() => {
-    if (!requestedSourceId || activeSourceId !== null) return
-    if (sources.some((s) => s.id === requestedSourceId)) setActiveSourceId(requestedSourceId)
+    if (activeSourceId !== null || sources.length === 0) return
+    const wanted = requestedSourceId && sources.some((s) => s.id === requestedSourceId)
+      ? requestedSourceId
+      : sources[0].id
+    setActiveSourceId(wanted)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedSourceId, sources.length])
 
@@ -197,12 +199,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     setUploading(true)
     setError('')
     try {
-      const res = await notebooksAPI.uploadSource(
-        notebookId,
-        file,
-        uploadTitle || titleFromFileName(file.name)
-      )
-      setUploadTitle('')
+      const res = await notebooksAPI.uploadSource(notebookId, file, titleFromFileName(file.name))
       if (fileRef.current) fileRef.current.value = ''
       setActiveSourceId(res.data.id)
       setCheckedSourceIds((prev) =>
@@ -480,26 +477,15 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
           )}
         </div>
         {/* Your data, as a file: opens in Excel, imports into Anki. */}
-        <div className="flex items-center gap-1 basis-full sm:basis-auto shrink-0 text-sm text-slate-500">
+        <div className="flex basis-full items-center gap-1 text-sm text-slate-600 sm:basis-auto">
           <Download className="size-4" aria-hidden />
           <span className="mr-1">{t('export')}</span>
-          <button
-            type="button"
-            disabled={exporting !== null}
-            onClick={() => void exportCsv('flashcards')}
-            className="rounded-md px-2 py-1 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
-          >
+          <Button type="button" variant="ghost" size="sm" disabled={exporting !== null} onClick={() => void exportCsv('flashcards')}>
             {t('exportCards')}
-          </button>
-          <span aria-hidden>·</span>
-          <button
-            type="button"
-            disabled={exporting !== null}
-            onClick={() => void exportCsv('questions')}
-            className="rounded-md px-2 py-1 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
-          >
+          </Button>
+          <Button type="button" variant="ghost" size="sm" disabled={exporting !== null} onClick={() => void exportCsv('questions')}>
             {t('exportQuestions')}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -518,51 +504,31 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       )}
 
       <SourceDropZone onFile={uploadFile} disabled={!canDrop} className="flex flex-1 min-h-0">
-        <aside className="w-80 shrink-0 border-r border-slate-200 bg-slate-50 flex flex-col">
-          <div className="p-5 border-b border-slate-200 space-y-3">
-            <div>
-              <h2 className="font-mono text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                {t('sources')}
-              </h2>
-              <p className="text-base text-slate-500 mt-1">
-                {t('files', { count: sources.length })}
-                {checkedSourceIds.length > 0 && (
-                  <span className="text-mode-library">{t('selectedCount', { count: checkedSourceIds.length })}</span>
-                )}
-              </p>
-            </div>
+        <aside className="flex w-72 shrink-0 flex-col border-r border-slate-200 bg-slate-50">
+          <div className="flex items-baseline justify-between gap-3 border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-900">
+              {t('sources')}
+              <span className="ml-1.5 font-mono text-xs font-normal text-slate-600 tabular-nums">{sources.length}</span>
+              {checkedSourceIds.length > 0 && (
+                <span className="ml-1.5 text-xs font-normal text-mode">{t('selectedCount', { count: checkedSourceIds.length })}</span>
+              )}
+            </h2>
             {readySources.length > 0 && (
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={selectAllReady}
-                  className="text-xs h-8 flex-1"
-                >
-                  {t('selectAll')}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={clearChecked}
-                  className="text-xs h-8 flex-1"
-                >
-                  {t('clear')}
-                </Button>
-              </div>
+              <button
+                type="button"
+                onClick={checkedSourceIds.length === readySources.length ? clearChecked : selectAllReady}
+                className="text-sm font-medium text-mode hover:underline"
+              >
+                {checkedSourceIds.length === readySources.length ? t('clear') : t('selectAll')}
+              </button>
             )}
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1 min-h-0">
             {sources.length === 0 ? (
-              <div className="m-2 rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center">
-                <FileUp className="size-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-base text-slate-500 leading-relaxed">
-                  {t('dragHere')}
-                </p>
-                <p className="text-sm text-slate-500 mt-2">{t('formatsShort')}</p>
+              <div className="px-3 py-6 text-sm leading-relaxed text-slate-600">
+                <p>{t('dragHere')}</p>
+                <p className="mt-1 text-slate-500">{t('formatsShort')}</p>
               </div>
             ) : (
               sources.map((src) => {
@@ -572,12 +538,12 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                 <div
                   key={src.id}
                   className={cn(
-                    'group flex items-stretch gap-0.5 rounded-xl border transition-all duration-200',
+                    'group flex items-stretch rounded-lg border transition-[background-color,border-color] duration-150',
                     isActive
-                      ? 'bg-mode-library/10 border-mode-library/40'
+                      ? 'border-mode/40 bg-mode/10'
                       : isChecked
-                        ? 'bg-mode-library/5 border-mode-library/20'
-                        : 'border-transparent hover:bg-slate-100 hover:border-slate-200'
+                        ? 'border-mode/20 bg-mode/5'
+                        : 'border-transparent hover:bg-slate-100'
                   )}
                 >
                   <div className="pl-3 py-3 shrink-0 flex items-start">
@@ -586,45 +552,27 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       checked={isChecked}
                       onChange={() => toggleSourceCheck(src.id)}
                       title={isChecked ? t('deselectForGeneration') : t('selectForGeneration')}
-                      className="mt-1 h-4 w-4 rounded border-slate-300 accent-blue-600"
+                      className="mt-1 size-4 rounded border-slate-300 accent-[var(--mode)]"
                     />
                   </div>
                   <button
                     type="button"
                     onClick={() => setActiveSourceId(src.id)}
-                    className="flex-1 min-w-0 text-left px-2 py-3"
+                    className="min-w-0 flex-1 px-2 py-2.5 text-left"
                   >
-                    <div className="flex items-start gap-2">
-                      <FileText
-                        className={cn(
-                          'size-4 shrink-0 mt-0.5',
-                          isActive ? 'text-mode-library' : 'text-slate-500'
-                        )}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-base font-medium text-slate-900 truncate">{src.title}</p>
-                        <p className="text-sm mt-0.5">
-                          <span
-                            className={
-                              src.status === 'ready'
-                                ? 'text-emerald-600'
-                                : src.status === 'failed'
-                                  ? 'text-red-600'
-                                  : 'text-amber-600'
-                            }
-                          >
-                            {src.status === 'ready' ? t('statusReady') : src.status === 'failed' ? t('statusFailed') : t('statusProcessing')}
-                          </span>
-                          <span className="text-slate-500">
-                            {' '}
-                            · {src.file_type === 'text' ? t('typeText') : src.file_type === 'url' ? t('typeLink') : fileTypeLabel(src.file_type)}
-                            {sourceCountLabel(src.file_type, src.page_count)
-                              ? ` · ${sourceCountLabel(src.file_type, src.page_count)}`
-                              : ''}
-                          </span>
-                        </p>
-                      </div>
-                    </div>
+                    <p className={cn('truncate text-[15px] font-medium', isActive ? 'text-slate-900' : 'text-slate-800')}>{src.title}</p>
+                    <p className="mt-0.5 text-sm text-slate-600">
+                      {src.status === 'failed' ? (
+                        <span className="text-red-700">{t('statusFailed')}</span>
+                      ) : src.status !== 'ready' ? (
+                        <span className="text-amber-700">{t('statusProcessing')}</span>
+                      ) : (
+                        <>
+                          {src.file_type === 'text' ? t('typeText') : src.file_type === 'url' ? t('typeLink') : fileTypeLabel(src.file_type)}
+                          {sourceCountLabel(src.file_type, src.page_count) ? `, ${sourceCountLabel(src.file_type, src.page_count)}` : ''}
+                        </>
+                      )}
+                    </p>
                   </button>
                   <Button
                     type="button"
@@ -637,8 +585,8 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       handleRemoveSource(src.id, src.title)
                     }}
                     className={cn(
-                      'shrink-0 my-1.5 mr-1.5 size-9 text-slate-500 hover:text-mode-danger hover:bg-red-50',
-                      'opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity',
+                      'my-1 mr-1 shrink-0 text-slate-500 hover:bg-red-50 hover:text-mode-danger',
+                      'opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100',
                       isActive && 'opacity-100'
                     )}
                   >
@@ -653,12 +601,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
             )}
           </div>
 
-          <div className="p-3 border-t border-slate-200 space-y-2">
-            <Input
-              value={uploadTitle}
-              onChange={(e) => setUploadTitle(e.target.value)}
-              placeholder={t('titleOptional')}
-            />
+          <div className="space-y-2 border-t border-slate-200 p-3">
             <input
               ref={fileRef}
               type="file"
@@ -667,50 +610,42 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
               onChange={handleFileInput}
               disabled={uploading}
             />
-            <Button
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-              className="w-full bg-mode-library hover:bg-mode-library-hover gap-2 h-11 text-base"
-            >
+            <Button onClick={() => fileRef.current?.click()} disabled={uploading} className="w-full">
               {uploading ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2 className="animate-spin" aria-hidden />
                   {t('processing')}
                 </>
               ) : (
                 <>
-                  <FileUp className="size-4" />
+                  <FileUp aria-hidden />
                   {t('browseFiles')}
                 </>
               )}
             </Button>
-            <p className="text-xs text-slate-500 text-center leading-snug">
-              {t('orDrop')}
-            </p>
-            <div className="flex gap-2 pt-1">
+            <div className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
-                variant={composer === 'text' ? 'default' : 'outline'}
+                variant={composer === 'text' ? 'tinted' : 'outline'}
                 size="sm"
-                className="h-9 flex-1 text-sm"
                 aria-pressed={composer === 'text'}
                 onClick={() => setComposer(composer === 'text' ? null : 'text')}
               >
-                <ClipboardPaste className="size-4 mr-1.5" aria-hidden />
+                <ClipboardPaste aria-hidden />
                 {t('pasteText')}
               </Button>
               <Button
                 type="button"
-                variant={composer === 'url' ? 'default' : 'outline'}
+                variant={composer === 'url' ? 'tinted' : 'outline'}
                 size="sm"
-                className="h-9 flex-1 text-sm"
                 aria-pressed={composer === 'url'}
                 onClick={() => setComposer(composer === 'url' ? null : 'url')}
               >
-                <Link2 className="size-4 mr-1.5" aria-hidden />
+                <Link2 aria-hidden />
                 {t('addLink')}
               </Button>
             </div>
+            <p className="text-center text-xs text-slate-500">{t('orDrop')}</p>
             {composer && (
               <form
                 className="space-y-2 pt-1"
@@ -719,6 +654,11 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                   void handleAddComposed()
                 }}
               >
+                <Input
+                  value={uploadTitle}
+                  onChange={(e) => setUploadTitle(e.target.value)}
+                  placeholder={t('titleOptional')}
+                />
                 {composer === 'text' ? (
                   <textarea
                     autoFocus
@@ -726,7 +666,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                     onChange={(e) => setComposerBody(e.target.value)}
                     placeholder={t('pastePlaceholder')}
                     rows={6}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-mode-library focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus-visible:border-mode focus-visible:ring-[3px] focus-visible:ring-mode/25"
                   />
                 ) : (
                   <Input
@@ -737,11 +677,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                     placeholder={t('urlPlaceholder')}
                   />
                 )}
-                <Button
-                  type="submit"
-                  disabled={uploading || !composerBody.trim()}
-                  className="w-full bg-mode-library hover:bg-mode-library-hover h-10 text-sm"
-                >
+                <Button type="submit" disabled={uploading || !composerBody.trim()} className="w-full">
                   {uploading ? t('adding') : t('addSource')}
                 </Button>
               </form>
@@ -749,24 +685,14 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
           </div>
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto p-6 md:p-10">
           {!activeSourceId || !activeListItem ? (
-            <div className="h-full flex flex-col justify-center px-4 w-full">
-              <div className="w-full rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-8 py-12">
-                <FileUp className="size-16 text-slate-300 mx-auto mb-5" />
-                <h2 className="text-2xl font-semibold text-slate-900">{t('addSourcesTitle')}</h2>
-                <p className="text-slate-500 mt-3 text-lg leading-relaxed">
-                  {t('addSourcesBody')}
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  className="mt-8"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                >
-                  <FileUp className="size-5 mr-2" />
+            <div className="flex h-full w-full flex-col justify-center">
+              <div className="max-w-[48ch]">
+                <h2 className="font-display text-2xl font-semibold text-slate-900">{t('addSourcesTitle')}</h2>
+                <p className="mt-3 text-base leading-relaxed text-slate-600">{t('addSourcesBody')}</p>
+                <Button type="button" size="lg" className="mt-6" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                  <FileUp aria-hidden />
                   {t('browseFiles')}
                 </Button>
               </div>
@@ -779,10 +705,10 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
             <div className="w-full space-y-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <h2 className="text-3xl font-bold text-slate-900 mt-1 truncate">
+                  <h2 className="font-display text-2xl font-semibold leading-snug text-slate-900 text-balance">
                     {sourceDetail?.title}
                   </h2>
-                  <p className="text-base text-slate-500 mt-2">
+                  <p className="mt-2 text-sm text-slate-600">
                     {activeListItem.file_type === 'url' ? (
                       <a
                         href={activeListItem.original_filename}
@@ -798,10 +724,10 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                     {activeListItem.file_type === 'text'
                       ? t('typeText')
                       : activeListItem.file_type === 'url'
-                        ? ` · ${t('typeLink')}`
+                        ? ''
                         : sourceCountLabel(activeListItem.file_type, sourceDetail?.page_count ?? 0)
-                          ? ` · ${activeListItem.file_type === 'pptx' ? t('slides', { count: sourceDetail?.page_count ?? 0 }) : t('pages', { count: sourceDetail?.page_count ?? 0 })}`
-                          : ` · ${fileTypeLabel(activeListItem.file_type)}`}
+                          ? `, ${activeListItem.file_type === 'pptx' ? t('slides', { count: sourceDetail?.page_count ?? 0 }) : t('pages', { count: sourceDetail?.page_count ?? 0 })}`
+                          : `, ${fileTypeLabel(activeListItem.file_type)}`}
                   </p>
                 </div>
               </div>
@@ -813,22 +739,15 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
               )}
 
               {sourceDetail?.gemini_summary && (
-                <Card className="border-slate-200 shadow-sheet p-5">
-                  <h3 className="font-mono text-xs font-semibold text-mode-library uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                    <Sparkles className="size-3.5" />
-                    {t('overview')}
-                  </h3>
-                  <p className="text-lg text-slate-600 leading-relaxed">
-                    {sourceDetail.gemini_summary}
-                  </p>
-                </Card>
+                <div className="border-t border-slate-200 pt-5">
+                  <h3 className="text-sm font-semibold text-slate-900">{t('overview')}</h3>
+                  <p className="mt-2 max-w-[65ch] text-base leading-relaxed text-slate-700">{sourceDetail.gemini_summary}</p>
+                </div>
               )}
 
-              <div>
-                <h3 className="text-xl font-semibold text-slate-800 mb-2">
-                  {t('generateTitle')}
-                </h3>
-                <p className="text-base text-slate-500 mb-5">
+              <div className="border-t border-slate-200 pt-5">
+                <h3 className="text-sm font-semibold text-slate-900">{t('generateTitle')}</h3>
+                <p className="mt-1 text-sm text-slate-600">
                   {generationSourceIds.length > 1
                     ? t('usingSelected', { count: generationSourceIds.length })
                     : generationSourceIds.length === 1
@@ -836,100 +755,63 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       : t('checkToGenerate')}
                 </p>
                 {!canGenerate && activeListItem?.status === 'ready' && checkedSourceIds.length === 0 && (
-                  <p className="text-base text-amber-600 mb-4">
-                    {t('checkThisSource')}
-                  </p>
+                  <p className="mt-2 text-sm text-amber-700">{t('checkThisSource')}</p>
                 )}
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <Card className="border-slate-200 shadow-sheet p-6 h-full transition-shadow hover:shadow-lift">
-                    <div className="flex flex-col items-center text-center gap-3">
-                      <div className="rounded-xl bg-mode-flashcards/10 p-4">
-                        <Zap className="size-8 text-mode-flashcards" />
-                      </div>
-                      <h4 className="text-xl font-semibold text-slate-900">Flashcards</h4>
-                      <p className="text-base text-slate-500">
-                        {generationSourceIds.length > 1
-                          ? t('fromAllSelected')
-                          : t('aboutTenCards')}
-                      </p>
-                      {/* Generating replaces this selection's deck rather than
-                          adding to it, so saying what is about to be retired
-                          matters more than a running total. */}
-                      {existingCards > 0 && (
-                        <p className="font-mono text-sm text-slate-600 tabular-nums">
-                          {t('replacesCards', { cards: common('cards', { count: existingCards }) })}
-                        </p>
-                      )}
-                      <Button
-                        onClick={handleGenerateFlashcards}
-                        disabled={!canGenerate || generating !== null}
-                        size="lg"
-                        className="mt-2 bg-mode-flashcards hover:bg-mode-flashcards-hover text-white w-full h-12 text-base"
-                      >
-                        {generating === 'flashcards' ? (
-                          <>
-                            <Loader2 className="size-4 animate-spin" />
-                            {t('generating')}
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="size-4" />
-                            {existingCards > 0
-                              ? t('regenerateFlashcards')
-                              : t('generateFlashcards')}
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </Card>
 
-                  <Card className="border-slate-200 shadow-sheet p-6 h-full transition-shadow hover:shadow-lift">
-                    <div className="flex flex-col items-center text-center gap-3">
-                      <div className="rounded-xl bg-mode-quizzes/10 p-4">
-                        <HelpCircle className="size-8 text-mode-quizzes" />
-                      </div>
-                      <h4 className="text-xl font-semibold text-slate-900">Quiz</h4>
-                      <p className="text-base text-slate-500">
-                        {t('multipleChoice')}
+                {/* Two things you can make, each in its own colour: a row per
+                    kind, the action on the right, no tiles. */}
+                <div className="mt-4 divide-y divide-slate-200 rounded-xl border border-slate-200">
+                  <div data-mode="flashcards" className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4">
+                    <div className="min-w-0 flex-1 basis-56">
+                      <p className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                        <Zap className="size-4 text-mode" aria-hidden />
+                        Flashcards
                       </p>
-                      <Button
-                        onClick={handleGenerateQuiz}
-                        disabled={!canGenerate || generating !== null}
-                        size="lg"
-                        className="mt-2 bg-mode-quizzes hover:bg-mode-quizzes-hover text-white w-full h-12 text-base"
-                      >
-                        {generating === 'quiz' ? (
-                          <>
-                            <Loader2 className="size-4 animate-spin" />
-                            {t('generating')}
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="size-4" />
-                            {t('generateQuiz')}
-                          </>
+                      <p className="mt-0.5 text-sm text-slate-600">
+                        {generationSourceIds.length > 1 ? t('fromAllSelected') : t('aboutTenCards')}
+                        {existingCards > 0 && (
+                          <span className="block text-slate-600">{t('replacesCards', { cards: common('cards', { count: existingCards }) })}</span>
                         )}
-                      </Button>
+                      </p>
                     </div>
-                  </Card>
+                    <Button onClick={handleGenerateFlashcards} disabled={!canGenerate || generating !== null} className="shrink-0">
+                      {generating === 'flashcards' ? (
+                        <>
+                          <Loader2 className="animate-spin" aria-hidden />
+                          {t('generating')}
+                        </>
+                      ) : existingCards > 0 ? t('regenerateFlashcards') : t('generateFlashcards')}
+                    </Button>
+                  </div>
+                  <div data-mode="quizzes" className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4">
+                    <div className="min-w-0 flex-1 basis-56">
+                      <p className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                        <HelpCircle className="size-4 text-mode" aria-hidden />
+                        Quiz
+                      </p>
+                      <p className="mt-0.5 text-sm text-slate-600">{t('multipleChoice')}</p>
+                    </div>
+                    <Button onClick={handleGenerateQuiz} disabled={!canGenerate || generating !== null} className="shrink-0">
+                      {generating === 'quiz' ? (
+                        <>
+                          <Loader2 className="animate-spin" aria-hidden />
+                          {t('generating')}
+                        </>
+                      ) : t('generateQuiz')}
+                    </Button>
+                  </div>
                 </div>
 
                 {(hasFlashcardsForSources || quizIdForSources) && studyQuery && (
-                  <div className="flex flex-wrap gap-3 pt-2">
+                  <div className="mt-4 flex flex-wrap gap-3">
                     {hasFlashcardsForSources && (
-                      <Button asChild variant="outline" size="lg" className="h-12 text-base">
-                        <Link href={`/dashboard/flashcards?due=1&source=${studyQuery}`}>
-                          {t('studyFlashcards')}
-                        </Link>
+                      <Button asChild variant="tinted" data-mode="flashcards">
+                        <Link href={`/dashboard/flashcards?due=1&source=${studyQuery}`}>{t('studyFlashcards')}</Link>
                       </Button>
                     )}
                     {quizIdForSources && (
-                      <Button asChild variant="outline" size="lg" className="h-12 text-base">
-                        <Link
-                          href={`/dashboard/quizzes?source=${studyQuery}&quiz=${quizIdForSources}`}
-                        >
-                          {t('takeQuiz')}
-                        </Link>
+                      <Button asChild variant="tinted" data-mode="quizzes">
+                        <Link href={`/dashboard/quizzes?source=${studyQuery}&quiz=${quizIdForSources}`}>{t('takeQuiz')}</Link>
                       </Button>
                     )}
                   </div>
@@ -937,11 +819,11 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
               </div>
 
               {sourceDetail?.text_preview && (
-                <details className="rounded-xl border border-slate-200 bg-slate-50">
-                  <summary className="px-4 py-3 text-sm text-slate-500 cursor-pointer hover:text-slate-700">
+                <details className="border-t border-slate-200 pt-4">
+                  <summary className="cursor-pointer text-sm font-medium text-slate-700 hover:text-slate-900">
                     {t('viewText')}
                   </summary>
-                  <pre className="text-xs text-slate-500 whitespace-pre-wrap max-h-64 overflow-y-auto px-4 pb-4 border-t border-slate-200 pt-3">
+                  <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-600">
                     {sourceDetail.text_preview}
                     {/* The server sends the opening only, so say so rather than
                         letting the text look like it simply stops. */}

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { PageHeader } from '@/components/page-header'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import useSWR, { mutate } from 'swr'
@@ -13,8 +13,6 @@ import { useConfirm } from '@/components/confirm-dialog'
 import { useTranslations } from 'next-intl'
 import {
   AlertCircle,
-  ChevronRight,
-  FolderOpen,
   Loader2,
   Plus,
   Trash2,
@@ -25,7 +23,7 @@ type NotebookItem = {
   title: string
   description?: string
   source_count?: number
-  sources?: unknown[]
+  sources?: { id: number; title: string }[]
   updated_at: string
 }
 
@@ -96,159 +94,128 @@ export default function NotebooksListPage() {
     nb.source_count ?? (Array.isArray(nb.sources) ? nb.sources.length : 0)
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 py-6 md:py-10 px-6 md:px-10">
+    <div className="mx-auto max-w-5xl space-y-8 px-4 py-6 md:px-10 md:py-10">
       {confirmDialog}
-      <div className="rise border-t-[3px] border-mode-library pt-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-library">
-            {t('library')}
-          </p>
-          <h1 className="font-display text-3xl md:text-4xl font-semibold text-slate-900 mt-1 text-balance">
-            {t('myNotebooks')}
-          </h1>
-          <p className="text-base text-slate-500 mt-2 leading-relaxed max-w-md text-pretty">
-            {t('lead')}
-          </p>
-        </div>
-        <Button
-          onClick={() => setShowCreate(!showCreate)}
-          size="lg"
-          className="bg-mode-library hover:bg-mode-library-hover shrink-0 h-12"
-        >
-          <Plus className="size-5 mr-2" />
-          {t('newNotebook')}
-        </Button>
-      </div>
+      <PageHeader
+        title={t('myNotebooks')}
+        lead={t('lead')}
+        action={
+          <Button onClick={() => setShowCreate(!showCreate)} size="lg" aria-expanded={showCreate}>
+            <Plus aria-hidden />
+            {t('newNotebook')}
+          </Button>
+        }
+      />
 
       {error && (
-        <div className="flex gap-3 rounded-lg bg-red-50 p-4 border border-red-200">
-          <AlertCircle className="size-5 text-mode-danger shrink-0" />
+        <div role="alert" className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+          <AlertCircle className="size-5 shrink-0 text-mode-danger" aria-hidden />
           <p className="text-base text-red-700">{error}</p>
         </div>
       )}
 
       {showCreate && (
-        <Card className="rise border-slate-200 shadow-sheet p-6">
-          <h2 className="text-xl font-semibold text-slate-900 mb-4">Create notebook</h2>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="nb-title">{t('name')}</Label>
-              <Input
-                id="nb-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={t('namePlaceholder')}
-                required
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nb-desc">{t('description')}</Label>
-              <Input
-                id="nb-desc"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t('descriptionPlaceholder')}
-              />
-            </div>
-            <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={creating || !title.trim()} className="h-11">
-                {creating ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin mr-2" />
-                    {t('creating')}
-                  </>
-                ) : (
-                  t('createAndOpen')
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowCreate(false)}
-                className="h-11"
-              >
-                {common('cancel')}
-              </Button>
-            </div>
-          </form>
-        </Card>
+        <form onSubmit={handleCreate} className="sheet space-y-4 p-6">
+          <div className="space-y-2">
+            <Label htmlFor="nb-title">{t('name')}</Label>
+            <Input
+              id="nb-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={t('namePlaceholder')}
+              required
+              autoFocus
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="nb-desc">{t('description')}</Label>
+            <Input
+              id="nb-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={t('descriptionPlaceholder')}
+            />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <Button type="submit" disabled={creating || !title.trim()}>
+              {creating ? (
+                <>
+                  <Loader2 className="animate-spin" aria-hidden />
+                  {t('creating')}
+                </>
+              ) : (
+                t('createAndOpen')
+              )}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>
+              {common('cancel')}
+            </Button>
+          </div>
+        </form>
       )}
 
       {isLoading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="size-10 animate-spin text-mode-library" />
-        </div>
+        <ul className="grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]" aria-busy>
+          {[0, 1, 2].map((i) => (
+            <li key={i} className="h-40 rounded-xl bg-slate-100" />
+          ))}
+        </ul>
       ) : unreachable ? (
-        <Card className="border-dashed border-amber-300 bg-amber-50/60 p-12 text-center">
-          <AlertCircle className="size-16 text-amber-500 mx-auto mb-4" />
-          <p className="text-xl text-amber-950 mb-2">{t('unreachableTitle')}</p>
-          <p className="text-amber-900/80 mb-6 max-w-md mx-auto">
-            {t('unreachableBody')}
-          </p>
-          <Button onClick={() => mutate(['/notebooks/'])} size="lg" variant="outline" className="h-12">
+        <div className="sheet flex flex-col items-start gap-4 border-amber-200 p-8">
+          <p className="text-lg font-semibold text-slate-900">{t('unreachableTitle')}</p>
+          <p className="max-w-[55ch] text-slate-600">{t('unreachableBody')}</p>
+          <Button onClick={() => mutate(['/notebooks/'])} variant="outline">
             {t('retry')}
           </Button>
-        </Card>
+        </div>
       ) : notebooks.length === 0 ? (
-        <Card className="border-dashed border-slate-300 p-12 text-center">
-          <FolderOpen className="size-16 text-slate-300 mx-auto mb-4" />
-          <p className="text-xl text-slate-700 mb-2">{t('emptyTitle')}</p>
-          <p className="text-slate-500 mb-6">
-            {t('emptyBody')}
-          </p>
-          <Button onClick={() => setShowCreate(true)} size="lg" className="h-12">
-            <Plus className="size-5 mr-2" />
+        <div className="sheet flex flex-col items-start gap-4 p-8 md:p-10">
+          <p className="text-lg font-semibold text-slate-900">{t('emptyTitle')}</p>
+          <p className="max-w-[55ch] text-slate-600">{t('emptyBody')}</p>
+          <Button onClick={() => setShowCreate(true)} size="lg">
+            <Plus aria-hidden />
             {t('createFirst')}
           </Button>
-        </Card>
+        </div>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2">
+        /* Covers on a shelf: the spine on the top edge is the section's
+           colour; everything else is the notebook's own words. */
+        <ul className="grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
           {notebooks.map((nb) => (
-            <li key={nb.id}>
-              <Link href={`/dashboard/notebooks/${nb.id}`} className="block h-full group">
-                <Card className="relative overflow-hidden border-slate-200 shadow-sheet p-5 h-full hover:border-mode-library/40 hover:shadow-lift hover:-translate-y-0.5 transition-all duration-200">
-                  <span
-                    className="absolute left-5 -top-px h-[3px] w-10 rounded-b-full bg-mode-library"
-                    aria-hidden
-                  />
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-xl font-semibold text-slate-900 truncate group-hover:text-mode-library transition-colors">
-                        {nb.title}
-                      </h3>
-                      {nb.description && (
-                        <p className="text-sm text-slate-500 mt-1 line-clamp-2">
-                          {nb.description}
-                        </p>
-                      )}
-                      <p className="font-mono text-xs uppercase tracking-wide text-slate-500 mt-3">
-                        {sourceCount(nb)} {sourceCount(nb) === 1 ? 'source' : 'sources'}
-                      </p>
-                    </div>
-                    <ChevronRight className="size-6 text-slate-400 group-hover:text-mode-library shrink-0 transition-colors" />
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={deletingId === nb.id}
-                      onClick={(e) => handleDelete(e, nb)}
-                      className="text-slate-500 hover:text-mode-danger hover:bg-red-50"
-                    >
-                      {deletingId === nb.id ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Trash2 className="size-4 mr-1.5" />
-                          {common('delete')}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </Card>
+            <li key={nb.id} className="group relative">
+              <Link
+                href={`/dashboard/notebooks/${nb.id}`}
+                className="relative flex h-full min-h-40 flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sheet transition-[box-shadow,border-color] duration-200 hover:border-mode/50 hover:shadow-lift focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
+              >
+                <span className="absolute left-5 -top-px h-[3px] w-10 rounded-b-full bg-mode" aria-hidden />
+                <h3 className="mt-1 font-display text-xl font-semibold leading-snug text-slate-900 text-balance line-clamp-2">
+                  {nb.title}
+                </h3>
+                {nb.description && (
+                  <p className="mt-1.5 text-sm text-slate-600 line-clamp-2">{nb.description}</p>
+                )}
+                {/* The spine text: what is inside, in the notebook's own words. */}
+                {Array.isArray(nb.sources) && nb.sources.length > 0 && (
+                  <ul className="mt-3 space-y-0.5 text-sm text-slate-600">
+                    {nb.sources.slice(0, 3).map((src) => (
+                      <li key={src.id} className="truncate">{src.title}</li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-auto pt-4 text-sm text-slate-500">
+                  {common('sources', { count: sourceCount(nb) })}
+                </p>
               </Link>
+              {/* Deleting is rare: a quiet control that appears on hover / focus. */}
+              <button
+                type="button"
+                disabled={deletingId === nb.id}
+                onClick={(e) => handleDelete(e, nb)}
+                aria-label={`${common('delete')}: ${nb.title}`}
+                className="absolute right-3 top-3 grid size-8 place-items-center rounded-md text-slate-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-mode-danger focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-red-500/30 group-hover:opacity-100 disabled:opacity-100"
+              >
+                {deletingId === nb.id ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Trash2 className="size-4" aria-hidden />}
+              </button>
             </li>
           ))}
         </ul>
