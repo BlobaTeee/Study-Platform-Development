@@ -503,8 +503,8 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
         </div>
       )}
 
-      <SourceDropZone onFile={uploadFile} disabled={!canDrop} className="flex flex-1 min-h-0">
-        <aside className="flex w-72 shrink-0 flex-col border-r border-slate-200 bg-slate-50">
+      <SourceDropZone onFile={uploadFile} disabled={!canDrop} className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <aside className="flex w-full shrink-0 flex-col border-b border-slate-200 bg-slate-50 md:w-72 md:border-b-0 md:border-r">
           <div className="flex items-baseline justify-between gap-3 border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-900">
               {t('sources')}
@@ -524,7 +524,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2 space-y-1 min-h-0">
+          <div className="max-h-56 min-h-0 flex-1 space-y-1 overflow-y-auto p-2 md:max-h-none">
             {sources.length === 0 ? (
               <div className="px-3 py-6 text-sm leading-relaxed text-slate-600">
                 <p>{t('dragHere')}</p>
@@ -685,7 +685,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
           </div>
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-10">
+        <main className="min-h-0 flex-1 overflow-y-auto p-5 md:p-10">
           {!activeSourceId || !activeListItem ? (
             <div className="flex h-full w-full flex-col justify-center">
               <div className="max-w-[48ch]">
