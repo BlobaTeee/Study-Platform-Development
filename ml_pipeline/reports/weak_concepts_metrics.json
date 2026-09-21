@@ -1,0 +1,165 @@
+{
+  "threshold": 0.85,
+  "questions": 49,
+  "clusters": 14,
+  "covered": 41,
+  "largest": 9,
+  "sizes": [
+    9,
+    4,
+    4,
+    3,
+    3,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2
+  ],
+  "sweep": [
+    {
+      "threshold": 0.6,
+      "clusters": 8,
+      "covered": 18,
+      "largest": 3,
+      "sizes": [
+        3,
+        3,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "threshold": 0.7,
+      "clusters": 10,
+      "covered": 26,
+      "largest": 4,
+      "sizes": [
+        4,
+        3,
+        3,
+        3,
+        3,
+        2,
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "threshold": 0.75,
+      "clusters": 13,
+      "covered": 32,
+      "largest": 4,
+      "sizes": [
+        4,
+        3,
+        3,
+        3,
+        3,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "threshold": 0.8,
+      "clusters": 14,
+      "covered": 35,
+      "largest": 4,
+      "sizes": [
+        4,
+        4,
+        3,
+        3,
+        3,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "threshold": 0.82,
+      "clusters": 15,
+      "covered": 37,
+      "largest": 4,
+      "sizes": [
+        4,
+        4,
+        3,
+        3,
+        3,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "threshold": 0.85,
+      "clusters": 14,
+      "covered": 41,
+      "largest": 9,
+      "sizes": [
+        9,
+        4,
+        4,
+        3,
+        3,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "threshold": 0.9,
+      "clusters": 10,
+      "covered": 45,
+      "largest": 11,
+      "sizes": [
+        11,
+        7,
+        6,
+        5,
+        5,
+        3,
+        2,
+        2,
+        2,
+        2
+      ]
+    }
+  ]
+}
