@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-20 20:49+0700\n"
+"POT-Creation-Date: 2026-09-21 14:20+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -177,6 +177,9 @@ msgstr "Đã hết giờ làm bài."
 
 msgid "Question not part of this test."
 msgstr "Câu hỏi không thuộc bài thi này."
+
+msgid "Could not delete the account right now. Try again in a minute."
+msgstr "Hiện không xoá được tài khoản. Hãy thử lại sau một phút."
 
 #~ msgid "Could not fetch that link."
 #~ msgstr "Không tải được liên kết đó."

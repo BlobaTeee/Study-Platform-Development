@@ -18,6 +18,7 @@ import {
   PanelLeftOpen,
   X,
   type LucideIcon,
+  UserRound,
 } from 'lucide-react'
 
 type NavItem = {
@@ -86,7 +87,7 @@ function SidebarBody({
   onNavigate?: () => void
   footerSlot?: React.ReactNode
 }) {
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const router = useRouter()
   const isActive = useIsActive()
   const t = useTranslations('nav')
@@ -163,6 +164,21 @@ function SidebarBody({
           </div>
         )}
         {footerSlot}
+        <Link
+          href="/dashboard/account"
+          title={collapsed ? t('account') : undefined}
+          className={cn(
+            'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-base font-medium transition-colors',
+            isActive('/dashboard/account')
+              ? 'bg-slate-100 text-slate-900'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+            'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-slate-400/30',
+            collapsed && 'justify-center px-0',
+          )}
+        >
+          <UserRound className="size-[18px] shrink-0" />
+          {!collapsed && <span className="truncate">{user?.username ?? t('account')}</span>}
+        </Link>
         <button
           type="button"
           onClick={handleLogout}

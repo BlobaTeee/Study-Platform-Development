@@ -119,6 +119,9 @@ OLLAMA_TIMEOUT = config('OLLAMA_TIMEOUT', default=120, cast=int)
 RAG_CHUNKS = config('RAG_CHUNKS', default=3, cast=int)
 
 SUPABASE_URL = config('SUPABASE_URL', default=config('NEXT_PUBLIC_SUPABASE_URL', default='')).rstrip('/')
+# Server-only. Lets the backend remove a Supabase auth user when the student
+# deletes their account; without it only the local data is removed.
+SUPABASE_SERVICE_ROLE_KEY = config('SUPABASE_SERVICE_ROLE_KEY', default='')
 
 # --- Email (planned-test reminders) ---
 # Real SMTP. The credential must be a provider *app password*, never an account

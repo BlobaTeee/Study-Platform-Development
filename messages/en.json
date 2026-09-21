@@ -37,7 +37,8 @@
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
     "openMenu": "Open menu",
-    "closeMenu": "Close menu"
+    "closeMenu": "Close menu",
+    "account": "Account"
   },
   "auth": {
     "welcomeBack": "Welcome back",
@@ -397,5 +398,34 @@
     "colCards": "Cards",
     "colRecalled": "Recalled",
     "colMockTests": "Mock tests"
+  },
+  "account": {
+    "eyebrow": "Account",
+    "title": "Your account",
+    "nameTitle": "Display name",
+    "nameLead": "How StudyFlow addresses you. Not shown to anyone else.",
+    "nameLabel": "Name",
+    "saved": "Saved",
+    "nameFailed": "Could not save the name. Try again.",
+    "passwordTitle": "Password",
+    "passwordLead": "Choose a new password. You stay signed in.",
+    "passwordOAuthOnly": "You sign in with Google or GitHub, so there is no password to change here.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "passwordTooShort": "Use at least {min} characters.",
+    "passwordsMismatch": "The new passwords do not match.",
+    "wrongCurrentPassword": "The current password is not right.",
+    "passwordFailed": "Could not change the password. Try again.",
+    "changePassword": "Change password",
+    "passwordSaved": "Password changed",
+    "deleteSection": "Delete account",
+    "deleteLead": "Removes your notebooks, cards, quizzes, test history and sign-in for good. There is no undo.",
+    "deleteButton": "Delete my account",
+    "deleting": "Deleting…",
+    "deleteTitle": "Delete your account?",
+    "deleteBody": "Everything under {email} — notebooks, cards, quizzes, test history — is deleted permanently. This cannot be undone.",
+    "deleteConfirm": "Delete everything",
+    "deleteFailed": "Could not delete the account right now. Try again in a minute."
   }
 }

@@ -45,6 +45,8 @@ api.interceptors.response.use(
 export const authAPI = {
   getProfile: () => api.get('/users/profiles/me/'),
   updateProfile: (data: any) => api.put('/users/profiles/update_profile/', data),
+  // Everything of theirs, here and at Supabase. 503 means try again.
+  deleteAccount: () => api.delete('/users/profiles/me/'),
 }
 
 export const materialsAPI = {

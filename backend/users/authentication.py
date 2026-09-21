@@ -64,9 +64,16 @@ class SupabaseJWTAuthentication(BaseAuthentication):
         profile = UserProfile.objects.filter(supabase_uid=supabase_uid).select_related('user').first()
         if profile:
             user = profile.user
+            # Email and display name are Supabase's to change; mirror them.
+            changed = []
             if email and user.email != email:
                 user.email = email
-                user.save(update_fields=['email'])
+                changed.append('email')
+            if user.first_name != username[:30]:
+                user.first_name = username[:30]
+                changed.append('first_name')
+            if changed:
+                user.save(update_fields=changed)
         else:
             user = User.objects.create_user(
                 username=f'supabase:{supabase_uid}',

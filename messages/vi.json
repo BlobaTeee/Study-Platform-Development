@@ -37,7 +37,8 @@
     "collapseSidebar": "Thu gọn thanh bên",
     "expandSidebar": "Mở rộng thanh bên",
     "openMenu": "Mở menu",
-    "closeMenu": "Đóng menu"
+    "closeMenu": "Đóng menu",
+    "account": "Tài khoản"
   },
   "auth": {
     "welcomeBack": "Chào mừng trở lại",
@@ -397,5 +398,34 @@
     "colCards": "Thẻ",
     "colRecalled": "Nhớ",
     "colMockTests": "Thi thử"
+  },
+  "account": {
+    "eyebrow": "Tài khoản",
+    "title": "Tài khoản của bạn",
+    "nameTitle": "Tên hiển thị",
+    "nameLead": "Cách StudyFlow gọi bạn. Không ai khác nhìn thấy.",
+    "nameLabel": "Tên",
+    "saved": "Đã lưu",
+    "nameFailed": "Không lưu được tên. Hãy thử lại.",
+    "passwordTitle": "Mật khẩu",
+    "passwordLead": "Chọn mật khẩu mới. Bạn vẫn đăng nhập như thường.",
+    "passwordOAuthOnly": "Bạn đăng nhập bằng Google hoặc GitHub nên không có mật khẩu để đổi ở đây.",
+    "currentPassword": "Mật khẩu hiện tại",
+    "newPassword": "Mật khẩu mới",
+    "confirmPassword": "Nhập lại mật khẩu mới",
+    "passwordTooShort": "Dùng ít nhất {min} ký tự.",
+    "passwordsMismatch": "Hai mật khẩu mới không khớp.",
+    "wrongCurrentPassword": "Mật khẩu hiện tại không đúng.",
+    "passwordFailed": "Không đổi được mật khẩu. Hãy thử lại.",
+    "changePassword": "Đổi mật khẩu",
+    "passwordSaved": "Đã đổi mật khẩu",
+    "deleteSection": "Xoá tài khoản",
+    "deleteLead": "Xoá vĩnh viễn sổ tay, thẻ, quiz, lịch sử thi và cả đăng nhập. Không thể hoàn tác.",
+    "deleteButton": "Xoá tài khoản của tôi",
+    "deleting": "Đang xoá…",
+    "deleteTitle": "Xoá tài khoản?",
+    "deleteBody": "Mọi thứ thuộc {email} — sổ tay, thẻ, quiz, lịch sử thi — sẽ bị xoá vĩnh viễn. Không thể hoàn tác.",
+    "deleteConfirm": "Xoá tất cả",
+    "deleteFailed": "Hiện không xoá được tài khoản. Hãy thử lại sau một phút."
   }
 }

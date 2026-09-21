@@ -2,11 +2,15 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase-client'
+import { authAPI } from './api'
 
 interface User {
   id: string
   username: string
   email: string
+  /** True when the account has a password (signed up with email), so the
+   *  account page can offer to change it. OAuth-only accounts have none. */
+  hasPassword: boolean
 }
 
 interface AuthContextType {
@@ -23,6 +27,12 @@ interface AuthContextType {
   /** Leaves for the provider's consent page; the browser comes back to `/`
    *  with a session in the URL and the root page routes to the dashboard. */
   loginWithProvider: (provider: OAuthProvider) => Promise<void>
+  /** Renames the account (Supabase user metadata; the backend mirrors it). */
+  updateDisplayName: (username: string) => Promise<void>
+  /** Re-checks the current password before setting the new one. */
+  changePassword: (current: string, next: string) => Promise<void>
+  /** Deletes everything, then signs out. */
+  deleteAccount: () => Promise<void>
 }
 
 export type OAuthProvider = 'google' | 'github'
@@ -37,6 +47,11 @@ function displayName(meta: Record<string, unknown> | undefined, email: string | 
     if (typeof v === 'string' && v.trim()) return v.trim()
   }
   return email?.split('@')[0] || 'supabase-user'
+}
+
+function hasEmailProvider(appMeta: Record<string, unknown> | undefined): boolean {
+  const providers = appMeta?.providers
+  return Array.isArray(providers) ? providers.includes('email') : appMeta?.provider === 'email'
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -57,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: sessionUser.id,
         username: displayName(sessionUser.user_metadata, sessionUser.email),
         email: sessionUser.email || '',
+        hasPassword: hasEmailProvider(sessionUser.app_metadata),
       })
     }
 
@@ -76,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: session.user.id,
           username: displayName(session.user.user_metadata, session.user.email),
           email: session.user.email || '',
+          hasPassword: hasEmailProvider(session.user.app_metadata),
         })
       } else {
         setUser(null)
@@ -171,9 +188,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw new Error(error.message)
   }
 
+  const updateDisplayName = async (username: string) => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const { error } = await supabase.auth.updateUser({ data: { username } })
+    if (error) throw new Error(error.message)
+    // USER_UPDATED reaches onAuthStateChange, which refreshes `user`.
+  }
+
+  const changePassword = async (current: string, next: string) => {
+    if (!supabase || !user) throw new Error('Not signed in.')
+    // Supabase does not ask for the old password; re-signing in is the check.
+    const { error: bad } = await supabase.auth.signInWithPassword({ email: user.email, password: current })
+    if (bad) throw new Error('WRONG_CURRENT_PASSWORD')
+    const { error } = await supabase.auth.updateUser({ password: next })
+    if (error) throw new Error(error.message)
+  }
+
+  const deleteAccount = async () => {
+    await authAPI.deleteAccount()
+    await logout()
+  }
+
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, register, logout, requestPasswordReset, updatePassword, loginWithProvider }}
+      value={{
+        user, loading, login, register, logout, requestPasswordReset, updatePassword,
+        loginWithProvider, updateDisplayName, changePassword, deleteAccount,
+      }}
     >
       {children}
     </AuthContext.Provider>

@@ -78,6 +78,14 @@ def test_an_email_changed_at_supabase_is_synced_on_the_next_request(accept_token
     assert User.objects.get(profile__supabase_uid=UID).email == 'renamed@example.com'
 
 
+def test_a_display_name_changed_at_supabase_is_synced_on_the_next_request(accept_token):
+    accept_token({'sub': UID, 'email': 'a@example.com', 'user_metadata': {'username': 'old'}})
+    _client_with_token().get(URL)
+    accept_token({'sub': UID, 'email': 'a@example.com', 'user_metadata': {'username': 'new name'}})
+    _client_with_token().get(URL)
+    assert User.objects.get(profile__supabase_uid=UID).first_name == 'new name'
+
+
 def test_a_token_without_a_subject_is_refused(accept_token):
     accept_token({'email': 'nobody@example.com'})
 
