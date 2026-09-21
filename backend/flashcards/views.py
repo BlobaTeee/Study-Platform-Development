@@ -1,4 +1,8 @@
 from rest_framework import viewsets, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.utils.translation import gettext as _
+from studyplatform.throttling import GenerationRateThrottle
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Flashcard
@@ -28,3 +32,30 @@ class FlashcardViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    def get_throttles(self):
+        # Asking the tutor is an LLM call; it shares generation's budget.
+        if self.action == 'ask':
+            return [GenerationRateThrottle()]
+        return super().get_throttles()
+
+    @action(detail=True, methods=['post'])
+    def ask(self, request, pk=None):
+        """A question about this card, after its answer has been seen."""
+        from .services.tutor import MAX_QUESTION_CHARS, MAX_TURNS, TutorUnavailable, ask
+
+        card = self.get_object()  # the write queryset: own cards only
+        question = (str(request.data.get('question') or '')).strip()[:MAX_QUESTION_CHARS]
+        if not question:
+            return Response({'detail': _('Ask something first.')}, status=400)
+        history = request.data.get('history') or []
+        if not isinstance(history, list) or not all(isinstance(t, dict) for t in history):
+            return Response({'detail': _('history must be a list of turns.')}, status=400)
+        asked = sum(1 for t in history if t.get('role') == 'user')
+        if asked >= MAX_TURNS:
+            return Response({'detail': _('That is the third question on this card — try recalling it again, '
+                                         'then come back if it is still unclear.')}, status=400)
+        try:
+            return Response({'answer': ask(card, question, history[-2 * MAX_TURNS:])})
+        except TutorUnavailable as exc:
+            return Response({'detail': str(exc)}, status=503)
