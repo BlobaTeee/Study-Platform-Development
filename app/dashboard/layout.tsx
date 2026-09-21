@@ -19,6 +19,8 @@ export default function DashboardLayout({
 
   // Notebook surfaces manage their own full-height layout and padding.
   const isNotebooks = pathname?.startsWith('/dashboard/notebooks')
+  // The section's colour, read by buttons, focus rings and the page rule.
+  const mode = modeFor(pathname ?? '')
 
   useEffect(() => {
     if (!loading && !user) {
@@ -79,25 +81,33 @@ export default function DashboardLayout({
   if (loading) {
     return (
       <div className="paper-grid flex h-screen flex-col items-center justify-center gap-4">
-        <div className="size-9 animate-spin rounded-full border-4 border-slate-200 border-t-mode-library" />
-        <p className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500">Loading</p>
+        <div className="size-8 animate-spin rounded-full border-[3px] border-slate-200 border-t-mode-library motion-reduce:animate-none" />
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white text-slate-900">
+    <div data-mode={mode} className="flex h-screen overflow-hidden bg-white text-slate-900">
       <AppSidebar />
 
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
         <MobileNavBar />
 
         <main className="paper-grid min-h-0 flex-1 overflow-auto">
-          <div className={cn('h-full w-full', isNotebooks ? 'p-0' : 'mx-auto max-w-6xl p-6 md:p-10')}>
+          <div className={cn('h-full w-full', isNotebooks ? 'p-0' : 'mx-auto max-w-5xl px-4 py-6 md:px-10 md:py-10')}>
             {children}
           </div>
         </main>
       </div>
     </div>
   )
+}
+
+/** Which of the four colourways a route belongs to. Home and account are ink. */
+function modeFor(pathname: string): 'library' | 'flashcards' | 'quizzes' | 'analytics' | 'ink' {
+  if (pathname.startsWith('/dashboard/notebooks')) return 'library'
+  if (pathname.startsWith('/dashboard/flashcards')) return 'flashcards'
+  if (pathname.startsWith('/dashboard/quizzes') || pathname.startsWith('/dashboard/tests')) return 'quizzes'
+  if (pathname.startsWith('/dashboard/analytics')) return 'analytics'
+  return 'ink'
 }

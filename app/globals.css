@@ -28,7 +28,7 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
+  --radius: 0.5rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -91,6 +91,12 @@
   --color-mode-analytics-hover: #059669;
   --color-mode-danger: #dc2626;
 
+  /* The current section's colour. The dashboard shell sets data-mode on
+     the page wrapper per route; primary buttons, focus rings and the
+     page rule read it, so one component serves every section. */
+  --color-mode: var(--mode);
+  --color-mode-hover: var(--mode-hover);
+
   /* Two-layer paper shadows — a tight contact shadow plus a soft cast,
      warmer and quieter than the default flat shadcn drop shadow. */
   --shadow-sheet: 0 1px 2px rgb(15 23 42 / 0.04), 0 10px 26px -14px rgb(15 23 42 / 0.12);
@@ -134,12 +140,34 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+:root,
+[data-mode='library'] {
+  --mode: #2563eb;
+  --mode-hover: #1d4ed8;
+}
+[data-mode='flashcards'] {
+  --mode: #f59e0b;
+  --mode-hover: #d97706;
+}
+[data-mode='quizzes'] {
+  --mode: #8b5cf6;
+  --mode-hover: #7c3aed;
+}
+[data-mode='analytics'] {
+  --mode: #10b981;
+  --mode-hover: #059669;
+}
+[data-mode='ink'] {
+  --mode: #0f172a;
+  --mode-hover: #1e293b;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   html {
-    font-size: 17px;
+    font-size: 16px;
   }
   body {
     @apply bg-background text-foreground font-sans;
@@ -174,9 +202,23 @@
   .paper-grid {
     background-color: #f8fafc;
     background-image:
-      linear-gradient(to right, rgb(15 23 42 / 0.035) 1px, transparent 1px),
-      linear-gradient(to bottom, rgb(15 23 42 / 0.035) 1px, transparent 1px);
-    background-size: 28px 28px;
+      linear-gradient(to right, rgb(15 23 42 / 0.028) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(15 23 42 / 0.028) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* One sheet of paper per page: the content surface that sits on the grid.
+     Sections inside divide with hairlines, not more boxes. */
+  .sheet {
+    background-color: #ffffff;
+    border: 1px solid rgb(226 232 240);
+    border-radius: 0.75rem;
+    box-shadow: var(--shadow-sheet);
+  }
+
+  /* The section rule: a page's mode colour as a 3px line above its title. */
+  .mode-rule {
+    border-top: 3px solid var(--mode);
   }
   .paper-grid-fade {
     background-color: #ffffff;
