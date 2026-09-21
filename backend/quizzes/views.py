@@ -596,6 +596,24 @@ class MockTestViewSet(viewsets.ModelViewSet):
 
         return Response(self._review(test, rows))
 
+    @action(detail=True, methods=['post'])
+    def explain(self, request, pk=None):
+        """'Why?' on one wrong answer of a submitted paper."""
+        from .services.explain import ExplainUnavailable, explain_miss
+
+        test = self.get_object()
+        if not test.completed_at:
+            return Response({'detail': _('Submit the paper first.')}, status=400)
+        row = test.paper.filter(id=request.data.get('paper_question_id')).first()
+        if row is None:
+            return Response({'detail': _('Question not part of this paper.')}, status=404)
+        if row.is_correct:
+            return Response({'detail': _('That answer was right.')}, status=400)
+        try:
+            return Response({'id': row.id, 'explanation': explain_miss(row)})
+        except ExplainUnavailable as exc:
+            return Response({'detail': str(exc)}, status=503)
+
     def _review(self, test, rows=None):
         """The paper with its marking revealed — only ever after submission.
 

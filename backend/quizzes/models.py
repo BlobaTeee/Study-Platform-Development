@@ -196,6 +196,10 @@ class MockTestQuestion(models.Model):
     source = models.ForeignKey('notebooks.Source', on_delete=models.SET_NULL, null=True,
                                blank=True, related_name='+')
     source_excerpt = models.TextField(blank=True, default='')
+    # Written once, on request, by the "Why?" button: a short explanation of
+    # the miss grounded in source_excerpt. Kept so re-opening the review is
+    # free and the wording does not change under the student.
+    ai_explanation = models.TextField(blank=True, default='')
 
     class Meta:
         ordering = ['order']

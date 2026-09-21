@@ -107,7 +107,8 @@ class MockTestQuestionReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = MockTestQuestion
         fields = ['id', 'order', 'question_text', 'options', 'user_answer',
-                  'correct_answer', 'explanation', 'is_correct', 'source', 'source_excerpt']
+                  'correct_answer', 'explanation', 'is_correct', 'source', 'source_excerpt',
+                  'ai_explanation']
         read_only_fields = fields
 
     def get_source(self, obj):

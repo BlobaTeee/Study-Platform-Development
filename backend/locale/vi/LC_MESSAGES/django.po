@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-21 14:56+0700\n"
+"POT-Creation-Date: 2026-09-21 15:23+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -126,6 +126,12 @@ msgstr "Không tìm thấy sổ tay."
 msgid "Pick a time in the future."
 msgstr "Chọn một thời điểm trong tương lai."
 
+msgid "Explanations need the AI provider, which is not available right now."
+msgstr "Giải thích cần AI, hiện đang không khả dụng."
+
+msgid "Could not write an explanation. Try again in a minute."
+msgstr "Không viết được lời giải thích. Hãy thử lại sau một phút."
+
 msgid "These questions have no source text to practise from."
 msgstr "Các câu này không có văn bản nguồn để luyện."
 
@@ -201,6 +207,15 @@ msgstr "Đã hết giờ làm bài."
 
 msgid "Question not part of this test."
 msgstr "Câu hỏi không thuộc bài thi này."
+
+msgid "Submit the paper first."
+msgstr "Hãy nộp bài trước."
+
+msgid "Question not part of this paper."
+msgstr "Câu hỏi không thuộc đề thi này."
+
+msgid "That answer was right."
+msgstr "Câu đó bạn đã trả lời đúng."
 
 msgid "Could not delete the account right now. Try again in a minute."
 msgstr "Hiện không xoá được tài khoản. Hãy thử lại sau một phút."
