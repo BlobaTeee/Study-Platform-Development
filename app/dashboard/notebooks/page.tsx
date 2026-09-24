@@ -18,6 +18,7 @@ import {
   Loader2,
   Plus,
   Trash2,
+  Users,
 } from 'lucide-react'
 
 type NotebookItem = {
@@ -25,6 +26,7 @@ type NotebookItem = {
   title: string
   description?: string
   source_count?: number
+  member_count?: number
   sources?: unknown[]
   updated_at: string
 }
@@ -225,6 +227,12 @@ export default function NotebooksListPage() {
                       <p className="font-mono text-xs uppercase tracking-wide text-slate-500 mt-3">
                         {sourceCount(nb)} {sourceCount(nb) === 1 ? 'source' : 'sources'}
                       </p>
+                      {(nb.member_count ?? 1) > 1 && (
+                        <p className="mt-1.5 flex items-center gap-1.5 text-sm text-slate-600">
+                          <Users className="size-3.5" aria-hidden />
+                          {t('sharedWith', { count: (nb.member_count ?? 1) - 1 })}
+                        </p>
+                      )}
                     </div>
                     <ChevronRight className="size-6 text-slate-400 group-hover:text-mode-library shrink-0 transition-colors" />
                   </div>
