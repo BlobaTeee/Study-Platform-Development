@@ -1,6 +1,9 @@
 import logging
 
+from django.db.models import Q
 from rest_framework import viewsets, permissions, status
+from rest_framework.exceptions import PermissionDenied
+from notebooks.services.membership import can_edit_item, notebooks_for
 from rest_framework.decorators import action
 from django.utils.translation import gettext as _
 from studyplatform.throttling import GenerationRateThrottle
@@ -37,11 +40,11 @@ class QuizViewSet(viewsets.ModelViewSet):
         # Retired quizzes (replaced by a regeneration) stay in the database for
         # their attempts, but are not offered to study from.
         mine = Quiz.objects.filter(user=self.request.user, is_published=True)
-        # Public quizzes are readable by anyone, writable by their owner only
-        # (a 404 on write, like a missing id — see FlashcardViewSet).
+        shared = Quiz.objects.filter(is_published=True,
+                                     sources__notebook__in=notebooks_for(self.request.user))
         if self.request.method not in permissions.SAFE_METHODS:
-            return mine
-        return mine | Quiz.objects.filter(is_public=True, is_published=True)
+            return (mine | shared).distinct()
+        return (mine | shared | Quiz.objects.filter(is_public=True, is_published=True)).distinct()
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -59,7 +62,25 @@ class QuestionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Question.objects.filter(quiz__user=self.request.user)
+        # Questions of own quizzes and of quizzes in shared notebooks;
+        # `can_edit_item` gates the writes below.
+        return Question.objects.filter(
+            Q(quiz__user=self.request.user)
+            | Q(quiz__sources__notebook__in=notebooks_for(self.request.user))
+        ).distinct()
+
+    def perform_update(self, serializer):
+        self._refuse_unless_editable(serializer.instance)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._refuse_unless_editable(instance)
+        instance.delete()
+
+    def _refuse_unless_editable(self, question):
+        if not can_edit_item(question, self.request.user):
+            raise PermissionDenied(_('Only the person who made this question, or the notebook owner, '
+                                     'can change it.'))
 
     def perform_create(self, serializer):
         quiz = Quiz.objects.get(pk=self.request.data.get('quiz'))
@@ -237,7 +258,8 @@ def _question_pool(user, source_ids):
         return []
     pool: dict[int, list[int]] = {}
     for row in (Question.objects
-                .filter(quiz__user=user, quiz__is_published=True, quiz__sources__in=source_ids)
+                .filter(Q(quiz__is_published=True, quiz__sources__in=source_ids)
+                        & (Q(quiz__user=user) | Q(quiz__sources__notebook__in=notebooks_for(user))))
                 .values('id', 'quiz__sources')):
         pool.setdefault(row['id'], []).append(row['quiz__sources'])
     return [{'id': qid, 'source_ids': ids} for qid, ids in pool.items()]
@@ -288,8 +310,8 @@ class MistakeBankView(APIView):
 
     def get(self, request):
         from notebooks.models import Notebook
-        notebook = Notebook.objects.filter(
-            id=request.query_params.get('notebook'), user=request.user).first()
+        notebook = notebooks_for(request.user).filter(
+            id=request.query_params.get('notebook')).first()
         if notebook is None:
             return Response({'detail': _('Notebook not found.')}, status=404)
         owed = _owed_question_ids(request.user, notebook)
@@ -308,8 +330,8 @@ class WeakConceptsView(APIView):
     def get(self, request):
         from notebooks.models import Notebook
         from .services.concepts import concepts_for
-        notebook = Notebook.objects.filter(
-            id=request.query_params.get('notebook'), user=request.user).first()
+        notebook = notebooks_for(request.user).filter(
+            id=request.query_params.get('notebook')).first()
         if notebook is None:
             return Response({'detail': _('Notebook not found.')}, status=404)
         owed = _owed_question_ids(request.user, notebook)
@@ -325,7 +347,7 @@ class PracticeConceptView(APIView):
     def post(self, request):
         from notebooks.models import Notebook
         from .services.practice import PracticeUnavailable, generate_practice_quiz
-        notebook = Notebook.objects.filter(id=request.data.get('notebook'), user=request.user).first()
+        notebook = notebooks_for(request.user).filter(id=request.data.get('notebook')).first()
         if notebook is None:
             return Response({'detail': _('Notebook not found.')}, status=404)
         ids = request.data.get('question_ids') or []
@@ -386,8 +408,8 @@ class MockTestViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
         from notebooks.models import Notebook
 
-        notebook = Notebook.objects.filter(
-            id=request.data.get('notebook'), user=request.user).first()
+        notebook = notebooks_for(request.user).filter(
+            id=request.data.get('notebook')).first()
         if notebook is None:
             return Response({'detail': _('Notebook not found.')}, status=404)
 

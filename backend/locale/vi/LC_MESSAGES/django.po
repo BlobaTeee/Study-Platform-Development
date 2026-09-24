@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-21 18:38+0700\n"
+"POT-Creation-Date: 2026-09-24 13:07+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -23,6 +23,10 @@ msgstr "Gia sư cần AI, hiện đang không khả dụng."
 
 msgid "The tutor could not answer just now. Try again in a minute."
 msgstr "Gia sư chưa trả lời được lúc này. Hãy thử lại sau một phút."
+
+msgid ""
+"Only the person who made this card, or the notebook owner, can change it."
+msgstr "Chỉ người tạo thẻ này hoặc chủ sổ tay mới sửa được."
 
 msgid "Ask something first."
 msgstr "Hãy đặt câu hỏi trước."
@@ -82,6 +86,9 @@ msgstr ""
 "Tài liệu này là tiếng Việt nên cần AI provider (Ollama hoặc Gemini) — trình "
 "tạo offline chỉ hỗ trợ tiếng Anh. Hãy kiểm tra provider rồi thử lại."
 
+msgid "This invitation has already been used. Ask for a new link."
+msgstr "Liên kết mời này đã được dùng. Hãy xin liên kết mới."
+
 msgid "flashcard set"
 msgstr "bộ thẻ"
 
@@ -98,6 +105,12 @@ msgstr ""
 
 msgid "No sources selected."
 msgstr "Chưa chọn tài liệu nào."
+
+msgid "Only the notebook owner can change it."
+msgstr "Chỉ chủ sổ tay mới sửa được."
+
+msgid "Only the notebook owner can delete it."
+msgstr "Chỉ chủ sổ tay mới xoá được."
 
 #, python-format
 msgid "That text is too short to study from. Paste at least %(n)s words."
@@ -130,8 +143,26 @@ msgstr "Hãy chọn ít nhất một tài liệu."
 msgid "One or more sources are not in this notebook."
 msgstr "Có tài liệu không thuộc sổ tay này."
 
+msgid "Only the notebook owner can invite people."
+msgstr "Chỉ chủ sổ tay mới mời được người khác."
+
+msgid "Enter an email address."
+msgstr "Hãy nhập địa chỉ email."
+
+msgid "That is your own address."
+msgstr "Đó là địa chỉ của chính bạn."
+
+msgid "Only the notebook owner can remove people."
+msgstr "Chỉ chủ sổ tay mới gỡ được thành viên."
+
+msgid "The owner cannot leave their own notebook."
+msgstr "Chủ sổ tay không thể rời sổ tay của mình."
+
 msgid "kind must be flashcards or questions."
 msgstr "kind phải là flashcards hoặc questions."
+
+msgid "This invitation link is not valid."
+msgstr "Liên kết mời này không hợp lệ."
 
 msgid "Not your quiz."
 msgstr "Đây không phải quiz của bạn."
@@ -162,6 +193,10 @@ msgstr "Không viết được câu luyện tập. Hãy thử lại sau một ph
 
 msgid "Practice on a concept you kept missing"
 msgstr "Luyện một khái niệm bạn hay sai"
+
+msgid ""
+"Only the person who made this question, or the notebook owner, can change it."
+msgstr "Chỉ người tạo câu hỏi này hoặc chủ sổ tay mới sửa được."
 
 msgid "Not allowed."
 msgstr "Không được phép."

@@ -12,12 +12,23 @@ from .serializers import (
     CardReviewSerializer, StudyStreakSerializer
 )
 from flashcards.models import Flashcard
+from notebooks.services.membership import notebooks_for
 from flashcards.services.regeneration import (
     MAX_REGENERATIONS_PER_FETCH, merge_replacements, select_for_regeneration,
 )
 
 DUE_CARDS_DEFAULT = 50
 DUE_CARDS_LIMIT = 200
+
+
+def studiable_cards(user):
+    """Every live card this person may study: their own, and the ones in
+    notebooks shared with them. One definition, so the due queue, the
+    schedule and a review all agree on what is theirs to answer."""
+    from django.db.models import Q
+    return Flashcard.objects.filter(
+        Q(user=user) | Q(notebook__in=notebooks_for(user)), archived=False
+    ).distinct()
 
 
 def resolve_review_request(request):
@@ -35,8 +46,7 @@ def resolve_review_request(request):
         )
 
     try:
-        flashcard = Flashcard.objects.get(id=flashcard_id, user=request.user,
-                                          archived=False)
+        flashcard = studiable_cards(request.user).get(id=flashcard_id)
     except (Flashcard.DoesNotExist, ValueError, TypeError):
         # A card belonging to someone else is reported the same way as a missing
         # one, so this cannot be used to probe for other users' card ids.
@@ -286,14 +296,14 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
             list(CardReview.objects.filter(user=user).latest_per_card()
                  .values('flashcard_id', 'next_review_date', 'review_date'))
         )
-        cards = list(Flashcard.objects.filter(user=user, archived=False)
+        cards = list(studiable_cards(user)
                      .values('id', 'question', 'answer', 'difficulty',
                              'needs_regeneration', 'regeneration_attempts'))
         # Sources ride along so the study page can scope the due queue to a
         # document (`?due=1&source=…`). One query for the collection.
         by_card: dict[int, list[int]] = {}
         for card_id, source_id in (Flashcard.sources.through.objects
-                                   .filter(flashcard__user=user)
+                                   .filter(flashcard__in=studiable_cards(user))
                                    .values_list('flashcard_id', 'source_id')):
             by_card.setdefault(card_id, []).append(source_id)
         for card in cards:

@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.dispatch import receiver
 
 
 class Notebook(models.Model):
@@ -14,6 +15,69 @@ class Notebook(models.Model):
 
     def __str__(self):
         return self.title
+
+
+@receiver(models.signals.post_save, sender=Notebook)
+def _own_new_notebook(sender, instance, created, **kwargs):
+    """A notebook always has an owner, from the moment it exists.
+
+    On the model rather than in the view so that management commands,
+    fixtures and the admin cannot create a notebook nobody is in.
+    """
+    if created:
+        NotebookMember.objects.get_or_create(
+            notebook=instance, user=instance.user, defaults={'role': 'owner'})
+
+
+class NotebookMember(models.Model):
+    """Who is in a notebook.
+
+    The creator is its owner, written by the view that creates the notebook
+    and backfilled for every notebook that predates sharing. A member sees
+    the notebook's documents and the material generated from them; what they
+    have studied (schedule, attempts, papers) stays their own.
+    """
+    ROLE_CHOICES = [('owner', 'Owner'), ('member', 'Member')]
+
+    notebook = models.ForeignKey(Notebook, on_delete=models.CASCADE, related_name='members')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notebook_memberships')
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='member')
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # One row per person per notebook, the owner first then by arrival.
+        # '-role' sorts 'owner' above 'member' alphabetically, which is the
+        # order a member list wants to be read in.
+        constraints = [
+            models.UniqueConstraint(fields=['notebook', 'user'], name='one_membership_per_user'),
+        ]
+        ordering = ['-role', 'joined_at']
+
+    def __str__(self):
+        return f'{self.user} in {self.notebook} ({self.role})'
+
+
+class NotebookInvite(models.Model):
+    """An invitation to a notebook, addressed to an email.
+
+    Keyed on the address rather than a user because the person invited may
+    not have signed up yet; the token is what the link carries. Accepting
+    creates the membership and stamps `accepted_at`, so a link works once.
+    """
+    notebook = models.ForeignKey(Notebook, on_delete=models.CASCADE, related_name='invites')
+    email = models.EmailField()
+    token = models.CharField(max_length=43, unique=True, db_index=True)
+    invited_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notebook_invites_sent')
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    accepted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='notebook_invites_accepted')
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.email} → {self.notebook}'
 
 
 class Source(models.Model):

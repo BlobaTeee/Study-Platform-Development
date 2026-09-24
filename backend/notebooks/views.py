@@ -1,4 +1,5 @@
 from rest_framework import mixins, viewsets, permissions, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
 from django.utils.translation import gettext as _
 from studyplatform.throttling import GenerationRateThrottle
@@ -21,11 +22,13 @@ def _user_error(exc) -> str:
         return _('No sources selected.')
     return str(exc)
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.conf import settings
 from django.db.models import Prefetch
 
-from .models import Notebook, Source
+from .models import Notebook, NotebookMember, Source
+from .services.membership import can_manage, notebooks_for
 from .serializers import (
     NotebookSerializer,
     NotebookCreateSerializer,
@@ -63,7 +66,8 @@ class NotebookViewSet(viewsets.ModelViewSet):
         # — 282 KB across three files here. SourceListSerializer never outputs
         # it, so every notebook load was pulling that out of Postgres and
         # discarding it, growing with each upload.
-        return Notebook.objects.filter(user=self.request.user).prefetch_related(
+        # Own notebooks and shared ones; writes are narrowed per action below.
+        return notebooks_for(self.request.user).prefetch_related(
             Prefetch('sources', queryset=Source.objects.defer('extracted_text'))
         )
 
@@ -72,7 +76,20 @@ class NotebookViewSet(viewsets.ModelViewSet):
             return NotebookCreateSerializer
         return NotebookSerializer
 
+    def perform_update(self, serializer):
+        # Renaming is the owner's; a member adding documents is not renaming.
+        if not can_manage(serializer.instance, self.request.user):
+            raise PermissionDenied(_('Only the notebook owner can change it.'))
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not can_manage(instance, self.request.user):
+            raise PermissionDenied(_('Only the notebook owner can delete it.'))
+        instance.delete()
+
     def perform_create(self, serializer):
+        # Ownership is the model's doing (see the post_save in models.py), so
+        # every path that makes a notebook produces a notebook with an owner.
         serializer.save(user=self.request.user)
 
     @action(detail=True, methods=['post'])
@@ -212,6 +229,53 @@ class NotebookViewSet(viewsets.ModelViewSet):
             'flashcards': serializer.data,
         }, status=201)
 
+    @action(detail=True, methods=['post'])
+    def invite(self, request, pk=None):
+        """Invite someone by email. The response always carries the link, so
+        an inviter can pass it on even when mail is not configured."""
+        from .services.invites import create_invite, invite_url, send_invite_email
+
+        notebook = self.get_object()
+        if not can_manage(notebook, request.user):
+            return Response({'detail': _('Only the notebook owner can invite people.')}, status=403)
+        email = (str(request.data.get('email') or '')).strip()
+        if '@' not in email or len(email) > 254:
+            return Response({'detail': _('Enter an email address.')}, status=400)
+        if email.lower() == (request.user.email or '').lower():
+            return Response({'detail': _('That is your own address.')}, status=400)
+
+        invite = create_invite(notebook, request.user, email)
+        sent = send_invite_email(invite, request.user.first_name or request.user.email or 'A student',
+                                 _profile_language(request.user))
+        return Response({'email': invite.email, 'token': invite.token,
+                         'url': invite_url(invite.token), 'emailed': sent}, status=201)
+
+    @action(detail=True, methods=['get'])
+    def members(self, request, pk=None):
+        """Who is in this notebook, and how each of them is doing in it.
+
+        The record is per member and scoped to this notebook: how many
+        reviews they have graded here and their mastery. It is the point of
+        studying together, and it says nothing about anyone's other work.
+        """
+        from .services.group import member_records
+
+        notebook = self.get_object()
+        return Response({'members': member_records(notebook, request.user)})
+
+    @action(detail=True, methods=['delete'], url_path=r'members/(?P<member_id>\d+)')
+    def remove_member(self, request, pk=None, member_id=None):
+        """Leave the notebook, or (as owner) remove someone from it."""
+        notebook = self.get_object()
+        member_id = int(member_id)
+        leaving_self = member_id == request.user.id
+        if not leaving_self and not can_manage(notebook, request.user):
+            return Response({'detail': _('Only the notebook owner can remove people.')}, status=403)
+        if member_id == notebook.user_id:
+            return Response({'detail': _('The owner cannot leave their own notebook.')}, status=400)
+        NotebookMember.objects.filter(notebook=notebook, user_id=member_id).delete()
+        return Response(status=204)
+
     @action(detail=True, methods=['get'])
     def export(self, request, pk=None):
         """The notebook's live cards or published questions as a CSV download
@@ -324,6 +388,23 @@ class NotebookViewSet(viewsets.ModelViewSet):
         }, status=201)
 
 
+class InviteAcceptView(APIView):
+    """Redeem an invitation link."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from .services.invites import InviteError, accept_invite
+
+        try:
+            invite = accept_invite(str(request.data.get('token') or ''), request.user)
+        except LookupError:
+            return Response({'detail': _('This invitation link is not valid.')}, status=404)
+        except InviteError as exc:
+            return Response({'detail': str(exc)}, status=400)
+        nb = invite.notebook
+        return Response({'notebook': {'id': nb.id, 'title': nb.title}})
+
+
 class SourceViewSet(
     mixins.DestroyModelMixin,
     viewsets.ReadOnlyModelViewSet,
@@ -332,7 +413,7 @@ class SourceViewSet(
     serializer_class = SourceSerializer
 
     def get_queryset(self):
-        return Source.objects.filter(notebook__user=self.request.user)
+        return Source.objects.filter(notebook__in=notebooks_for(self.request.user))
 
     def perform_destroy(self, instance):
         if instance.file:
@@ -377,3 +458,10 @@ class SourceViewSet(
             'source_id': source.id,
             'quiz': serializer.data,
         }, status=201)
+
+
+def _profile_language(user) -> str:
+    """The invitee gets the inviter's language: it is the only clue we have
+    about which language the pair studies in."""
+    profile = getattr(user, 'profile', None)
+    return getattr(profile, 'preferred_language', 'en') or 'en'
