@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,9 +12,14 @@ import { LanguageSwitch } from '@/components/language-switch'
 import { OAuthButtons } from '@/components/oauth-buttons'
 import { useTranslations } from 'next-intl'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
   const { login } = useAuth()
+  // Only in-app paths: `next=https://evil.example` must not become a redirect.
+  const nextParam = useSearchParams().get('next') ?? ''
+  const nextPath = nextParam.startsWith('/') && !nextParam.startsWith('//')
+    ? nextParam
+    : '/dashboard/notebooks'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -28,7 +33,9 @@ export default function LoginPage() {
 
     try {
       await login(email, password)
-      router.push('/dashboard/notebooks')
+      // An invitation link parks its destination in `next` so signing in
+      // lands on the notebook you were invited to, not the generic list.
+      router.push(nextPath)
     } catch (err: any) {
       setError(err.message || t('loginFailed'))
     } finally {
@@ -122,5 +129,15 @@ export default function LoginPage() {
         </div>
       </section>
     </main>
+  )
+}
+
+/** useSearchParams needs a boundary, or the whole route opts out of static
+ *  rendering and the shell flashes before the form. */
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   )
 }

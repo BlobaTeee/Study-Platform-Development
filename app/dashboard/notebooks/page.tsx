@@ -16,6 +16,7 @@ import {
   Loader2,
   Plus,
   Trash2,
+  Users,
 } from 'lucide-react'
 
 type NotebookItem = {
@@ -23,6 +24,7 @@ type NotebookItem = {
   title: string
   description?: string
   source_count?: number
+  member_count?: number
   sources?: { id: number; title: string }[]
   updated_at: string
 }
@@ -204,6 +206,12 @@ export default function NotebooksListPage() {
                 )}
                 <p className="mt-auto pt-4 text-sm text-slate-500">
                   {common('sources', { count: sourceCount(nb) })}
+                  {(nb.member_count ?? 1) > 1 && (
+                    <span className="mt-0.5 flex items-center gap-1.5 text-slate-600">
+                      <Users className="size-3.5" aria-hidden />
+                      {t('sharedWith', { count: (nb.member_count ?? 1) - 1 })}
+                    </span>
+                  )}
                 </p>
               </Link>
               {/* Deleting is rare: a quiet control that appears on hover / focus. */}

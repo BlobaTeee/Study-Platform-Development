@@ -86,6 +86,22 @@ def client(user):
     return c
 
 
+@pytest.fixture
+def other_client(other_user):
+    """The second student, for everything about sharing."""
+    c = APIClient(HTTP_HOST='localhost')
+    c.force_authenticate(other_user)
+    return c
+
+
+@pytest.fixture
+def shared_notebook(notebook, other_user):
+    """`notebook` with the second student added as a member."""
+    from notebooks.models import NotebookMember
+    NotebookMember.objects.create(notebook=notebook, user=other_user, role='member')
+    return notebook
+
+
 def make_source(notebook, title='Lecture', text=SOURCE_TEXT):
     return Source.objects.create(
         notebook=notebook, title=title, file=f'notebook_sources/{title}.pdf',

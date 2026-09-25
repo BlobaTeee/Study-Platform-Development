@@ -18,6 +18,7 @@ import {
 } from '@/lib/source-utils'
 import { SourceDropZone } from '@/components/source-drop-zone'
 import { useConfirm } from '@/components/confirm-dialog'
+import { NotebookMembers } from '@/components/notebook-members'
 import {
   AlertCircle,
   ArrowLeft,
@@ -29,6 +30,7 @@ import {
   Zap,
   Download,
   Pencil,
+  Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
@@ -63,6 +65,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [exporting, setExporting] = useState<'flashcards' | 'questions' | null>(null)
+  const [showMembers, setShowMembers] = useState(false)
   // Set when generation silently degraded to the extractive fallback, so a
   // lower-quality result is never mistaken for the real generator's output.
   const [warning, setWarning] = useState('')
@@ -478,6 +481,17 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
         </div>
         {/* Your data, as a file: opens in Excel, imports into Anki. */}
         <div className="flex basis-full items-center gap-1 text-sm text-slate-600 sm:basis-auto">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-pressed={showMembers}
+            onClick={() => setShowMembers((v) => !v)}
+            className="mr-2"
+          >
+            <Users aria-hidden />
+            {t('share')}
+          </Button>
           <Download className="size-4" aria-hidden />
           <span className="mr-1">{t('export')}</span>
           <Button type="button" variant="ghost" size="sm" disabled={exporting !== null} onClick={() => void exportCsv('flashcards')}>
@@ -488,6 +502,10 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
           </Button>
         </div>
       </div>
+
+      {showMembers && (
+        <NotebookMembers notebookId={notebook.id} onClose={() => setShowMembers(false)} />
+      )}
 
       {error && (
         <div className="mx-5 md:mx-6 mt-4 flex gap-3 rounded-lg bg-red-50 p-3 border border-red-200 shrink-0">

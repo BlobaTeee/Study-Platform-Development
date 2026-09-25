@@ -100,6 +100,16 @@ export const quizzesAPI = {
     api.post(`/quizzes/attempts/${attemptId}/override_answer/`, data),
 }
 
+export type NotebookMemberRow = {
+  user_id: number
+  name: string
+  email: string
+  role: 'owner' | 'member'
+  is_you: boolean
+  reviews: number
+  accuracy: number | null
+}
+
 export const notebooksAPI = {
   getNotebooks: () => api.get('/notebooks/notebooks/'),
   getNotebook: (id: number) => api.get(`/notebooks/notebooks/${id}/`),
@@ -109,6 +119,15 @@ export const notebooksAPI = {
   // the auth header (a plain <a href> could not carry it) and saved client-side.
   exportCsv: (id: number, kind: 'flashcards' | 'questions') =>
     api.get<Blob>(`/notebooks/notebooks/${id}/export/`, { params: { kind }, responseType: 'blob' }),
+  // Sharing: who is in a notebook, inviting, leaving, removing.
+  members: (id: number) =>
+    api.get<{ members: NotebookMemberRow[] }>(`/notebooks/notebooks/${id}/members/`),
+  invite: (id: number, email: string) =>
+    api.post<{ email: string; url: string; emailed: boolean }>(`/notebooks/notebooks/${id}/invite/`, { email }),
+  removeMember: (id: number, userId: number) =>
+    api.delete(`/notebooks/notebooks/${id}/members/${userId}/`),
+  acceptInvite: (token: string) =>
+    api.post<{ notebook: { id: number; title: string } }>('/notebooks/invites/accept/', { token }),
   updateNotebook: (id: number, data: { title?: string; description?: string }) =>
     api.patch(`/notebooks/notebooks/${id}/`, data),
   deleteNotebook: (id: number) => api.delete(`/notebooks/notebooks/${id}/`),
