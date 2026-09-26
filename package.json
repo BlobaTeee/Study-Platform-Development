@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:backend": "cd backend && ./venv/bin/python manage.py runserver 8000",
+    "dev:backend": "cd backend && ./venv/bin/uvicorn studyplatform.asgi:application --port 8000 --reload",
     "dev:all": "bash dev.sh",
     "build": "next build",
     "start": "next start",

@@ -26,3 +26,10 @@ psycopg[binary]>=3.2
 # Backend API tests (backend/tests, run with ./venv/bin/pytest).
 pytest>=8.0
 pytest-django>=4.8
+
+# Realtime: the notebook group chat runs as a Socket.IO server inside the
+# same ASGI process as Django (see studyplatform/asgi.py, notebooks/realtime.py).
+python-socketio>=5.11
+uvicorn[standard]>=0.30
+# Only for the chat smoke script (a Socket.IO *client* in Python).
+aiohttp>=3.9

@@ -80,6 +80,27 @@ class NotebookInvite(models.Model):
         return f'{self.email} → {self.notebook}'
 
 
+class NotebookMessage(models.Model):
+    """One line of the notebook's group chat.
+
+    Belongs to the notebook, not to a pair of people: everyone in the
+    notebook reads the same thread, which is the point of studying
+    together. Deleted with its notebook; kept when its author is deleted
+    only long enough for the cascade to remove it too.
+    """
+    notebook = models.ForeignKey(Notebook, on_delete=models.CASCADE, related_name='messages')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notebook_messages')
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+        indexes = [models.Index(fields=['notebook', '-id'])]
+
+    def __str__(self):
+        return f'{self.user}: {self.body[:40]}'
+
+
 class Source(models.Model):
     STATUS_CHOICES = [
         ('processing', 'Processing'),

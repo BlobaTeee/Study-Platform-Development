@@ -1,16 +1,25 @@
+"""ASGI entrypoint: Django, with the Socket.IO server in front of it.
+
+Django is served for every normal request; `socket.io` paths are handled by
+the realtime server (notebooks/realtime.py), which shares this process, so
+a broadcast from a REST view reaches the connected clients directly.
+
+Run it with:  uvicorn studyplatform.asgi:application --port 8000 --reload
 """
-ASGI config for studyplatform project.
-
-It exposes the ASGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/6.0/howto/deployment/asgi/
-"""
-
 import os
 
+import django
 from django.core.asgi import get_asgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'studyplatform.settings')
 
-application = get_asgi_application()
+# The apps must be loaded before notebooks.realtime imports models.
+django.setup()
+
+django_application = get_asgi_application()
+
+import socketio  # noqa: E402 — after django.setup()
+
+from notebooks.realtime import sio  # noqa: E402
+
+application = socketio.ASGIApp(sio, other_asgi_app=django_application)

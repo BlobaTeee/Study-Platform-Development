@@ -15,7 +15,9 @@ cleanup() { kill 0 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 
 echo "→ Starting Django backend on http://localhost:8000 ..."
-( cd "$ROOT/backend" && ./venv/bin/python manage.py runserver 8000 ) &
+# uvicorn, not runserver: the group chat needs a server that speaks
+# websockets, and Socket.IO is mounted on the same ASGI app.
+( cd "$ROOT/backend" && ./venv/bin/uvicorn studyplatform.asgi:application --port 8000 --reload ) &
 
 echo "→ Starting Next.js frontend on http://localhost:3000 ..."
 ( cd "$ROOT" && ./node_modules/.bin/next dev ) &

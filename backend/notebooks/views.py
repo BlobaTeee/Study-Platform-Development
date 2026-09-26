@@ -276,6 +276,37 @@ class NotebookViewSet(viewsets.ModelViewSet):
         NotebookMember.objects.filter(notebook=notebook, user_id=member_id).delete()
         return Response(status=204)
 
+    @action(detail=True, methods=['get', 'post'], url_path='messages')
+    def messages(self, request, pk=None):
+        """The notebook's group chat: read the thread, or add to it.
+
+        Sending over REST rather than only over the socket keeps the chat
+        usable while the connection is re-establishing; the socket server
+        broadcasts whatever lands here, so both paths deliver the same.
+        """
+        from .services.chat import HISTORY_LIMIT, history, message_payload, post_message
+
+        notebook = self.get_object()
+        if request.method == 'GET':
+            try:
+                limit = max(1, min(int(request.query_params.get('limit', HISTORY_LIMIT)), HISTORY_LIMIT))
+            except (TypeError, ValueError):
+                limit = HISTORY_LIMIT
+            before = request.query_params.get('before')
+            before = int(before) if (before or '').isdigit() else None
+            return Response({'messages': history(notebook, request.user, limit, before)})
+
+        try:
+            message = post_message(notebook, request.user, str(request.data.get('body') or ''))
+        except PermissionError:
+            return Response({'detail': _('You are not in this notebook.')}, status=403)
+        except ValueError:
+            return Response({'detail': _('A message must have text, and stay under 2000 characters.')},
+                            status=400)
+        payload = message_payload(message, request.user)
+        broadcast_message(payload)
+        return Response(payload, status=201)
+
     @action(detail=True, methods=['get'])
     def export(self, request, pk=None):
         """The notebook's live cards or published questions as a CSV download
@@ -405,6 +436,26 @@ class InviteAcceptView(APIView):
         return Response({'notebook': {'id': nb.id, 'title': nb.title}})
 
 
+class NotebookMessageView(APIView):
+    """Deleting one line of the chat: its author, or the notebook's owner."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, message_id):
+        from .models import NotebookMessage
+        from .services.membership import can_manage, is_member
+
+        message = NotebookMessage.objects.filter(id=message_id).select_related('notebook').first()
+        if message is None or not is_member(message.notebook, request.user):
+            return Response({'detail': _('Message not found.')}, status=404)
+        if message.user_id != request.user.id and not can_manage(message.notebook, request.user):
+            return Response({'detail': _('Only the person who wrote it, or the notebook owner, '
+                                         'can delete a message.')}, status=403)
+        notebook_id, deleted_id = message.notebook_id, message.id
+        message.delete()
+        broadcast_deletion(notebook_id, deleted_id)
+        return Response(status=204)
+
+
 class SourceViewSet(
     mixins.DestroyModelMixin,
     viewsets.ReadOnlyModelViewSet,
@@ -465,3 +516,18 @@ def _profile_language(user) -> str:
     about which language the pair studies in."""
     profile = getattr(user, 'profile', None)
     return getattr(profile, 'preferred_language', 'en') or 'en'
+
+
+def broadcast_message(payload: dict) -> None:
+    """Push a new message to everyone in the notebook's room.
+
+    Imported lazily and swallowed on failure: the message is already saved,
+    and a chat that cannot broadcast is still a chat that works on refresh.
+    """
+    from .realtime import emit_to_notebook
+    emit_to_notebook(payload['notebook'], 'message:new', payload)
+
+
+def broadcast_deletion(notebook_id: int, message_id: int) -> None:
+    from .realtime import emit_to_notebook
+    emit_to_notebook(notebook_id, 'message:deleted', {'notebook': notebook_id, 'id': message_id})
