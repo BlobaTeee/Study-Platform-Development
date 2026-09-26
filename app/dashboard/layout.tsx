@@ -1,5 +1,6 @@
 'use client'
 
+import { ChatLauncher } from '@/components/chat-launcher'
 import { useAuth } from '@/lib/auth-context'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
@@ -89,6 +90,8 @@ export default function DashboardLayout({
   return (
     <div data-mode={mode} className="flex h-screen overflow-hidden bg-white text-slate-900">
       <AppSidebar />
+
+      <ChatLauncher />
 
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
         <MobileNavBar />

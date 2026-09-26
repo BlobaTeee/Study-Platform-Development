@@ -108,6 +108,27 @@ export type ChatMessage = {
   author: { user_id: number; name: string; is_you?: boolean }
 }
 
+export type ChatLastLine = {
+  id: number
+  body: string
+  created_at: string
+  is_you: boolean
+  author: string
+}
+
+export type ChatOverview = {
+  groups: { notebook: number; title: string; members: number; last: ChatLastLine | null }[]
+  people: { user_id: number; name: string; last: ChatLastLine | null }[]
+}
+
+export type DirectMessageRow = {
+  id: number
+  with: number
+  body: string
+  created_at: string
+  author: { user_id: number; name: string; is_you?: boolean }
+}
+
 export type NotebookMemberRow = {
   user_id: number
   name: string
@@ -134,6 +155,12 @@ export const notebooksAPI = {
   sendMessage: (id: number, body: string) =>
     api.post<ChatMessage>(`/notebooks/notebooks/${id}/messages/`, { body }),
   deleteMessage: (messageId: number) => api.delete(`/notebooks/messages/${messageId}/`),
+  // What the chat launcher lists, and the private threads inside it.
+  chatOverview: () => api.get<ChatOverview>('/notebooks/chat/overview/'),
+  directThread: (userId: number, params?: { before?: number }) =>
+    api.get<{ messages: DirectMessageRow[] }>(`/notebooks/chat/direct/${userId}/`, { params }),
+  sendDirect: (userId: number, body: string) =>
+    api.post<DirectMessageRow>(`/notebooks/chat/direct/${userId}/`, { body }),
   // Sharing: who is in a notebook, inviting, leaving, removing.
   members: (id: number) =>
     api.get<{ members: NotebookMemberRow[] }>(`/notebooks/notebooks/${id}/members/`),

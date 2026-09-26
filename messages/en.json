@@ -271,7 +271,16 @@
     "chatLive": "Live",
     "chatTyping": "{name} is typing…",
     "chatDelete": "Delete message",
-    "chatLoadOlder": "Older messages"
+    "chatLoadOlder": "Older messages",
+    "chatOpen": "Open chat",
+    "chatClose": "Close chat",
+    "chatHeading": "Chat",
+    "chatGroups": "Notebooks",
+    "chatPeople": "People",
+    "chatNoConversations": "Share a notebook and your group appears here.",
+    "chatBack": "All conversations",
+    "chatNoLast": "No messages yet",
+    "chatGroupMembers": "{count, plural, one {# person} other {# people}}"
   },
   "flashcards": {
     "title": "Flashcards",

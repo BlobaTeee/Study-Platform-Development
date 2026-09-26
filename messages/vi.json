@@ -271,7 +271,16 @@
     "chatLive": "Trực tuyến",
     "chatTyping": "{name} đang nhập…",
     "chatDelete": "Xoá tin nhắn",
-    "chatLoadOlder": "Tin cũ hơn"
+    "chatLoadOlder": "Tin cũ hơn",
+    "chatOpen": "Mở trò chuyện",
+    "chatClose": "Đóng trò chuyện",
+    "chatHeading": "Trò chuyện",
+    "chatGroups": "Sổ tay",
+    "chatPeople": "Mọi người",
+    "chatNoConversations": "Chia sẻ một sổ tay thì nhóm của bạn sẽ hiện ở đây.",
+    "chatBack": "Tất cả cuộc trò chuyện",
+    "chatNoLast": "Chưa có tin nhắn",
+    "chatGroupMembers": "{count, plural, other {# người}}"
   },
   "flashcards": {
     "title": "Thẻ",

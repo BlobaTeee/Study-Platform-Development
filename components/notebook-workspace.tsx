@@ -19,7 +19,6 @@ import {
 import { SourceDropZone } from '@/components/source-drop-zone'
 import { useConfirm } from '@/components/confirm-dialog'
 import { NotebookMembers } from '@/components/notebook-members'
-import { NotebookChat } from '@/components/notebook-chat'
 import {
   AlertCircle,
   ArrowLeft,
@@ -32,7 +31,6 @@ import {
   Download,
   Pencil,
   Users,
-  MessagesSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
@@ -67,8 +65,8 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [exporting, setExporting] = useState<'flashcards' | 'questions' | null>(null)
-  // One shared panel with two tabs: who is here, and what they are saying.
-  const [panel, setPanel] = useState<'members' | 'chat' | null>(null)
+  // Who is in this notebook; the chat itself lives in the corner launcher.
+  const [panel, setPanel] = useState<'members' | null>(null)
   // Set when generation silently degraded to the extractive fallback, so a
   // lower-quality result is never mistaken for the real generator's output.
   const [warning, setWarning] = useState('')
@@ -490,20 +488,10 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
             size="sm"
             aria-pressed={panel === 'members'}
             onClick={() => setPanel((p) => (p === 'members' ? null : 'members'))}
+            className="mr-2"
           >
             <Users aria-hidden />
             {t('share')}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            aria-pressed={panel === 'chat'}
-            onClick={() => setPanel((p) => (p === 'chat' ? null : 'chat'))}
-            className="mr-2"
-          >
-            <MessagesSquare aria-hidden />
-            {t('chat')}
           </Button>
           <Download className="size-4" aria-hidden />
           <span className="mr-1">{t('export')}</span>
@@ -518,20 +506,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
       {panel === 'members' && (
         <NotebookMembers notebookId={notebook.id} onClose={() => setPanel(null)} />
-      )}
-
-      {panel === 'chat' && (
-        <div className="max-h-[22rem] border-b border-slate-200 bg-slate-50 px-5 py-4 md:px-6">
-          <div className="flex items-baseline justify-between gap-3 pb-1">
-            <h2 className="text-base font-semibold text-slate-900">{t('chatTitle')}</h2>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setPanel(null)}>
-              {common('close')}
-            </Button>
-          </div>
-          <div className="flex h-[17rem] flex-col">
-            <NotebookChat notebookId={notebook.id} />
-          </div>
-        </div>
       )}
 
       {error && (
