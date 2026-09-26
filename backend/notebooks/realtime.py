@@ -29,6 +29,8 @@ async def connect(sid, environ, auth):
         # Refusing here closes the socket with an error the client can show.
         raise socketio.exceptions.ConnectionRefusedError('sign in first')
     rooms = await _rooms_for(user)
+    # Plus this person's own room, where their private messages arrive.
+    rooms = [f'user-{user.id}', *rooms]
     for room in rooms:
         await sio.enter_room(sid, room)
     await sio.save_session(sid, {'user_id': user.id, 'name': user.first_name})
@@ -73,9 +75,14 @@ def _rooms_for(user):
     return rooms_for_user(user)
 
 
-def emit_to_notebook(notebook_id: int, event: str, payload: dict) -> None:
-    """Called from Django's synchronous views."""
+def emit_to_room(room: str, event: str, payload: dict) -> None:
+    """Called from Django's synchronous views. Delivery is best effort: the
+    message is already stored, and a refresh shows it either way."""
     try:
-        async_to_sync(sio.emit)(event, payload, room=f'notebook-{notebook_id}')
-    except Exception as exc:  # noqa: BLE001 — delivery is best effort
+        async_to_sync(sio.emit)(event, payload, room=room)
+    except Exception as exc:  # noqa: BLE001
         logger.warning('Socket broadcast failed (%s): %s', event, exc)
+
+
+def emit_to_notebook(notebook_id: int, event: str, payload: dict) -> None:
+    emit_to_room(f'notebook-{notebook_id}', event, payload)

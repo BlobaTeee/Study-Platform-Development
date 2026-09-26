@@ -101,6 +101,31 @@ class NotebookMessage(models.Model):
         return f'{self.user}: {self.body[:40]}'
 
 
+class DirectMessage(models.Model):
+    """One line of a private thread between two people.
+
+    Addressed person to person rather than to a conversation row: a pair
+    only ever has one thread, so the pair *is* the thread, and there is no
+    second table to keep in step. Who may write to whom is not stored here
+    — it is asked of the notebooks they share (services/chat.py).
+    """
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='direct_sent')
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='direct_received')
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+        indexes = [
+            # The thread query: everything between two people, newest first.
+            models.Index(fields=['sender', 'recipient', '-id']),
+            models.Index(fields=['recipient', 'sender', '-id']),
+        ]
+
+    def __str__(self):
+        return f'{self.sender} → {self.recipient}: {self.body[:40]}'
+
+
 class Source(models.Model):
     STATUS_CHOICES = [
         ('processing', 'Processing'),

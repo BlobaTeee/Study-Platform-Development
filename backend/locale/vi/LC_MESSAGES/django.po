@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-24 13:07+0700\n"
+"POT-Creation-Date: 2026-09-26 17:42+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -158,11 +158,33 @@ msgstr "Chỉ chủ sổ tay mới gỡ được thành viên."
 msgid "The owner cannot leave their own notebook."
 msgstr "Chủ sổ tay không thể rời sổ tay của mình."
 
+msgid "You are not in this notebook."
+msgstr "Bạn không ở trong sổ tay này."
+
+msgid "A message must have text, and stay under 2000 characters."
+msgstr "Tin nhắn phải có nội dung và dưới 2000 ký tự."
+
 msgid "kind must be flashcards or questions."
 msgstr "kind phải là flashcards hoặc questions."
 
 msgid "This invitation link is not valid."
 msgstr "Liên kết mời này không hợp lệ."
+
+msgid "Message not found."
+msgstr "Không tìm thấy tin nhắn."
+
+msgid ""
+"Only the person who wrote it, or the notebook owner, can delete a message."
+msgstr "Chỉ người viết hoặc chủ sổ tay mới xoá được tin nhắn."
+
+msgid "Person not found."
+msgstr "Không tìm thấy người này."
+
+msgid "You cannot message yourself."
+msgstr "Bạn không thể tự nhắn cho mình."
+
+msgid "You can only message people you share a notebook with."
+msgstr "Bạn chỉ nhắn được cho người có chung sổ tay."
 
 msgid "Not your quiz."
 msgstr "Đây không phải quiz của bạn."

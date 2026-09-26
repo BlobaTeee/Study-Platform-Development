@@ -456,6 +456,56 @@ class NotebookMessageView(APIView):
         return Response(status=204)
 
 
+class ChatOverviewView(APIView):
+    """What the chat launcher lists: your notebooks, and the people in them."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from .services.chat import chat_overview
+        return Response(chat_overview(request.user))
+
+
+class DirectThreadView(APIView):
+    """One private thread: read it, or add to it."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, user_id):
+        from django.contrib.auth.models import User
+        from .services.chat import HISTORY_LIMIT, direct_history
+
+        other = User.objects.filter(id=user_id).first()
+        if other is None:
+            return Response({'detail': _('Person not found.')}, status=404)
+        before = request.query_params.get('before')
+        before = int(before) if (before or '').isdigit() else None
+        return Response({'messages': direct_history(request.user, other, HISTORY_LIMIT, before)})
+
+    def post(self, request, user_id):
+        from django.contrib.auth.models import User
+        from .services.chat import direct_payload, send_direct, user_room
+
+        other = User.objects.filter(id=user_id).first()
+        if other is None:
+            return Response({'detail': _('Person not found.')}, status=404)
+        if other.id == request.user.id:
+            # Not a permission problem, just not a thing: 400, not 403.
+            return Response({'detail': _('You cannot message yourself.')}, status=400)
+        try:
+            message = send_direct(request.user, other, str(request.data.get('body') or ''))
+        except PermissionError:
+            return Response({'detail': _('You can only message people you share a notebook with.')},
+                            status=403)
+        except ValueError:
+            return Response({'detail': _('A message must have text, and stay under 2000 characters.')},
+                            status=400)
+        # Delivered to both sides: each client sees the thread from its own
+        # end, so the payload names the other person rather than the sender.
+        from .realtime import emit_to_room
+        emit_to_room(user_room(other.id), 'direct:new', direct_payload(message, other))
+        emit_to_room(user_room(request.user.id), 'direct:new', direct_payload(message, request.user))
+        return Response(direct_payload(message, request.user), status=201)
+
+
 class SourceViewSet(
     mixins.DestroyModelMixin,
     viewsets.ReadOnlyModelViewSet,
