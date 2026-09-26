@@ -100,6 +100,14 @@ export const quizzesAPI = {
     api.post(`/quizzes/attempts/${attemptId}/override_answer/`, data),
 }
 
+export type ChatMessage = {
+  id: number
+  notebook: number
+  body: string
+  created_at: string
+  author: { user_id: number; name: string; is_you?: boolean }
+}
+
 export type NotebookMemberRow = {
   user_id: number
   name: string
@@ -119,6 +127,13 @@ export const notebooksAPI = {
   // the auth header (a plain <a href> could not carry it) and saved client-side.
   exportCsv: (id: number, kind: 'flashcards' | 'questions') =>
     api.get<Blob>(`/notebooks/notebooks/${id}/export/`, { params: { kind }, responseType: 'blob' }),
+  // The notebook's group chat. Sending goes over REST so a message is never
+  // lost to a dropped socket; the socket is how everyone else hears it.
+  messages: (id: number, params?: { before?: number; limit?: number }) =>
+    api.get<{ messages: ChatMessage[] }>(`/notebooks/notebooks/${id}/messages/`, { params }),
+  sendMessage: (id: number, body: string) =>
+    api.post<ChatMessage>(`/notebooks/notebooks/${id}/messages/`, { body }),
+  deleteMessage: (messageId: number) => api.delete(`/notebooks/messages/${messageId}/`),
   // Sharing: who is in a notebook, inviting, leaving, removing.
   members: (id: number) =>
     api.get<{ members: NotebookMemberRow[] }>(`/notebooks/notebooks/${id}/members/`),

@@ -148,6 +148,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = async () => {
+    const { closeSocket } = await import('./realtime')
+    closeSocket()                       // the next session brings its own token
     if (supabase) {
       await supabase.auth.signOut()
     }

@@ -259,7 +259,19 @@
     "joinedBody": "You now share {title}. Open it to start studying.",
     "joinFailed": "This invitation link is not valid.",
     "openNotebook": "Open notebook",
-    "joinSignedOut": "Sign in to accept this invitation."
+    "joinSignedOut": "Sign in to accept this invitation.",
+    "chat": "Chat",
+    "chatTitle": "Group chat",
+    "chatLead": "Everyone in this notebook sees this thread.",
+    "chatPlaceholder": "Write to the group…",
+    "chatSend": "Send",
+    "chatEmpty": "No messages yet. Say what you are working on.",
+    "chatFailed": "Could not send that. Try again.",
+    "chatOffline": "Reconnecting…",
+    "chatLive": "Live",
+    "chatTyping": "{name} is typing…",
+    "chatDelete": "Delete message",
+    "chatLoadOlder": "Older messages"
   },
   "flashcards": {
     "title": "Flashcards",

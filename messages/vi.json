@@ -259,7 +259,19 @@
     "joinedBody": "Bạn đã vào sổ tay {title}. Mở ra để bắt đầu học.",
     "joinFailed": "Liên kết mời này không hợp lệ.",
     "openNotebook": "Mở sổ tay",
-    "joinSignedOut": "Hãy đăng nhập để nhận lời mời này."
+    "joinSignedOut": "Hãy đăng nhập để nhận lời mời này.",
+    "chat": "Trò chuyện",
+    "chatTitle": "Trò chuyện nhóm",
+    "chatLead": "Mọi người trong sổ tay này đều thấy đoạn chat.",
+    "chatPlaceholder": "Nhắn cho nhóm…",
+    "chatSend": "Gửi",
+    "chatEmpty": "Chưa có tin nhắn nào. Nói xem bạn đang học tới đâu.",
+    "chatFailed": "Không gửi được. Hãy thử lại.",
+    "chatOffline": "Đang kết nối lại…",
+    "chatLive": "Trực tuyến",
+    "chatTyping": "{name} đang nhập…",
+    "chatDelete": "Xoá tin nhắn",
+    "chatLoadOlder": "Tin cũ hơn"
   },
   "flashcards": {
     "title": "Thẻ",
