@@ -166,3 +166,51 @@ def test_a_name_mentioned_elsewhere_is_not_a_rival():
     )
     assert report.rivals == []
     assert report.ok is True
+
+
+# ---- hai chỗ phép chấm tự bắt oan, phát hiện khi soi câu gemini-3.8-flash sinh -------
+
+def test_a_word_containing_not_is_not_a_negative_question():
+    # "footnote" có chuỗi "not" bên trong; đây là câu hỏi thường.
+    assert is_negative_question(
+        'Based on the footnote, how much has China contributed?') is False
+
+
+def test_a_real_negation_is_still_caught():
+    assert is_negative_question('Which of these is NOT mentioned in the excerpt?') is True
+    assert is_negative_question('Điều nào sau đây KHÔNG được nêu trong tài liệu?') is True
+    assert is_negative_question('All of these are listed except one. Which?') is True
+
+
+def test_options_differing_only_by_a_number_are_not_echoes():
+    # Bộ nhiễu bằng số là hợp lệ: chỉ khác con số thì không phải nhại lại.
+    report = score_question(
+        {'question_text': 'How much did China plan to contribute at the low end?',
+         'correct_answer': 'At least 8 billion',
+         'distractors': ['At least 4 billion', 'At least 2 billion', 'At least 20 billion']},
+        'Low-end estimates put China at least 8 billion in AI investment.',
+    )
+    assert report.echoes == []
+    assert 'distractor_echoes_answer' not in report.flags
+
+
+NUMERIC_EXCERPT = (
+    'Low-end estimates put China at least 8 billion in planned AI investment, '
+    'while the European Union plans at least 14 billion euros.'
+)
+
+
+def test_a_wrong_number_is_not_what_the_document_says():
+    assert support('at least 8 billion', NUMERIC_EXCERPT) > 0.8
+    assert support('at least 4 billion', NUMERIC_EXCERPT) < 0.45
+
+
+def test_a_numeric_distractor_set_passes():
+    report = score_question(
+        {'question_text': 'How much did China plan to contribute at the low end?',
+         'correct_answer': 'At least 8 billion',
+         'distractors': ['At least 4 billion', 'At least 2 billion', 'At least 20 billion']},
+        NUMERIC_EXCERPT,
+    )
+    assert report.rivals == []
+    assert report.ok is True

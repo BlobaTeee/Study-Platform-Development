@@ -25,9 +25,12 @@ RIVAL = 0.45
 # Nhiễu giống đáp án tới mức này thì là nhại lại, không phải phương án khác.
 ECHO = 0.72
 
-_NEGATIVE_CUES = (
-    ' not ', ' never ', 'except', 'ngoại trừ', 'không phải', 'không được',
-    'không nằm', 'không thuộc', 'không đúng',
+# Từ đơn phải khớp nguyên từ — "footnote" không phải là "not". Cụm nhiều từ
+# thì khớp chuỗi con là an toàn.
+_NEGATIVE_WORDS = r'\b(?:not|never|except|cannot|excluding)\b'
+_NEGATIVE_PHRASES = (
+    'ngoại trừ', 'không phải', 'không được', 'không nằm', 'không thuộc',
+    'không đúng', 'không hề', 'least likely',
 )
 
 
@@ -49,6 +52,21 @@ def _cosine(a: str, b: str) -> float:
     return float((m[0] @ m[1].T).toarray()[0][0])
 
 
+def _numbers(text: str) -> list[str]:
+    return re.findall(r'\d[\d.,]*', text or '')
+
+
+def echoes_answer(distractor: str, answer: str) -> bool:
+    """Nhiễu chỉ là bản nhại đáp án khi nó không khác đáp án ở con số.
+
+    "At least 4 billion" so với "At least 8 billion" giống nhau gần hết về chữ,
+    nhưng đó là một bộ nhiễu bằng số hoàn toàn hợp lệ.
+    """
+    if _numbers(distractor) != _numbers(answer):
+        return False
+    return _cosine(distractor, answer) >= ECHO
+
+
 def support(claim: str, excerpt: str) -> float:
     """0..1 — đoạn nguồn khẳng định mệnh đề này tới mức nào.
 
@@ -68,7 +86,15 @@ def support(claim: str, excerpt: str) -> float:
     words = [w for w in claim_n.split() if len(w) > 2]
     covered = sum(1 for w in words if w in excerpt_n) / len(words) if words else 0.0
     # Phần từ có mặt là bằng chứng chắc hơn, nên nó nặng hơn.
-    return round(min(1.0, 0.4 * best_sentence + 0.6 * covered), 3)
+    score = min(1.0, 0.4 * best_sentence + 0.6 * covered)
+
+    # "At least 4 billion" dùng gần hết chữ của "at least 8 billion" nhưng tài
+    # liệu không nói vậy. Chỉ xét khi tài liệu viết số bằng chữ số, để một đoạn
+    # viết "tám tỷ" không làm đáp án "8 tỷ" bị coi là bịa.
+    claim_numbers, excerpt_numbers = _numbers(claim), _numbers(excerpt)
+    if claim_numbers and excerpt_numbers and not set(claim_numbers) <= set(excerpt_numbers):
+        score *= 0.4
+    return round(score, 3)
 
 
 def _sentences(excerpt: str) -> list[str]:
@@ -93,11 +119,13 @@ def answer_window(answer: str, excerpt: str) -> str:
 
 def is_negative_question(question: str) -> bool:
     """Câu hỏi dạng "điều nào KHÔNG..." — phép kiểm đáp án phải lật ngược."""
-    raw = f' {(question or "")} '
+    raw = question or ''
     if re.search(r'\bNOT\b|\bEXCEPT\b|\bKHÔNG\b|\bNGOẠI TRỪ\b', raw):
         return True
     low = _norm(raw)
-    return any(cue.strip() in low for cue in _NEGATIVE_CUES)
+    if re.search(_NEGATIVE_WORDS, low):
+        return True
+    return any(phrase in low for phrase in _NEGATIVE_PHRASES)
 
 
 @dataclass
@@ -126,7 +154,7 @@ def score_question(item: dict, excerpt: str) -> QuestionReport:
 
     flags: list[str] = []
     rivals: list[str] = []
-    echoes = [d for d in distractors if _cosine(d, answer) >= ECHO]
+    echoes = [d for d in distractors if echoes_answer(d, answer)]
 
     if negative:
         # Đáp án đúng là thứ KHÔNG được nêu; nhiễu thì phải được nêu.
