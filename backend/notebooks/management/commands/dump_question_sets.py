@@ -37,7 +37,8 @@ class Command(BaseCommand):
                             help='Source ids to generate from; default: the longest few.')
         parser.add_argument('--excerpts', type=int, default=3,
                             help='How many excerpts to generate from (default 3).')
-        parser.add_argument('--providers', nargs='*', default=['ollama', 'gemini'])
+        parser.add_argument('--providers', nargs='*', default=['ollama', 'gemini'],
+                            help='Provider names; "gemini:gemini-3.8-flash" pins one model.')
         parser.add_argument('--count', type=int, default=5,
                             help='Questions per excerpt (default 5).')
         parser.add_argument('--out', default=str(DEFAULT_OUT))
@@ -98,12 +99,19 @@ class Command(BaseCommand):
             })
         return rows
 
-    def _generate(self, provider_name: str, excerpts: list[dict], count: int) -> list[dict]:
+    def _generate(self, spec: str, excerpts: list[dict], count: int) -> list[dict]:
+        """`spec` is a provider name, optionally `name:model` to pin one model."""
+        provider_name, _, model = spec.partition(':')
         settings.AI_PROVIDER = provider_name
+        if model:
+            # No fallbacks while measuring: a silent switch to another model
+            # would put its score under this model's name.
+            settings.GEMINI_MODEL = model
+            settings.GEMINI_MODEL_FALLBACKS = ''
         try:
             provider = ai_provider.get_ai_provider()
         except Exception as exc:
-            self.stderr.write(f'{provider_name}: unavailable ({exc})')
+            self.stderr.write(f'{spec}: unavailable ({exc})')
             return []
 
         sets = []
@@ -113,7 +121,7 @@ class Command(BaseCommand):
             try:
                 data = provider.generate_json(prompt)
             except Exception as exc:
-                self.stderr.write(f'{provider_name} on #{excerpt["source_id"]}: '
+                self.stderr.write(f'{spec} on #{excerpt["source_id"]}: '
                                   f'{type(exc).__name__}: {exc}')
                 continue
             sets.append({
@@ -122,6 +130,6 @@ class Command(BaseCommand):
                 'seconds': round(time.time() - started, 1),
                 'items': data.get('questions') or [],
             })
-            self.stdout.write(f'  {provider_name} #{excerpt["source_id"]}: '
+            self.stdout.write(f'  {spec} #{excerpt["source_id"]}: '
                               f'{len(sets[-1]["items"])} questions in {sets[-1]["seconds"]}s')
         return sets

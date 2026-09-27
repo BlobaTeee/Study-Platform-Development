@@ -96,11 +96,14 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Gemini (get key: https://aistudio.google.com/apikey)
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
-# gemini-2.0-flash free tier is often exhausted; 2.5-flash usually works on free tier
-GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-2.5-flash')
+# Measured on the question-quality scorecard (ml_pipeline/reports/question_quality.json):
+# 3.8-flash scored 10/10 and ran fastest, 2.5-flash 14/15, 3.1-flash-lite 13/15.
+# Pinned rather than 'gemini-flash-latest' so a measurement keeps meaning what it
+# said; the alias sits next in line, then a lite model, then the proven 2.5.
+GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-3.8-flash')
 GEMINI_MODEL_FALLBACKS = config(
     'GEMINI_MODEL_FALLBACKS',
-    default='gemini-2.5-flash-lite,gemini-2.0-flash-lite,gemini-1.5-flash',
+    default='gemini-flash-latest,gemini-3.1-flash-lite,gemini-2.5-flash',
 )
 USE_LOCAL_FALLBACK_ON_QUOTA = config('USE_LOCAL_FALLBACK_ON_QUOTA', default=True, cast=bool)
 # When True, use local spaCy/scikit-learn pipeline first (fully offline capable).

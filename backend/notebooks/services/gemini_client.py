@@ -56,7 +56,7 @@ def quota_user_message() -> str:
     return (
         'Gemini API quota exceeded (free tier limit). '
         'Wait about a minute and try again, switch GEMINI_MODEL in backend/.env '
-        '(e.g. gemini-2.5-flash), or enable billing at https://aistudio.google.com. '
+        '(e.g. gemini-3.1-flash-lite), or enable billing at https://aistudio.google.com. '
         'Basic local flashcards/quiz can be used if USE_LOCAL_FALLBACK_ON_QUOTA=True.'
     )
 
@@ -75,7 +75,7 @@ def _get_client():
 
 
 def _model_list() -> list[str]:
-    primary = getattr(settings, 'GEMINI_MODEL', 'gemini-2.5-flash')
+    primary = getattr(settings, 'GEMINI_MODEL', 'gemini-3.8-flash')
     fallbacks = getattr(settings, 'GEMINI_MODEL_FALLBACKS', '')
     extra = [m.strip() for m in fallbacks.split(',') if m.strip()]
     seen = set()

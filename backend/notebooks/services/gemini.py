@@ -24,7 +24,7 @@ def summarize_with_gemini(text: str, title: str = '') -> str:
         from .gemini_client import _get_client
         client = _get_client()
         response = client.models.generate_content(
-            model=getattr(settings, 'GEMINI_MODEL', 'gemini-2.0-flash'),
+            model=getattr(settings, 'GEMINI_MODEL', 'gemini-3.8-flash'),
             contents=prompt,
         )
         return (response.text or '').strip()
