@@ -63,12 +63,32 @@ def support(claim: str, excerpt: str) -> float:
     # Trích nguyên văn thì khỏi phải ước lượng: tài liệu nói đúng câu đó.
     if len(claim_n) > 3 and claim_n in excerpt_n:
         return 1.0
-    sentences = [s for s in re.split(r'(?<=[.!?])\s+|\n+', excerpt or '') if s.strip()]
+    sentences = _sentences(excerpt)
     best_sentence = max((_cosine(claim, s) for s in sentences), default=0.0)
     words = [w for w in claim_n.split() if len(w) > 2]
     covered = sum(1 for w in words if w in excerpt_n) / len(words) if words else 0.0
     # Phần từ có mặt là bằng chứng chắc hơn, nên nó nặng hơn.
     return round(min(1.0, 0.4 * best_sentence + 0.6 * covered), 3)
+
+
+def _sentences(excerpt: str) -> list[str]:
+    return [s for s in re.split(r'(?<=[.!?])\s+|\n+', excerpt or '') if s.strip()]
+
+
+def answer_window(answer: str, excerpt: str) -> str:
+    """Câu trong đoạn nguồn khẳng định đáp án — chỗ để soi các phương án nhiễu.
+
+    Một nhiễu lấy từ chỗ khác của tài liệu là nhiễu *tốt*: nó nghe quen tai mà
+    vẫn sai. Chỉ nhiễu đúng ngay tại chỗ tài liệu khẳng định đáp án mới là lỗi.
+    """
+    sentences = _sentences(excerpt)
+    if not sentences:
+        return excerpt or ''
+    answer_n = _norm(answer)
+    verbatim = [s for s in sentences if answer_n and answer_n in _norm(s)]
+    if verbatim:
+        return ' '.join(verbatim)
+    return max(sentences, key=lambda s: _cosine(answer, s))
 
 
 def is_negative_question(question: str) -> bool:
@@ -118,7 +138,11 @@ def score_question(item: dict, excerpt: str) -> QuestionReport:
     else:
         if answer_support < SUPPORTED:
             flags.append('answer_unsupported')
-        rivals = [d for d, s in d_support.items() if s >= RIVAL and d not in echoes]
+        # Nhiễu chỉ là lỗi khi tài liệu khẳng định nó ngay tại chỗ khẳng định
+        # đáp án; khẳng định ở đoạn khác thì nó vẫn sai với câu hỏi này.
+        window = answer_window(answer, excerpt)
+        rivals = [d for d in distractors
+                  if d not in echoes and support(d, window) >= RIVAL]
         if rivals:
             flags.append('rival_distractor')
 

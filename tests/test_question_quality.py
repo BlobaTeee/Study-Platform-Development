@@ -127,3 +127,42 @@ def test_a_set_reports_duplicates_and_a_pass_rate():
     assert card['passed'] == 1                    # câu trùng bị loại, câu nhiễu-cũng-đúng trượt
     assert 0.3 <= card['pass_rate'] <= 0.4
     assert card['flag_counts']['rival_distractor'] == 1
+
+
+# ---- nhiễu lấy từ chỗ khác trong tài liệu là nhiễu TỐT, không phải lỗi ---------------
+
+MULTI_TOPIC = (
+    "In healthcare, AI raises questions of data governance and patient privacy. "
+    "For self-driving cars, the ethical issues highlighted are liability in a crash "
+    "and how the vehicle should decide between harms. "
+    "Australia has published a voluntary AI ethics framework. "
+    "The European Union plans to contribute at least 14 billion euros to AI investment."
+)
+
+
+def test_a_distractor_true_elsewhere_in_the_document_is_not_a_rival():
+    # Gemini sinh câu này. "Data governance and patient privacy" có trong tài liệu,
+    # nhưng ở đoạn nói về y tế — nên với câu hỏi về xe tự lái nó sai, và đó đúng là
+    # một nhiễu hay.
+    report = score_question(
+        {'question_text': 'What are the specific ethical issues highlighted for self-driving cars?',
+         'correct_answer': 'Liability in a crash and how the vehicle should decide between harms',
+         'distractors': ['Data governance and patient privacy',
+                         'Manufacturing costs and vehicle performance',
+                         'Driver training and road safety regulations']},
+        MULTI_TOPIC,
+    )
+    assert report.rivals == []
+    assert report.ok is True
+
+
+def test_a_name_mentioned_elsewhere_is_not_a_rival():
+    # "Australia" có trong tài liệu nhưng không phải nơi chi 14 tỷ.
+    report = score_question(
+        {'question_text': 'Which region plans to contribute at least 14 billion to AI investment?',
+         'correct_answer': 'The European Union',
+         'distractors': ['Australia', 'The United States', 'China']},
+        MULTI_TOPIC,
+    )
+    assert report.rivals == []
+    assert report.ok is True
