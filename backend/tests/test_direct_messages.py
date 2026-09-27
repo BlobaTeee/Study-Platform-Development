@@ -62,17 +62,19 @@ def _overview(client):
     return client.get('/api/notebooks/chat/overview/').json()
 
 
-def test_the_overview_lists_the_notebooks_and_the_people_you_share_them_with(client, user, other_user, shared_notebook):
+def test_the_overview_lists_the_people_you_share_study_material_with(client, other_user, shared_notebook):
     body = _overview(client)
 
-    assert [g['notebook'] for g in body['groups']] == [shared_notebook.id]
-    assert body['groups'][0]['title'] == shared_notebook.title
+    # Groups are chat groups, not notebooks: there is none until one is made.
+    assert body['groups'] == []
     assert [p['user_id'] for p in body['people']] == [other_user.id]
     assert body['people'][0]['name']
 
 
 def test_the_overview_carries_the_last_line_of_each_conversation(client, other_client, user, other_user, shared_notebook):
-    client.post(f'/api/notebooks/notebooks/{shared_notebook.id}/messages/', {'body': 'tin nhóm'}, format='json')
+    from notebooks.services.chat import create_group
+    group = create_group(user, 'Nhóm ôn thi', [other_user.id])
+    client.post(f'/api/notebooks/chat/groups/{group.id}/messages/', {'body': 'tin nhóm'}, format='json')
     _send(other_client, user, 'tin riêng')
 
     body = _overview(client)
@@ -82,7 +84,6 @@ def test_the_overview_carries_the_last_line_of_each_conversation(client, other_c
     assert body['people'][0]['last']['is_you'] is False
 
 
-def test_a_notebook_you_are_alone_in_lists_no_people(client, notebook):
+def test_alone_in_a_notebook_means_nobody_to_write_to(client, notebook):
     body = _overview(client)
-    assert [g['notebook'] for g in body['groups']] == [notebook.id]
-    assert body['people'] == []
+    assert body['groups'] == [] and body['people'] == []

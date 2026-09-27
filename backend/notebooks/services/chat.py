@@ -7,35 +7,77 @@ from __future__ import annotations
 
 from django.db.models import Q
 
-from notebooks.models import DirectMessage, NotebookMessage
-from notebooks.services.membership import is_member, notebooks_for
+from notebooks.models import ChatGroup, ChatGroupMember, DirectMessage, GroupMessage
+from notebooks.services.membership import notebooks_for
 
 MAX_BODY_CHARS = 2000
 HISTORY_LIMIT = 50
 
 
-def room_for(notebook_id: int) -> str:
-    """The Socket.IO room a notebook's members share."""
-    return f'notebook-{notebook_id}'
+def room_for(group_id: int) -> str:
+    """The Socket.IO room a chat group's members share."""
+    return f'group-{group_id}'
 
 
 def rooms_for_user(user) -> list[str]:
-    """Every room this person is entitled to join, newest notebook first."""
-    return [room_for(nb_id) for nb_id in
-            notebooks_for(user).order_by('-updated_at').values_list('id', flat=True)]
+    """Every room this person is entitled to join."""
+    return [room_for(gid) for gid in
+            ChatGroupMember.objects.filter(user=user).values_list('group_id', flat=True)]
 
 
-def post_message(notebook, user, body: str) -> NotebookMessage:
+def groups_for(user):
+    """The chat groups this person is in, most recently created first."""
+    return ChatGroup.objects.filter(members__user=user).distinct()
+
+
+def in_group(group, user) -> bool:
+    return ChatGroupMember.objects.filter(group=group, user=user).exists()
+
+
+def create_group(creator, name: str, member_ids: list[int]) -> ChatGroup:
+    """A new group. The maker is always in it; everyone else must be someone
+    they already share study material with, so a group cannot be used to
+    reach a stranger."""
+    from django.contrib.auth.models import User
+
+    name = (name or '').strip()
+    if not name:
+        raise ValueError('a group needs a name')
+    if len(name) > 120:
+        raise ValueError('name too long')
+    others = list(User.objects.filter(id__in=set(member_ids) - {creator.id}))
+    for person in others:
+        if not can_message(creator, person):
+            raise PermissionError(f'{person.id} shares no notebook with you')
+    group = ChatGroup.objects.create(name=name, created_by=creator)
+    ChatGroupMember.objects.bulk_create(
+        [ChatGroupMember(group=group, user=creator)]
+        + [ChatGroupMember(group=group, user=p) for p in others],
+        ignore_conflicts=True,
+    )
+    return group
+
+
+def add_member(group, actor, person) -> None:
+    """Anyone in the group may bring in someone they study with."""
+    if not in_group(group, actor):
+        raise PermissionError('not in this group')
+    if not can_message(actor, person):
+        raise PermissionError('you share no notebook with this person')
+    ChatGroupMember.objects.get_or_create(group=group, user=person)
+
+
+def post_message(group, user, body: str) -> GroupMessage:
     """Store one message. Raises PermissionError for outsiders and
     ValueError for a body that is empty or too long."""
-    if not is_member(notebook, user):
-        raise PermissionError('not a member of this notebook')
+    if not in_group(group, user):
+        raise PermissionError('not in this group')
     body = (body or '').strip()
     if not body:
         raise ValueError('empty message')
     if len(body) > MAX_BODY_CHARS:
         raise ValueError('message too long')
-    return NotebookMessage.objects.create(notebook=notebook, user=user, body=body)
+    return GroupMessage.objects.create(group=group, user=user, body=body)
 
 
 def message_payload(message, viewer=None) -> dict:
@@ -47,7 +89,7 @@ def message_payload(message, viewer=None) -> dict:
     author = message.user
     payload = {
         'id': message.id,
-        'notebook': message.notebook_id,
+        'group': message.group_id,
         'body': message.body,
         'created_at': message.created_at.isoformat(),
         'author': {
@@ -60,9 +102,9 @@ def message_payload(message, viewer=None) -> dict:
     return payload
 
 
-def history(notebook, viewer, limit: int = HISTORY_LIMIT, before: int | None = None) -> list[dict]:
+def history(group, viewer, limit: int = HISTORY_LIMIT, before: int | None = None) -> list[dict]:
     """The last `limit` messages, oldest first; `before` pages backwards."""
-    qs = NotebookMessage.objects.filter(notebook=notebook).select_related('user')
+    qs = GroupMessage.objects.filter(group=group).select_related('user')
     if before:
         qs = qs.filter(id__lt=before)
     rows = list(qs.order_by('-id')[:limit])
@@ -132,25 +174,24 @@ def direct_history(viewer, other, limit: int = HISTORY_LIMIT, before: int | None
 
 
 def chat_overview(viewer) -> dict:
-    """What the chat launcher lists: the notebooks you are in, and the people
-    you share them with, each with the last thing said."""
+    """What the chat launcher lists: the groups you are in, and the people
+    you share study material with."""
     from notebooks.models import NotebookMember
 
-    notebooks = list(notebooks_for(viewer).order_by('-updated_at'))
     groups = []
-    for nb in notebooks:
-        last = (NotebookMessage.objects.filter(notebook=nb)
-                .select_related('user').order_by('-id').first())
+    for group in groups_for(viewer).order_by('-id'):
+        last = GroupMessage.objects.filter(group=group).select_related('user').order_by('-id').first()
         groups.append({
-            'notebook': nb.id,
-            'title': nb.title,
-            'members': NotebookMember.objects.filter(notebook=nb).count(),
+            'id': group.id,
+            'name': group.name,
+            'members': ChatGroupMember.objects.filter(group=group).count(),
             'last': _last_line(last, last.user if last else None, viewer),
         })
+    groups.sort(key=lambda g: (g['last'] or {}).get('id', 0), reverse=True)
 
-    # Everyone in those notebooks, once, minus yourself.
+    # Everyone you share a notebook with: the people you may write to.
     people_ids = (NotebookMember.objects
-                  .filter(notebook__in=notebooks)
+                  .filter(notebook__in=notebooks_for(viewer))
                   .exclude(user=viewer)
                   .values_list('user_id', flat=True).distinct())
     people = []
@@ -165,7 +206,6 @@ def chat_overview(viewer) -> dict:
             'name': person.first_name or (person.email or '').split('@')[0] or 'Student',
             'last': _last_line(last, last.sender if last else None, viewer),
         })
-    # Whoever spoke most recently first; never-messaged people keep their order.
     people.sort(key=lambda p: (p['last'] or {}).get('id', 0), reverse=True)
     return {'groups': groups, 'people': people}
 

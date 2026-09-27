@@ -47,13 +47,13 @@ async def typing(sid, data):
     """Tell the rest of the room someone is writing. Not stored: it is only
     true for the second it is said."""
     session = await sio.get_session(sid)
-    notebook_id = (data or {}).get('notebook')
+    notebook_id = (data or {}).get('group')
     if not session or not notebook_id:
         return
-    room = f'notebook-{notebook_id}'
+    room = f'group-{notebook_id}'
     if room not in sio.rooms(sid):
         return
-    await sio.emit('typing', {'notebook': notebook_id, 'name': session.get('name')},
+    await sio.emit('typing', {'group': notebook_id, 'name': session.get('name')},
                    room=room, skip_sid=sid)
 
 
@@ -83,6 +83,3 @@ def emit_to_room(room: str, event: str, payload: dict) -> None:
     except Exception as exc:  # noqa: BLE001
         logger.warning('Socket broadcast failed (%s): %s', event, exc)
 
-
-def emit_to_notebook(notebook_id: int, event: str, payload: dict) -> None:
-    emit_to_room(f'notebook-{notebook_id}', event, payload)

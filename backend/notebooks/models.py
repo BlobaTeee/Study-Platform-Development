@@ -80,22 +80,46 @@ class NotebookInvite(models.Model):
         return f'{self.email} → {self.notebook}'
 
 
-class NotebookMessage(models.Model):
-    """One line of the notebook's group chat.
+class ChatGroup(models.Model):
+    """A chat group: a few people and a name they chose.
 
-    Belongs to the notebook, not to a pair of people: everyone in the
-    notebook reads the same thread, which is the point of studying
-    together. Deleted with its notebook; kept when its author is deleted
-    only long enough for the cascade to remove it too.
+    Deliberately not a notebook. A notebook is where documents live; a group
+    is who you talk to, and the two rarely line up — a study group spans
+    several notebooks, and a notebook you keep to yourself needs no chat.
     """
-    notebook = models.ForeignKey(Notebook, on_delete=models.CASCADE, related_name='messages')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notebook_messages')
+    name = models.CharField(max_length=120)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_groups_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-id']
+
+    def __str__(self):
+        return self.name
+
+
+class ChatGroupMember(models.Model):
+    group = models.ForeignKey(ChatGroup, on_delete=models.CASCADE, related_name='members')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_group_memberships')
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['group', 'user'], name='one_chat_membership_per_user'),
+        ]
+        ordering = ['joined_at']
+
+
+class GroupMessage(models.Model):
+    """One line in a group's thread."""
+    group = models.ForeignKey(ChatGroup, on_delete=models.CASCADE, related_name='messages')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='group_messages')
     body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['id']
-        indexes = [models.Index(fields=['notebook', '-id'])]
+        indexes = [models.Index(fields=['group', '-id'])]
 
     def __str__(self):
         return f'{self.user}: {self.body[:40]}'

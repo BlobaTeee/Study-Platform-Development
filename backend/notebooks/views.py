@@ -276,37 +276,6 @@ class NotebookViewSet(viewsets.ModelViewSet):
         NotebookMember.objects.filter(notebook=notebook, user_id=member_id).delete()
         return Response(status=204)
 
-    @action(detail=True, methods=['get', 'post'], url_path='messages')
-    def messages(self, request, pk=None):
-        """The notebook's group chat: read the thread, or add to it.
-
-        Sending over REST rather than only over the socket keeps the chat
-        usable while the connection is re-establishing; the socket server
-        broadcasts whatever lands here, so both paths deliver the same.
-        """
-        from .services.chat import HISTORY_LIMIT, history, message_payload, post_message
-
-        notebook = self.get_object()
-        if request.method == 'GET':
-            try:
-                limit = max(1, min(int(request.query_params.get('limit', HISTORY_LIMIT)), HISTORY_LIMIT))
-            except (TypeError, ValueError):
-                limit = HISTORY_LIMIT
-            before = request.query_params.get('before')
-            before = int(before) if (before or '').isdigit() else None
-            return Response({'messages': history(notebook, request.user, limit, before)})
-
-        try:
-            message = post_message(notebook, request.user, str(request.data.get('body') or ''))
-        except PermissionError:
-            return Response({'detail': _('You are not in this notebook.')}, status=403)
-        except ValueError:
-            return Response({'detail': _('A message must have text, and stay under 2000 characters.')},
-                            status=400)
-        payload = message_payload(message, request.user)
-        broadcast_message(payload)
-        return Response(payload, status=201)
-
     @action(detail=True, methods=['get'])
     def export(self, request, pk=None):
         """The notebook's live cards or published questions as a CSV download
@@ -436,23 +405,116 @@ class InviteAcceptView(APIView):
         return Response({'notebook': {'id': nb.id, 'title': nb.title}})
 
 
-class NotebookMessageView(APIView):
-    """Deleting one line of the chat: its author, or the notebook's owner."""
+class ChatMessageView(APIView):
+    """Deleting one line of a group thread: its author only."""
     permission_classes = [permissions.IsAuthenticated]
 
     def delete(self, request, message_id):
-        from .models import NotebookMessage
-        from .services.membership import can_manage, is_member
+        from .models import GroupMessage
+        from .services.chat import in_group, room_for
 
-        message = NotebookMessage.objects.filter(id=message_id).select_related('notebook').first()
-        if message is None or not is_member(message.notebook, request.user):
+        message = GroupMessage.objects.filter(id=message_id).select_related('group').first()
+        if message is None or not in_group(message.group, request.user):
             return Response({'detail': _('Message not found.')}, status=404)
-        if message.user_id != request.user.id and not can_manage(message.notebook, request.user):
-            return Response({'detail': _('Only the person who wrote it, or the notebook owner, '
-                                         'can delete a message.')}, status=403)
-        notebook_id, deleted_id = message.notebook_id, message.id
+        if message.user_id != request.user.id:
+            return Response({'detail': _('Only the person who wrote it can delete a message.')}, status=403)
+        group_id, deleted_id = message.group_id, message.id
         message.delete()
-        broadcast_deletion(notebook_id, deleted_id)
+        from .realtime import emit_to_room
+        emit_to_room(room_for(group_id), 'message:deleted', {'group': group_id, 'id': deleted_id})
+        return Response(status=204)
+
+
+class ChatGroupsView(APIView):
+    """The groups you are in, and making a new one."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from .services.chat import create_group
+
+        members = request.data.get('members') or []
+        if not isinstance(members, list) or not all(isinstance(i, int) for i in members):
+            return Response({'detail': _('members must be a list of user ids.')}, status=400)
+        try:
+            group = create_group(request.user, str(request.data.get('name') or ''), members)
+        except PermissionError:
+            return Response({'detail': _('You can only add people you share a notebook with.')}, status=400)
+        except ValueError:
+            return Response({'detail': _('Give the group a name.')}, status=400)
+        return Response({'id': group.id, 'name': group.name}, status=201)
+
+
+class ChatGroupMessagesView(APIView):
+    """One group's thread: read it, or add to it."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _group_or_none(self, request, group_id):
+        from .models import ChatGroup
+        from .services.chat import in_group
+
+        group = ChatGroup.objects.filter(id=group_id).first()
+        # A group you are not in is reported missing, not forbidden: its
+        # existence is nobody else's business.
+        return group if group and in_group(group, request.user) else None
+
+    def get(self, request, group_id):
+        from .services.chat import HISTORY_LIMIT, history
+
+        group = self._group_or_none(request, group_id)
+        if group is None:
+            return Response({'detail': _('Group not found.')}, status=404)
+        before = request.query_params.get('before')
+        before = int(before) if (before or '').isdigit() else None
+        return Response({'messages': history(group, request.user, HISTORY_LIMIT, before)})
+
+    def post(self, request, group_id):
+        from .services.chat import message_payload, post_message, room_for
+
+        group = self._group_or_none(request, group_id)
+        if group is None:
+            return Response({'detail': _('Group not found.')}, status=404)
+        try:
+            message = post_message(group, request.user, str(request.data.get('body') or ''))
+        except PermissionError:
+            return Response({'detail': _('You are not in this group.')}, status=403)
+        except ValueError:
+            return Response({'detail': _('A message must have text, and stay under 2000 characters.')},
+                            status=400)
+        payload = message_payload(message)
+        from .realtime import emit_to_room
+        emit_to_room(room_for(group.id), 'message:new', payload)
+        return Response(message_payload(message, request.user), status=201)
+
+
+class ChatGroupMembersView(APIView):
+    """Adding someone to a group, and leaving it."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, group_id):
+        from django.contrib.auth.models import User
+        from .models import ChatGroup
+        from .services.chat import add_member
+
+        group = ChatGroup.objects.filter(id=group_id).first()
+        person = User.objects.filter(id=request.data.get('user_id')).first()
+        if group is None or person is None:
+            return Response({'detail': _('Group not found.')}, status=404)
+        try:
+            add_member(group, request.user, person)
+        except PermissionError:
+            return Response({'detail': _('You can only add people you share a notebook with.')}, status=403)
+        return Response({'user_id': person.id}, status=201)
+
+    def delete(self, request, group_id, user_id):
+        from .models import ChatGroup, ChatGroupMember
+        from .services.chat import in_group
+
+        group = ChatGroup.objects.filter(id=group_id).first()
+        if group is None or not in_group(group, request.user):
+            return Response({'detail': _('Group not found.')}, status=404)
+        if user_id != request.user.id:
+            return Response({'detail': _('You can only leave a group yourself.')}, status=403)
+        ChatGroupMember.objects.filter(group=group, user_id=user_id).delete()
         return Response(status=204)
 
 
@@ -568,16 +630,3 @@ def _profile_language(user) -> str:
     return getattr(profile, 'preferred_language', 'en') or 'en'
 
 
-def broadcast_message(payload: dict) -> None:
-    """Push a new message to everyone in the notebook's room.
-
-    Imported lazily and swallowed on failure: the message is already saved,
-    and a chat that cannot broadcast is still a chat that works on refresh.
-    """
-    from .realtime import emit_to_notebook
-    emit_to_notebook(payload['notebook'], 'message:new', payload)
-
-
-def broadcast_deletion(notebook_id: int, message_id: int) -> None:
-    from .realtime import emit_to_notebook
-    emit_to_notebook(notebook_id, 'message:deleted', {'notebook': notebook_id, 'id': message_id})
