@@ -275,12 +275,20 @@
     "chatOpen": "Mở trò chuyện",
     "chatClose": "Đóng trò chuyện",
     "chatHeading": "Trò chuyện",
-    "chatGroups": "Sổ tay",
+    "chatGroups": "Nhóm",
     "chatPeople": "Mọi người",
     "chatNoConversations": "Chia sẻ một sổ tay thì nhóm của bạn sẽ hiện ở đây.",
     "chatBack": "Tất cả cuộc trò chuyện",
     "chatNoLast": "Chưa có tin nhắn",
-    "chatGroupMembers": "{count, plural, other {# người}}"
+    "chatGroupMembers": "{count, plural, other {# người}}",
+    "chatNewGroup": "Nhóm mới",
+    "chatGroupName": "Tên nhóm",
+    "chatGroupNamePlaceholder": "Nhóm ôn thi",
+    "chatPickPeople": "Gồm những ai",
+    "chatCreate": "Tạo nhóm",
+    "chatNoPeople": "Hãy chia sẻ một sổ tay với ai đó trước.",
+    "chatCreateFailed": "Không tạo được nhóm. Hãy thử lại.",
+    "chatResize": "Đổi kích thước khung chat"
   },
   "flashcards": {
     "title": "Thẻ",

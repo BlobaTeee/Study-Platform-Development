@@ -102,7 +102,7 @@ export const quizzesAPI = {
 
 export type ChatMessage = {
   id: number
-  notebook: number
+  group: number
   body: string
   created_at: string
   author: { user_id: number; name: string; is_you?: boolean }
@@ -117,7 +117,7 @@ export type ChatLastLine = {
 }
 
 export type ChatOverview = {
-  groups: { notebook: number; title: string; members: number; last: ChatLastLine | null }[]
+  groups: { id: number; name: string; members: number; last: ChatLastLine | null }[]
   people: { user_id: number; name: string; last: ChatLastLine | null }[]
 }
 
@@ -148,12 +148,18 @@ export const notebooksAPI = {
   // the auth header (a plain <a href> could not carry it) and saved client-side.
   exportCsv: (id: number, kind: 'flashcards' | 'questions') =>
     api.get<Blob>(`/notebooks/notebooks/${id}/export/`, { params: { kind }, responseType: 'blob' }),
-  // The notebook's group chat. Sending goes over REST so a message is never
-  // lost to a dropped socket; the socket is how everyone else hears it.
-  messages: (id: number, params?: { before?: number; limit?: number }) =>
-    api.get<{ messages: ChatMessage[] }>(`/notebooks/notebooks/${id}/messages/`, { params }),
-  sendMessage: (id: number, body: string) =>
-    api.post<ChatMessage>(`/notebooks/notebooks/${id}/messages/`, { body }),
+  // Chat groups. Sending goes over REST so a message is never lost to a
+  // dropped socket; the socket is how everyone else hears it.
+  createGroup: (data: { name: string; members: number[] }) =>
+    api.post<{ id: number; name: string }>('/notebooks/chat/groups/', data),
+  groupMessages: (groupId: number, params?: { before?: number }) =>
+    api.get<{ messages: ChatMessage[] }>(`/notebooks/chat/groups/${groupId}/messages/`, { params }),
+  sendGroupMessage: (groupId: number, body: string) =>
+    api.post<ChatMessage>(`/notebooks/chat/groups/${groupId}/messages/`, { body }),
+  addGroupMember: (groupId: number, userId: number) =>
+    api.post(`/notebooks/chat/groups/${groupId}/members/`, { user_id: userId }),
+  leaveGroup: (groupId: number, userId: number) =>
+    api.delete(`/notebooks/chat/groups/${groupId}/members/${userId}/`),
   deleteMessage: (messageId: number) => api.delete(`/notebooks/messages/${messageId}/`),
   // What the chat launcher lists, and the private threads inside it.
   chatOverview: () => api.get<ChatOverview>('/notebooks/chat/overview/'),

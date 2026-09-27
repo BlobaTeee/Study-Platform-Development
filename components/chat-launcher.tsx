@@ -2,15 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { ChevronLeft, MessageCircle, NotebookText, UserRound, X } from 'lucide-react'
+import { ChevronLeft, MessageCircle, Plus, UserRound, Users, X } from 'lucide-react'
 import type { Socket } from 'socket.io-client'
 import { notebooksAPI, type ChatLastLine, type ChatOverview } from '@/lib/api'
 import { getSocket } from '@/lib/realtime'
-import { NotebookChat } from '@/components/notebook-chat'
+import { GroupChat } from '@/components/group-chat'
 import { DirectChat } from '@/components/direct-chat'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 type Open = { kind: 'group'; id: number; title: string } | { kind: 'person'; id: number; title: string }
+
+const SIZE_KEY = 'sf-chat-size'
+const MIN = { w: 300, h: 320 }
+const MAX = { w: 640, h: 760 }
+const DEFAULT_SIZE = { w: 368, h: 512 }
 
 /** The round button in the corner, and the panel it opens.
  *
@@ -23,7 +29,53 @@ export function ChatLauncher() {
   const [overview, setOverview] = useState<ChatOverview | null>(null)
   const [conversation, setConversation] = useState<Open | null>(null)
   const [unread, setUnread] = useState(false)
+  const [creating, setCreating] = useState(false)
+  // The box is the student's to size; the choice is per browser.
+  const [size, setSize] = useState(DEFAULT_SIZE)
   const panelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(SIZE_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved) as { w: number; h: number }
+        setSize({
+          w: Math.min(MAX.w, Math.max(MIN.w, parsed.w)),
+          h: Math.min(MAX.h, Math.max(MIN.h, parsed.h)),
+        })
+      }
+    } catch {
+      /* no storage, or a value we cannot read: the default stands */
+    }
+  }, [])
+
+  /** Drag the top-left corner. Pointer events rather than mouse events, so a
+   *  trackpad, a mouse and a touch screen all resize the same way. */
+  const startResize = (e: React.PointerEvent) => {
+    e.preventDefault()
+    const from = { x: e.clientX, y: e.clientY, ...size }
+    const move = (ev: PointerEvent) => {
+      const next = {
+        w: Math.min(MAX.w, Math.max(MIN.w, from.w + (from.x - ev.clientX))),
+        h: Math.min(MAX.h, Math.max(MIN.h, from.h + (from.y - ev.clientY))),
+      }
+      setSize(next)
+    }
+    const stop = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', stop)
+      setSize((s) => {
+        try {
+          window.localStorage.setItem(SIZE_KEY, JSON.stringify(s))
+        } catch {
+          /* ignore */
+        }
+        return s
+      })
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', stop)
+  }
 
   const load = useCallback(() => {
     notebooksAPI
@@ -106,11 +158,25 @@ export function ChatLauncher() {
           ref={panelRef}
           role="dialog"
           aria-label={t('chatHeading')}
+          style={{ ['--chat-w' as string]: `${size.w}px`, ['--chat-h' as string]: `${size.h}px` }}
           className={cn(
             'chat-panel fixed z-40 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lift',
-            'inset-x-3 bottom-24 top-16 sm:inset-x-auto sm:top-auto sm:bottom-24 sm:right-5 sm:h-[32rem] sm:w-[23rem]',
+            'inset-x-3 bottom-24 top-16',
+            'sm:inset-x-auto sm:top-auto sm:bottom-24 sm:right-5 sm:h-[var(--chat-h)] sm:w-[var(--chat-w)]',
           )}
         >
+          {/* Drag the corner nearest the middle of the screen: the panel is
+              anchored bottom-right, so it grows up and to the left. */}
+          <button
+            type="button"
+            onPointerDown={startResize}
+            aria-label={t('chatResize')}
+            className="absolute left-0 top-0 z-10 hidden size-5 cursor-nwse-resize items-center justify-center rounded-br-lg text-slate-400 hover:text-slate-700 sm:flex"
+          >
+            <svg viewBox="0 0 10 10" className="size-3" aria-hidden>
+              <path d="M9 1 1 9M5 1 1 5" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+            </svg>
+          </button>
           <header className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
             {conversation ? (
               <>
@@ -127,18 +193,39 @@ export function ChatLauncher() {
                 </h2>
               </>
             ) : (
-              <h2 className="flex-1 text-base font-semibold text-slate-900">{t('chatHeading')}</h2>
+              <>
+                <h2 className="flex-1 text-base font-semibold text-slate-900">{t('chatHeading')}</h2>
+                <button
+                  type="button"
+                  onClick={() => setCreating((v) => !v)}
+                  aria-pressed={creating}
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-mode-library hover:bg-slate-100"
+                >
+                  <Plus className="size-4" aria-hidden />
+                  {t('chatNewGroup')}
+                </button>
+              </>
             )}
           </header>
 
           {conversation ? (
             <div className="flex min-h-0 flex-1 flex-col p-3">
               {conversation.kind === 'group' ? (
-                <NotebookChat notebookId={conversation.id} />
+                <GroupChat groupId={conversation.id} />
               ) : (
                 <DirectChat userId={conversation.id} />
               )}
             </div>
+          ) : creating ? (
+            <NewGroupForm
+              people={overview?.people ?? []}
+              onCancel={() => setCreating(false)}
+              onCreated={(g) => {
+                setCreating(false)
+                load()
+                setConversation({ kind: 'group', id: g.id, title: g.name })
+              }}
+            />
           ) : (
             <ConversationList
               overview={overview}
@@ -179,11 +266,11 @@ function ConversationList({
       <Section label={t('chatGroups')}>
         {overview.groups.map((g) => (
           <Row
-            key={`g${g.notebook}`}
-            icon={<NotebookText className="size-4 text-mode-library" aria-hidden />}
-            title={g.title}
+            key={`g${g.id}`}
+            icon={<Users className="size-4 text-mode-library" aria-hidden />}
+            title={g.name}
             subtitle={g.last ? lastLine(g.last) : t('chatGroupMembers', { count: g.members })}
-            onClick={() => onPick({ kind: 'group', id: g.notebook, title: g.title })}
+            onClick={() => onPick({ kind: 'group', id: g.id, title: g.name })}
           />
         ))}
       </Section>
@@ -243,5 +330,92 @@ function Row({
         </span>
       </button>
     </li>
+  )
+}
+
+/** Naming a group and choosing who is in it. The candidates are the people
+ *  you already share study material with, which is also what the server
+ *  enforces — the list cannot offer a stranger. */
+function NewGroupForm({
+  people,
+  onCancel,
+  onCreated,
+}: {
+  people: { user_id: number; name: string }[]
+  onCancel: () => void
+  onCreated: (group: { id: number; name: string }) => void
+}) {
+  const t = useTranslations('notebooks')
+  const common = useTranslations('common')
+  const [name, setName] = useState('')
+  const [picked, setPicked] = useState<number[]>([])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const toggle = (id: number) =>
+    setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim() || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const res = await notebooksAPI.createGroup({ name: name.trim(), members: picked })
+      onCreated(res.data)
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+      setError(detail || t('chatCreateFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+      <label className="space-y-1.5">
+        <span className="text-sm font-medium text-slate-900">{t('chatGroupName')}</span>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t('chatGroupNamePlaceholder')}
+          maxLength={120}
+          autoFocus
+          className="h-10 w-full rounded-lg border border-slate-300 px-3 text-base text-slate-900 outline-none focus-visible:border-mode focus-visible:ring-[3px] focus-visible:ring-mode/25"
+        />
+      </label>
+
+      <p className="text-sm font-medium text-slate-900">{t('chatPickPeople')}</p>
+      {people.length === 0 ? (
+        <p className="text-sm text-slate-600">{t('chatNoPeople')}</p>
+      ) : (
+        <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+          {people.map((p) => (
+            <li key={p.user_id}>
+              <label className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={picked.includes(p.user_id)}
+                  onChange={() => toggle(p.user_id)}
+                  className="size-4 rounded border-slate-300 accent-[var(--mode)]"
+                />
+                <span className="text-[15px] text-slate-900">{p.name}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+
+      <div className="mt-auto flex justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+          {common('cancel')}
+        </Button>
+        <Button type="submit" size="sm" disabled={busy || !name.trim()}>
+          {t('chatCreate')}
+        </Button>
+      </div>
+    </form>
   )
 }

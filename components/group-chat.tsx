@@ -11,10 +11,10 @@ import { cn } from '@/lib/utils'
 
 const TYPING_IDLE_MS = 2500
 
-/** The notebook's group chat: history over REST, new lines over the socket.
+/** One group's thread: history over REST, new lines over the socket.
  *  Sending is a REST call on purpose — a message must survive a socket that
  *  is mid-reconnect — and the server broadcasts whatever it stores. */
-export function NotebookChat({ notebookId, meId }: { notebookId: number; meId?: number }) {
+export function GroupChat({ groupId, meId }: { groupId: number; meId?: number }) {
   const t = useTranslations('notebooks')
   const [messages, setMessages] = useState<ChatMessage[] | null>(null)
   const [draft, setDraft] = useState('')
@@ -34,7 +34,7 @@ export function NotebookChat({ notebookId, meId }: { notebookId: number; meId?: 
   useEffect(() => {
     let cancelled = false
     notebooksAPI
-      .messages(notebookId)
+      .groupMessages(groupId)
       .then((res) => {
         if (cancelled) return
         setMessages(res.data.messages)
@@ -46,7 +46,7 @@ export function NotebookChat({ notebookId, meId }: { notebookId: number; meId?: 
     return () => {
       cancelled = true
     }
-  }, [notebookId, t, scrollToEnd])
+  }, [groupId, t, scrollToEnd])
 
   // The socket is shared by the tab; this only subscribes and unsubscribes.
   useEffect(() => {
@@ -54,7 +54,7 @@ export function NotebookChat({ notebookId, meId }: { notebookId: number; meId?: 
     let cancelled = false
 
     const onNew = (m: ChatMessage) => {
-      if (m.notebook !== notebookId) return
+      if (m.group !== groupId) return
       setMessages((prev) => {
         if (!prev) return prev
         if (prev.some((x) => x.id === m.id)) return prev      // our own echo
@@ -62,12 +62,12 @@ export function NotebookChat({ notebookId, meId }: { notebookId: number; meId?: 
       })
       requestAnimationFrame(scrollToEnd)
     }
-    const onDeleted = (d: { notebook: number; id: number }) => {
-      if (d.notebook !== notebookId) return
+    const onDeleted = (d: { group: number; id: number }) => {
+      if (d.group !== groupId) return
       setMessages((prev) => prev?.filter((m) => m.id !== d.id) ?? prev)
     }
-    const onTyping = (d: { notebook: number; name: string }) => {
-      if (d.notebook !== notebookId) return
+    const onTyping = (d: { group: number; name: string }) => {
+      if (d.group !== groupId) return
       setTyping(d.name)
       if (typingTimer.current) window.clearTimeout(typingTimer.current)
       typingTimer.current = window.setTimeout(() => setTyping(null), TYPING_IDLE_MS)
@@ -91,7 +91,7 @@ export function NotebookChat({ notebookId, meId }: { notebookId: number; meId?: 
       socket?.off('message:deleted', onDeleted)
       socket?.off('typing', onTyping)
     }
-  }, [notebookId, scrollToEnd])
+  }, [groupId, scrollToEnd])
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -100,7 +100,7 @@ export function NotebookChat({ notebookId, meId }: { notebookId: number; meId?: 
     setSending(true)
     setError('')
     try {
-      const res = await notebooksAPI.sendMessage(notebookId, body)
+      const res = await notebooksAPI.sendGroupMessage(groupId, body)
       setDraft('')
       setMessages((prev) => (prev?.some((m) => m.id === res.data.id) ? prev : [...(prev ?? []), res.data]))
       requestAnimationFrame(scrollToEnd)
@@ -112,14 +112,14 @@ export function NotebookChat({ notebookId, meId }: { notebookId: number; meId?: 
   }
 
   const announceTyping = () => {
-    void getSocket().then((s) => s?.emit('typing', { notebook: notebookId }))
+    void getSocket().then((s) => s?.emit('typing', { group: groupId }))
   }
 
   const loadOlder = async () => {
     if (!messages?.length || loadingOlder) return
     setLoadingOlder(true)
     try {
-      const res = await notebooksAPI.messages(notebookId, { before: messages[0].id })
+      const res = await notebooksAPI.groupMessages(groupId, { before: messages[0].id })
       setMessages((prev) => [...res.data.messages, ...(prev ?? [])])
     } catch {
       setError(t('chatFailed'))
@@ -140,9 +140,8 @@ export function NotebookChat({ notebookId, meId }: { notebookId: number; meId?: 
   const mine = (m: ChatMessage) => m.author.is_you ?? (meId != null && m.author.user_id === meId)
 
   return (
-    <section className="flex min-h-0 flex-col" aria-label={t('chatTitle')}>
-      <div className="flex items-baseline justify-between gap-3 px-1 pb-2">
-        <p className="text-sm text-slate-600">{t('chatLead')}</p>
+    <section className="flex min-h-0 flex-1 flex-col" aria-label={t('chatTitle')}>
+      <div className="flex items-baseline justify-end gap-3 px-1 pb-2">
         <span className={cn('inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs',
           live ? 'text-slate-600' : 'text-amber-700')}>
           <span
@@ -200,7 +199,7 @@ export function NotebookChat({ notebookId, meId }: { notebookId: number; meId?: 
         {typing ? t('chatTyping', { name: typing }) : ''}
       </p>
 
-      <form onSubmit={send} className="flex gap-2">
+      <form onSubmit={send} className="mt-auto flex gap-2 pt-2">
         <input
           value={draft}
           onChange={(e) => {

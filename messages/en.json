@@ -275,12 +275,20 @@
     "chatOpen": "Open chat",
     "chatClose": "Close chat",
     "chatHeading": "Chat",
-    "chatGroups": "Notebooks",
+    "chatGroups": "Groups",
     "chatPeople": "People",
     "chatNoConversations": "Share a notebook and your group appears here.",
     "chatBack": "All conversations",
     "chatNoLast": "No messages yet",
-    "chatGroupMembers": "{count, plural, one {# person} other {# people}}"
+    "chatGroupMembers": "{count, plural, one {# person} other {# people}}",
+    "chatNewGroup": "New group",
+    "chatGroupName": "Group name",
+    "chatGroupNamePlaceholder": "Exam group",
+    "chatPickPeople": "Who is in it",
+    "chatCreate": "Create",
+    "chatNoPeople": "Share a notebook with someone first.",
+    "chatCreateFailed": "Could not create the group. Try again.",
+    "chatResize": "Resize chat"
   },
   "flashcards": {
     "title": "Flashcards",
