@@ -26,6 +26,32 @@ def is_quota_error(exc: BaseException) -> bool:
     )
 
 
+def is_missing_model_error(exc: BaseException) -> bool:
+    """The model id is gone. Google retires ids and answers 404; the point of
+    the fallback list is to carry on with the next one."""
+    msg = str(exc).upper()
+    return '404' in msg or 'NOT_FOUND' in msg or 'NOT FOUND' in msg
+
+
+def is_transient_error(exc: BaseException) -> bool:
+    """A server-side hiccup rather than something wrong with the request.
+
+    Gemini answers 503 UNAVAILABLE when a model is busy and 500 INTERNAL when
+    something failed on its side; both are worth retrying on the next model
+    in the list rather than failing a student's generation outright.
+    """
+    msg = str(exc).upper()
+    return (
+        '503' in msg
+        or 'UNAVAILABLE' in msg
+        or 'OVERLOADED' in msg
+        or '500 INTERNAL' in msg
+        or 'INTERNAL ERROR' in msg
+        or '504' in msg
+        or 'DEADLINE_EXCEEDED' in msg
+    )
+
+
 def quota_user_message() -> str:
     return (
         'Gemini API quota exceeded (free tier limit). '
@@ -76,6 +102,7 @@ def generate_json(prompt: str) -> dict:
     client = _get_client()
     models = _model_list()
     last_quota_error = None
+    last_transient_error = None
 
     for model in models:
         try:
@@ -88,8 +115,16 @@ def generate_json(prompt: str) -> dict:
                 last_quota_error = exc
                 time.sleep(1)
                 continue
+            if is_transient_error(exc) or is_missing_model_error(exc):
+                # Busy or retired: the next one in the list usually works.
+                last_transient_error = exc
+                continue
             raise GeminiGenerationError(str(exc)) from exc
 
+    # Quota is the more actionable of the two, so it wins the report.
     if last_quota_error:
         raise GeminiQuotaError(quota_user_message()) from last_quota_error
+    if last_transient_error:
+        raise GeminiGenerationError(
+            f'Every Gemini model was busy: {last_transient_error}') from last_transient_error
     raise GeminiGenerationError('No Gemini model available.')
