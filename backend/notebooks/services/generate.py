@@ -355,6 +355,32 @@ def generate_quiz_for_sources(sources, user, question_count: int = 8,
     return quiz
 
 
+def quiz_prompt(chunk: str, n: int, lang: str, label: str) -> str:
+    """The question-generation prompt, at module level so it can be measured.
+
+    `ml_pipeline/notebooks/06_question_quality.ipynb` scores what this prompt
+    produces; importing it there keeps the scorecard about the real app rather
+    than about a copy that drifts.
+    """
+    return f"""Create exactly {n} multiple-choice questions from this excerpt.
+Write in {language_name(lang)}, the language of the excerpt.
+For each question give: the question, the single correct answer, and exactly 3
+plausible but incorrect answers (distractors) on the same topic. Do NOT put the
+correct answer in the distractors, and make the distractors distinct.
+Each distractor must be clearly wrong according to the excerpt — never a
+synonym, a near-synonym, or a partial restatement of the correct answer.
+Write answers and distractors as plain text: no "A)", "B." or similar prefixes.
+Each question must be answerable from the excerpt alone.
+
+Return ONLY valid JSON in exactly this shape:
+{{"questions": [{{"question_text": "...", "correct_answer": "...", "distractors": ["...", "...", "..."], "explanation": "..."}}]}}
+
+Source: {label}
+Excerpt:
+{chunk}
+"""
+
+
 def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Quiz:
     """Run the provider cascade. Creates the quiz; does not retire anything."""
     question_count = max(4, min(question_count, 15))
@@ -381,23 +407,7 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Qui
     per_chunk = -(-question_count // len(chunks))  # ceil, so excerpts cover the count
 
     def build_prompt(chunk: str, n: int) -> str:
-        return f"""Create exactly {n} multiple-choice questions from this excerpt.
-Write in {language_name(lang)}, the language of the excerpt.
-For each question give: the question, the single correct answer, and exactly 3
-plausible but incorrect answers (distractors) on the same topic. Do NOT put the
-correct answer in the distractors, and make the distractors distinct.
-Each distractor must be clearly wrong according to the excerpt — never a
-synonym, a near-synonym, or a partial restatement of the correct answer.
-Write answers and distractors as plain text: no "A)", "B." or similar prefixes.
-Each question must be answerable from the excerpt alone.
-
-Return ONLY valid JSON in exactly this shape:
-{{"questions": [{{"question_text": "...", "correct_answer": "...", "distractors": ["...", "...", "..."], "explanation": "..."}}]}}
-
-Source: {label}
-Excerpt:
-{chunk}
-"""
+        return quiz_prompt(chunk, n, lang, label)
 
     try:
         provider = get_ai_provider()
