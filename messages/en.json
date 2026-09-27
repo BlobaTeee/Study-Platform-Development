@@ -98,7 +98,9 @@
     "continueWithGoogle": "Continue with Google",
     "continueWithGitHub": "Continue with GitHub",
     "orDivider": "or with email",
-    "oauthFailed": "Could not start sign-in with that provider. Try again."
+    "oauthFailed": "Could not start sign-in with that provider. Try again.",
+    "confirmingAccount": "Confirming your account…",
+    "loadingApp": "Loading…"
   },
   "home": {
     "today": "Today",

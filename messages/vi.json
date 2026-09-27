@@ -98,7 +98,9 @@
     "continueWithGoogle": "Tiếp tục với Google",
     "continueWithGitHub": "Tiếp tục với GitHub",
     "orDivider": "hoặc dùng email",
-    "oauthFailed": "Không bắt đầu được đăng nhập với nhà cung cấp đó. Hãy thử lại."
+    "oauthFailed": "Không bắt đầu được đăng nhập với nhà cung cấp đó. Hãy thử lại.",
+    "confirmingAccount": "Đang xác nhận tài khoản…",
+    "loadingApp": "Đang tải…"
   },
   "home": {
     "today": "Hôm nay",
