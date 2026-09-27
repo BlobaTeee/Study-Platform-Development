@@ -760,7 +760,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
               {sourceDetail?.gemini_summary && (
                 <div className="border-t border-slate-200 pt-5">
                   <h3 className="text-sm font-semibold text-slate-900">{t('overview')}</h3>
-                  <p className="mt-2 max-w-[65ch] text-base leading-relaxed text-slate-700">{sourceDetail.gemini_summary}</p>
+                  <p className="mt-2 text-justify text-base leading-relaxed text-slate-700 hyphens-auto">
+                    {sourceDetail.gemini_summary}
+                  </p>
                 </div>
               )}
 
