@@ -99,9 +99,14 @@ export default function HomePage() {
                   <span className="text-sm text-red-700">{common('overdueCount', { count: due.overdue })}</span>
                 )}
               </div>
-              {(due.later || due.new_paused) && (
+              {(due.exam_first || due.later || due.new_paused) && (
                 <p className="-mt-3 text-sm text-slate-600">
                   {[
+                    // Why the order changed comes first: it is the one line here
+                    // that tells the learner something they chose.
+                    due.exam_first
+                      ? t('examFirst', { title: due.exam_first.title, days: due.exam_first.days })
+                      : null,
                     due.later ? t('laterCount', { count: due.later }) : null,
                     due.new_paused ? t('newPaused') : null,
                   ]

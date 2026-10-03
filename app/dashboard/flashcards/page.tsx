@@ -32,6 +32,8 @@ type Flashcard = {
   answer: string
   difficulty: string
   source_ids?: number[]
+  /** Days until this card's notebook's test, when that is this week. */
+  exam_in_days?: number | null
 }
 
 /** The three SM-2 grades, worst recall first. Only you can judge whether you
@@ -299,6 +301,11 @@ function FlashcardsStudy() {
           }}
         />
       </div>
+
+      {/* Why this card is ahead of older debt: its notebook's test is close. */}
+      {dueMode && card?.exam_in_days != null && (
+        <p className="-mt-4 text-sm text-slate-600">{t('examSoon', { days: card.exam_in_days })}</p>
+      )}
 
       {/* Signature: a real index card that flips in 3D. */}
       {draft ? (

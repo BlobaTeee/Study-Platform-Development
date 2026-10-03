@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.conf import settings
+from django.utils import timezone
 
 from . import scheduling
 from .models import CardReview
@@ -47,3 +48,18 @@ def budget_for(user, due_now: int, today: date) -> scheduling.DailyBudget:
         introduced_today=introduced,
         due_now=due_now,
     )
+
+
+def exam_days_for(user, now) -> dict[int, int]:
+    """Days until each of this user's tests this week, by notebook.
+
+    Only tests still ahead count — one sat this morning is over, whatever its
+    date says. Tests are per person, so a classmate's plan never reorders
+    someone else's queue.
+    """
+    from quizzes.models import PlannedTest
+    rows = (PlannedTest.objects.filter(user=user, scheduled_for__gte=now)
+            .values('notebook_id', 'scheduled_for'))
+    tests = [{'notebook_id': r['notebook_id'], 'day': timezone.localdate(r['scheduled_for'])}
+             for r in rows]
+    return scheduling.exam_days(tests, timezone.localdate(now))

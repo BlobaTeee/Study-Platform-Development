@@ -307,7 +307,7 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
                  .values('flashcard_id', 'next_review_date', 'review_date'))
         )
         cards = list(studiable_cards(user)
-                     .values('id', 'question', 'answer', 'difficulty',
+                     .values('id', 'question', 'answer', 'difficulty', 'notebook_id',
                              'needs_regeneration', 'regeneration_attempts'))
         # Sources ride along so the study page can scope the due queue to a
         # document (`?due=1&source=…`). One query for the collection.
@@ -330,7 +330,8 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
         today = timezone.localdate()
         owed = scheduling.due_counts(cards, schedule, today)['due']
         ranked = scheduling.rank_due_cards(cards, schedule, today, limit=limit,
-                                           budget=daily.budget_for(user, owed, today))
+                                           budget=daily.budget_for(user, owed, today),
+                                           exam_days=daily.exam_days_for(user, timezone.now()))
 
         pending = select_for_regeneration(ranked, MAX_REGENERATIONS_PER_FETCH)
         if pending:

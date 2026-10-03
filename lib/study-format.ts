@@ -13,6 +13,8 @@ export type Due = {
   later?: number
   /** New cards held back because more is owed than today can clear. */
   new_paused?: boolean
+  /** The test this week whose notebook the queue puts first. */
+  exam_first?: { notebook_id: number; title: string; days: number } | null
 }
 
 /** The shape of next-intl's `t` these helpers need: a key under `common`

@@ -9,6 +9,7 @@ from notebooks.models import Notebook, Source
 from quizzes.models import Answer, MockTest, Question, Quiz, QuizAttempt
 from study_sessions import daily, scheduling
 from study_sessions.models import CardReview
+from study_sessions.views import studiable_cards
 from users.timezones import zone_for
 from . import insights
 
@@ -50,6 +51,25 @@ def _questions_with_sources(user):
         if row['quiz__sources'] is not None:
             ids.append(row['quiz__sources'])
     return [{'id': qid, 'source_ids': ids} for qid, ids in by_question.items()]
+
+
+def _exam_first(user, cards, schedule, today):
+    """The test whose notebook the queue is putting first, if any.
+
+    Only named when that notebook has cards to study now: saying "Biology goes
+    first" means nothing when Biology owes nothing.
+    """
+    exams = daily.exam_days_for(user, timezone.now())
+    if not exams:
+        return None
+    studiable_now = {c['notebook_id'] for c in cards
+                     if schedule.get(c['id']) is None or schedule[c['id']] <= today}
+    candidates = [(days, nb) for nb, days in exams.items() if nb in studiable_now]
+    if not candidates:
+        return None
+    days, notebook_id = min(candidates)
+    title = Notebook.objects.filter(id=notebook_id).values_list('title', flat=True).first()
+    return {'notebook_id': notebook_id, 'title': title, 'days': days}
 
 
 class AnalyticsViewSet(viewsets.ViewSet):
@@ -127,11 +147,16 @@ class AnalyticsViewSet(viewsets.ViewSet):
                  .values('flashcard_id', 'next_review_date', 'review_date'))
         )
         today = timezone.localdate()
-        due = scheduling.due_counts(cards, schedule, today)
+        # Counted over exactly the cards the study queue offers — shared
+        # notebooks included. Counting only the user's own cards made a member's
+        # dashboard say 0 while the study page handed them cards to review.
+        queue_cards = list(studiable_cards(user).values('id', 'notebook_id'))
+        due = scheduling.due_counts(queue_cards, schedule, today)
         # The share for today next to the full counts: the dashboard leads with
         # the first, so two weeks away reads "40 today" and not "312 owed".
         due = {**due, **scheduling.todays_share(
             due, daily.budget_for(user, due['due'], today))}
+        due['exam_first'] = _exam_first(user, queue_cards, schedule, today)
         # An empty queue means the schedule is working. Without a return date it
         # reads exactly like a broken one, so the date travels with the counts.
         next_date, next_count = scheduling.next_due_batch(schedule, today)

@@ -147,6 +147,28 @@ def todays_activity(rows: list[dict], today: date) -> tuple[int, int]:
     return len(reviewed), len(answered_today - seen_before)
 
 
+#: A test closer than this puts its notebook first in the queue. A week is the
+#: revision window most students actually work to.
+EXAM_WINDOW_DAYS = 7
+
+
+def exam_days(tests: list[dict], today: date,
+              window: int = EXAM_WINDOW_DAYS) -> dict[int, int]:
+    """Days until each notebook's next test, for tests inside the window.
+
+    Rows are ``{"notebook_id", "day"}`` with `day` the test's local date. A
+    test already sat gives no priority, and a notebook with several tests
+    counts from the soonest.
+    """
+    out: dict[int, int] = {}
+    for test in tests:
+        days = (test["day"] - today).days
+        if 0 <= days <= window:
+            nb = test["notebook_id"]
+            out[nb] = min(days, out.get(nb, days))
+    return out
+
+
 def latest_schedule(reviews: list[dict]) -> dict[int, date]:
     """Each card's standing schedule, from its most recent review.
 
@@ -164,7 +186,8 @@ def latest_schedule(reviews: list[dict]) -> dict[int, date]:
 
 
 def rank_due_cards(cards: list[dict], schedule: dict[int, date], today: date,
-                   limit: int, budget: "DailyBudget | None" = None) -> list[dict]:
+                   limit: int, budget: "DailyBudget | None" = None,
+                   exam_days: dict[int, int] | None = None) -> list[dict]:
     """The cards worth studying now, most urgent first.
 
     A card is due once its scheduled date arrives, and new if it has never been
@@ -179,20 +202,33 @@ def rank_due_cards(cards: list[dict], schedule: dict[int, date], today: date,
     With a `budget`, only today's share is handed back: at most
     `reviews_left` due cards and `new_left` new ones. The rest stay due and
     lead tomorrow's queue, since they will be the most overdue then.
+
+    `exam_days` maps a notebook to the days until its test (see `exam_days`).
+    A card for a test this week goes before older debt elsewhere, the sooner
+    test first: when a day cannot clear everything, it clears what matters
+    soonest. Cards carry `exam_in_days` so the page can say why.
     """
+    exams = exam_days or {}
     due, new = [], []
     for card in cards:
         next_date = schedule.get(card["id"])
+        exam = exams.get(card.get("notebook_id"))
         if next_date is None:
-            new.append({**card, "status": STATUS_NEW, "overdue_days": 0})
+            new.append({**card, "status": STATUS_NEW, "overdue_days": 0,
+                        "exam_in_days": exam})
         elif next_date <= today:
             due.append({**card, "status": STATUS_DUE,
-                        "overdue_days": (today - next_date).days})
+                        "overdue_days": (today - next_date).days,
+                        "exam_in_days": exam})
 
-    # Sort by id first so equal urgency keeps a stable, predictable order.
-    due.sort(key=lambda c: c["id"])
-    due.sort(key=lambda c: c["overdue_days"], reverse=True)
-    new.sort(key=lambda c: c["id"])
+    def exam_first(card):
+        # No test sorts after every test; sooner tests before later ones.
+        days = card["exam_in_days"]
+        return (days is None, days if days is not None else 0)
+
+    # Ties fall back to id, so equal urgency keeps a stable, predictable order.
+    due.sort(key=lambda c: (*exam_first(c), -c["overdue_days"], c["id"]))
+    new.sort(key=lambda c: (*exam_first(c), c["id"]))
     if budget is not None:
         due = due[:budget.reviews_left]
         new = new[:budget.new_left]

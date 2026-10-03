@@ -168,3 +168,106 @@ def test_the_summary_tells_todays_share_and_what_waits(client, user, notebook):
     assert due['new_paused'] is True
     # The full counts stay, for anyone who wants the whole picture.
     assert due['due'] == 5 and due['new'] == 2
+
+
+# ---- 3. môn sắp thi đi trước ---------------------------------------------------------
+
+def _plan_test(user, notebook, days_ahead):
+    from quizzes.models import PlannedTest
+    return PlannedTest.objects.create(
+        user=user, notebook=notebook,
+        scheduled_for=timezone.now() + timedelta(days=days_ahead))
+
+
+def test_a_notebook_with_a_test_this_week_goes_first(client, user, notebook):
+    other = Notebook.objects.create(user=user, title='History')
+    make_source(other, 'Wars')
+    older_debt = _cards(user, other, 3, prefix='history')
+    for card in older_debt:
+        _owe(user, card, days_overdue=20)
+    exam = _cards(user, notebook, 2, prefix='biology')
+    for card in exam:
+        _owe(user, card, days_overdue=1)
+    _plan_test(user, notebook, days_ahead=3)
+
+    ids = _ids(client.get(DUE))
+
+    # Three a day: both exam cards first, then the oldest other debt.
+    assert ids[:2] == [exam[0].id, exam[1].id]
+    assert ids[2] in {c.id for c in older_debt}
+
+
+def test_each_queued_card_says_how_far_its_test_is(client, user, notebook):
+    card = _cards(user, notebook, 1)[0]
+    _owe(user, card)
+    _plan_test(user, notebook, days_ahead=2)
+
+    body = client.get(DUE).json()
+    rows = body['results'] if isinstance(body, dict) else body
+
+    assert rows[0]['exam_in_days'] == 2
+
+
+def test_a_test_already_sat_gives_no_priority(client, user, notebook):
+    other = Notebook.objects.create(user=user, title='History')
+    make_source(other, 'Wars')
+    older = _cards(user, other, 1, prefix='history')[0]
+    _owe(user, older, days_overdue=20)
+    sat = _cards(user, notebook, 1, prefix='biology')[0]
+    _owe(user, sat, days_overdue=1)
+    _plan_test(user, notebook, days_ahead=-1)
+
+    assert _ids(client.get(DUE))[0] == older.id
+
+
+def test_someone_elses_test_does_not_reorder_my_queue(client, user, other_user, notebook):
+    other = Notebook.objects.create(user=user, title='History')
+    make_source(other, 'Wars')
+    older = _cards(user, other, 1, prefix='history')[0]
+    _owe(user, older, days_overdue=20)
+    mine = _cards(user, notebook, 1, prefix='biology')[0]
+    _owe(user, mine, days_overdue=1)
+    _plan_test(other_user, notebook, days_ahead=2)
+
+    assert _ids(client.get(DUE))[0] == older.id
+
+
+def test_the_summary_names_the_test_being_put_first(client, user, notebook):
+    _owe(user, _cards(user, notebook, 1)[0])
+    _plan_test(user, notebook, days_ahead=3)
+
+    due = client.get('/api/analytics/sessions/recommendations/').json()['due']
+
+    assert due['exam_first'] == {'notebook_id': notebook.id, 'title': notebook.title, 'days': 3}
+
+
+def test_no_test_this_week_means_no_exam_line(client, user, notebook):
+    _owe(user, _cards(user, notebook, 1)[0])
+    _plan_test(user, notebook, days_ahead=12)
+
+    due = client.get('/api/analytics/sessions/recommendations/').json()['due']
+
+    assert due['exam_first'] is None
+
+
+def test_a_test_for_a_notebook_with_nothing_to_study_is_not_named(client, user, notebook):
+    # "Putting Biology first" means nothing when Biology owes no cards.
+    _plan_test(user, notebook, days_ahead=2)
+
+    due = client.get('/api/analytics/sessions/recommendations/').json()['due']
+
+    assert due['exam_first'] is None
+
+
+# ---- dashboard và hàng đợi phải nói cùng một con số ------------------------------------
+
+def test_a_members_summary_counts_the_shared_cards_the_queue_offers(
+        other_client, user, shared_notebook):
+    # Thành viên học thẻ của notebook chung; nếu dashboard chỉ đếm thẻ của
+    # chính họ thì nó báo 0 trong khi trang học đưa ra 2 thẻ.
+    _cards(user, shared_notebook, 2)
+
+    due = other_client.get('/api/analytics/sessions/recommendations/').json()['due']
+    queue = _ids(other_client.get(DUE))
+
+    assert due['today'] == len(queue) == 2

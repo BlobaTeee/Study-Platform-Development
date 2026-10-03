@@ -127,7 +127,8 @@
     "streakLabel": "Chuỗi ngày",
     "reviewsLabel": "Lượt ôn",
     "laterCount": "{count, plural, other {còn # thẻ dời sang những ngày tới}}",
-    "newPaused": "Thẻ mới tạm dừng cho tới khi ôn xong thẻ đến hạn."
+    "newPaused": "Thẻ mới tạm dừng cho tới khi ôn xong thẻ đến hạn.",
+    "examFirst": "Ưu tiên {title} — thi {days, plural, =0 {hôm nay} =1 {ngày mai} other {sau # ngày}}"
   },
   "notebooks": {
     "library": "Thư viện",
@@ -344,7 +345,8 @@
     "tutorThinking": "Đang đọc tài liệu của bạn…",
     "tutorFailed": "Gia sư chưa trả lời được lúc này. Hãy thử lại sau một phút.",
     "tutorDone": "Đã hỏi ba câu về thẻ này — hãy thử nhớ lại lần nữa, nếu vẫn chưa rõ thì quay lại sau.",
-    "doneForTodayReviewed": "Xong phần hôm nay — {cards} đã được chấm. Phần còn lại sẽ được ôn trước vào ngày mai."
+    "doneForTodayReviewed": "Xong phần hôm nay — {cards} đã được chấm. Phần còn lại sẽ được ôn trước vào ngày mai.",
+    "examSoon": "Cho bài thi {days, plural, =0 {hôm nay} =1 {ngày mai} other {sau # ngày}} — notebook này được ôn trước."
   },
   "quizzes": {
     "title": "Bài kiểm tra",

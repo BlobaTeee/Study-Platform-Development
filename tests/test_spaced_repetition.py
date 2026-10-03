@@ -462,3 +462,88 @@ def test_a_seeded_card_answered_today_is_a_review_not_a_new_card():
 
 def test_yesterdays_work_does_not_count_today():
     assert sm2.todays_activity([_answer(1, TODAY - timedelta(days=1))], TODAY) == (0, 0)
+
+
+# ---- exam priority ---------------------------------------------------------
+# A notebook with a test this week goes first. When a day cannot clear the
+# debt, at least it clears the part that matters soonest.
+
+def _nb_card(cid, notebook):
+    return {"id": cid, "question": "Q?", "notebook_id": notebook}
+
+
+def test_exam_days_counts_days_until_each_notebooks_test():
+    tests = [{"notebook_id": 7, "day": TODAY + timedelta(days=3)}]
+    assert sm2.exam_days(tests, TODAY) == {7: 3}
+
+
+def test_a_test_today_is_zero_days_away():
+    assert sm2.exam_days([{"notebook_id": 7, "day": TODAY}], TODAY) == {7: 0}
+
+
+def test_the_soonest_of_a_notebooks_tests_wins():
+    tests = [{"notebook_id": 7, "day": TODAY + timedelta(days=6)},
+             {"notebook_id": 7, "day": TODAY + timedelta(days=2)}]
+    assert sm2.exam_days(tests, TODAY) == {7: 2}
+
+
+def test_a_test_beyond_the_window_gives_no_priority():
+    tests = [{"notebook_id": 7, "day": TODAY + timedelta(days=8)}]
+    assert sm2.exam_days(tests, TODAY) == {}
+
+
+def test_a_test_already_sat_gives_no_priority():
+    tests = [{"notebook_id": 7, "day": TODAY - timedelta(days=1)}]
+    assert sm2.exam_days(tests, TODAY) == {}
+
+
+def test_cards_for_a_test_this_week_come_before_older_debt():
+    cards = [_nb_card(1, notebook=1), _nb_card(2, notebook=2)]
+    schedule = {1: TODAY - timedelta(days=20), 2: TODAY - timedelta(days=1)}
+    out = sm2.rank_due_cards(cards, schedule, TODAY, limit=5, exam_days={2: 3})
+    assert [c["id"] for c in out] == [2, 1]
+
+
+def test_the_sooner_test_goes_first():
+    cards = [_nb_card(1, notebook=1), _nb_card(2, notebook=2)]
+    schedule = {1: TODAY, 2: TODAY}
+    out = sm2.rank_due_cards(cards, schedule, TODAY, limit=5, exam_days={1: 5, 2: 1})
+    assert [c["id"] for c in out] == [2, 1]
+
+
+def test_within_one_test_the_most_overdue_still_leads():
+    cards = [_nb_card(1, notebook=9), _nb_card(2, notebook=9)]
+    schedule = {1: TODAY - timedelta(days=1), 2: TODAY - timedelta(days=6)}
+    out = sm2.rank_due_cards(cards, schedule, TODAY, limit=5, exam_days={9: 2})
+    assert [c["id"] for c in out] == [2, 1]
+
+
+def test_new_cards_for_a_test_this_week_come_first_among_new():
+    cards = [_nb_card(1, notebook=1), _nb_card(2, notebook=2)]
+    out = sm2.rank_due_cards(cards, {}, TODAY, limit=5, exam_days={2: 4})
+    assert [c["id"] for c in out] == [2, 1]
+
+
+def test_the_days_share_is_filled_with_the_test_first():
+    cards = [_nb_card(i, notebook=1) for i in range(1, 4)] + [_nb_card(9, notebook=2)]
+    schedule = {i: TODAY - timedelta(days=10) for i in (1, 2, 3)}
+    schedule[9] = TODAY
+    out = sm2.rank_due_cards(cards, schedule, TODAY, limit=50,
+                             budget=sm2.DailyBudget(reviews_left=2, new_left=0),
+                             exam_days={2: 1})
+    assert [c["id"] for c in out] == [9, 1]
+
+
+def test_each_card_says_how_far_its_test_is():
+    # The study page can then explain why the order changed.
+    cards = [_nb_card(1, notebook=1), _nb_card(2, notebook=2)]
+    out = sm2.rank_due_cards(cards, {1: TODAY, 2: TODAY}, TODAY, limit=5, exam_days={2: 3})
+    by_id = {c["id"]: c for c in out}
+    assert by_id[2]["exam_in_days"] == 3
+    assert by_id[1]["exam_in_days"] is None
+
+
+def test_cards_without_a_notebook_are_ranked_as_before():
+    out = sm2.rank_due_cards([_card(1), _card(2)], {1: TODAY, 2: TODAY}, TODAY,
+                             limit=5, exam_days={5: 1})
+    assert [c["id"] for c in out] == [1, 2]
