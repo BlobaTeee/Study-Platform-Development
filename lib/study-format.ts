@@ -7,6 +7,12 @@ export type Due = {
   new: number
   next_date: string | null
   next_count: number
+  /** Today's share of the queue: what the day's allowance leaves room for. */
+  today?: number
+  /** Due cards that did not fit today; they lead tomorrow's queue. */
+  later?: number
+  /** New cards held back because more is owed than today can clear. */
+  new_paused?: boolean
 }
 
 /** The shape of next-intl's `t` these helpers need: a key under `common`
@@ -26,6 +32,10 @@ export function dueBreakdown(d: Due, t: CommonT): string {
 /** An empty queue is the schedule working. Saying only "nothing due" makes that
  *  read exactly like a schedule that's broken, so name the day cards return. */
 export function caughtUpMessage(d: Due, t: CommonT, locale: string): string {
+  // Today's share is done but debt remains: say so, rather than "caught up".
+  if (d.later) {
+    return t('doneForToday', { cards: t('cards', { count: d.later }) })
+  }
   if (!d.next_date || d.next_count === 0) {
     return t('nothingToStudy')
   }

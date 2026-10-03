@@ -110,6 +110,14 @@ GEMINI_MODEL_FALLBACKS = config(
 # single biggest latency win; the cap exists because firing all of them at once
 # is the quickest way to collect a rate-limit error.
 GENERATE_CONCURRENCY = config('GENERATE_CONCURRENCY', default=3, cast=int)
+
+# Một ngày học có giới hạn. Nghỉ hai tuần là có hàng trăm thẻ đến hạn, và hiện
+# nguyên con số đó là lúc người học bỏ cuộc. Phần không vừa trong ngày vẫn đến
+# hạn và đứng đầu hàng ngày mai. Thẻ mới chờ trong lúc còn nợ nhiều hơn phần
+# của hôm nay, vì mỗi thẻ học hôm nay là một lần ôn nợ ngày mai.
+DAILY_REVIEW_LIMIT = config('DAILY_REVIEW_LIMIT', default=40, cast=int)
+DAILY_NEW_LIMIT = config('DAILY_NEW_LIMIT', default=10, cast=int)
+
 # How long one model may take before the work is handed to the next model in
 # GEMINI_MODEL_FALLBACKS. A busy model does not answer with an error — it just
 # stops answering, and without a deadline the student waits with it.

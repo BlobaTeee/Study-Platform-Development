@@ -23,7 +23,8 @@
     "sources": "{count, plural, one {# source} other {# sources}}",
     "metaTitle": "StudyFlow — Smart Study Platform",
     "metaDescription": "Turn your own notes into flashcards, quizzes and mock tests you can learn from.",
-    "close": "Close"
+    "close": "Close",
+    "doneForToday": "Done for today. {cards} wait for the coming days — they'll be first in line tomorrow."
   },
   "nav": {
     "home": "Home",
@@ -112,7 +113,7 @@
     "startStreak": "Study today to start a streak.",
     "firstNotebook": "Create your first notebook to start studying.",
     "newNotebook": "New notebook",
-    "cardsDueToday": "{count, plural, one {# card due today} other {# cards due today}}",
+    "cardsDueToday": "{count, plural, one {# card for today} other {# cards for today}}",
     "studyNow": "Study now",
     "thisWeek": "This week",
     "reviews": "{count, plural, one {review} other {reviews}}",
@@ -124,7 +125,9 @@
     "weakestEmpty": "Study a notebook and its recall shows up here.",
     "recalledLabel": "Recalled",
     "streakLabel": "Day streak",
-    "reviewsLabel": "Reviews"
+    "reviewsLabel": "Reviews",
+    "laterCount": "{count, plural, one {# more moved to the coming days} other {# more moved to the coming days}}",
+    "newPaused": "New cards are paused until you're caught up."
   },
   "notebooks": {
     "library": "Library",
@@ -340,7 +343,8 @@
     "send": "Send",
     "tutorThinking": "Reading your material…",
     "tutorFailed": "The tutor could not answer just now. Try again in a minute.",
-    "tutorDone": "Three questions on this card — try recalling it again, then come back if it is still unclear."
+    "tutorDone": "Three questions on this card — try recalling it again, then come back if it is still unclear.",
+    "doneForTodayReviewed": "Done for today — {cards} reviewed. The rest comes first tomorrow."
   },
   "quizzes": {
     "title": "Quiz",

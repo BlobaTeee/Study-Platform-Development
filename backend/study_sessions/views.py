@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from datetime import timedelta
 
-from . import scheduling
+from . import daily, scheduling
 from .models import StudySession, StudyStreak, CardReview
 from .serializers import (
     StudySessionSerializer, StudySessionCreateSerializer,
@@ -16,6 +16,16 @@ from notebooks.services.membership import notebooks_for
 from flashcards.services.regeneration import (
     MAX_REGENERATIONS_PER_FETCH, merge_replacements, select_for_regeneration,
 )
+
+def _source_ids_param(raw) -> set[int]:
+    """`?source=3,7` as a set of ids; anything unparsable is ignored."""
+    ids = set()
+    for part in (raw or '').split(','):
+        part = part.strip()
+        if part.isdigit():
+            ids.add(int(part))
+    return ids
+
 
 DUE_CARDS_DEFAULT = 50
 DUE_CARDS_LIMIT = 200
@@ -308,8 +318,19 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
             by_card.setdefault(card_id, []).append(source_id)
         for card in cards:
             card['source_ids'] = by_card.get(card['id'], [])
-        ranked = scheduling.rank_due_cards(cards, schedule, timezone.localdate(),
-                                           limit=limit)
+
+        # Studying one document draws from that document. The filter has to come
+        # before today's share is taken: otherwise the share can be all another
+        # subject's older debt, and this document reads "caught up" while its
+        # own cards are still due.
+        wanted = _source_ids_param(request.query_params.get('source'))
+        if wanted:
+            cards = [c for c in cards if wanted <= set(c['source_ids'])]
+
+        today = timezone.localdate()
+        owed = scheduling.due_counts(cards, schedule, today)['due']
+        ranked = scheduling.rank_due_cards(cards, schedule, today, limit=limit,
+                                           budget=daily.budget_for(user, owed, today))
 
         pending = select_for_regeneration(ranked, MAX_REGENERATIONS_PER_FETCH)
         if pending:

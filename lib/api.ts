@@ -68,7 +68,12 @@ export const flashcardsAPI = {
     api.post('/study/card-reviews/record/', { flashcard_id: flashcardId, result }),
   // Cards the SM-2 schedule says are owed today, plus ones never studied.
   // Cards scheduled ahead are deliberately withheld.
-  getDueCards: () => api.get('/study/card-reviews/due_today/'),
+  // With `sourceIds`, the server picks today's share from those documents only;
+  // filtering a global share afterwards could leave a document looking caught up.
+  getDueCards: (sourceIds: number[] = []) =>
+    api.get('/study/card-reviews/due_today/', {
+      params: sourceIds.length ? { source: sourceIds.join(',') } : undefined,
+    }),
 }
 
 export const streaksAPI = {

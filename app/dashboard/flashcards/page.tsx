@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import useSWR from 'swr'
-import { flashcardsAPI, type ReviewGrade } from '@/lib/api'
+import { analyticsAPI, flashcardsAPI, type ReviewGrade } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 import { SourceContextBanner } from '@/components/source-context-banner'
@@ -53,10 +53,21 @@ function FlashcardsStudy() {
   // or clear what the schedule says is owed today.
   const dueMode = searchParams.get('due') === '1'
 
+  // Scoped to a document, the server picks today's share from that document;
+  // the key carries the scope so the two queues never share a cache entry.
   const { data, isLoading } = useSWR(
-    dueMode ? ['/flashcards/due'] : sourceParam ? ['/flashcards/', sourceParam] : null,
-    () => (dueMode ? flashcardsAPI.getDueCards() : flashcardsAPI.getFlashcards())
+    dueMode
+      ? sourceParam ? ['/flashcards/due', sourceParam] : ['/flashcards/due']
+      : sourceParam ? ['/flashcards/', sourceParam] : null,
+    () => (dueMode ? flashcardsAPI.getDueCards(sourceIds) : flashcardsAPI.getFlashcards())
   )
+  // Whether debt is left once today's share is done. Same key as the dashboard,
+  // so it is usually cached already; the number holds all day, since each
+  // review lowers what is owed and what is left of the day alike.
+  const { data: recsRes } = useSWR(dueMode && !sourceParam ? ['/analytics/recommendations'] : null, () =>
+    analyticsAPI.getRecommendations()
+  )
+  const heldBack: number = recsRes?.data?.due?.later ?? 0
 
   const allCards: Flashcard[] = data?.data?.results ?? data?.data ?? []
   const [index, setIndex] = useState(0)
@@ -221,7 +232,9 @@ function FlashcardsStudy() {
         <p className="max-w-[48ch] text-lg leading-relaxed text-slate-700">
           {dueMode
             ? graded.size > 0
-              ? t('caughtUpReviewed', { cards: common('cards', { count: graded.size }) })
+              ? t(heldBack > 0 ? 'doneForTodayReviewed' : 'caughtUpReviewed', {
+                  cards: common('cards', { count: graded.size }),
+                })
               : t('nothingDue')
             : t('noneForSelection')}
         </p>

@@ -324,3 +324,141 @@ def test_a_gap_of_two_days_restarts_the_streak():
     assert s.current == 1
     assert s.best == 9  # the record survives a broken streak
     assert s.last_date == TODAY + timedelta(days=2)
+
+
+# ---- daily budget ----------------------------------------------------------
+# Two weeks away leaves 312 cards owed. Shown as one number, that is the moment
+# a learner gives up — the "debt spiral". So a day has a share, and new cards
+# wait while debt is owed: every card learned today is a review owed tomorrow.
+
+def test_a_fresh_day_has_the_whole_allowance():
+    b = sm2.daily_budget(review_limit=40, new_limit=10,
+                         reviewed_today=0, introduced_today=0, due_now=12)
+    assert b == sm2.DailyBudget(reviews_left=40, new_left=10)
+
+
+def test_reviews_done_today_use_up_the_allowance():
+    b = sm2.daily_budget(review_limit=40, new_limit=10,
+                         reviewed_today=35, introduced_today=0, due_now=0)
+    assert b.reviews_left == 5
+
+
+def test_the_allowance_never_goes_negative():
+    # Studying past the cap in browse mode is allowed; it just leaves nothing.
+    b = sm2.daily_budget(review_limit=40, new_limit=10,
+                         reviewed_today=55, introduced_today=14, due_now=0)
+    assert b == sm2.DailyBudget(reviews_left=0, new_left=0)
+
+
+def test_new_cards_wait_while_more_is_owed_than_today_can_clear():
+    b = sm2.daily_budget(review_limit=40, new_limit=10,
+                         reviewed_today=0, introduced_today=0, due_now=312)
+    assert b.new_left == 0
+
+
+def test_new_cards_return_once_today_can_clear_what_is_owed():
+    b = sm2.daily_budget(review_limit=40, new_limit=10,
+                         reviewed_today=0, introduced_today=0, due_now=40)
+    assert b.new_left == 10
+
+
+def test_new_cards_already_introduced_today_count():
+    b = sm2.daily_budget(review_limit=40, new_limit=10,
+                         reviewed_today=0, introduced_today=7, due_now=0)
+    assert b.new_left == 3
+
+
+def test_owing_what_is_left_of_today_still_pauses_new_cards():
+    # 35 of 40 done, but 10 still due: today cannot clear them.
+    b = sm2.daily_budget(review_limit=40, new_limit=10,
+                         reviewed_today=35, introduced_today=0, due_now=10)
+    assert b.new_left == 0
+
+
+# ---- rank_due_cards with a budget --------------------------------------------
+
+def test_the_queue_holds_only_todays_share_of_the_debt():
+    cards = [_card(i) for i in range(1, 11)]
+    schedule = {i: TODAY - timedelta(days=i) for i in range(1, 11)}
+    out = sm2.rank_due_cards(cards, schedule, TODAY, limit=50,
+                             budget=sm2.DailyBudget(reviews_left=3, new_left=10))
+    # Most overdue first, and only three of them.
+    assert [c["id"] for c in out] == [10, 9, 8]
+
+
+def test_new_cards_are_capped_separately():
+    cards = [_card(i) for i in range(1, 6)]
+    out = sm2.rank_due_cards(cards, {}, TODAY, limit=50,
+                             budget=sm2.DailyBudget(reviews_left=40, new_left=2))
+    assert [c["id"] for c in out] == [1, 2]
+
+
+def test_a_paused_new_allowance_shows_no_new_cards():
+    cards = [_card(1), _card(2)]
+    out = sm2.rank_due_cards(cards, {1: TODAY}, TODAY, limit=50,
+                             budget=sm2.DailyBudget(reviews_left=40, new_left=0))
+    assert [c["id"] for c in out] == [1]
+
+
+def test_without_a_budget_ranking_is_unchanged():
+    cards = [_card(i) for i in range(1, 6)]
+    assert len(sm2.rank_due_cards(cards, {}, TODAY, limit=50)) == 5
+
+
+# ---- todays_share ----------------------------------------------------------
+# What the dashboard says: the share for today, and honestly, what waits.
+
+def test_todays_share_is_what_the_budget_allows():
+    counts = {"due": 312, "overdue": 300, "new": 20}
+    share = sm2.todays_share(counts, sm2.DailyBudget(reviews_left=40, new_left=0))
+    assert share == {"today": 40, "later": 272, "new_paused": True}
+
+
+def test_a_small_debt_is_all_for_today():
+    counts = {"due": 12, "overdue": 2, "new": 5}
+    share = sm2.todays_share(counts, sm2.DailyBudget(reviews_left=40, new_left=10))
+    assert share == {"today": 17, "later": 0, "new_paused": False}
+
+
+def test_new_cards_held_by_the_daily_cap_are_not_called_paused():
+    # The daily new allowance is spent; that is a normal day, not debt.
+    counts = {"due": 0, "overdue": 0, "new": 20}
+    share = sm2.todays_share(counts, sm2.DailyBudget(reviews_left=40, new_left=0))
+    assert share == {"today": 0, "later": 0, "new_paused": False}
+
+
+# ---- todays_activity -------------------------------------------------------
+# Rows are {"flashcard_id", "day", "is_seed"}; `day` is the review's local date.
+
+def _answer(card, day, seed=False):
+    return {"flashcard_id": card, "day": day, "is_seed": seed}
+
+
+def test_a_card_first_studied_today_was_introduced_today():
+    reviewed, introduced = sm2.todays_activity([_answer(1, TODAY)], TODAY)
+    assert (reviewed, introduced) == (0, 1)
+
+
+def test_a_card_studied_before_counts_as_reviewed_today():
+    rows = [_answer(1, TODAY - timedelta(days=3)), _answer(1, TODAY)]
+    assert sm2.todays_activity(rows, TODAY) == (1, 0)
+
+
+def test_a_card_studied_twice_today_counts_once():
+    rows = [_answer(1, TODAY - timedelta(days=3)), _answer(1, TODAY), _answer(1, TODAY)]
+    assert sm2.todays_activity(rows, TODAY) == (1, 0)
+
+
+def test_a_seed_row_is_not_a_recall():
+    # A seed carries a schedule to a regenerated card; nobody answered anything.
+    assert sm2.todays_activity([_answer(1, TODAY, seed=True)], TODAY) == (0, 0)
+
+
+def test_a_seeded_card_answered_today_is_a_review_not_a_new_card():
+    # It inherited its place in the schedule, so it was never new.
+    rows = [_answer(1, TODAY - timedelta(days=1), seed=True), _answer(1, TODAY)]
+    assert sm2.todays_activity(rows, TODAY) == (1, 0)
+
+
+def test_yesterdays_work_does_not_count_today():
+    assert sm2.todays_activity([_answer(1, TODAY - timedelta(days=1))], TODAY) == (0, 0)

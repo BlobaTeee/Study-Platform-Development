@@ -23,7 +23,8 @@
     "sources": "{count} tài liệu",
     "metaTitle": "StudyFlow — Nền tảng học tập thông minh",
     "metaDescription": "Biến ghi chú của bạn thành thẻ, bài kiểm tra và bài thi thử để học hiệu quả.",
-    "close": "Đóng"
+    "close": "Đóng",
+    "doneForToday": "Xong phần hôm nay. {cards} để dành cho những ngày tới — mai sẽ được ôn trước."
   },
   "nav": {
     "home": "Trang chủ",
@@ -112,7 +113,7 @@
     "startStreak": "Ôn hôm nay để bắt đầu một chuỗi ngày.",
     "firstNotebook": "Tạo sổ tay đầu tiên để bắt đầu học.",
     "newNotebook": "Sổ tay mới",
-    "cardsDueToday": "{count, plural, other {# thẻ đến hạn hôm nay}}",
+    "cardsDueToday": "{count, plural, other {# thẻ cho hôm nay}}",
     "studyNow": "Ôn ngay",
     "thisWeek": "Tuần này",
     "reviews": "lượt ôn",
@@ -124,7 +125,9 @@
     "weakestEmpty": "Ôn một sổ tay và tỉ lệ nhớ sẽ hiện ở đây.",
     "recalledLabel": "Nhớ được",
     "streakLabel": "Chuỗi ngày",
-    "reviewsLabel": "Lượt ôn"
+    "reviewsLabel": "Lượt ôn",
+    "laterCount": "{count, plural, other {còn # thẻ dời sang những ngày tới}}",
+    "newPaused": "Thẻ mới tạm dừng cho tới khi ôn xong thẻ đến hạn."
   },
   "notebooks": {
     "library": "Thư viện",
@@ -340,7 +343,8 @@
     "send": "Gửi",
     "tutorThinking": "Đang đọc tài liệu của bạn…",
     "tutorFailed": "Gia sư chưa trả lời được lúc này. Hãy thử lại sau một phút.",
-    "tutorDone": "Đã hỏi ba câu về thẻ này — hãy thử nhớ lại lần nữa, nếu vẫn chưa rõ thì quay lại sau."
+    "tutorDone": "Đã hỏi ba câu về thẻ này — hãy thử nhớ lại lần nữa, nếu vẫn chưa rõ thì quay lại sau.",
+    "doneForTodayReviewed": "Xong phần hôm nay — {cards} đã được chấm. Phần còn lại sẽ được ôn trước vào ngày mai."
   },
   "quizzes": {
     "title": "Bài kiểm tra",

@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from flashcards.models import Flashcard
 from notebooks.models import Notebook, Source
 from quizzes.models import Answer, MockTest, Question, Quiz, QuizAttempt
-from study_sessions import scheduling
+from study_sessions import daily, scheduling
 from study_sessions.models import CardReview
 from users.timezones import zone_for
 from . import insights
@@ -128,6 +128,10 @@ class AnalyticsViewSet(viewsets.ViewSet):
         )
         today = timezone.localdate()
         due = scheduling.due_counts(cards, schedule, today)
+        # The share for today next to the full counts: the dashboard leads with
+        # the first, so two weeks away reads "40 today" and not "312 owed".
+        due = {**due, **scheduling.todays_share(
+            due, daily.budget_for(user, due['due'], today))}
         # An empty queue means the schedule is working. Without a return date it
         # reads exactly like a broken one, so the date travels with the counts.
         next_date, next_count = scheduling.next_due_batch(schedule, today)

@@ -39,7 +39,9 @@ export default function HomePage() {
   const { data: dueRes } = useSWR(['/flashcards/due'], () => flashcardsAPI.getDueCards())
 
   const due: Due = recsRes?.data?.due ?? { due: 0, overdue: 0, new: 0, next_date: null, next_count: 0 }
-  const ready = due.due + due.new
+  // Today's share, not the whole debt: two weeks away should read "40 for
+  // today", not a number that makes starting feel pointless.
+  const ready = due.today ?? due.due + due.new
   const dueCards: DueCard[] = dueRes?.data?.results ?? dueRes?.data ?? []
   const firstDue = dueCards[0]
   const weak: WeakNotebook[] = recsRes?.data?.weak_notebooks ?? []
@@ -90,10 +92,23 @@ export default function HomePage() {
             <div className="flex h-full flex-col gap-6">
               <div className="flex items-baseline justify-between gap-4">
                 <h2 className="text-lg font-semibold text-slate-900">{t('cardsDueToday', { count: ready })}</h2>
-                {due.overdue > 0 && (
+                {/* With debt pushed to coming days, the full overdue count is the
+                    very number this page avoids leading with; the line below
+                    says what waits, calmly. */}
+                {due.overdue > 0 && !due.later && (
                   <span className="text-sm text-red-700">{common('overdueCount', { count: due.overdue })}</span>
                 )}
               </div>
+              {(due.later || due.new_paused) && (
+                <p className="-mt-3 text-sm text-slate-600">
+                  {[
+                    due.later ? t('laterCount', { count: due.later }) : null,
+                    due.new_paused ? t('newPaused') : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              )}
 
               {/* The first card of the queue, on the stack it sits in. */}
               <Link

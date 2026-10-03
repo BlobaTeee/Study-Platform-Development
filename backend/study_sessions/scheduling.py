@@ -84,6 +84,69 @@ STATUS_DUE = "due"
 STATUS_NEW = "new"
 
 
+class DailyBudget(NamedTuple):
+    """How much of the queue today still has room for."""
+    reviews_left: int
+    new_left: int
+
+
+def daily_budget(*, review_limit: int, new_limit: int, reviewed_today: int,
+                 introduced_today: int, due_now: int) -> DailyBudget:
+    """Today's remaining share of reviews and of new cards.
+
+    Two weeks away leaves hundreds of cards owed, and shown as one number that
+    is the moment a learner gives up. So a day has a share; what does not fit
+    stays due and leads tomorrow.
+
+    New cards wait while more is owed than today can clear. Every card learned
+    today is a review owed tomorrow, so introducing them during a backlog only
+    deepens it — the "debt spiral" this exists to stop.
+    """
+    reviews_left = max(0, review_limit - reviewed_today)
+    if due_now > reviews_left:
+        new_left = 0
+    else:
+        new_left = max(0, new_limit - introduced_today)
+    return DailyBudget(reviews_left=reviews_left, new_left=new_left)
+
+
+def todays_share(counts: dict[str, int], budget: DailyBudget) -> dict:
+    """What a summary says about today: its share, and honestly, what waits.
+
+    `later` counts only due cards pushed to coming days. New cards held back
+    are not debt — they were never owed — so they are not added to it;
+    `new_paused` says why they are missing when the reason is the backlog
+    rather than a spent daily allowance.
+    """
+    due_today = min(counts["due"], budget.reviews_left)
+    return {
+        "today": due_today + min(counts["new"], budget.new_left),
+        "later": counts["due"] - due_today,
+        "new_paused": counts["new"] > 0 and counts["due"] > budget.reviews_left,
+    }
+
+
+def todays_activity(rows: list[dict], today: date) -> tuple[int, int]:
+    """(cards reviewed today, cards first studied today).
+
+    Rows are ``{"flashcard_id", "day", "is_seed"}`` where `day` is the review's
+    local date. A card counts once however often it was answered. Seed rows
+    are no recall, so they never count as work done — but a card that has one
+    inherited a place in the schedule, so answering it is a review, not a new
+    card.
+    """
+    seen_before: set[int] = set()
+    answered_today: set[int] = set()
+    for row in rows:
+        card = row["flashcard_id"]
+        if row["day"] < today or row["is_seed"]:
+            seen_before.add(card)
+        elif row["day"] == today:
+            answered_today.add(card)
+    reviewed = answered_today & seen_before
+    return len(reviewed), len(answered_today - seen_before)
+
+
 def latest_schedule(reviews: list[dict]) -> dict[int, date]:
     """Each card's standing schedule, from its most recent review.
 
@@ -101,7 +164,7 @@ def latest_schedule(reviews: list[dict]) -> dict[int, date]:
 
 
 def rank_due_cards(cards: list[dict], schedule: dict[int, date], today: date,
-                   limit: int) -> list[dict]:
+                   limit: int, budget: "DailyBudget | None" = None) -> list[dict]:
     """The cards worth studying now, most urgent first.
 
     A card is due once its scheduled date arrives, and new if it has never been
@@ -112,6 +175,10 @@ def rank_due_cards(cards: list[dict], schedule: dict[int, date], today: date,
     Overdue cards lead, longest-overdue first, because those are being forgotten
     while new cards are only an opportunity. Each result keeps whatever fields
     the caller passed in, so it serves both a study page and a summary list.
+
+    With a `budget`, only today's share is handed back: at most
+    `reviews_left` due cards and `new_left` new ones. The rest stay due and
+    lead tomorrow's queue, since they will be the most overdue then.
     """
     due, new = [], []
     for card in cards:
@@ -126,6 +193,9 @@ def rank_due_cards(cards: list[dict], schedule: dict[int, date], today: date,
     due.sort(key=lambda c: c["id"])
     due.sort(key=lambda c: c["overdue_days"], reverse=True)
     new.sort(key=lambda c: c["id"])
+    if budget is not None:
+        due = due[:budget.reviews_left]
+        new = new[:budget.new_left]
     return (due + new)[:limit]
 
 
