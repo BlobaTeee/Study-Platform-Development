@@ -203,6 +203,7 @@ def generate_json(prompt: str) -> dict:
     models = _worth_trying(_model_list())
     last_quota_error = None
     last_transient_error = None
+    last_format_error = None
 
     for model in models:
         try:
@@ -216,7 +217,15 @@ def generate_json(prompt: str) -> dict:
                 response = client.models.generate_content(
                     model=model, contents=prompt, config=_request_config('default'))
             _note_success(model)
-            return _parse_json_response(response.text or '')
+            try:
+                return _parse_json_response(response.text or '')
+            except GeminiGenerationError as exc:
+                # Answered, but not with JSON. The model is up, so this is not
+                # a reason to stop trusting it — but the next one in the list
+                # may well format its answer properly, and losing the whole
+                # excerpt over a stray sentence of preamble is worse.
+                last_format_error = exc
+                continue
         except (GeminiNotConfiguredError, GeminiGenerationError):
             raise
         except Exception as exc:
@@ -238,4 +247,6 @@ def generate_json(prompt: str) -> dict:
     if last_transient_error:
         raise GeminiGenerationError(
             f'Every Gemini model was busy: {last_transient_error}') from last_transient_error
+    if last_format_error:
+        raise last_format_error
     raise GeminiGenerationError('No Gemini model available.')

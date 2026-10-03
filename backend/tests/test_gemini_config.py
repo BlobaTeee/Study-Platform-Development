@@ -156,3 +156,33 @@ def test_a_deadline_below_the_server_minimum_is_raised_to_it(monkeypatch, settin
     gemini_client._get_client()
 
     assert seen['http_options'].timeout == 10_000
+
+
+# ---- JSON hỏng thì thử model khác, đừng mất hẳn một đoạn nguồn -----------------------
+
+def test_a_model_answering_with_prose_hands_over_to_the_next(fake, settings):
+    # Gặp thật khi sinh: một đoạn nguồn trả về "Model returned invalid JSON" và
+    # mất hẳn, dù chuỗi dự phòng còn model khác trả lời được.
+    settings.GEMINI_THINKING = 'default'
+    models = fake(script={'first': 'Chắc chắn rồi! Đây là các câu hỏi của bạn:'})
+
+    assert generate_json('x') == {'questions': ['ok']}
+    assert [model for model, _ in models.calls] == ['first', 'second']
+
+
+def test_json_that_no_model_can_produce_is_still_reported_as_such(fake, settings):
+    settings.GEMINI_THINKING = 'default'
+    fake(script={'first': 'không phải JSON', 'second': 'cũng không phải JSON'})
+
+    with pytest.raises(gemini_client.GeminiGenerationError, match='invalid JSON'):
+        generate_json('x')
+
+
+def test_bad_json_is_not_treated_as_the_model_being_down(fake, settings):
+    # Trả lời sai định dạng không phải là model hỏng, nên đừng bỏ qua nó 5 phút.
+    settings.GEMINI_THINKING = 'default'
+    fake(script={'first': 'không phải JSON'})
+
+    generate_json('x')
+
+    assert gemini_client._in_cooldown('first') is False
