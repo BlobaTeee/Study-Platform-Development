@@ -120,6 +120,11 @@ GEMINI_TIMEOUT_SECONDS = config('GEMINI_TIMEOUT_SECONDS', default=30, cast=int)
 # gemini-2.5-flash — over half the spend. Older models reject the setting and
 # are retried without it, so changing this cannot break the fallback chain.
 GEMINI_THINKING = config('GEMINI_THINKING', default='default')
+# Sau khi một model quá tải hoặc hết hạn chờ, bỏ qua nó trong bao lâu. Mỗi model
+# không trả lời tốn trọn một deadline trước khi nhường, nên nhớ lại trong ít phút
+# giúp những lượt sinh sau không phải trả lại cái giá đó. Nếu cả chuỗi đang bị bỏ
+# qua thì model đầu vẫn được thử, vì thà chờ còn hơn báo lỗi khi nó có thể đã hồi.
+GEMINI_COOLDOWN_SECONDS = config('GEMINI_COOLDOWN_SECONDS', default=300, cast=int)
 
 USE_LOCAL_FALLBACK_ON_QUOTA = config('USE_LOCAL_FALLBACK_ON_QUOTA', default=True, cast=bool)
 # When True, use local spaCy/scikit-learn pipeline first (fully offline capable).

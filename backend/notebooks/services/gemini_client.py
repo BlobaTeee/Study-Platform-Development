@@ -98,6 +98,48 @@ def _get_client():
     )
 
 
+# model -> khi nào hết hạn tạm bỏ qua. Mỗi model không trả lời tốn trọn một
+# deadline trước khi nhường, nên nhớ lại trong ít phút là mọi lượt sinh sau
+# không phải trả lại cái giá đó. Chỉ trong tiến trình, cố tình: nó là một gợi ý
+# về tình trạng hiện thời, không phải dữ liệu cần bền.
+_unavailable_until: dict[str, float] = {}
+
+
+def forget_failures() -> None:
+    """Quên mọi model đang bị tạm bỏ qua (dùng trong test)."""
+    _unavailable_until.clear()
+
+
+def _note_failure(model: str) -> None:
+    seconds = max(0, int(getattr(settings, 'GEMINI_COOLDOWN_SECONDS', 300)))
+    if seconds:
+        _unavailable_until[model] = time.monotonic() + seconds
+
+
+def _note_success(model: str) -> None:
+    _unavailable_until.pop(model, None)
+
+
+def _in_cooldown(model: str) -> bool:
+    until = _unavailable_until.get(model)
+    if until is None:
+        return False
+    if time.monotonic() >= until:
+        del _unavailable_until[model]
+        return False
+    return True
+
+
+def _worth_trying(models: list[str]) -> list[str]:
+    """Bỏ các model vừa chết — nhưng không bỏ hết.
+
+    Nếu cả chuỗi đang trong thời gian chờ thì vẫn thử cái đầu: thà chờ một
+    deadline còn hơn báo lỗi khi có thể model đã hồi phục.
+    """
+    live = [m for m in models if not _in_cooldown(m)]
+    return live or models[:1]
+
+
 def _model_list() -> list[str]:
     primary = getattr(settings, 'GEMINI_MODEL', 'gemini-3.8-flash')
     fallbacks = getattr(settings, 'GEMINI_MODEL_FALLBACKS', '')
@@ -158,7 +200,7 @@ def _request_config(thinking: str | None = None):
 
 def generate_json(prompt: str) -> dict:
     client = _get_client()
-    models = _model_list()
+    models = _worth_trying(_model_list())
     last_quota_error = None
     last_transient_error = None
 
@@ -173,6 +215,7 @@ def generate_json(prompt: str) -> dict:
                 # This model is older than the setting; ask it again plainly.
                 response = client.models.generate_content(
                     model=model, contents=prompt, config=_request_config('default'))
+            _note_success(model)
             return _parse_json_response(response.text or '')
         except (GeminiNotConfiguredError, GeminiGenerationError):
             raise
@@ -182,7 +225,9 @@ def generate_json(prompt: str) -> dict:
                 time.sleep(1)
                 continue
             if is_transient_error(exc) or is_missing_model_error(exc):
-                # Busy or retired: the next one in the list usually works.
+                # Busy or retired: the next one in the list usually works, and
+                # this one is not worth waiting for again for a few minutes.
+                _note_failure(model)
                 last_transient_error = exc
                 continue
             raise GeminiGenerationError(str(exc)) from exc
