@@ -1,5 +1,6 @@
 import json
 import re
+import threading
 import time
 from django.conf import settings
 
@@ -91,7 +92,7 @@ def _get_client():
     # Gemini refuses a deadline under ten seconds with a 400, which is not a
     # transient error — so too small a setting would kill generation outright
     # rather than merely hurrying it.
-    seconds = max(MIN_TIMEOUT_SECONDS, int(getattr(settings, 'GEMINI_TIMEOUT_SECONDS', 30)))
+    seconds = int(_wait_seconds())
     return _genai_client_class()(
         api_key=api_key,
         http_options=types.HttpOptions(timeout=seconds * 1000),
@@ -198,6 +199,40 @@ def _request_config(thinking: str | None = None):
     )
 
 
+def _wait_seconds() -> float:
+    return float(max(MIN_TIMEOUT_SECONDS, int(getattr(settings, 'GEMINI_TIMEOUT_SECONDS', 30))))
+
+
+def _call_with_deadline(call, seconds: float):
+    """Stop waiting after `seconds`, even if the connection is still open.
+
+    The deadline sent with the request does not bound every kind of stall: one
+    excerpt sat for 560 seconds against a 30-second deadline because the server
+    held the connection rather than answering or failing. The SDK does not
+    retry (its default is a single attempt), so the wait was one call.
+
+    The abandoned call is left to finish on its own daemon thread — it cannot
+    be cancelled — while generation moves on to the next model. A leaked thread
+    that ends by itself is cheaper than a student watching a spinner.
+    """
+    box: dict = {}
+
+    def run():
+        try:
+            box['value'] = call()
+        except BaseException as exc:      # noqa: BLE001 - handed back to the caller
+            box['error'] = exc
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(seconds)
+    if worker.is_alive():
+        raise GeminiGenerationError(f'Model timed out after {seconds:g}s')
+    if 'error' in box:
+        raise box['error']
+    return box.get('value')
+
+
 def generate_json(prompt: str) -> dict:
     client = _get_client()
     models = _worth_trying(_model_list())
@@ -207,15 +242,16 @@ def generate_json(prompt: str) -> dict:
 
     for model in models:
         try:
+            wait = _wait_seconds()
             try:
-                response = client.models.generate_content(
-                    model=model, contents=prompt, config=_request_config())
+                response = _call_with_deadline(lambda: client.models.generate_content(
+                    model=model, contents=prompt, config=_request_config()), wait)
             except Exception as exc:
                 if not _is_thinking_rejected(exc):
                     raise
                 # This model is older than the setting; ask it again plainly.
-                response = client.models.generate_content(
-                    model=model, contents=prompt, config=_request_config('default'))
+                response = _call_with_deadline(lambda: client.models.generate_content(
+                    model=model, contents=prompt, config=_request_config('default')), wait)
             _note_success(model)
             try:
                 return _parse_json_response(response.text or '')
@@ -226,8 +262,15 @@ def generate_json(prompt: str) -> dict:
                 # excerpt over a stray sentence of preamble is worse.
                 last_format_error = exc
                 continue
-        except (GeminiNotConfiguredError, GeminiGenerationError):
+        except GeminiNotConfiguredError:
             raise
+        except GeminiGenerationError as exc:
+            if not is_transient_error(exc):
+                raise
+            # Our own deadline: the model is not answering, try the next one.
+            _note_failure(model)
+            last_transient_error = exc
+            continue
         except Exception as exc:
             if is_quota_error(exc):
                 last_quota_error = exc

@@ -186,3 +186,86 @@ def test_bad_json_is_not_treated_as_the_model_being_down(fake, settings):
     generate_json('x')
 
     assert gemini_client._in_cooldown('first') is False
+
+
+# ---- hạn chờ do ta tự giữ, không phó cho server ---------------------------------------
+
+def test_waiting_stops_at_our_own_deadline(settings):
+    # Deadline gửi kèm request không chặn được mọi kiểu treo: một đoạn nguồn đã
+    # ngồi 560s trong khi deadline đặt 30s, vì server giữ kết nối mở.
+    settings.GEMINI_TIMEOUT_SECONDS = 10
+    import time as _time
+
+    started = _time.time()
+    with pytest.raises(Exception, match='timed out'):
+        gemini_client._call_with_deadline(lambda: _time.sleep(30), seconds=0.2)
+
+    assert _time.time() - started < 2
+
+
+def test_our_deadline_error_reads_as_transient():
+    exc = None
+    try:
+        gemini_client._call_with_deadline(lambda: __import__('time').sleep(5), seconds=0.1)
+    except Exception as e:
+        exc = e
+    assert gemini_client.is_transient_error(exc) is True
+
+
+def test_a_fast_answer_passes_straight_through():
+    assert gemini_client._call_with_deadline(lambda: 'xong', seconds=5) == 'xong'
+
+
+def test_an_error_inside_the_call_is_raised_as_itself():
+    def boom():
+        raise ValueError('vỡ')
+
+    with pytest.raises(ValueError, match='vỡ'):
+        gemini_client._call_with_deadline(boom, seconds=5)
+
+
+def test_a_model_that_never_answers_hands_over_to_the_next(fake, settings, monkeypatch):
+    settings.GEMINI_THINKING = 'default'
+    models = fake()
+    import time as _time
+    real = models.generate_content
+    tried = []
+
+    def slow(model, contents, config=None, **kwargs):
+        tried.append(model)
+        if model == 'first':
+            _time.sleep(5)      # không bao giờ trả lời trong hạn
+        return real(model, contents, config=config, **kwargs)
+
+    monkeypatch.setattr(models, 'generate_content', slow)
+    monkeypatch.setattr(gemini_client, '_wait_seconds', lambda: 0.2)
+
+    started = _time.time()
+    assert generate_json('x') == {'questions': ['ok']}
+
+    assert tried == ['first', 'second']
+    # Không chờ hết 5 giây của model treo.
+    assert _time.time() - started < 2
+
+
+def test_a_model_that_never_answers_is_not_waited_for_again(fake, settings, monkeypatch):
+    settings.GEMINI_THINKING = 'default'
+    settings.GEMINI_COOLDOWN_SECONDS = 300
+    models = fake()
+    import time as _time
+    real = models.generate_content
+    tried = []
+
+    def slow(model, contents, config=None, **kwargs):
+        tried.append(model)
+        if model == 'first':
+            _time.sleep(5)
+        return real(model, contents, config=config, **kwargs)
+
+    monkeypatch.setattr(models, 'generate_content', slow)
+    monkeypatch.setattr(gemini_client, '_wait_seconds', lambda: 0.2)
+
+    generate_json('x')
+    generate_json('x')
+
+    assert tried == ['first', 'second', 'second']
