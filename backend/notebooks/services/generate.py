@@ -71,6 +71,38 @@ def _document_chunks(sources) -> list[str]:
     return select_chunks(chunks, k=k) or [_sources_text(sources)[:12000]]
 
 
+def _chunk_results(provider, chunks, per_chunk, build_prompt):
+    """Ask the provider about every excerpt, newest answer never jumping the queue.
+
+    One excerpt is one model call of several seconds, and they used to run one
+    after another: three excerpts meant three waits. They are independent, so
+    they run together — but the results are returned in *excerpt* order, not in
+    the order they happen to come back, because question order and provenance
+    must not depend on which call the network finished first.
+
+    Concurrency is capped: firing every excerpt at once is the quickest way to
+    collect a rate-limit error from the provider.
+    """
+    if len(chunks) < 2:
+        return [_one_chunk(provider, chunk, per_chunk, build_prompt) for chunk in chunks]
+
+    from concurrent.futures import ThreadPoolExecutor
+    workers = min(len(chunks), max(1, getattr(settings, 'GENERATE_CONCURRENCY', 3)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(_one_chunk, provider, chunk, per_chunk, build_prompt)
+                   for chunk in chunks]
+        return [f.result() for f in futures]
+
+
+def _one_chunk(provider, chunk, per_chunk, build_prompt):
+    """(data, error) for one excerpt — raising here would lose the others."""
+    try:
+        return provider.generate_json(build_prompt(chunk, per_chunk)), None
+    except Exception as exc:
+        logger.warning('Excerpt generation failed (continuing): %s', exc)
+        return None, exc
+
+
 def _generate_over_chunks(provider, chunks, per_chunk, build_prompt, key, limit):
     """Call the provider once per excerpt, aggregating deduped items.
 
@@ -78,12 +110,10 @@ def _generate_over_chunks(provider, chunks, per_chunk, build_prompt, key, limit)
     every excerpt fails do we raise, letting the caller fall back.
     """
     items, seen, errors = [], set(), []
-    for chunk in chunks:
-        try:
-            data = provider.generate_json(build_prompt(chunk, per_chunk))
-        except Exception as exc:
-            logger.warning('Excerpt generation failed (continuing): %s', exc)
-            errors.append(exc)
+    for chunk, (data, error) in zip(chunks, _chunk_results(
+            provider, chunks, per_chunk, build_prompt)):
+        if error is not None:
+            errors.append(error)
             continue
         for item in (data.get(key) or []):
             dedup = (item.get('question') or item.get('question_text') or '').strip().lower()
@@ -92,8 +122,8 @@ def _generate_over_chunks(provider, chunks, per_chunk, build_prompt, key, limit)
             seen.add(dedup)
             item['_excerpt'] = chunk   # provenance: the passage this came from
             items.append(item)
-        if len(items) >= limit:
-            break
+    # Every excerpt is asked, since per_chunk is sized so they are all needed to
+    # reach the count; a model that over-delivers just has its extras trimmed.
     if not items and errors:
         raise errors[0]
     return items[:limit]

@@ -105,6 +105,11 @@ GEMINI_MODEL_FALLBACKS = config(
     'GEMINI_MODEL_FALLBACKS',
     default='gemini-flash-latest,gemini-3.1-flash-lite,gemini-2.5-flash',
 )
+# How many excerpts may be generated at once. Each excerpt is one provider call
+# of several seconds and they are independent, so running them together is the
+# single biggest latency win; the cap exists because firing all of them at once
+# is the quickest way to collect a rate-limit error.
+GENERATE_CONCURRENCY = config('GENERATE_CONCURRENCY', default=3, cast=int)
 USE_LOCAL_FALLBACK_ON_QUOTA = config('USE_LOCAL_FALLBACK_ON_QUOTA', default=True, cast=bool)
 # When True, use local spaCy/scikit-learn pipeline first (fully offline capable).
 USE_ML_PRIMARY = config('USE_ML_PRIMARY', default=False, cast=bool)
