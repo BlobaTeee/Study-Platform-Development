@@ -49,6 +49,9 @@ def is_transient_error(exc: BaseException) -> bool:
         or 'INTERNAL ERROR' in msg
         or '504' in msg
         or 'DEADLINE_EXCEEDED' in msg
+        # A deadline of our own making: the model never answered in time.
+        or 'TIMEOUT' in msg
+        or 'TIMED OUT' in msg
     )
 
 
@@ -61,17 +64,38 @@ def quota_user_message() -> str:
     )
 
 
+# The server's own floor: "Minimum allowed deadline is 10s".
+MIN_TIMEOUT_SECONDS = 10
+
+
+def _genai_client_class():
+    try:
+        from google import genai
+    except ImportError as exc:
+        raise GeminiNotConfiguredError('Install google-genai: pip install google-genai') from exc
+    return genai.Client
+
+
 def _get_client():
     api_key = getattr(settings, 'GEMINI_API_KEY', '') or ''
     if not api_key:
         raise GeminiNotConfiguredError(
             'GEMINI_API_KEY is not set. Add it to backend/.env'
         )
-    try:
-        from google import genai
-    except ImportError as exc:
-        raise GeminiNotConfiguredError('Install google-genai: pip install google-genai') from exc
-    return genai.Client(api_key=api_key)
+    from google.genai import types
+    # Without a deadline, a model under heavy demand does not fail — it hangs,
+    # and so does the student waiting for their quiz. Measuring 3.8-flash on a
+    # busy afternoon sat for over half an hour without an answer or an error.
+    # Timing out turns that into a transient error, which hands the work to the
+    # next model in the list within seconds.
+    # Gemini refuses a deadline under ten seconds with a 400, which is not a
+    # transient error — so too small a setting would kill generation outright
+    # rather than merely hurrying it.
+    seconds = max(MIN_TIMEOUT_SECONDS, int(getattr(settings, 'GEMINI_TIMEOUT_SECONDS', 30)))
+    return _genai_client_class()(
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=seconds * 1000),
+    )
 
 
 def _model_list() -> list[str]:
@@ -98,6 +122,40 @@ def _parse_json_response(text: str) -> dict:
         raise GeminiGenerationError('Model returned invalid JSON.') from exc
 
 
+def _is_thinking_rejected(exc) -> bool:
+    """A model refusing the thinking setting, not a model that is broken.
+
+    gemini-2.5-flash answers 400 INVALID_ARGUMENT to `thinking_level`, which
+    belongs to the 3.x family. The model itself is fine, so the call is worth
+    repeating without that one setting.
+    """
+    text = str(exc).lower()
+    return '400' in text and 'thinking' in text
+
+
+def _request_config(thinking: str | None = None):
+    """Ask for JSON outright, and say how much the model should think.
+
+    JSON is requested through the API rather than only in the prompt, so a
+    chatty model cannot wrap the answer in prose and break parsing. The
+    thinking setting matters for cost: measured on one excerpt, the thinking
+    part was 2.089 tokens against 765 of actual answer on gemini-2.5-flash —
+    more than half the spend, on text nobody reads.
+    """
+    from google.genai import types
+    mode = (thinking if thinking is not None
+            else getattr(settings, 'GEMINI_THINKING', 'default')).lower()
+    thinking_config = None
+    if mode == 'off':
+        thinking_config = types.ThinkingConfig(thinking_budget=0)
+    elif mode in ('low', 'high'):
+        thinking_config = types.ThinkingConfig(thinking_level=mode)
+    return types.GenerateContentConfig(
+        response_mime_type='application/json',
+        thinking_config=thinking_config,
+    )
+
+
 def generate_json(prompt: str) -> dict:
     client = _get_client()
     models = _model_list()
@@ -106,7 +164,15 @@ def generate_json(prompt: str) -> dict:
 
     for model in models:
         try:
-            response = client.models.generate_content(model=model, contents=prompt)
+            try:
+                response = client.models.generate_content(
+                    model=model, contents=prompt, config=_request_config())
+            except Exception as exc:
+                if not _is_thinking_rejected(exc):
+                    raise
+                # This model is older than the setting; ask it again plainly.
+                response = client.models.generate_content(
+                    model=model, contents=prompt, config=_request_config('default'))
             return _parse_json_response(response.text or '')
         except (GeminiNotConfiguredError, GeminiGenerationError):
             raise

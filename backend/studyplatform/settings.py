@@ -110,6 +110,17 @@ GEMINI_MODEL_FALLBACKS = config(
 # single biggest latency win; the cap exists because firing all of them at once
 # is the quickest way to collect a rate-limit error.
 GENERATE_CONCURRENCY = config('GENERATE_CONCURRENCY', default=3, cast=int)
+# How long one model may take before the work is handed to the next model in
+# GEMINI_MODEL_FALLBACKS. A busy model does not answer with an error — it just
+# stops answering, and without a deadline the student waits with it.
+GEMINI_TIMEOUT_SECONDS = config('GEMINI_TIMEOUT_SECONDS', default=30, cast=int)
+# How much the model may think before answering: 'default' leaves it to the
+# model, 'off' forbids it, 'low'/'high' set a level on the models that take one.
+# Measured on one excerpt, thinking was 2.089 tokens against 765 of answer on
+# gemini-2.5-flash — over half the spend. Older models reject the setting and
+# are retried without it, so changing this cannot break the fallback chain.
+GEMINI_THINKING = config('GEMINI_THINKING', default='default')
+
 USE_LOCAL_FALLBACK_ON_QUOTA = config('USE_LOCAL_FALLBACK_ON_QUOTA', default=True, cast=bool)
 # When True, use local spaCy/scikit-learn pipeline first (fully offline capable).
 USE_ML_PRIMARY = config('USE_ML_PRIMARY', default=False, cast=bool)

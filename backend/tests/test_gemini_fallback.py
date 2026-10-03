@@ -12,7 +12,7 @@ class _Models:
         self.script = script          # {model: Exception | text}
         self.calls = []
 
-    def generate_content(self, model, contents):
+    def generate_content(self, model, contents, config=None, **kwargs):
         self.calls.append(model)
         outcome = self.script.get(model, '{"ok": true}')
         if isinstance(outcome, Exception):
