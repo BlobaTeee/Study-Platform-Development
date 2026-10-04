@@ -237,7 +237,11 @@ function FlashcardsStudy() {
               ? t(heldBack > 0 ? 'doneForTodayReviewed' : 'caughtUpReviewed', {
                   cards: common('cards', { count: graded.size }),
                 })
-              : t('nothingDue')
+              : heldBack > 0
+                // Reopened after today's share was done: cards are still owed,
+                // so "nothing due" would be false — say they wait for tomorrow.
+                ? common('doneForToday', { cards: common('cards', { count: heldBack }) })
+                : t('nothingDue')
             : t('noneForSelection')}
         </p>
         {/* Studying a document enters the scheduled queue, so "nothing due" is
