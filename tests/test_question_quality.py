@@ -214,3 +214,83 @@ def test_a_numeric_distractor_set_passes():
     )
     assert report.rivals == []
     assert report.ok is True
+
+
+# ---- rank_by_quality: clean questions first, nothing thrown away ----------------------
+
+def _item(question, answer, distractors, excerpt=EXCERPT):
+    return {'question_text': question, 'correct_answer': answer,
+            'distractors': distractors, '_excerpt': excerpt}
+
+
+CLEAN = _item('What undermines the safety benefit of mobile phones?',
+              'theft, loss and depleted batteries',
+              ['a lack of storage space', 'slow internet', 'small screens'])
+RIVAL = _item('What role do mobile phones play in personal safety?',
+              'a source of risk', ['a lifeline', 'a way to pay rent', 'a school requirement'])
+
+
+def test_a_clean_question_goes_before_a_flawed_one():
+    from ml_pipeline.question_quality import rank_by_quality
+    assert rank_by_quality([RIVAL, CLEAN]) == [CLEAN, RIVAL]
+
+
+def test_equally_good_questions_keep_their_order():
+    from ml_pipeline.question_quality import rank_by_quality
+    other = _item('What do phones let young people do in emergencies?', 'summon help',
+                  ['buying snacks', 'playing games', 'watching films'])
+    assert rank_by_quality([CLEAN, other]) == [CLEAN, other]
+    assert rank_by_quality([other, CLEAN]) == [other, CLEAN]
+
+
+def test_nothing_is_dropped_only_reordered():
+    # When every question is flawed the quiz still needs its count; the least
+    # flawed are used first rather than handing back an empty quiz.
+    from ml_pipeline.question_quality import rank_by_quality
+    items = [RIVAL, CLEAN, RIVAL]
+    assert len(rank_by_quality(items)) == 3
+
+
+def test_fewer_flags_go_before_more():
+    from ml_pipeline.question_quality import rank_by_quality
+    two_flags = _item('Phones?', 'a source of risk', ['a lifeline'])   # rival + too few + short
+    assert rank_by_quality([two_flags, RIVAL]) == [RIVAL, two_flags]
+
+
+def test_a_question_without_its_passage_is_not_trusted_over_one_with():
+    from ml_pipeline.question_quality import rank_by_quality
+    lost = {**CLEAN, '_excerpt': ''}
+    assert rank_by_quality([lost, CLEAN])[0] is CLEAN
+
+
+# ---- words a distractor shares with the answer prove nothing --------------------------
+# Found on a real Gemini quiz: "The accuracy principle" was called "also true" next
+# to the answer "The integrity and confidentiality principle", only because both say
+# "the ... principle". What makes a distractor a rival is what sets it apart.
+
+BREACH = ("The shadow spreadsheet looked like diligence. In fact it is a live breach "
+          "of the integrity and confidentiality principle under data protection law.")
+
+
+def test_shared_template_words_do_not_make_a_distractor_true():
+    report = score_question(
+        {'question_text': 'Which principle does the shadow spreadsheet breach?',
+         'correct_answer': 'The integrity and confidentiality principle',
+         'distractors': ['The accuracy principle', 'The purpose limitation principle',
+                         'The storage limitation principle']},
+        BREACH,
+    )
+    assert report.rivals == []
+    assert report.ok is True
+
+
+def test_a_distractor_whose_own_words_are_in_the_answer_sentence_is_still_a_rival():
+    report = score_question(
+        {'question_text': 'Which principle does the shadow spreadsheet breach?',
+         'correct_answer': 'The integrity principle',
+         'distractors': ['The confidentiality principle', 'The accuracy principle',
+                         'The storage limitation principle']},
+        BREACH,
+    )
+    # "confidentiality" is breached too, by the same sentence: two right answers.
+    assert report.rivals == ['The confidentiality principle']
