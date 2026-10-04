@@ -5,7 +5,7 @@ import useSWR from 'swr'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
 import { analyticsAPI, flashcardsAPI, notebooksAPI, reviewsAPI, streaksAPI } from '@/lib/api'
-import { type Due, caughtUpMessage } from '@/lib/study-format'
+import { type Due, caughtUpMessage, examGroups } from '@/lib/study-format'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
 import { ArrowRight, ChevronRight } from 'lucide-react'
@@ -42,6 +42,7 @@ export default function HomePage() {
   // Today's share, not the whole debt: two weeks away should read "40 for
   // today", not a number that makes starting feel pointless.
   const ready = due.today ?? due.due + due.new
+  const exams = due.exams_first ?? []
   const dueCards: DueCard[] = dueRes?.data?.results ?? dueRes?.data ?? []
   const firstDue = dueCards[0]
   const weak: WeakNotebook[] = recsRes?.data?.weak_notebooks ?? []
@@ -99,16 +100,16 @@ export default function HomePage() {
                   <span className="text-sm text-red-700">{common('overdueCount', { count: due.overdue })}</span>
                 )}
               </div>
-              {(due.exam_first || due.later || due.new_paused) && (
+              {(exams.length > 0 || due.later || due.new_paused) && (
                 <p className="-mt-3 text-sm text-slate-600">
                   {[
                     // Why the order changed comes first: it is the one line here
                     // that tells the learner something they chose.
-                    due.exam_first
-                      ? t('examFirst', { title: due.exam_first.title, days: due.exam_first.days })
-                      : null,
+                    ...examGroups(exams, locale).map((g) => t('examFirst', { title: g.titles, days: g.days })),
                     due.later ? t('laterCount', { count: due.later }) : null,
-                    due.new_paused ? t('newPaused') : null,
+                    // With tests in play, their new cards still come; say that
+                    // only the other subjects' are waiting.
+                    due.new_paused ? t(exams.length > 0 ? 'newPausedOthers' : 'newPaused') : null,
                   ]
                     .filter(Boolean)
                     .join(' · ')}

@@ -13,8 +13,23 @@ export type Due = {
   later?: number
   /** New cards held back because more is owed than today can clear. */
   new_paused?: boolean
-  /** The test this week whose notebook the queue puts first. */
-  exam_first?: { notebook_id: number; title: string; days: number } | null
+  /** Every test this week whose notebook the queue puts first, soonest first. */
+  exams_first?: ExamFirst[]
+}
+
+export type ExamFirst = { notebook_id: number; title: string; days: number }
+
+/** Tests grouped by how far away they are, soonest first: several subjects on
+ *  one day read as one line ("Biology and Chemistry — test in 3 days"), not
+ *  as a repeated sentence per subject. Titles are joined the way the locale
+ *  joins a list. */
+export function examGroups(exams: ExamFirst[], locale: string): { titles: string; days: number }[] {
+  const byDay = new Map<number, string[]>()
+  for (const e of exams) byDay.set(e.days, [...(byDay.get(e.days) ?? []), e.title])
+  const list = new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' })
+  return [...byDay.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([days, titles]) => ({ titles: list.format(titles), days }))
 }
 
 /** The shape of next-intl's `t` these helpers need: a key under `common`

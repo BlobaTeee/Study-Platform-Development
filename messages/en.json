@@ -128,7 +128,8 @@
     "reviewsLabel": "Reviews",
     "laterCount": "{count, plural, one {# more moved to the coming days} other {# more moved to the coming days}}",
     "newPaused": "New cards are paused until you're caught up.",
-    "examFirst": "{title} goes first — test {days, plural, =0 {today} =1 {tomorrow} other {in # days}}"
+    "examFirst": "{title} goes first — test {days, plural, =0 {today} =1 {tomorrow} other {in # days}}",
+    "newPausedOthers": "New cards for other subjects are paused until you're caught up."
   },
   "notebooks": {
     "library": "Library",

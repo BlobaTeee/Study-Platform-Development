@@ -53,23 +53,21 @@ def _questions_with_sources(user):
     return [{'id': qid, 'source_ids': ids} for qid, ids in by_question.items()]
 
 
-def _exam_first(user, cards, schedule, today):
-    """The test whose notebook the queue is putting first, if any.
+def _exams_first(exam_days, cards, schedule, today):
+    """Every test this week whose notebook the queue is putting first.
 
-    Only named when that notebook has cards to study now: saying "Biology goes
-    first" means nothing when Biology owes nothing.
+    Soonest first. Several subjects can share a day, so this is a list. A
+    notebook is only named when it has cards to study now: "Biology goes first"
+    means nothing when Biology owes nothing.
     """
-    exams = daily.exam_days_for(user, timezone.now())
-    if not exams:
-        return None
     studiable_now = {c['notebook_id'] for c in cards
                      if schedule.get(c['id']) is None or schedule[c['id']] <= today}
-    candidates = [(days, nb) for nb, days in exams.items() if nb in studiable_now]
-    if not candidates:
-        return None
-    days, notebook_id = min(candidates)
-    title = Notebook.objects.filter(id=notebook_id).values_list('title', flat=True).first()
-    return {'notebook_id': notebook_id, 'title': title, 'days': days}
+    named = sorted((days, nb) for nb, days in exam_days.items() if nb in studiable_now)
+    if not named:
+        return []
+    titles = dict(Notebook.objects.filter(id__in=[nb for _, nb in named])
+                  .values_list('id', 'title'))
+    return [{'notebook_id': nb, 'title': titles.get(nb), 'days': days} for days, nb in named]
 
 
 class AnalyticsViewSet(viewsets.ViewSet):
@@ -154,9 +152,11 @@ class AnalyticsViewSet(viewsets.ViewSet):
         due = scheduling.due_counts(queue_cards, schedule, today)
         # The share for today next to the full counts: the dashboard leads with
         # the first, so two weeks away reads "40 today" and not "312 owed".
+        plan = daily.plan_for(user, queue_cards, schedule, today, timezone.now())
         due = {**due, **scheduling.todays_share(
-            due, daily.budget_for(user, due['due'], today))}
-        due['exam_first'] = _exam_first(user, queue_cards, schedule, today)
+            due, plan.budget,
+            exam_new_today=sum(plan.exam_new.values()), exam_unseen=plan.exam_unseen)}
+        due['exams_first'] = _exams_first(plan.exam_days, queue_cards, schedule, today)
         # An empty queue means the schedule is working. Without a return date it
         # reads exactly like a broken one, so the date travels with the counts.
         next_date, next_count = scheduling.next_due_batch(schedule, today)

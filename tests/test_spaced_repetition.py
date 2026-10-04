@@ -547,3 +547,75 @@ def test_cards_without_a_notebook_are_ranked_as_before():
     out = sm2.rank_due_cards([_card(1), _card(2)], {1: TODAY, 2: TODAY}, TODAY,
                              limit=5, exam_days={5: 1})
     assert [c["id"] for c in out] == [1, 2]
+
+
+# ---- new cards paced to the test -------------------------------------------
+# A test this week overrides the debt pause for its own new cards, spread over
+# the days left so every card has been seen once before the test. Several
+# subjects on one day each get their own pace.
+
+def test_new_cards_are_spread_over_the_days_left():
+    assert sm2.exam_new_allowance({7: 15}, {}, {7: 3}) == {7: 5}
+
+
+def test_three_subjects_on_one_day_each_get_their_share():
+    # Three tests in three days, fifteen unseen cards each: 45 cards, 15 a day.
+    unseen = {1: 15, 2: 15, 3: 15}
+    allowance = sm2.exam_new_allowance(unseen, {}, {1: 3, 2: 3, 3: 3})
+    assert allowance == {1: 5, 2: 5, 3: 5}
+
+
+def test_a_test_tomorrow_means_everything_today():
+    assert sm2.exam_new_allowance({7: 15}, {}, {7: 1}) == {7: 15}
+
+
+def test_a_test_today_means_everything_now():
+    assert sm2.exam_new_allowance({7: 15}, {}, {7: 0}) == {7: 15}
+
+
+def test_an_uneven_split_rounds_up_so_nothing_is_left_for_the_test():
+    assert sm2.exam_new_allowance({7: 16}, {}, {7: 3}) == {7: 6}
+
+
+def test_the_pace_holds_through_the_day():
+    # 15 unseen this morning, 5 learned since: today's share is done. Pacing
+    # from what is left now would hand out more every time the page reloads.
+    assert sm2.exam_new_allowance({7: 10}, {7: 5}, {7: 3}) == {7: 0}
+
+
+def test_a_notebook_with_nothing_unseen_needs_no_allowance():
+    assert sm2.exam_new_allowance({}, {}, {7: 3}) == {7: 0}
+
+
+def test_in_debt_the_tests_new_cards_still_come():
+    cards = [_nb_card(1, notebook=1), _nb_card(2, notebook=2), _nb_card(3, notebook=2)]
+    out = sm2.rank_due_cards(cards, {}, TODAY, limit=50,
+                             budget=sm2.DailyBudget(reviews_left=40, new_left=0),
+                             exam_days={2: 3}, exam_new={2: 2})
+    assert [c["id"] for c in out] == [2, 3]
+
+
+def test_the_tests_allowance_is_on_top_of_the_normal_new_cards():
+    cards = [_nb_card(1, notebook=1), _nb_card(2, notebook=2), _nb_card(3, notebook=2)]
+    out = sm2.rank_due_cards(cards, {}, TODAY, limit=50,
+                             budget=sm2.DailyBudget(reviews_left=40, new_left=1),
+                             exam_days={2: 3}, exam_new={2: 1})
+    # One for the test's pace, then the day's one ordinary new card.
+    assert [c["id"] for c in out] == [2, 3]
+
+
+def test_todays_share_counts_the_tests_new_cards():
+    # 15 of the 20 new cards belong to a test; all 15 are due to be seen today.
+    counts = {"due": 312, "overdue": 300, "new": 20}
+    share = sm2.todays_share(counts, sm2.DailyBudget(reviews_left=40, new_left=0),
+                             exam_new_today=15, exam_unseen=15)
+    assert share == {"today": 55, "later": 272, "new_paused": True}
+
+
+def test_a_tests_cards_saved_for_later_days_are_paced_not_paused():
+    # Every new card belongs to a test; 5 today, 10 on the days before it.
+    counts = {"due": 312, "overdue": 300, "new": 15}
+    share = sm2.todays_share(counts, sm2.DailyBudget(reviews_left=40, new_left=0),
+                             exam_new_today=5, exam_unseen=15)
+    assert share["new_paused"] is False
+    assert share["today"] == 45

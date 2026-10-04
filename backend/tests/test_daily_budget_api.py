@@ -238,7 +238,7 @@ def test_the_summary_names_the_test_being_put_first(client, user, notebook):
 
     due = client.get('/api/analytics/sessions/recommendations/').json()['due']
 
-    assert due['exam_first'] == {'notebook_id': notebook.id, 'title': notebook.title, 'days': 3}
+    assert due['exams_first'] == [{'notebook_id': notebook.id, 'title': notebook.title, 'days': 3}]
 
 
 def test_no_test_this_week_means_no_exam_line(client, user, notebook):
@@ -247,7 +247,7 @@ def test_no_test_this_week_means_no_exam_line(client, user, notebook):
 
     due = client.get('/api/analytics/sessions/recommendations/').json()['due']
 
-    assert due['exam_first'] is None
+    assert due['exams_first'] == []
 
 
 def test_a_test_for_a_notebook_with_nothing_to_study_is_not_named(client, user, notebook):
@@ -256,7 +256,7 @@ def test_a_test_for_a_notebook_with_nothing_to_study_is_not_named(client, user, 
 
     due = client.get('/api/analytics/sessions/recommendations/').json()['due']
 
-    assert due['exam_first'] is None
+    assert due['exams_first'] == []
 
 
 # ---- dashboard và hàng đợi phải nói cùng một con số ------------------------------------
@@ -271,3 +271,92 @@ def test_a_members_summary_counts_the_shared_cards_the_queue_offers(
     queue = _ids(other_client.get(DUE))
 
     assert due['today'] == len(queue) == 2
+
+
+# ---- thẻ mới của môn thi: chia đều tới ngày thi -------------------------------------
+
+def _subject(user, title, new_cards):
+    nb = Notebook.objects.create(user=user, title=title)
+    make_source(nb, title)
+    return nb, _cards(user, nb, new_cards, prefix=title)
+
+
+def _in_debt(user, notebook):
+    """More owed than the day's 3 reviews: ordinary new cards are paused."""
+    for card in _cards(user, notebook, 5, prefix='owed'):
+        _owe(user, card, days_overdue=10)
+
+
+def test_several_tests_on_one_day_each_bring_their_new_cards(client, user, notebook):
+    _in_debt(user, notebook)
+    bio, bio_cards = _subject(user, 'Biology', 6)
+    chem, chem_cards = _subject(user, 'Chemistry', 6)
+    _plan_test(user, bio, days_ahead=3)
+    _plan_test(user, chem, days_ahead=3)
+
+    ids = set(_ids(client.get(DUE)))
+
+    # In debt, yet each test's six unseen cards come two a day for three days.
+    assert len(ids & {c.id for c in bio_cards}) == 2
+    assert len(ids & {c.id for c in chem_cards}) == 2
+
+
+def test_a_test_tomorrow_brings_all_its_new_cards_today(client, user, notebook):
+    _in_debt(user, notebook)
+    bio, bio_cards = _subject(user, 'Biology', 6)
+    _plan_test(user, bio, days_ahead=1)
+
+    ids = set(_ids(client.get(DUE)))
+
+    assert {c.id for c in bio_cards} <= ids
+
+
+def test_new_cards_of_subjects_without_a_test_stay_paused(client, user, notebook):
+    _in_debt(user, notebook)
+    bio, _ = _subject(user, 'Biology', 3)
+    _, history_cards = _subject(user, 'History', 3)
+    _plan_test(user, bio, days_ahead=3)
+
+    ids = set(_ids(client.get(DUE)))
+
+    assert not ids & {c.id for c in history_cards}
+
+
+def test_the_pace_does_not_grow_when_the_page_is_reopened(client, user, notebook):
+    _in_debt(user, notebook)
+    bio, bio_cards = _subject(user, 'Biology', 6)
+    _plan_test(user, bio, days_ahead=3)
+    for card_id in [i for i in _ids(client.get(DUE)) if i in {c.id for c in bio_cards}]:
+        _record(client, Flashcard.objects.get(id=card_id))
+
+    ids = set(_ids(client.get(DUE)))
+
+    # Today's two are learned; the other four wait for the next two days.
+    assert not ids & {c.id for c in bio_cards}
+
+
+def test_the_summary_counts_and_names_every_test(client, user, notebook):
+    _in_debt(user, notebook)
+    bio, _ = _subject(user, 'Biology', 6)
+    chem, _ = _subject(user, 'Chemistry', 6)
+    _plan_test(user, bio, days_ahead=3)
+    _plan_test(user, chem, days_ahead=5)
+
+    due = client.get('/api/analytics/sessions/recommendations/').json()['due']
+
+    # 3 reviews, 2 Biology (6 over 3 days), 2 Chemistry (6 over 5 days, rounded up).
+    assert due['today'] == 3 + 2 + 2
+    assert [e['title'] for e in due['exams_first']] == ['Biology', 'Chemistry']
+    # Every new card belongs to a test: they are paced, not paused.
+    assert due['new_paused'] is False
+
+
+def test_the_summary_and_the_queue_agree_with_tests_in_play(client, user, notebook):
+    _in_debt(user, notebook)
+    bio, _ = _subject(user, 'Biology', 6)
+    _subject(user, 'History', 4)
+    _plan_test(user, bio, days_ahead=2)
+
+    due = client.get('/api/analytics/sessions/recommendations/').json()['due']
+
+    assert due['today'] == len(_ids(client.get(DUE)))

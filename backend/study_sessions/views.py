@@ -328,10 +328,11 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
             cards = [c for c in cards if wanted <= set(c['source_ids'])]
 
         today = timezone.localdate()
-        owed = scheduling.due_counts(cards, schedule, today)['due']
+        plan = daily.plan_for(user, cards, schedule, today, timezone.now())
         ranked = scheduling.rank_due_cards(cards, schedule, today, limit=limit,
-                                           budget=daily.budget_for(user, owed, today),
-                                           exam_days=daily.exam_days_for(user, timezone.now()))
+                                           budget=plan.budget,
+                                           exam_days=plan.exam_days,
+                                           exam_new=plan.exam_new)
 
         pending = select_for_regeneration(ranked, MAX_REGENERATIONS_PER_FETCH)
         if pending:

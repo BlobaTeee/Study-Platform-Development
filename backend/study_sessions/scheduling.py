@@ -110,7 +110,8 @@ def daily_budget(*, review_limit: int, new_limit: int, reviewed_today: int,
     return DailyBudget(reviews_left=reviews_left, new_left=new_left)
 
 
-def todays_share(counts: dict[str, int], budget: DailyBudget) -> dict:
+def todays_share(counts: dict[str, int], budget: DailyBudget,
+                 exam_new_today: int = 0, exam_unseen: int = 0) -> dict:
     """What a summary says about today: its share, and honestly, what waits.
 
     `later` counts only due cards pushed to coming days. New cards held back
@@ -119,10 +120,13 @@ def todays_share(counts: dict[str, int], budget: DailyBudget) -> dict:
     rather than a spent daily allowance.
     """
     due_today = min(counts["due"], budget.reviews_left)
+    # A test's unseen cards that wait for a later day are paced, not paused;
+    # only the other new cards can be held back by debt.
+    ordinary_new = counts["new"] - exam_unseen
     return {
-        "today": due_today + min(counts["new"], budget.new_left),
+        "today": due_today + exam_new_today + min(ordinary_new, budget.new_left),
         "later": counts["due"] - due_today,
-        "new_paused": counts["new"] > 0 and counts["due"] > budget.reviews_left,
+        "new_paused": ordinary_new > 0 and counts["due"] > budget.reviews_left,
     }
 
 
@@ -169,6 +173,35 @@ def exam_days(tests: list[dict], today: date,
     return out
 
 
+def exam_new_allowance(unseen: dict[int, int], introduced_today: dict[int, int],
+                       exam_days: dict[int, int]) -> dict[int, int]:
+    """New cards of each test notebook to show today, so all are seen in time.
+
+    The notebook's unseen cards are spread over the study days left: a test in
+    three days gives three (today and the next two), a test tomorrow or today
+    gives one — everything now. Rounded up, so nothing is left for the test
+    itself. Several subjects on the same day each keep their own pace.
+
+    The pace is fixed from the start of the day (unseen now plus those learned
+    today), or every reload would recompute from a smaller pile and hand out
+    more.
+    """
+    allowance: dict[int, int] = {}
+    for notebook, days in exam_days.items():
+        learned = introduced_today.get(notebook, 0)
+        at_dawn = unseen.get(notebook, 0) + learned
+        per_day = -(-at_dawn // max(1, days))      # ceiling division
+        allowance[notebook] = max(0, per_day - learned)
+    return allowance
+
+
+def introduced_today_ids(rows: list[dict], today: date) -> set[int]:
+    """The cards first studied today. Same rows as `todays_activity`."""
+    seen_before = {r["flashcard_id"] for r in rows if r["day"] < today or r["is_seed"]}
+    return {r["flashcard_id"] for r in rows
+            if r["day"] == today and not r["is_seed"]} - seen_before
+
+
 def latest_schedule(reviews: list[dict]) -> dict[int, date]:
     """Each card's standing schedule, from its most recent review.
 
@@ -187,7 +220,8 @@ def latest_schedule(reviews: list[dict]) -> dict[int, date]:
 
 def rank_due_cards(cards: list[dict], schedule: dict[int, date], today: date,
                    limit: int, budget: "DailyBudget | None" = None,
-                   exam_days: dict[int, int] | None = None) -> list[dict]:
+                   exam_days: dict[int, int] | None = None,
+                   exam_new: dict[int, int] | None = None) -> list[dict]:
     """The cards worth studying now, most urgent first.
 
     A card is due once its scheduled date arrives, and new if it has never been
@@ -207,6 +241,11 @@ def rank_due_cards(cards: list[dict], schedule: dict[int, date], today: date,
     A card for a test this week goes before older debt elsewhere, the sooner
     test first: when a day cannot clear everything, it clears what matters
     soonest. Cards carry `exam_in_days` so the page can say why.
+
+    `exam_new` is each test notebook's allowance of new cards today (see
+    `exam_new_allowance`). Those come on top of the day's ordinary new cards
+    and are not held back by debt: going into a test without having seen its
+    cards costs more than the reviews they add.
     """
     exams = exam_days or {}
     due, new = [], []
@@ -231,7 +270,16 @@ def rank_due_cards(cards: list[dict], schedule: dict[int, date], today: date,
     new.sort(key=lambda c: (*exam_first(c), c["id"]))
     if budget is not None:
         due = due[:budget.reviews_left]
-        new = new[:budget.new_left]
+        quota = dict(exam_new or {})
+        paced, ordinary = [], []
+        for card in new:          # already sorted, soonest test first
+            notebook = card.get("notebook_id")
+            if quota.get(notebook, 0) > 0:
+                quota[notebook] -= 1
+                paced.append(card)
+            else:
+                ordinary.append(card)
+        new = paced + ordinary[:budget.new_left]
     return (due + new)[:limit]
 
 
