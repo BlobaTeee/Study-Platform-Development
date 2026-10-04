@@ -101,19 +101,21 @@ export default function HomePage() {
                 )}
               </div>
               {(exams.length > 0 || due.later || due.new_paused) && (
-                <p className="-mt-3 text-sm text-slate-600">
-                  {[
-                    // Why the order changed comes first: it is the one line here
-                    // that tells the learner something they chose.
-                    ...examGroups(exams, locale).map((g) => t('examFirst', { title: g.titles, days: g.days })),
-                    due.later ? t('laterCount', { count: due.later }) : null,
-                    // With tests in play, their new cards still come; say that
-                    // only the other subjects' are waiting.
-                    due.new_paused ? t(exams.length > 0 ? 'newPausedOthers' : 'newPaused') : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </p>
+                // One fact per line: run together with separators, four of them
+                // wrapped into a paragraph nobody could scan.
+                <ul className="-mt-3 space-y-1 text-sm text-slate-600">
+                  {/* Why the order changed comes first: it is the one line here
+                      that tells the learner something they chose. */}
+                  {examGroups(exams, locale).map((g) => (
+                    <li key={g.days} className="text-slate-700">
+                      {t('examFirst', { title: g.titles, days: g.days })}
+                    </li>
+                  ))}
+                  {due.later ? <li>{t('laterCount', { count: due.later })}</li> : null}
+                  {/* With tests in play, their new cards still come; say that
+                      only the other subjects' are waiting. */}
+                  {due.new_paused ? <li>{t(exams.length > 0 ? 'newPausedOthers' : 'newPaused')}</li> : null}
+                </ul>
               )}
 
               {/* The first card of the queue, on the stack it sits in. */}
