@@ -411,6 +411,31 @@ Excerpt:
 """
 
 
+def _quality_margin(count: int) -> int:
+    """Extra questions to ask for: about a quarter, at least one.
+
+    Measured on Gemini, one or two questions in fifteen came back with a
+    distractor that is also true. A quarter more covers that without a second
+    round of calls; the cost is a little more output, not more waiting.
+    """
+    return max(1, -(-count // 4))
+
+
+def _best_first(items: list[dict]) -> list[dict]:
+    """Sound questions first, flawed ones last; nothing dropped.
+
+    Scored against the passage each question came from. Cheap — tens of
+    milliseconds a question, no model call — and the same check the quality
+    notebook reports with, so what it measures is what students get.
+    """
+    from ml_pipeline.question_quality import rank_by_quality
+    ranked = rank_by_quality(items)
+    if ranked != items:
+        logger.info('Quality check moved flawed questions behind sound ones (%d generated)',
+                    len(items))
+    return ranked
+
+
 def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Quiz:
     """Run the provider cascade. Creates the quiz; does not retire anything."""
     question_count = max(4, min(question_count, 15))
@@ -434,7 +459,10 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Qui
 
     label = _titles_label(sources)
     chunks = _document_chunks(sources)
-    per_chunk = -(-question_count // len(chunks))  # ceil, so excerpts cover the count
+    # A few more than the quiz needs, so a flawed question can be left out
+    # without the quiz coming up short (see the ranking before saving).
+    asked = question_count + _quality_margin(question_count)
+    per_chunk = -(-asked // len(chunks))  # ceil, so excerpts cover the count
 
     def build_prompt(chunk: str, n: int) -> str:
         return quiz_prompt(chunk, n, lang, label)
@@ -442,7 +470,8 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Qui
     try:
         provider = get_ai_provider()
         questions_data = _generate_over_chunks(
-            provider, chunks, per_chunk, build_prompt, 'questions', question_count)
+            provider, chunks, per_chunk, build_prompt, 'questions', asked)
+        questions_data = _best_first(questions_data)
         _mark(meta, provider.name)
     except GeminiNotConfiguredError as exc:
         if _use_local_fallback():
@@ -491,7 +520,9 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Qui
     source_texts = [(s.id, s.extracted_text) for s in sources]
 
     order = 0
-    for q in questions_data[:question_count]:
+    for q in questions_data:
+        if order >= question_count:
+            break
         shaped = shape_quiz_question(q, rng)
         if shaped is None:
             continue  # unanswerable (no question/answer/distractor) -> skip
