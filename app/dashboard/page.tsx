@@ -3,15 +3,16 @@
 import Link from 'next/link'
 import useSWR from 'swr'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { analyticsAPI, notebooksAPI, reviewsAPI, streaksAPI } from '@/lib/api'
-import { type Due, dueBreakdown, caughtUpMessage } from '@/lib/study-format'
+import { PageHeader } from '@/components/page-header'
+import { analyticsAPI, flashcardsAPI, notebooksAPI, reviewsAPI, streaksAPI } from '@/lib/api'
+import { type Due, caughtUpMessage, examGroups } from '@/lib/study-format'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
-import { ArrowRight, Flame, NotebookText, Target, Zap } from 'lucide-react'
+import { ArrowRight, ChevronRight } from 'lucide-react'
 
-type Notebook = { id: number; title: string }
+type Notebook = { id: number; title: string; source_count?: number }
 type WeakNotebook = { notebook_id: number; title: string; accuracy: number | null }
+type DueCard = { id: number; question: string; status?: string; overdue_days?: number }
 
 function greetingKey(d = new Date()): 'goodMorning' | 'goodAfternoon' | 'goodEvening' {
   const h = d.getHours()
@@ -20,6 +21,8 @@ function greetingKey(d = new Date()): 'goodMorning' | 'goodAfternoon' | 'goodEve
   return 'goodEvening'
 }
 
+/** The desk for today: what is owed, on an actual card; the week in three
+ *  figures; the notebooks with how well each is going. One sheet, no tiles. */
 export default function HomePage() {
   const t = useTranslations('home')
   const common = useTranslations('common')
@@ -29,207 +32,209 @@ export default function HomePage() {
   )
   const { data: weekRes } = useSWR(['/study/weekly-stats'], () => reviewsAPI.getWeeklyStats())
   const { data: streakRes } = useSWR(['/study/streak'], () => streaksAPI.getMe())
-  // Same key as the notebooks list page so SWR serves one fetch and a
-  // create/delete there refreshes this list too.
+  // Same keys as the notebooks and flashcards pages: one fetch, shared cache.
   const { data: notebooksRes, isLoading: notebooksLoading } = useSWR(['/notebooks/'], () =>
     notebooksAPI.getNotebooks()
   )
+  const { data: dueRes } = useSWR(['/flashcards/due'], () => flashcardsAPI.getDueCards())
 
-  const due: Due = recsRes?.data?.due ?? {
-    due: 0,
-    overdue: 0,
-    new: 0,
-    next_date: null,
-    next_count: 0,
-  }
-  const ready = due.due + due.new
-  const weakNotebooks: WeakNotebook[] = (recsRes?.data?.weak_notebooks ?? []).slice(0, 3)
+  const due: Due = recsRes?.data?.due ?? { due: 0, overdue: 0, new: 0, next_date: null, next_count: 0 }
+  // Today's share, not the whole debt: two weeks away should read "40 for
+  // today", not a number that makes starting feel pointless.
+  const ready = due.today ?? due.due + due.new
+  const exams = due.exams_first ?? []
+  const dueCards: DueCard[] = dueRes?.data?.results ?? dueRes?.data ?? []
+  const firstDue = dueCards[0]
+  const weak: WeakNotebook[] = recsRes?.data?.weak_notebooks ?? []
+  const accuracyOf = new Map(weak.map((w) => [w.notebook_id, w.accuracy]))
   const reviewsThisWeek: number = weekRes?.data?.reviews_this_week ?? 0
   const accuracyThisWeek: number | null = weekRes?.data?.accuracy_this_week_percent ?? null
   const streak: number = streakRes?.data?.current_streak ?? 0
   const bestStreak: number = streakRes?.data?.best_streak ?? 0
-  const notebooks: Notebook[] = (
-    notebooksRes?.data?.results ??
-    notebooksRes?.data ??
-    []
-  ).slice(0, 4)
-
-  const hasAnything = notebooks.length > 0
+  const notebooks: Notebook[] = (notebooksRes?.data?.results ?? notebooksRes?.data ?? []).slice(0, 6)
 
   if (recsLoading || notebooksLoading) {
-    return <p className="text-xl text-slate-500 text-center py-20">{common('loading')}</p>
+    return <HomeSkeleton />
+  }
+
+  if (notebooks.length === 0) {
+    return (
+      <div className="space-y-8">
+        <PageHeader title={t(greetingKey())} />
+        <div data-mode="library" className="sheet flex flex-col items-start gap-5 p-8 md:p-10">
+          <p className="max-w-[40ch] text-lg leading-relaxed text-slate-700">{t('firstNotebook')}</p>
+          <Button asChild size="lg">
+            <Link href="/dashboard/notebooks">{t('newNotebook')}</Link>
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="max-w-5xl space-y-8">
-      {/* Greeting + streak */}
-      <div className="rise flex flex-wrap items-end justify-between gap-4 border-t-[3px] border-mode-library pt-4">
-        <div>
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-library">
-            {t('today')}
-          </p>
-          <h1 className="mt-1 font-display text-3xl font-semibold text-slate-900 md:text-4xl">
-            {t(greetingKey())}
-          </h1>
-        </div>
-        {streak > 0 ? (
-          <div className="flex items-center gap-2 rounded-full bg-amber-50 px-4 py-2 text-amber-900">
-            <Flame className="size-5 text-amber-500" />
-            <span className="font-mono text-sm tabular-nums">
-              {t('streak', { count: streak })}{bestStreak > streak ? t('bestStreak', { count: bestStreak }) : ''}
-            </span>
-          </div>
-        ) : (
-          <p className="font-mono text-sm text-slate-500">{t('startStreak')}</p>
-        )}
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title={t(greetingKey())}
+        lead={
+          streak > 0
+            ? t('streak', { count: streak }) + (bestStreak > streak ? t('bestStreak', { count: bestStreak }) : '')
+            : t('startStreak')
+        }
+      />
 
-      {!hasAnything ? (
-        <Card className="rise flex flex-col items-center gap-4 border-slate-200 p-12 text-center shadow-sheet">
-          <NotebookText className="size-14 text-slate-300" />
-          <p className="text-xl text-slate-600">{t('firstNotebook')}</p>
-          <Button
-            asChild
-            size="lg"
-            className="h-12 bg-mode-library text-lg text-white hover:bg-mode-library-hover"
-          >
-            <Link href="/dashboard/notebooks">{t('newNotebook')}</Link>
-          </Button>
-        </Card>
-      ) : (
-        <>
-          {/* Due today (primary) + this week */}
-          <div className="grid gap-6 md:grid-cols-3">
-            <Card
-              className="rise border-slate-200 p-6 shadow-sheet md:col-span-2"
-              style={{ animationDelay: '60ms' }}
-            >
-              {ready === 0 ? (
-                <div className="flex items-center gap-3 py-2">
-                  <Target className="size-5 shrink-0 text-mode-analytics" />
-                  <p className="text-lg text-slate-700">{caughtUpMessage(due, common, locale)}</p>
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center justify-between gap-5">
-                  <div className="flex min-w-0 items-baseline gap-4">
-                    <span className="font-mono text-5xl font-semibold tabular-nums text-slate-900">
-                      {ready}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-lg text-slate-900">
-                        {t('cardsDueToday', { count: ready })}
-                      </p>
-                      <p
-                        className={cn(
-                          'font-mono text-sm tabular-nums',
-                          due.overdue > 0 ? 'text-red-700' : 'text-slate-500'
-                        )}
-                      >
-                        {dueBreakdown(due, common)}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    asChild
-                    size="lg"
-                    className="h-12 shrink-0 bg-mode-flashcards px-8 text-lg text-white hover:bg-mode-flashcards-hover"
-                  >
-                    <Link href="/dashboard/flashcards?due=1">
-                      {t('studyNow')}
-                      <ArrowRight className="ml-2 size-5" />
-                    </Link>
-                  </Button>
-                </div>
+      <div className="sheet grid md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        {/* What is owed today, as the card it is. */}
+        <section data-mode="flashcards" className="border-b border-slate-200 p-6 md:border-b-0 md:border-r md:p-8">
+          {ready === 0 ? (
+            <div className="flex h-full flex-col justify-center gap-4 py-6">
+              <p className="text-lg text-slate-700">{caughtUpMessage(due, common, locale)}</p>
+            </div>
+          ) : (
+            <div className="flex h-full flex-col gap-6">
+              <div className="flex items-baseline justify-between gap-4">
+                <h2 className="text-lg font-semibold text-slate-900">{t('cardsDueToday', { count: ready })}</h2>
+                {/* With debt pushed to coming days, the full overdue count is the
+                    very number this page avoids leading with; the line below
+                    says what waits, calmly. */}
+                {due.overdue > 0 && !due.later && (
+                  <span className="text-sm text-red-700">{common('overdueCount', { count: due.overdue })}</span>
+                )}
+              </div>
+              {(exams.length > 0 || due.later || due.new_paused) && (
+                // One fact per line: run together with separators, four of them
+                // wrapped into a paragraph nobody could scan.
+                <ul className="-mt-3 space-y-1 text-sm text-slate-600">
+                  {/* Why the order changed comes first: it is the one line here
+                      that tells the learner something they chose. */}
+                  {examGroups(exams, locale).map((g) => (
+                    <li key={g.days} className="text-slate-700">
+                      {t('examFirst', { title: g.titles, days: g.days })}
+                    </li>
+                  ))}
+                  {due.later ? <li>{t('laterCount', { count: due.later })}</li> : null}
+                  {/* With tests in play, their new cards still come; say that
+                      only the other subjects' are waiting. */}
+                  {due.new_paused ? <li>{t(exams.length > 0 ? 'newPausedOthers' : 'newPaused')}</li> : null}
+                </ul>
               )}
-            </Card>
 
-            <Card
-              className="rise border-slate-200 p-6 shadow-sheet"
-              style={{ animationDelay: '120ms' }}
-            >
-              <div className="mb-3 flex items-center gap-2 text-slate-500">
-                <Zap className="size-4 text-mode-flashcards" />
-                <span className="text-sm">{t('thisWeek')}</span>
-              </div>
-              <p className="font-mono text-3xl font-semibold tabular-nums text-slate-900">
-                {reviewsThisWeek}
-              </p>
-              <p className="text-sm text-slate-500">
-                {t('reviews', { count: reviewsThisWeek })}
-                {accuracyThisWeek != null ? t('recalledPct', { pct: accuracyThisWeek }) : ''}
-              </p>
-            </Card>
-          </div>
+              {/* The first card of the queue, on the stack it sits in. */}
+              <Link
+                href="/dashboard/flashcards?due=1"
+                className="card-stack group relative block rounded-2xl border border-slate-200 bg-white p-6 shadow-sheet transition-shadow duration-200 hover:shadow-lift focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30 md:p-8"
+              >
+                <span className="absolute left-6 -top-px h-[3px] w-12 rounded-b-full bg-mode md:left-8" aria-hidden />
+                <span className="font-mono text-xs text-slate-500 tabular-nums">1 / {ready}</span>
+                <p className="mt-3 text-xl leading-snug text-slate-900 md:text-2xl text-pretty">
+                  {firstDue?.question ?? t('cardsDueToday', { count: ready })}
+                </p>
+                <span className="mt-6 block h-px w-full bg-slate-100" aria-hidden />
+              </Link>
 
-          {/* Jump back in + weakest right now */}
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card
-              className="rise border-slate-200 p-6 shadow-sheet"
-              style={{ animationDelay: '180ms' }}
-            >
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <NotebookText className="size-5 text-mode-library" />
-                  <h2 className="text-xl font-semibold text-slate-900">{t('jumpBackIn')}</h2>
-                </div>
-                <Link
-                  href="/dashboard/notebooks"
-                  className="shrink-0 text-sm font-medium text-mode-library hover:underline"
-                >
-                  {t('allNotebooks')}
-                </Link>
+              <div className="mt-auto">
+                <Button asChild size="lg">
+                  <Link href="/dashboard/flashcards?due=1">
+                    {t('studyNow')}
+                    <ArrowRight aria-hidden />
+                  </Link>
+                </Button>
               </div>
-              <ul className="divide-y divide-slate-100">
-                {notebooks.map((n) => (
+            </div>
+          )}
+        </section>
+
+        {/* The week, and the notebooks. */}
+        <div className="flex flex-col">
+          <section className="border-b border-slate-200 p-6 md:p-8">
+            <h2 className="text-sm font-semibold text-slate-900">{t('thisWeek')}</h2>
+            <dl className="mt-3 divide-y divide-slate-100">
+              <Figure label={t('reviewsLabel')} value={reviewsThisWeek} />
+              {accuracyThisWeek != null && (
+                <Figure label={t('recalledLabel')} value={`${accuracyThisWeek}%`} />
+              )}
+              <Figure label={t('streakLabel')} value={streak} muted={streak === 0} />
+            </dl>
+          </section>
+
+          <section data-mode="library" className="p-6 md:p-8">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="text-sm font-semibold text-slate-900">{t('jumpBackIn')}</h2>
+              <Link href="/dashboard/notebooks" className="text-sm font-medium text-mode hover:underline">
+                {t('allNotebooks')}
+              </Link>
+            </div>
+            <ul className="mt-2 divide-y divide-slate-100">
+              {notebooks.map((n) => {
+                const acc = accuracyOf.get(n.id)
+                return (
                   <li key={n.id}>
                     <Link
                       href={`/dashboard/notebooks/${n.id}`}
-                      className="flex items-center gap-3 py-3 text-slate-800 hover:text-mode-library"
+                      className="group flex items-center gap-3 py-2.5 text-slate-800 hover:text-mode"
                     >
-                      <NotebookText className="size-4 shrink-0 text-slate-400" />
-                      <span className="truncate">{n.title}</span>
+                      <span className="min-w-0 flex-1 truncate">{n.title}</span>
+                      {acc != null && (
+                        <Mastery pct={acc} />
+                      )}
+                      <ChevronRight className="size-4 shrink-0 text-slate-400 group-hover:text-mode" aria-hidden />
                     </Link>
                   </li>
-                ))}
-              </ul>
-            </Card>
+                )
+              })}
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-            <Card
-              className="rise border-slate-200 p-6 shadow-sheet"
-              style={{ animationDelay: '240ms' }}
-            >
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Target className="size-5 text-mode-analytics" />
-                  <h2 className="text-xl font-semibold text-slate-900">{t('weakestNow')}</h2>
-                </div>
-                <Link
-                  href="/dashboard/analytics"
-                  className="shrink-0 text-sm font-medium text-mode-analytics hover:underline"
-                >
-                  {t('analyticsLink')}
-                </Link>
-              </div>
-              {weakNotebooks.length === 0 ? (
-                <p className="py-3 text-slate-500">
-                  {t('weakestEmpty')}
-                </p>
-              ) : (
-                <ul className="divide-y divide-slate-100">
-                  {weakNotebooks.map((n) => (
-                    <li key={n.notebook_id} className="flex items-center gap-4 py-3">
-                      <span className="min-w-0 flex-1 truncate text-slate-800">{n.title}</span>
-                      <span className="shrink-0 font-mono text-sm tabular-nums text-slate-600">
-                        {n.accuracy == null ? common('notStudied') : `${n.accuracy}%`}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-          </div>
-        </>
-      )}
+function Figure({ label, value, muted }: { label: string; value: number | string; muted?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-2">
+      <dt className="text-sm text-slate-600">{label}</dt>
+      <dd className={cn('font-mono text-lg tabular-nums', muted ? 'text-slate-400' : 'text-slate-900')}>{value}</dd>
+    </div>
+  )
+}
+
+/** A short bar and its number: how well a notebook's material is going.
+ *  Colour follows the value (analytics green when it is high) and is never
+ *  the only signal: the figure sits beside it. */
+function Mastery({ pct }: { pct: number }) {
+  return (
+    <span className="flex shrink-0 items-center gap-2" title={`${pct}%`}>
+      <span className="h-1.5 w-14 overflow-hidden rounded-full bg-slate-100" aria-hidden>
+        <span
+          className={cn('block h-full rounded-full', pct >= 70 ? 'bg-mode-analytics' : pct >= 40 ? 'bg-mode-flashcards' : 'bg-red-400')}
+          style={{ width: `${Math.max(4, Math.min(100, pct))}%` }}
+        />
+      </span>
+      <span className="w-10 text-right font-mono text-xs text-slate-600 tabular-nums">{pct}%</span>
+    </span>
+  )
+}
+
+/** The page's shape while it loads, so nothing jumps into place. */
+function HomeSkeleton() {
+  return (
+    <div className="space-y-8" aria-busy>
+      <div className="mode-rule pt-5">
+        <div className="h-8 w-56 rounded bg-slate-100" />
+        <div className="mt-3 h-4 w-40 rounded bg-slate-100" />
+      </div>
+      <div className="sheet grid md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <div className="space-y-6 p-8">
+          <div className="h-5 w-40 rounded bg-slate-100" />
+          <div className="h-40 rounded-2xl bg-slate-100" />
+          <div className="h-11 w-36 rounded-lg bg-slate-100" />
+        </div>
+        <div className="space-y-3 p-8">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-5 rounded bg-slate-100" />
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

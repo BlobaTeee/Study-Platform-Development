@@ -97,22 +97,17 @@ export default function AccountPage() {
     }
   }
 
-  const field =
-    'h-11 text-base'
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
       {confirmDialog}
-      <div className="rise border-t-[3px] border-slate-900 pt-4">
-        <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-          {t('eyebrow')}
-        </p>
-        <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">{t('title')}</h1>
-        <p className="text-base text-slate-500 mt-2">{user.email}</p>
+      <div className="mode-rule pt-5">
+        <h1 className="font-display text-[2rem] font-semibold leading-tight text-slate-900">{t('title')}</h1>
+        <p className="mt-2 text-base text-slate-600">{user.email}</p>
       </div>
 
       {/* Name */}
-      <Card className="rise border-slate-200 shadow-sheet p-6 md:p-8" style={{ animationDelay: '60ms' }}>
+      <Card className="p-6 md:p-8">
         <form onSubmit={saveName} className="space-y-4">
           <div>
             <h2 className="font-display text-xl font-semibold text-slate-900">{t('nameTitle')}</h2>
@@ -128,7 +123,7 @@ export default function AccountPage() {
                 setName(e.target.value)
                 if (nameState !== 'idle') setNameState('idle')
               }}
-              className={field}
+             
             />
           </div>
           <div className="flex items-center gap-3">
@@ -136,7 +131,7 @@ export default function AccountPage() {
               type="submit"
               size="lg"
               disabled={nameState === 'saving' || !name.trim() || name.trim() === user.username}
-              className="h-11 bg-slate-900 hover:bg-slate-800 text-white"
+              variant="ink"
             >
               {common('save')}
             </Button>
@@ -151,7 +146,7 @@ export default function AccountPage() {
       </Card>
 
       {/* Password — only for accounts that have one */}
-      <Card className="rise border-slate-200 shadow-sheet p-6 md:p-8" style={{ animationDelay: '120ms' }}>
+      <Card className="p-6 md:p-8">
         <div>
           <h2 className="font-display text-xl font-semibold text-slate-900">{t('passwordTitle')}</h2>
           <p className="text-sm text-slate-500 mt-1">
@@ -163,18 +158,18 @@ export default function AccountPage() {
             <div className="space-y-2">
               <Label htmlFor="current">{t('currentPassword')}</Label>
               <Input id="current" type="password" autoComplete="current-password" value={current}
-                     onChange={(e) => setCurrent(e.target.value)} required className={field} />
+                     onChange={(e) => setCurrent(e.target.value)} required />
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="next">{t('newPassword')}</Label>
                 <Input id="next" type="password" autoComplete="new-password" value={next}
-                       onChange={(e) => setNext(e.target.value)} required className={field} />
+                       onChange={(e) => setNext(e.target.value)} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="again">{t('confirmPassword')}</Label>
                 <Input id="again" type="password" autoComplete="new-password" value={again}
-                       onChange={(e) => setAgain(e.target.value)} required className={field} />
+                       onChange={(e) => setAgain(e.target.value)} required />
               </div>
             </div>
             {pwError && (
@@ -184,7 +179,7 @@ export default function AccountPage() {
               </div>
             )}
             <div className="flex items-center gap-3">
-              <Button type="submit" size="lg" disabled={pwState === 'saving'} className="h-11 bg-slate-900 hover:bg-slate-800 text-white">
+              <Button type="submit" size="lg" disabled={pwState === 'saving'} variant="ink">
                 {t('changePassword')}
               </Button>
               {pwState === 'saved' && (
@@ -198,7 +193,7 @@ export default function AccountPage() {
       </Card>
 
       {/* Deletion */}
-      <Card className="rise border-red-200 shadow-sheet p-6 md:p-8" style={{ animationDelay: '180ms' }}>
+      <Card className="border-red-200 p-6 md:p-8">
         <h2 className="font-display text-xl font-semibold text-slate-900">{t('deleteSection')}</h2>
         <p className="text-sm text-slate-500 mt-1">{t('deleteLead')}</p>
         {deleteError && <p className="text-sm text-red-700 mt-3">{deleteError}</p>}
@@ -208,7 +203,7 @@ export default function AccountPage() {
           variant="outline"
           disabled={deleting}
           onClick={() => void removeAccount()}
-          className="mt-5 h-11 self-start border-red-300 text-red-700 hover:bg-red-50"
+          className="mt-5 self-start border-red-300 text-red-700 hover:bg-red-50"
         >
           {deleting ? t('deleting') : t('deleteButton')}
         </Button>

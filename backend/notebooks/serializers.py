@@ -51,17 +51,23 @@ class SourceListSerializer(serializers.ModelSerializer):
 class NotebookSerializer(serializers.ModelSerializer):
     sources = SourceListSerializer(many=True, read_only=True)
     source_count = serializers.SerializerMethodField()
+    # How many people are in it. 1 is a private notebook; more means shared,
+    # which is all a cover needs to say.
+    member_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Notebook
         fields = [
-            'id', 'title', 'description', 'source_count', 'sources',
+            'id', 'title', 'description', 'source_count', 'member_count', 'sources',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
 
     def get_source_count(self, obj):
         return obj.sources.count()
+
+    def get_member_count(self, obj):
+        return obj.members.count()
 
 
 class NotebookCreateSerializer(serializers.ModelSerializer):

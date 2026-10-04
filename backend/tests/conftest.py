@@ -30,6 +30,16 @@ def _isolated_cache():
     cache.clear()
 
 
+@pytest.fixture(autouse=True)
+def _forget_failed_models():
+    """Which Gemini models are currently unavailable is per-process state by
+    design, so one test's broken model would otherwise be skipped by the next."""
+    from notebooks.services.gemini_client import forget_failures
+    forget_failures()
+    yield
+    forget_failures()
+
+
 class _NoProvider:
     """Stands in for Gemini/Ollama: every call fails at once, with the error
     the code already treats as "provider unavailable"."""
@@ -84,6 +94,22 @@ def client(user):
     c = APIClient(HTTP_HOST='localhost')
     c.force_authenticate(user)
     return c
+
+
+@pytest.fixture
+def other_client(other_user):
+    """The second student, for everything about sharing."""
+    c = APIClient(HTTP_HOST='localhost')
+    c.force_authenticate(other_user)
+    return c
+
+
+@pytest.fixture
+def shared_notebook(notebook, other_user):
+    """`notebook` with the second student added as a member."""
+    from notebooks.models import NotebookMember
+    NotebookMember.objects.create(notebook=notebook, user=other_user, role='member')
+    return notebook
 
 
 def make_source(notebook, title='Lecture', text=SOURCE_TEXT):

@@ -1,0 +1,66 @@
+{
+ "measured_on": "2026-09-27",
+ "thresholds": {
+  "supported": 0.45,
+  "rival": 0.45,
+  "echo": 0.72
+ },
+ "questions_per_excerpt": 5,
+ "groups": [
+  {
+   "bộ": "đã lưu (llama3.2:3b)",
+   "số câu": 7,
+   "đạt": 1,
+   "tỉ lệ đạt": 0.143,
+   "trùng lặp": 0,
+   "lỗi: answer_unsupported": 3.0,
+   "lỗi: rival_distractor": 2.0,
+   "lỗi: negative_answer_supported": 1.0,
+   "lỗi: negative_distractors_unsupported": 1.0
+  },
+  {
+   "bộ": "sinh mới (gemini:gemini-2.5-flash)",
+   "số câu": 15,
+   "đạt": 14,
+   "tỉ lệ đạt": 0.933,
+   "trùng lặp": 0,
+   "lỗi: answer_unsupported": 0.0,
+   "lỗi: rival_distractor": 1.0,
+   "lỗi: negative_answer_supported": 0.0,
+   "lỗi: negative_distractors_unsupported": 0.0
+  },
+  {
+   "bộ": "sinh mới (gemini:gemini-3.5-flash)",
+   "số câu": 0,
+   "đạt": 0,
+   "tỉ lệ đạt": 0.0,
+   "trùng lặp": 0,
+   "lỗi: answer_unsupported": 0.0,
+   "lỗi: rival_distractor": 0.0,
+   "lỗi: negative_answer_supported": 0.0,
+   "lỗi: negative_distractors_unsupported": 0.0
+  },
+  {
+   "bộ": "sinh mới (gemini:gemini-3.8-flash)",
+   "số câu": 10,
+   "đạt": 10,
+   "tỉ lệ đạt": 1.0,
+   "trùng lặp": 0,
+   "lỗi: answer_unsupported": 0.0,
+   "lỗi: rival_distractor": 0.0,
+   "lỗi: negative_answer_supported": 0.0,
+   "lỗi: negative_distractors_unsupported": 0.0
+  },
+  {
+   "bộ": "sinh mới (gemini:gemini-3.1-flash-lite)",
+   "số câu": 15,
+   "đạt": 13,
+   "tỉ lệ đạt": 0.867,
+   "trùng lặp": 0,
+   "lỗi: answer_unsupported": 1.0,
+   "lỗi: rival_distractor": 1.0,
+   "lỗi: negative_answer_supported": 0.0,
+   "lỗi: negative_distractors_unsupported": 0.0
+  }
+ ]
+}

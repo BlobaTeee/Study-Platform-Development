@@ -96,12 +96,44 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Gemini (get key: https://aistudio.google.com/apikey)
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
-# gemini-2.0-flash free tier is often exhausted; 2.5-flash usually works on free tier
-GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-2.5-flash')
+# Measured on the question-quality scorecard (ml_pipeline/reports/question_quality.json):
+# 3.8-flash scored 10/10 and ran fastest, 2.5-flash 14/15, 3.1-flash-lite 13/15.
+# Pinned rather than 'gemini-flash-latest' so a measurement keeps meaning what it
+# said; the alias sits next in line, then a lite model, then the proven 2.5.
+GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-3.8-flash')
 GEMINI_MODEL_FALLBACKS = config(
     'GEMINI_MODEL_FALLBACKS',
-    default='gemini-2.5-flash-lite,gemini-2.0-flash-lite,gemini-1.5-flash',
+    default='gemini-flash-latest,gemini-3.1-flash-lite,gemini-2.5-flash',
 )
+# How many excerpts may be generated at once. Each excerpt is one provider call
+# of several seconds and they are independent, so running them together is the
+# single biggest latency win; the cap exists because firing all of them at once
+# is the quickest way to collect a rate-limit error.
+GENERATE_CONCURRENCY = config('GENERATE_CONCURRENCY', default=3, cast=int)
+
+# Một ngày học có giới hạn. Nghỉ hai tuần là có hàng trăm thẻ đến hạn, và hiện
+# nguyên con số đó là lúc người học bỏ cuộc. Phần không vừa trong ngày vẫn đến
+# hạn và đứng đầu hàng ngày mai. Thẻ mới chờ trong lúc còn nợ nhiều hơn phần
+# của hôm nay, vì mỗi thẻ học hôm nay là một lần ôn nợ ngày mai.
+DAILY_REVIEW_LIMIT = config('DAILY_REVIEW_LIMIT', default=40, cast=int)
+DAILY_NEW_LIMIT = config('DAILY_NEW_LIMIT', default=10, cast=int)
+
+# How long one model may take before the work is handed to the next model in
+# GEMINI_MODEL_FALLBACKS. A busy model does not answer with an error — it just
+# stops answering, and without a deadline the student waits with it.
+GEMINI_TIMEOUT_SECONDS = config('GEMINI_TIMEOUT_SECONDS', default=30, cast=int)
+# How much the model may think before answering: 'default' leaves it to the
+# model, 'off' forbids it, 'low'/'high' set a level on the models that take one.
+# Measured on one excerpt, thinking was 2.089 tokens against 765 of answer on
+# gemini-2.5-flash — over half the spend. Older models reject the setting and
+# are retried without it, so changing this cannot break the fallback chain.
+GEMINI_THINKING = config('GEMINI_THINKING', default='default')
+# Sau khi một model quá tải hoặc hết hạn chờ, bỏ qua nó trong bao lâu. Mỗi model
+# không trả lời tốn trọn một deadline trước khi nhường, nên nhớ lại trong ít phút
+# giúp những lượt sinh sau không phải trả lại cái giá đó. Nếu cả chuỗi đang bị bỏ
+# qua thì model đầu vẫn được thử, vì thà chờ còn hơn báo lỗi khi nó có thể đã hồi.
+GEMINI_COOLDOWN_SECONDS = config('GEMINI_COOLDOWN_SECONDS', default=300, cast=int)
+
 USE_LOCAL_FALLBACK_ON_QUOTA = config('USE_LOCAL_FALLBACK_ON_QUOTA', default=True, cast=bool)
 # When True, use local spaCy/scikit-learn pipeline first (fully offline capable).
 USE_ML_PRIMARY = config('USE_ML_PRIMARY', default=False, cast=bool)

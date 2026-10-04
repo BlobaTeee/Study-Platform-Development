@@ -37,15 +37,15 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
   return (
     <section aria-labelledby={`${tableId}-title`}>
       <div className="mb-1 flex items-center justify-between gap-3">
-        <h2 id={`${tableId}-title`} className="text-xl font-semibold text-slate-900">
+        <h2 id={`${tableId}-title`} className="text-base font-semibold text-slate-900">
           {t('last14')}
         </h2>
-        <p className="flex items-center gap-1.5 text-sm text-slate-500">
+        <p className="flex items-center gap-1.5 text-sm text-slate-600">
           <span aria-hidden className="inline-block size-2 rounded-full bg-mode-quizzes ring-2 ring-white" />
           {t('mockTest')}
         </p>
       </div>
-      <p className="mb-5 text-sm text-slate-500">
+      <p className="mb-5 text-sm text-slate-600">
         {empty ? t('stripEmpty') : summaryLine(summary, t)}
       </p>
 
@@ -84,7 +84,13 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
               <button
                 key={day.date}
                 type="button"
-                className="group relative flex h-full min-w-0 flex-1 items-end justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mode-analytics"
+                className={cn(
+                  'group relative flex h-full min-w-0 flex-1 items-end justify-center rounded-sm',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mode-analytics',
+                  // A faint band on Saturday and Sunday: the eye finds the
+                  // week boundaries without reading a single label.
+                  isWeekend(day.date) && 'bg-slate-50',
+                )}
                 onMouseEnter={() => setActive(i)}
                 onFocus={() => setActive(i)}
                 onBlur={() => setActive(null)}
@@ -109,18 +115,30 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
             )
           })}
         </div>
+        {/* The axis carries dates, not weekday initials: "T5" tells you
+            nothing about which Thursday, and the strip spans two weeks. The
+            month appears on the first column and wherever it turns over. */}
         <div className="mt-1.5 flex gap-0.5" aria-hidden>
-          {days.map((day, i) => (
-            <span
-              key={day.date}
-              className={cn(
-                'flex-1 text-center font-mono text-[11px] uppercase text-slate-400',
-                i === days.length - 1 && 'text-slate-600'
-              )}
-            >
-              {i === days.length - 1 ? t('now') : weekdayInitial(day.date, locale)}
-            </span>
-          ))}
+          {days.map((day, i) => {
+            const today = i === days.length - 1
+            const showsMonth = i === 0 || startsMonth(day.date)
+            // Every other day on a narrow screen: fourteen labels at 26px
+            // each collide, and a gap-toothed axis still reads as dates.
+            const sparse = !today && !showsMonth && (days.length - 1 - i) % 2 === 1
+            return (
+              <span
+                key={day.date}
+                className={cn(
+                  'flex-1 text-center font-mono text-[11px] tabular-nums',
+                  today ? 'font-semibold text-mode-analytics-hover' : 'text-slate-500',
+                  showsMonth && !today && 'text-slate-700',
+                  sparse && 'hidden sm:block',
+                )}
+              >
+                {today ? t('now') : showsMonth ? dayAndMonth(day.date) : dayNumber(day.date, locale)}
+              </span>
+            )
+          })}
         </div>
       </div>
 
@@ -168,10 +186,23 @@ function asLocalDate(iso: string): Date {
   return new Date(`${iso}T12:00:00`)
 }
 
-function weekdayInitial(iso: string, locale: string): string {
-  // Vietnamese "narrow" weekdays are "T2…CN" — two letters, which is the
-  // right thing to show; English gives a single letter.
-  return asLocalDate(iso).toLocaleDateString(locale, { weekday: 'narrow' })
+function dayNumber(iso: string, locale: string): string {
+  return asLocalDate(iso).toLocaleDateString(locale, { day: 'numeric' })
+}
+
+function dayAndMonth(iso: string): string {
+  // Numeric on purpose: "14/9" reads at 11px where "14 thg 9" would not.
+  const d = asLocalDate(iso)
+  return `${d.getDate()}/${d.getMonth() + 1}`
+}
+
+function startsMonth(iso: string): boolean {
+  return asLocalDate(iso).getDate() === 1
+}
+
+function isWeekend(iso: string): boolean {
+  const day = asLocalDate(iso).getDay()
+  return day === 0 || day === 6
 }
 
 function weekdayLong(iso: string, locale: string): string {

@@ -17,16 +17,13 @@ export function AuthBrandPanel() {
     <aside className="paper-grid relative hidden lg:flex flex-col justify-between border-r border-slate-200 p-12 xl:p-16">
       <div>
         <p className="font-display text-xl font-semibold text-slate-900">StudyFlow</p>
-        <p className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500 mt-1">
-          {nav('tagline')}
-        </p>
       </div>
 
       <div className="max-w-md">
         <h2 className="font-display text-4xl xl:text-5xl font-semibold leading-[1.08] text-slate-900">
           {t('brandHeadline')}
         </h2>
-        <p className="text-lg text-slate-500 mt-5 leading-relaxed">
+        <p className="mt-5 max-w-[48ch] text-lg leading-relaxed text-slate-600">
           {t('brandLead')}
         </p>
       </div>

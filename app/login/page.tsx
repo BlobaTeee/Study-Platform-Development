@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,15 +12,19 @@ import { LanguageSwitch } from '@/components/language-switch'
 import { OAuthButtons } from '@/components/oauth-buttons'
 import { useTranslations } from 'next-intl'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
   const { login } = useAuth()
+  // Only in-app paths: `next=https://evil.example` must not become a redirect.
+  const nextParam = useSearchParams().get('next') ?? ''
+  const nextPath = nextParam.startsWith('/') && !nextParam.startsWith('//')
+    ? nextParam
+    : '/dashboard/notebooks'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const t = useTranslations('auth')
-  const nav = useTranslations('nav')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,7 +33,9 @@ export default function LoginPage() {
 
     try {
       await login(email, password)
-      router.push('/dashboard/notebooks')
+      // An invitation link parks its destination in `next` so signing in
+      // lands on the notebook you were invited to, not the generic list.
+      router.push(nextPath)
     } catch (err: any) {
       setError(err.message || t('loginFailed'))
     } finally {
@@ -46,19 +52,12 @@ export default function LoginPage() {
           <div className="flex items-start justify-between gap-4 mb-8">
             <div className="lg:hidden">
               <h1 className="font-display text-3xl font-semibold text-slate-900">StudyFlow</h1>
-              <p className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500 mt-1">
-                {nav('tagline')}
-              </p>
             </div>
             <div className="ml-auto">
               <LanguageSwitch />
             </div>
           </div>
-
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-library">
-            {t('welcomeBack')}
-          </p>
-          <h2 className="font-display text-3xl font-semibold text-slate-900 mt-1">
+          <h2 className="font-display text-[2rem] font-semibold leading-tight text-slate-900">
             {t('signInTitle')}
           </h2>
           <p className="text-base text-slate-500 mt-2">
@@ -109,7 +108,7 @@ export default function LoginPage() {
               type="submit"
               disabled={loading}
               size="lg"
-              className="w-full font-semibold bg-mode-library hover:bg-mode-library-hover"
+              className="w-full"
             >
               {loading ? t('signingIn') : t('signIn')}
             </Button>
@@ -130,5 +129,15 @@ export default function LoginPage() {
         </div>
       </section>
     </main>
+  )
+}
+
+/** useSearchParams needs a boundary, or the whole route opts out of static
+ *  rendering and the shell flashes before the form. */
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   )
 }

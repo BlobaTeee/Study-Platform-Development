@@ -35,7 +35,7 @@ export function WhyWrong({ testId, paperQuestionId, initial }: {
   if (text) {
     return (
       <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-4 py-3">
-        <p className="font-mono text-xs font-semibold uppercase tracking-wide text-mode-quizzes mb-1 inline-flex items-center gap-1.5">
+        <p className="font-mono text-xs font-semibold uppercase tracking-wide text-mode mb-1 inline-flex items-center gap-1.5">
           <Sparkles className="size-3.5" aria-hidden />
           {t('whyTitle')}
         </p>
@@ -50,7 +50,7 @@ export function WhyWrong({ testId, paperQuestionId, initial }: {
         type="button"
         disabled={loading}
         onClick={() => void ask()}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-mode-quizzes hover:underline disabled:opacity-60"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-mode hover:underline disabled:opacity-60"
       >
         {loading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
         {loading ? t('whyLoading') : t('whyButton')}

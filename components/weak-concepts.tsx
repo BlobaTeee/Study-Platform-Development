@@ -62,7 +62,7 @@ export function WeakConcepts({ notebook, refreshKey }: { notebook: number; refre
   return (
     <div className="border-t border-slate-200 pt-4 space-y-3">
       <div className="flex items-center gap-2">
-        <Target className="size-4 text-mode-quizzes" aria-hidden />
+        <Target className="size-4 text-mode" aria-hidden />
         <p className="text-base text-slate-700">{t('weakConcepts')}</p>
       </div>
       <ul className="space-y-2">
@@ -79,11 +79,11 @@ export function WeakConcepts({ notebook, refreshKey }: { notebook: number; refre
             </div>
             <Button
               type="button"
-              variant="outline"
+              variant="tinted"
               size="sm"
               disabled={practising !== null}
               onClick={() => void practise(c)}
-              className="h-9 shrink-0 border-mode-quizzes text-mode-quizzes hover:bg-mode-quizzes/10"
+              className="shrink-0"
             >
               {practising === c.key ? <Loader2 className="size-4 animate-spin mr-1.5" aria-hidden /> : null}
               {practising === c.key

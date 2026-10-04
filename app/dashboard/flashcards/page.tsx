@@ -5,11 +5,12 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import useSWR from 'swr'
-import { flashcardsAPI, type ReviewGrade } from '@/lib/api'
+import { analyticsAPI, flashcardsAPI, type ReviewGrade } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { useConfirm } from '@/components/confirm-dialog'
+import { PageHeader } from '@/components/page-header'
 import { AskTutor } from '@/components/ask-tutor'
 import { SourceRequired } from '@/components/source-required'
 import {
@@ -23,7 +24,6 @@ import {
   Pencil,
   RotateCcw,
   Trash2,
-  Zap,
 } from 'lucide-react'
 
 type Flashcard = {
@@ -32,6 +32,8 @@ type Flashcard = {
   answer: string
   difficulty: string
   source_ids?: number[]
+  /** Days until this card's notebook's test, when that is this week. */
+  exam_in_days?: number | null
 }
 
 /** The three SM-2 grades, worst recall first. Only you can judge whether you
@@ -53,10 +55,21 @@ function FlashcardsStudy() {
   // or clear what the schedule says is owed today.
   const dueMode = searchParams.get('due') === '1'
 
+  // Scoped to a document, the server picks today's share from that document;
+  // the key carries the scope so the two queues never share a cache entry.
   const { data, isLoading } = useSWR(
-    dueMode ? ['/flashcards/due'] : sourceParam ? ['/flashcards/', sourceParam] : null,
-    () => (dueMode ? flashcardsAPI.getDueCards() : flashcardsAPI.getFlashcards())
+    dueMode
+      ? sourceParam ? ['/flashcards/due', sourceParam] : ['/flashcards/due']
+      : sourceParam ? ['/flashcards/', sourceParam] : null,
+    () => (dueMode ? flashcardsAPI.getDueCards(sourceIds) : flashcardsAPI.getFlashcards())
   )
+  // Whether debt is left once today's share is done. Same key as the dashboard,
+  // so it is usually cached already; the number holds all day, since each
+  // review lowers what is owed and what is left of the day alike.
+  const { data: recsRes } = useSWR(dueMode && !sourceParam ? ['/analytics/recommendations'] : null, () =>
+    analyticsAPI.getRecommendations()
+  )
+  const heldBack: number = recsRes?.data?.due?.later ?? 0
 
   const allCards: Flashcard[] = data?.data?.results ?? data?.data ?? []
   const [index, setIndex] = useState(0)
@@ -210,18 +223,25 @@ function FlashcardsStudy() {
   }
 
   if (isLoading) {
-    return <p className="text-xl text-slate-500 text-center py-20">Loading flashcards…</p>
+    return <p className="py-20 text-center text-base text-slate-500">{common('loading')}</p>
   }
 
   if (total === 0) {
     return (
-      <div className="text-center py-20 max-w-md mx-auto">
-        <Zap className="size-16 text-slate-300 mx-auto mb-4" />
-        <p className="text-xl text-slate-600 mb-6">
+      <div className="mx-auto max-w-3xl">
+        <PageHeader title={dueMode ? t('dueToday') : t('studySession')} />
+        <div className="sheet mt-8 flex flex-col items-start gap-5 p-8">
+        <p className="max-w-[48ch] text-lg leading-relaxed text-slate-700">
           {dueMode
             ? graded.size > 0
-              ? t('caughtUpReviewed', { cards: common('cards', { count: graded.size }) })
-              : t('nothingDue')
+              ? t(heldBack > 0 ? 'doneForTodayReviewed' : 'caughtUpReviewed', {
+                  cards: common('cards', { count: graded.size }),
+                })
+              : heldBack > 0
+                // Reopened after today's share was done: cards are still owed,
+                // so "nothing due" would be false — say they wait for tomorrow.
+                ? common('doneForToday', { cards: common('cards', { count: heldBack }) })
+                : t('nothingDue')
             : t('noneForSelection')}
         </p>
         {/* Studying a document enters the scheduled queue, so "nothing due" is
@@ -229,23 +249,22 @@ function FlashcardsStudy() {
             answer rather than a dead end, while still leading with the
             schedule — reviewing early is a choice, not the default. */}
         {dueMode && sourceParam ? (
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button asChild size="lg" variant="outline" className="h-12 text-lg">
-              <Link href={`/dashboard/flashcards?source=${sourceParam}`}>
-                {t('studyAllAnyway')}
-              </Link>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild variant="outline">
+              <Link href={`/dashboard/flashcards?source=${sourceParam}`}>{t('studyAllAnyway')}</Link>
             </Button>
-            <Button asChild size="lg" className="bg-mode-library hover:bg-mode-library-hover h-12 text-lg">
+            <Button asChild variant="ink">
               <Link href="/dashboard/notebooks">{t('backToNotebooks')}</Link>
             </Button>
           </div>
         ) : (
-          <Button asChild size="lg" className="bg-mode-library hover:bg-mode-library-hover h-12 text-lg">
+          <Button asChild variant="ink">
             <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
               {dueMode ? t('backToProgress') : t('goToNotebooks')}
             </Link>
           </Button>
         )}
+        </div>
       </div>
     )
   }
@@ -260,31 +279,23 @@ function FlashcardsStudy() {
         <SourceContextBanner />
       </Suspense>
 
-      <div className="rise border-t-[3px] border-mode-flashcards pt-4 flex items-center justify-between gap-4">
-        <div>
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-flashcards">
-            {t('title')}
-          </p>
-          <h1 className="font-display text-3xl font-semibold text-slate-900 mt-1">
-            {dueMode ? t('dueToday') : t('studySession')}
-          </h1>
-          <p className="font-mono text-sm text-slate-500 mt-1 tabular-nums">
-            {dueMode
-              ? t('leftAndDone', { left: total, done: graded.size })
-              : `${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`}
-          </p>
-        </div>
-        <Button asChild variant="outline" size="lg" className="text-lg h-11">
-          <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
-            <ChevronLeft className="size-5 mr-1" />
-            {dueMode ? t('progress') : t('backToNotebooks')}
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        title={dueMode ? t('dueToday') : t('studySession')}
+        meta={dueMode ? t('leftAndDone', { left: total, done: graded.size }) : `${index + 1} / ${total}`}
+        action={
+          <Button asChild variant="outline">
+            <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
+              <ChevronLeft aria-hidden />
+              {dueMode ? t('progress') : t('backToNotebooks')}
+            </Link>
+          </Button>
+        }
+      />
 
-      <div className="rise h-1.5 rounded-full bg-slate-100 overflow-hidden" style={{ animationDelay: '60ms' }}>
+      <div className="h-1 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-valuemin={0} aria-valuemax={100}
+        aria-valuenow={Math.round(dueMode ? (graded.size / (graded.size + total)) * 100 : ((index + 1) / total) * 100)}>
         <div
-          className="h-full bg-mode-flashcards transition-all duration-300"
+          className="h-full bg-mode transition-[width] duration-300 motion-reduce:transition-none"
           style={{
             // Browsing tracks position in the deck; the due queue tracks the
             // debt cleared, since its cards leave as they are graded.
@@ -295,10 +306,15 @@ function FlashcardsStudy() {
         />
       </div>
 
+      {/* Why this card is ahead of older debt: its notebook's test is close. */}
+      {dueMode && card?.exam_in_days != null && (
+        <p className="-mt-4 text-sm text-slate-600">{t('examSoon', { days: card.exam_in_days })}</p>
+      )}
+
       {/* Signature: a real index card that flips in 3D. */}
       {draft ? (
         <form
-          className="rise rounded-2xl border border-slate-200 bg-white p-6 md:p-8 shadow-sheet space-y-4"
+          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sheet md:p-8"
           onSubmit={(e) => {
             e.preventDefault()
             void saveEdit(card)
@@ -324,16 +340,16 @@ function FlashcardsStudy() {
             />
           </label>
           <div className="flex flex-wrap justify-end gap-3">
-            <Button type="button" variant="outline" size="lg" className="h-11 text-base" disabled={busy} onClick={() => setDraft(null)}>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => setDraft(null)}>
               {common('cancel')}
             </Button>
-            <Button type="submit" size="lg" className="h-11 text-base bg-mode-flashcards hover:bg-mode-flashcards-hover text-white" disabled={busy}>
+            <Button type="submit" disabled={busy}>
               {common('save')}
             </Button>
           </div>
         </form>
       ) : (
-      <div className="rise flip-scene" style={{ animationDelay: '120ms' }}>
+      <div className="flip-scene">
         <button
           type="button"
           onClick={() => setFlipped((f) => !f)}
@@ -357,8 +373,8 @@ function FlashcardsStudy() {
       {/* Once the answer is showing, grading replaces navigation: the only
           question left is how well you recalled it. */}
       {flipped ? (
-        <div className="rise space-y-3" style={{ animationDelay: '180ms' }}>
-          <p className="text-center text-sm text-slate-500">{t('howWell')}</p>
+        <div className="space-y-3">
+          <p className="text-center text-sm text-slate-600">{t('howWell')}</p>
           <div className="grid grid-cols-3 gap-3">
             {GRADES.map((g, i) => (
               <button
@@ -367,42 +383,39 @@ function FlashcardsStudy() {
                 disabled={saving}
                 onClick={() => grade(g.value)}
                 className={cn(
-                  'rounded-xl border-2 px-4 py-3 text-left transition-colors disabled:opacity-50',
+                  'rounded-xl border px-4 py-3 text-left transition-[background-color,transform] duration-150 active:translate-y-px disabled:opacity-50',
+                  'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30',
                   g.className
                 )}
               >
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="text-lg font-semibold">{t(g.value)}</span>
-                  <span className="font-mono text-xs opacity-60 tabular-nums">{i + 1}</span>
+                  <span className="text-base font-semibold">{t(g.value)}</span>
+                  <kbd className="font-mono text-xs opacity-70 tabular-nums">{i + 1}</kbd>
                 </span>
-                <span className="block text-sm opacity-75">{t(`${g.value}Hint`)}</span>
+                <span className="block text-sm opacity-80">{t(`${g.value}Hint`)}</span>
               </button>
             ))}
           </div>
         </div>
       ) : (
-        <div className="rise flex flex-wrap items-center justify-center gap-4" style={{ animationDelay: '180ms' }}>
-          <Button variant="outline" size="lg" onClick={goPrev} className="h-12 px-6 text-lg">
-            <ArrowLeft className="size-5 mr-2" />
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Button variant="outline" size="lg" onClick={goPrev}>
+            <ArrowLeft aria-hidden />
             {t('previous')}
           </Button>
-          <Button
-            size="lg"
-            onClick={() => setFlipped(true)}
-            className="bg-mode-flashcards hover:bg-mode-flashcards-hover text-white h-12 px-6 text-lg"
-          >
-            <RotateCcw className="size-5 mr-2" />
+          <Button size="lg" onClick={() => setFlipped(true)} className="px-8">
+            <RotateCcw aria-hidden />
             {t('showAnswer')}
           </Button>
-          <Button variant="outline" size="lg" onClick={goNext} className="h-12 px-6 text-lg">
+          <Button variant="outline" size="lg" onClick={goNext}>
             {t('skip')}
-            <ArrowRight className="size-5 ml-2" />
+            <ArrowRight aria-hidden />
           </Button>
         </div>
       )}
 
       {error && (
-        <p role="alert" className="rise text-center text-sm text-red-700">
+        <p role="alert" className="text-center text-sm text-red-700">
           {error}
         </p>
       )}
@@ -413,7 +426,7 @@ function FlashcardsStudy() {
 
       {/* Quiet on purpose: fixing a card is the exception, recalling it the rule. */}
       {!draft && (
-        <div className="rise flex justify-center gap-5 text-sm text-slate-500" style={{ animationDelay: '200ms' }}>
+        <div className="flex justify-center gap-5 text-sm text-slate-600">
           <button
             type="button"
             disabled={busy}
@@ -436,7 +449,7 @@ function FlashcardsStudy() {
       )}
       {confirmDialog}
 
-      <p className="rise text-center font-mono text-xs uppercase tracking-wide text-slate-500" style={{ animationDelay: '220ms' }}>
+      <p className="text-center text-sm text-slate-500">
         {lastReview
           ? t('lastReview', { grade: lastReview.label, days: lastReview.interval, graded: graded.size, total })
           : t('hint', { difficulty: difficultyLabel(card.difficulty, t) })}
@@ -461,7 +474,7 @@ function IndexFace({ side, card }: { side: 'front' | 'back'; card: Flashcard }) 
   return (
     <div
       className={cn(
-        'flip-face relative flex flex-col justify-center rounded-2xl border border-slate-200 bg-white p-8 md:p-12 shadow-sheet',
+        'flip-face relative flex flex-col justify-center rounded-2xl border border-slate-200 bg-white p-8 shadow-sheet md:p-12',
         isFront ? 'flip-face--front' : 'flip-face--back'
       )}
     >
@@ -469,19 +482,19 @@ function IndexFace({ side, card }: { side: 'front' | 'back'; card: Flashcard }) 
       <span
         className={cn(
           'absolute left-8 -top-px h-[3px] w-14 rounded-b-full',
-          isFront ? 'bg-mode-flashcards' : 'bg-slate-900'
+          isFront ? 'bg-mode' : 'bg-slate-900'
         )}
         aria-hidden
       />
       <p
         className={cn(
-          'font-mono text-sm font-semibold uppercase tracking-wide mb-5',
-          isFront ? 'text-mode-flashcards' : 'text-slate-500'
+          'mb-5 text-sm font-medium',
+          isFront ? 'text-mode' : 'text-slate-500'
         )}
       >
         {isFront ? t('question') : t('answer')}
       </p>
-      <p className="text-2xl md:text-3xl text-slate-900 leading-relaxed">
+      <p className="text-2xl leading-relaxed text-slate-900 md:text-[1.75rem] text-pretty">
         {isFront ? card.question : card.answer}
       </p>
       {/* Ruled baseline — a single notebook rule under the content */}

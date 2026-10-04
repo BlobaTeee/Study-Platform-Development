@@ -68,7 +68,12 @@ export const flashcardsAPI = {
     api.post('/study/card-reviews/record/', { flashcard_id: flashcardId, result }),
   // Cards the SM-2 schedule says are owed today, plus ones never studied.
   // Cards scheduled ahead are deliberately withheld.
-  getDueCards: () => api.get('/study/card-reviews/due_today/'),
+  // With `sourceIds`, the server picks today's share from those documents only;
+  // filtering a global share afterwards could leave a document looking caught up.
+  getDueCards: (sourceIds: number[] = []) =>
+    api.get('/study/card-reviews/due_today/', {
+      params: sourceIds.length ? { source: sourceIds.join(',') } : undefined,
+    }),
 }
 
 export const streaksAPI = {
@@ -100,6 +105,45 @@ export const quizzesAPI = {
     api.post(`/quizzes/attempts/${attemptId}/override_answer/`, data),
 }
 
+export type ChatMessage = {
+  id: number
+  group: number
+  body: string
+  created_at: string
+  author: { user_id: number; name: string; is_you?: boolean }
+}
+
+export type ChatLastLine = {
+  id: number
+  body: string
+  created_at: string
+  is_you: boolean
+  author: string
+}
+
+export type ChatOverview = {
+  groups: { id: number; name: string; members: number; last: ChatLastLine | null }[]
+  people: { user_id: number; name: string; last: ChatLastLine | null }[]
+}
+
+export type DirectMessageRow = {
+  id: number
+  with: number
+  body: string
+  created_at: string
+  author: { user_id: number; name: string; is_you?: boolean }
+}
+
+export type NotebookMemberRow = {
+  user_id: number
+  name: string
+  email: string
+  role: 'owner' | 'member'
+  is_you: boolean
+  reviews: number
+  accuracy: number | null
+}
+
 export const notebooksAPI = {
   getNotebooks: () => api.get('/notebooks/notebooks/'),
   getNotebook: (id: number) => api.get(`/notebooks/notebooks/${id}/`),
@@ -109,6 +153,34 @@ export const notebooksAPI = {
   // the auth header (a plain <a href> could not carry it) and saved client-side.
   exportCsv: (id: number, kind: 'flashcards' | 'questions') =>
     api.get<Blob>(`/notebooks/notebooks/${id}/export/`, { params: { kind }, responseType: 'blob' }),
+  // Chat groups. Sending goes over REST so a message is never lost to a
+  // dropped socket; the socket is how everyone else hears it.
+  createGroup: (data: { name: string; members: number[] }) =>
+    api.post<{ id: number; name: string }>('/notebooks/chat/groups/', data),
+  groupMessages: (groupId: number, params?: { before?: number }) =>
+    api.get<{ messages: ChatMessage[] }>(`/notebooks/chat/groups/${groupId}/messages/`, { params }),
+  sendGroupMessage: (groupId: number, body: string) =>
+    api.post<ChatMessage>(`/notebooks/chat/groups/${groupId}/messages/`, { body }),
+  addGroupMember: (groupId: number, userId: number) =>
+    api.post(`/notebooks/chat/groups/${groupId}/members/`, { user_id: userId }),
+  leaveGroup: (groupId: number, userId: number) =>
+    api.delete(`/notebooks/chat/groups/${groupId}/members/${userId}/`),
+  deleteMessage: (messageId: number) => api.delete(`/notebooks/messages/${messageId}/`),
+  // What the chat launcher lists, and the private threads inside it.
+  chatOverview: () => api.get<ChatOverview>('/notebooks/chat/overview/'),
+  directThread: (userId: number, params?: { before?: number }) =>
+    api.get<{ messages: DirectMessageRow[] }>(`/notebooks/chat/direct/${userId}/`, { params }),
+  sendDirect: (userId: number, body: string) =>
+    api.post<DirectMessageRow>(`/notebooks/chat/direct/${userId}/`, { body }),
+  // Sharing: who is in a notebook, inviting, leaving, removing.
+  members: (id: number) =>
+    api.get<{ members: NotebookMemberRow[] }>(`/notebooks/notebooks/${id}/members/`),
+  invite: (id: number, email: string) =>
+    api.post<{ email: string; url: string; emailed: boolean }>(`/notebooks/notebooks/${id}/invite/`, { email }),
+  removeMember: (id: number, userId: number) =>
+    api.delete(`/notebooks/notebooks/${id}/members/${userId}/`),
+  acceptInvite: (token: string) =>
+    api.post<{ notebook: { id: number; title: string } }>('/notebooks/invites/accept/', { token }),
   updateNotebook: (id: number, data: { title?: string; description?: string }) =>
     api.patch(`/notebooks/notebooks/${id}/`, data),
   deleteNotebook: (id: number) => api.delete(`/notebooks/notebooks/${id}/`),

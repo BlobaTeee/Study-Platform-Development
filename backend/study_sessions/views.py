@@ -5,19 +5,40 @@ from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from datetime import timedelta
 
-from . import scheduling
+from . import daily, scheduling
 from .models import StudySession, StudyStreak, CardReview
 from .serializers import (
     StudySessionSerializer, StudySessionCreateSerializer,
     CardReviewSerializer, StudyStreakSerializer
 )
 from flashcards.models import Flashcard
+from notebooks.services.membership import notebooks_for
 from flashcards.services.regeneration import (
     MAX_REGENERATIONS_PER_FETCH, merge_replacements, select_for_regeneration,
 )
 
+def _source_ids_param(raw) -> set[int]:
+    """`?source=3,7` as a set of ids; anything unparsable is ignored."""
+    ids = set()
+    for part in (raw or '').split(','):
+        part = part.strip()
+        if part.isdigit():
+            ids.add(int(part))
+    return ids
+
+
 DUE_CARDS_DEFAULT = 50
 DUE_CARDS_LIMIT = 200
+
+
+def studiable_cards(user):
+    """Every live card this person may study: their own, and the ones in
+    notebooks shared with them. One definition, so the due queue, the
+    schedule and a review all agree on what is theirs to answer."""
+    from django.db.models import Q
+    return Flashcard.objects.filter(
+        Q(user=user) | Q(notebook__in=notebooks_for(user)), archived=False
+    ).distinct()
 
 
 def resolve_review_request(request):
@@ -35,8 +56,7 @@ def resolve_review_request(request):
         )
 
     try:
-        flashcard = Flashcard.objects.get(id=flashcard_id, user=request.user,
-                                          archived=False)
+        flashcard = studiable_cards(request.user).get(id=flashcard_id)
     except (Flashcard.DoesNotExist, ValueError, TypeError):
         # A card belonging to someone else is reported the same way as a missing
         # one, so this cannot be used to probe for other users' card ids.
@@ -286,20 +306,33 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
             list(CardReview.objects.filter(user=user).latest_per_card()
                  .values('flashcard_id', 'next_review_date', 'review_date'))
         )
-        cards = list(Flashcard.objects.filter(user=user, archived=False)
-                     .values('id', 'question', 'answer', 'difficulty',
+        cards = list(studiable_cards(user)
+                     .values('id', 'question', 'answer', 'difficulty', 'notebook_id',
                              'needs_regeneration', 'regeneration_attempts'))
         # Sources ride along so the study page can scope the due queue to a
         # document (`?due=1&source=…`). One query for the collection.
         by_card: dict[int, list[int]] = {}
         for card_id, source_id in (Flashcard.sources.through.objects
-                                   .filter(flashcard__user=user)
+                                   .filter(flashcard__in=studiable_cards(user))
                                    .values_list('flashcard_id', 'source_id')):
             by_card.setdefault(card_id, []).append(source_id)
         for card in cards:
             card['source_ids'] = by_card.get(card['id'], [])
-        ranked = scheduling.rank_due_cards(cards, schedule, timezone.localdate(),
-                                           limit=limit)
+
+        # Studying one document draws from that document. The filter has to come
+        # before today's share is taken: otherwise the share can be all another
+        # subject's older debt, and this document reads "caught up" while its
+        # own cards are still due.
+        wanted = _source_ids_param(request.query_params.get('source'))
+        if wanted:
+            cards = [c for c in cards if wanted <= set(c['source_ids'])]
+
+        today = timezone.localdate()
+        plan = daily.plan_for(user, cards, schedule, today, timezone.now())
+        ranked = scheduling.rank_due_cards(cards, schedule, today, limit=limit,
+                                           budget=plan.budget,
+                                           exam_days=plan.exam_days,
+                                           exam_new=plan.exam_new)
 
         pending = select_for_regeneration(ranked, MAX_REGENERATIONS_PER_FETCH)
         if pending:

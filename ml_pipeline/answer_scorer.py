@@ -14,8 +14,6 @@ from .features.answer_features import FeatureBuilder
 
 
 class AnswerScorer:
-    """Bundles a fitted TF-IDF feature builder + scaler + classifier."""
-
     def __init__(self, classifier=None):
         if classifier is None:
             classifier = LogisticRegression(

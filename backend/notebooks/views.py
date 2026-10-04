@@ -1,4 +1,5 @@
 from rest_framework import mixins, viewsets, permissions, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
 from django.utils.translation import gettext as _
 from studyplatform.throttling import GenerationRateThrottle
@@ -21,11 +22,13 @@ def _user_error(exc) -> str:
         return _('No sources selected.')
     return str(exc)
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.conf import settings
 from django.db.models import Prefetch
 
-from .models import Notebook, Source
+from .models import Notebook, NotebookMember, Source
+from .services.membership import can_manage, notebooks_for
 from .serializers import (
     NotebookSerializer,
     NotebookCreateSerializer,
@@ -63,7 +66,8 @@ class NotebookViewSet(viewsets.ModelViewSet):
         # — 282 KB across three files here. SourceListSerializer never outputs
         # it, so every notebook load was pulling that out of Postgres and
         # discarding it, growing with each upload.
-        return Notebook.objects.filter(user=self.request.user).prefetch_related(
+        # Own notebooks and shared ones; writes are narrowed per action below.
+        return notebooks_for(self.request.user).prefetch_related(
             Prefetch('sources', queryset=Source.objects.defer('extracted_text'))
         )
 
@@ -72,7 +76,20 @@ class NotebookViewSet(viewsets.ModelViewSet):
             return NotebookCreateSerializer
         return NotebookSerializer
 
+    def perform_update(self, serializer):
+        # Renaming is the owner's; a member adding documents is not renaming.
+        if not can_manage(serializer.instance, self.request.user):
+            raise PermissionDenied(_('Only the notebook owner can change it.'))
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not can_manage(instance, self.request.user):
+            raise PermissionDenied(_('Only the notebook owner can delete it.'))
+        instance.delete()
+
     def perform_create(self, serializer):
+        # Ownership is the model's doing (see the post_save in models.py), so
+        # every path that makes a notebook produces a notebook with an owner.
         serializer.save(user=self.request.user)
 
     @action(detail=True, methods=['post'])
@@ -212,6 +229,53 @@ class NotebookViewSet(viewsets.ModelViewSet):
             'flashcards': serializer.data,
         }, status=201)
 
+    @action(detail=True, methods=['post'])
+    def invite(self, request, pk=None):
+        """Invite someone by email. The response always carries the link, so
+        an inviter can pass it on even when mail is not configured."""
+        from .services.invites import create_invite, invite_url, send_invite_email
+
+        notebook = self.get_object()
+        if not can_manage(notebook, request.user):
+            return Response({'detail': _('Only the notebook owner can invite people.')}, status=403)
+        email = (str(request.data.get('email') or '')).strip()
+        if '@' not in email or len(email) > 254:
+            return Response({'detail': _('Enter an email address.')}, status=400)
+        if email.lower() == (request.user.email or '').lower():
+            return Response({'detail': _('That is your own address.')}, status=400)
+
+        invite = create_invite(notebook, request.user, email)
+        sent = send_invite_email(invite, request.user.first_name or request.user.email or 'A student',
+                                 _profile_language(request.user))
+        return Response({'email': invite.email, 'token': invite.token,
+                         'url': invite_url(invite.token), 'emailed': sent}, status=201)
+
+    @action(detail=True, methods=['get'])
+    def members(self, request, pk=None):
+        """Who is in this notebook, and how each of them is doing in it.
+
+        The record is per member and scoped to this notebook: how many
+        reviews they have graded here and their mastery. It is the point of
+        studying together, and it says nothing about anyone's other work.
+        """
+        from .services.group import member_records
+
+        notebook = self.get_object()
+        return Response({'members': member_records(notebook, request.user)})
+
+    @action(detail=True, methods=['delete'], url_path=r'members/(?P<member_id>\d+)')
+    def remove_member(self, request, pk=None, member_id=None):
+        """Leave the notebook, or (as owner) remove someone from it."""
+        notebook = self.get_object()
+        member_id = int(member_id)
+        leaving_self = member_id == request.user.id
+        if not leaving_self and not can_manage(notebook, request.user):
+            return Response({'detail': _('Only the notebook owner can remove people.')}, status=403)
+        if member_id == notebook.user_id:
+            return Response({'detail': _('The owner cannot leave their own notebook.')}, status=400)
+        NotebookMember.objects.filter(notebook=notebook, user_id=member_id).delete()
+        return Response(status=204)
+
     @action(detail=True, methods=['get'])
     def export(self, request, pk=None):
         """The notebook's live cards or published questions as a CSV download
@@ -324,6 +388,186 @@ class NotebookViewSet(viewsets.ModelViewSet):
         }, status=201)
 
 
+class InviteAcceptView(APIView):
+    """Redeem an invitation link."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from .services.invites import InviteError, accept_invite
+
+        try:
+            invite = accept_invite(str(request.data.get('token') or ''), request.user)
+        except LookupError:
+            return Response({'detail': _('This invitation link is not valid.')}, status=404)
+        except InviteError as exc:
+            return Response({'detail': str(exc)}, status=400)
+        nb = invite.notebook
+        return Response({'notebook': {'id': nb.id, 'title': nb.title}})
+
+
+class ChatMessageView(APIView):
+    """Deleting one line of a group thread: its author only."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, message_id):
+        from .models import GroupMessage
+        from .services.chat import in_group, room_for
+
+        message = GroupMessage.objects.filter(id=message_id).select_related('group').first()
+        if message is None or not in_group(message.group, request.user):
+            return Response({'detail': _('Message not found.')}, status=404)
+        if message.user_id != request.user.id:
+            return Response({'detail': _('Only the person who wrote it can delete a message.')}, status=403)
+        group_id, deleted_id = message.group_id, message.id
+        message.delete()
+        from .realtime import emit_to_room
+        emit_to_room(room_for(group_id), 'message:deleted', {'group': group_id, 'id': deleted_id})
+        return Response(status=204)
+
+
+class ChatGroupsView(APIView):
+    """The groups you are in, and making a new one."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from .services.chat import create_group
+
+        members = request.data.get('members') or []
+        if not isinstance(members, list) or not all(isinstance(i, int) for i in members):
+            return Response({'detail': _('members must be a list of user ids.')}, status=400)
+        try:
+            group = create_group(request.user, str(request.data.get('name') or ''), members)
+        except PermissionError:
+            return Response({'detail': _('You can only add people you share a notebook with.')}, status=400)
+        except ValueError:
+            return Response({'detail': _('Give the group a name.')}, status=400)
+        return Response({'id': group.id, 'name': group.name}, status=201)
+
+
+class ChatGroupMessagesView(APIView):
+    """One group's thread: read it, or add to it."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _group_or_none(self, request, group_id):
+        from .models import ChatGroup
+        from .services.chat import in_group
+
+        group = ChatGroup.objects.filter(id=group_id).first()
+        # A group you are not in is reported missing, not forbidden: its
+        # existence is nobody else's business.
+        return group if group and in_group(group, request.user) else None
+
+    def get(self, request, group_id):
+        from .services.chat import HISTORY_LIMIT, history
+
+        group = self._group_or_none(request, group_id)
+        if group is None:
+            return Response({'detail': _('Group not found.')}, status=404)
+        before = request.query_params.get('before')
+        before = int(before) if (before or '').isdigit() else None
+        return Response({'messages': history(group, request.user, HISTORY_LIMIT, before)})
+
+    def post(self, request, group_id):
+        from .services.chat import message_payload, post_message, room_for
+
+        group = self._group_or_none(request, group_id)
+        if group is None:
+            return Response({'detail': _('Group not found.')}, status=404)
+        try:
+            message = post_message(group, request.user, str(request.data.get('body') or ''))
+        except PermissionError:
+            return Response({'detail': _('You are not in this group.')}, status=403)
+        except ValueError:
+            return Response({'detail': _('A message must have text, and stay under 2000 characters.')},
+                            status=400)
+        payload = message_payload(message)
+        from .realtime import emit_to_room
+        emit_to_room(room_for(group.id), 'message:new', payload)
+        return Response(message_payload(message, request.user), status=201)
+
+
+class ChatGroupMembersView(APIView):
+    """Adding someone to a group, and leaving it."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, group_id):
+        from django.contrib.auth.models import User
+        from .models import ChatGroup
+        from .services.chat import add_member
+
+        group = ChatGroup.objects.filter(id=group_id).first()
+        person = User.objects.filter(id=request.data.get('user_id')).first()
+        if group is None or person is None:
+            return Response({'detail': _('Group not found.')}, status=404)
+        try:
+            add_member(group, request.user, person)
+        except PermissionError:
+            return Response({'detail': _('You can only add people you share a notebook with.')}, status=403)
+        return Response({'user_id': person.id}, status=201)
+
+    def delete(self, request, group_id, user_id):
+        from .models import ChatGroup, ChatGroupMember
+        from .services.chat import in_group
+
+        group = ChatGroup.objects.filter(id=group_id).first()
+        if group is None or not in_group(group, request.user):
+            return Response({'detail': _('Group not found.')}, status=404)
+        if user_id != request.user.id:
+            return Response({'detail': _('You can only leave a group yourself.')}, status=403)
+        ChatGroupMember.objects.filter(group=group, user_id=user_id).delete()
+        return Response(status=204)
+
+
+class ChatOverviewView(APIView):
+    """What the chat launcher lists: your notebooks, and the people in them."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from .services.chat import chat_overview
+        return Response(chat_overview(request.user))
+
+
+class DirectThreadView(APIView):
+    """One private thread: read it, or add to it."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, user_id):
+        from django.contrib.auth.models import User
+        from .services.chat import HISTORY_LIMIT, direct_history
+
+        other = User.objects.filter(id=user_id).first()
+        if other is None:
+            return Response({'detail': _('Person not found.')}, status=404)
+        before = request.query_params.get('before')
+        before = int(before) if (before or '').isdigit() else None
+        return Response({'messages': direct_history(request.user, other, HISTORY_LIMIT, before)})
+
+    def post(self, request, user_id):
+        from django.contrib.auth.models import User
+        from .services.chat import direct_payload, send_direct, user_room
+
+        other = User.objects.filter(id=user_id).first()
+        if other is None:
+            return Response({'detail': _('Person not found.')}, status=404)
+        if other.id == request.user.id:
+            # Not a permission problem, just not a thing: 400, not 403.
+            return Response({'detail': _('You cannot message yourself.')}, status=400)
+        try:
+            message = send_direct(request.user, other, str(request.data.get('body') or ''))
+        except PermissionError:
+            return Response({'detail': _('You can only message people you share a notebook with.')},
+                            status=403)
+        except ValueError:
+            return Response({'detail': _('A message must have text, and stay under 2000 characters.')},
+                            status=400)
+        # Delivered to both sides: each client sees the thread from its own
+        # end, so the payload names the other person rather than the sender.
+        from .realtime import emit_to_room
+        emit_to_room(user_room(other.id), 'direct:new', direct_payload(message, other))
+        emit_to_room(user_room(request.user.id), 'direct:new', direct_payload(message, request.user))
+        return Response(direct_payload(message, request.user), status=201)
+
+
 class SourceViewSet(
     mixins.DestroyModelMixin,
     viewsets.ReadOnlyModelViewSet,
@@ -332,7 +576,7 @@ class SourceViewSet(
     serializer_class = SourceSerializer
 
     def get_queryset(self):
-        return Source.objects.filter(notebook__user=self.request.user)
+        return Source.objects.filter(notebook__in=notebooks_for(self.request.user))
 
     def perform_destroy(self, instance):
         if instance.file:
@@ -377,3 +621,12 @@ class SourceViewSet(
             'source_id': source.id,
             'quiz': serializer.data,
         }, status=201)
+
+
+def _profile_language(user) -> str:
+    """The invitee gets the inviter's language: it is the only clue we have
+    about which language the pair studies in."""
+    profile = getattr(user, 'profile', None)
+    return getattr(profile, 'preferred_language', 'en') or 'en'
+
+

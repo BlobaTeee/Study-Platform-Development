@@ -7,6 +7,29 @@ export type Due = {
   new: number
   next_date: string | null
   next_count: number
+  /** Today's share of the queue: what the day's allowance leaves room for. */
+  today?: number
+  /** Due cards that did not fit today; they lead tomorrow's queue. */
+  later?: number
+  /** New cards held back because more is owed than today can clear. */
+  new_paused?: boolean
+  /** Every test this week whose notebook the queue puts first, soonest first. */
+  exams_first?: ExamFirst[]
+}
+
+export type ExamFirst = { notebook_id: number; title: string; days: number }
+
+/** Tests grouped by how far away they are, soonest first: several subjects on
+ *  one day read as one line ("Biology and Chemistry — test in 3 days"), not
+ *  as a repeated sentence per subject. Titles are joined the way the locale
+ *  joins a list. */
+export function examGroups(exams: ExamFirst[], locale: string): { titles: string; days: number }[] {
+  const byDay = new Map<number, string[]>()
+  for (const e of exams) byDay.set(e.days, [...(byDay.get(e.days) ?? []), e.title])
+  const list = new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' })
+  return [...byDay.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([days, titles]) => ({ titles: list.format(titles), days }))
 }
 
 /** The shape of next-intl's `t` these helpers need: a key under `common`
@@ -26,6 +49,10 @@ export function dueBreakdown(d: Due, t: CommonT): string {
 /** An empty queue is the schedule working. Saying only "nothing due" makes that
  *  read exactly like a schedule that's broken, so name the day cards return. */
 export function caughtUpMessage(d: Due, t: CommonT, locale: string): string {
+  // Today's share is done but debt remains: say so, rather than "caught up".
+  if (d.later) {
+    return t('doneForToday', { cards: t('cards', { count: d.later }) })
+  }
   if (!d.next_date || d.next_count === 0) {
     return t('nothingToStudy')
   }

@@ -112,18 +112,13 @@ function SidebarBody({
       >
         <BrandMark />
         {!collapsed && (
-          <span className="min-w-0">
-            <span className="block truncate font-display text-lg font-semibold leading-tight text-slate-900">
-              StudyFlow
-            </span>
-            <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-slate-500">
-              {t('tagline')}
-            </span>
+          <span className="block truncate font-display text-xl font-semibold leading-tight text-slate-900">
+            StudyFlow
           </span>
         )}
       </Link>
 
-      <nav className="mt-6 flex-1 space-y-1">
+      <nav className="mt-5 flex-1 space-y-0.5">
         {navItems.map((item) => {
           const active = isActive(item.href)
           const Icon = item.icon
@@ -135,7 +130,7 @@ function SidebarBody({
               title={collapsed ? t(item.label) : undefined}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'flex h-11 items-center gap-3 rounded-lg px-3 text-base font-medium transition-colors',
+                'flex h-10 items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors',
                 'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode-library/30',
                 active
                   ? item.activeClass
@@ -168,7 +163,7 @@ function SidebarBody({
           href="/dashboard/account"
           title={collapsed ? t('account') : undefined}
           className={cn(
-            'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-base font-medium transition-colors',
+            'flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors',
             isActive('/dashboard/account')
               ? 'bg-slate-100 text-slate-900'
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
@@ -184,7 +179,7 @@ function SidebarBody({
           onClick={handleLogout}
           title={collapsed ? t('signOut') : undefined}
           className={cn(
-            'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-base font-medium transition-colors',
+            'flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors',
             'text-slate-500 hover:bg-red-50 hover:text-mode-danger',
             'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-red-500/25',
             collapsed && 'justify-center px-0',
@@ -229,9 +224,9 @@ export function AppSidebar() {
     <aside
       data-collapsed={collapsed}
       className={cn(
-        'hidden md:flex shrink-0 flex-col border-r border-slate-200 bg-white p-4',
+        'hidden md:flex shrink-0 flex-col border-r border-slate-200 bg-white p-3',
         'transition-[width] duration-200 ease-out motion-reduce:transition-none',
-        collapsed ? 'w-[76px]' : 'w-64',
+        collapsed ? 'w-[68px]' : 'w-60',
       )}
     >
       <SidebarBody
@@ -243,7 +238,7 @@ export function AppSidebar() {
             title={collapsed ? t('expandSidebar') : t('collapseSidebar')}
             aria-label={collapsed ? t('expandSidebar') : t('collapseSidebar')}
             className={cn(
-              'flex h-11 w-full items-center gap-3 rounded-lg px-3 text-base font-medium transition-colors',
+              'flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors',
               'text-slate-500 hover:bg-slate-100 hover:text-slate-700',
               'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-slate-300',
               collapsed && 'justify-center px-0',

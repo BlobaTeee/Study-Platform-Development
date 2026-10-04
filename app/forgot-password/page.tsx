@@ -13,7 +13,6 @@ import { LanguageSwitch } from '@/components/language-switch'
 export default function ForgotPasswordPage() {
   const { requestPasswordReset } = useAuth()
   const t = useTranslations('auth')
-  const nav = useTranslations('nav')
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
@@ -42,19 +41,12 @@ export default function ForgotPasswordPage() {
           <div className="flex items-start justify-between gap-4 mb-8">
             <div className="lg:hidden">
               <h1 className="font-display text-3xl font-semibold text-slate-900">StudyFlow</h1>
-              <p className="font-mono text-xs uppercase tracking-[0.14em] text-slate-500 mt-1">
-                {nav('tagline')}
-              </p>
             </div>
             <div className="ml-auto">
               <LanguageSwitch />
             </div>
           </div>
-
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mode-library">
-            {t('forgotEyebrow')}
-          </p>
-          <h2 className="font-display text-3xl font-semibold text-slate-900 mt-1">{t('forgotTitle')}</h2>
+          <h2 className="font-display text-[2rem] font-semibold leading-tight text-slate-900">{t('forgotTitle')}</h2>
 
           {sent ? (
             // The same message whether or not the address has an account.
@@ -90,7 +82,7 @@ export default function ForgotPasswordPage() {
                   type="submit"
                   disabled={loading}
                   size="lg"
-                  className="w-full font-semibold bg-mode-library hover:bg-mode-library-hover"
+                  className="w-full"
                 >
                   {loading ? t('sendingResetLink') : t('sendResetLink')}
                 </Button>
