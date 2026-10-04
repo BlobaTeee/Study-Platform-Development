@@ -117,6 +117,29 @@ def answer_window(answer: str, excerpt: str) -> str:
     return max(sentences, key=lambda s: _cosine(answer, s))
 
 
+def _word_forms(text: str) -> set[str]:
+    """Whole words, with a trailing plural "s" folded so "lifelines" meets "lifeline"."""
+    return {w[:-1] if len(w) > 4 and w.endswith('s') else w for w in _norm(text).split()}
+
+
+def distinctive_support(distractor: str, answer: str, passage: str) -> float:
+    """0..1 — how much of what sets this distractor apart the passage states.
+
+    Words the distractor shares with the answer ("the ... principle") say
+    nothing about whether it is true; only its own words can. "The accuracy
+    principle" next to the answer "The integrity and confidentiality
+    principle" is judged on "accuracy" alone. Whole words, so "act" never
+    matches inside "actually". A distractor with no words of its own (a
+    different number, say) scores 0 — that case is the number rule's.
+    """
+    answer_words = _word_forms(answer)
+    own = [w for w in _word_forms(distractor) if len(w) > 2 and w not in answer_words]
+    if not own:
+        return 0.0
+    present = _word_forms(passage)
+    return sum(1 for w in own if w in present) / len(own)
+
+
 def is_negative_question(question: str) -> bool:
     """Câu hỏi dạng "điều nào KHÔNG..." — phép kiểm đáp án phải lật ngược."""
     raw = question or ''
@@ -170,7 +193,7 @@ def score_question(item: dict, excerpt: str) -> QuestionReport:
         # đáp án; khẳng định ở đoạn khác thì nó vẫn sai với câu hỏi này.
         window = answer_window(answer, excerpt)
         rivals = [d for d in distractors
-                  if d not in echoes and support(d, window) >= RIVAL]
+                  if d not in echoes and distinctive_support(d, answer, window) >= RIVAL]
         if rivals:
             flags.append('rival_distractor')
 
@@ -221,3 +244,17 @@ def score_set(items: list[dict], excerpt: str, duplicate_at: float = 0.85) -> di
         'flag_counts': flag_counts,
         'reports': reports,
     }
+
+
+def rank_by_quality(items: list[dict], excerpt_key: str = '_excerpt') -> list[dict]:
+    """Questions ordered best first: no flags, then fewer flags, else as given.
+
+    Nothing is dropped. Generation asks for a few more questions than it
+    needs and takes from the top, so a flawed question is only used when
+    there are not enough sound ones — a short quiz would be worse than one
+    question with a weak distractor. Each item is scored against the passage
+    it was generated from, stored under `excerpt_key`.
+    """
+    scored = [(len(score_question(item, item.get(excerpt_key) or '').flags), i, item)
+              for i, item in enumerate(items)]
+    return [item for _, _, item in sorted(scored, key=lambda t: (t[0], t[1]))]
