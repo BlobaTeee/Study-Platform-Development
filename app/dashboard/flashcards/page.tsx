@@ -54,19 +54,21 @@ function FlashcardsStudy() {
   // Two ways to study, both legitimate: work through a document before an exam,
   // or clear what the schedule says is owed today.
   const dueMode = searchParams.get('due') === '1'
+  // The notebook page's "Study" button: every card in one notebook.
+  const notebookParam = Number(searchParams.get('notebook')) || undefined
 
   // Scoped to a document, the server picks today's share from that document;
   // the key carries the scope so the two queues never share a cache entry.
   const { data, isLoading } = useSWR(
     dueMode
-      ? sourceParam ? ['/flashcards/due', sourceParam] : ['/flashcards/due']
+      ? ['/flashcards/due', sourceParam ?? '', notebookParam ?? '']
       : sourceParam ? ['/flashcards/', sourceParam] : null,
-    () => (dueMode ? flashcardsAPI.getDueCards(sourceIds) : flashcardsAPI.getFlashcards())
+    () => (dueMode ? flashcardsAPI.getDueCards(sourceIds, notebookParam) : flashcardsAPI.getFlashcards())
   )
   // Whether debt is left once today's share is done. Same key as the dashboard,
   // so it is usually cached already; the number holds all day, since each
   // review lowers what is owed and what is left of the day alike.
-  const { data: recsRes } = useSWR(dueMode && !sourceParam ? ['/analytics/recommendations'] : null, () =>
+  const { data: recsRes } = useSWR(dueMode && !sourceParam && !notebookParam ? ['/analytics/recommendations'] : null, () =>
     analyticsAPI.getRecommendations()
   )
   const heldBack: number = recsRes?.data?.due?.later ?? 0

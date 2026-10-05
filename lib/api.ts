@@ -70,9 +70,12 @@ export const flashcardsAPI = {
   // Cards scheduled ahead are deliberately withheld.
   // With `sourceIds`, the server picks today's share from those documents only;
   // filtering a global share afterwards could leave a document looking caught up.
-  getDueCards: (sourceIds: number[] = []) =>
+  getDueCards: (sourceIds: number[] = [], notebookId?: number) =>
     api.get('/study/card-reviews/due_today/', {
-      params: sourceIds.length ? { source: sourceIds.join(',') } : undefined,
+      params: {
+        ...(sourceIds.length ? { source: sourceIds.join(',') } : {}),
+        ...(notebookId ? { notebook: notebookId } : {}),
+      },
     }),
 }
 
@@ -144,6 +147,15 @@ export type NotebookMemberRow = {
   accuracy: number | null
 }
 
+export type NotebookStudySummary = {
+  cards: number
+  due: number
+  today: number
+  questions: number
+  accuracy: number | null
+  latest_quiz: { id: number; source_ids: number[] } | null
+}
+
 export const notebooksAPI = {
   getNotebooks: () => api.get('/notebooks/notebooks/'),
   getNotebook: (id: number) => api.get(`/notebooks/notebooks/${id}/`),
@@ -200,8 +212,12 @@ export const notebooksAPI = {
     api.post(`/notebooks/notebooks/${notebookId}/add_text/`, data),
   addUrlSource: (notebookId: number, data: { url: string; title?: string }) =>
     api.post(`/notebooks/notebooks/${notebookId}/add_url/`, data),
+  // Where the whole notebook stands: today's cards (the same number the
+  // notebook's study queue holds), its quizzes, and the latest one to take.
+  studySummary: (notebookId: number) =>
+    api.get<NotebookStudySummary>(`/notebooks/notebooks/${notebookId}/study_summary/`),
   // How many flashcards this exact source selection already holds. Generating
-  // appends, so the page needs this to say what a press will add to.
+  // replaces that deck, so the page needs this to say what a press retires.
   getMaterialCounts: (notebookId: number, sourceIds: number[]) =>
     api.get(`/notebooks/notebooks/${notebookId}/material_counts/`, {
       params: { source_ids: sourceIds.join(',') },
