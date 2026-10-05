@@ -47,13 +47,13 @@ const navItems: NavItem[] = [
     href: '/dashboard/tests',
     label: 'tests',
     icon: ClipboardList,
-    activeClass: 'bg-mode-quizzes/10 text-mode-quizzes',
+    activeClass: 'bg-mode-quizzes/10 text-mode-quizzes-ink',
   },
   {
     href: '/dashboard/analytics',
     label: 'analytics',
     icon: BarChart3,
-    activeClass: 'bg-mode-analytics/10 text-mode-analytics',
+    activeClass: 'bg-mode-analytics/10 text-mode-analytics-ink',
   },
 ]
 

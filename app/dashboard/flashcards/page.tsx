@@ -489,7 +489,7 @@ function IndexFace({ side, card }: { side: 'front' | 'back'; card: Flashcard }) 
       <p
         className={cn(
           'mb-5 text-sm font-medium',
-          isFront ? 'text-mode' : 'text-slate-500'
+          isFront ? 'text-mode-ink' : 'text-slate-500'
         )}
       >
         {isFront ? t('question') : t('answer')}

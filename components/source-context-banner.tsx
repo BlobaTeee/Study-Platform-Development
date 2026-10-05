@@ -46,7 +46,7 @@ export function SourceContextBanner() {
       <FileText className="size-4 shrink-0 text-slate-500" aria-hidden />
       <span className="shrink-0">{sourceIds.length > 1 ? t('combinedSources') : t('fromSource')}:</span>
       <span className="min-w-0 truncate font-medium text-slate-900">{label}</span>
-      <Link href="/dashboard/notebooks" className="ml-auto inline-flex shrink-0 items-center gap-1 font-medium text-mode hover:underline">
+      <Link href="/dashboard/notebooks" className="ml-auto inline-flex shrink-0 items-center gap-1 font-medium text-mode-ink hover:underline">
         <ArrowLeft className="size-4" aria-hidden />
         {nav('notebooks')}
       </Link>

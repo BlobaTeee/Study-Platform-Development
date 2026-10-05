@@ -13,15 +13,15 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-mode text-white hover:bg-mode-hover',
+        default: 'bg-mode-strong text-mode-on hover:bg-mode-strong-hover',
         ink: 'bg-slate-900 text-white hover:bg-slate-800',
         destructive: 'bg-mode-danger text-white hover:bg-red-700 focus-visible:ring-red-500/40',
         outline: 'border border-slate-300 bg-white text-slate-900 hover:bg-slate-50',
         // Outline in the mode colour: a secondary action that still belongs to the section.
-        tinted: 'border border-mode/40 bg-white text-mode hover:bg-mode/10',
+        tinted: 'border border-mode/40 bg-white text-mode-ink hover:bg-mode/10',
         secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200',
         ghost: 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
-        link: 'text-mode underline-offset-4 hover:underline',
+        link: 'text-mode-ink underline-offset-4 hover:underline',
       },
       size: {
         default: 'h-10 px-4 has-[>svg]:px-3',
