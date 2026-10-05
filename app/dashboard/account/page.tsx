@@ -17,6 +17,7 @@ const MIN_PASSWORD = 6 // Supabase's default minimum
  *  they are called, the password (when they have one), and the way out. */
 export default function AccountPage() {
   const t = useTranslations('account')
+  const nav = useTranslations('nav')
   const common = useTranslations('common')
   const router = useRouter()
   const { user, updateDisplayName, changePassword, deleteAccount } = useAuth()
@@ -102,7 +103,7 @@ export default function AccountPage() {
     <div className="max-w-2xl mx-auto space-y-8">
       {confirmDialog}
       <div className="mode-rule pt-5">
-        <h1 className="font-display text-[2rem] font-semibold leading-tight text-slate-900">{t('title')}</h1>
+        <h1 className="font-display text-[2rem] font-semibold leading-tight text-slate-900">{nav('account')}</h1>
         <p className="mt-2 text-base text-slate-600">{user.email}</p>
       </div>
 

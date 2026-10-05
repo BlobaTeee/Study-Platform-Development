@@ -145,6 +145,7 @@ function formatOpensAt(iso: string, locale: string): string {
 function MockTestsInner() {
   const t = useTranslations('tests')
   const common = useTranslations('common')
+  const nav = useTranslations('nav')
   const locale = useLocale()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -817,7 +818,12 @@ function MockTestsInner() {
   // ---- Setup ----
   return (
     <div className="max-w-2xl mx-auto space-y-8">
-      <PageHeader title={t('sitTitle')} lead={t('sitLead')} />
+      <PageHeader title={nav('tests')} />
+
+      <div>
+        <h2 className="font-display text-2xl font-semibold text-slate-900">{t('sitNow')}</h2>
+        <p className="text-base text-slate-500 mt-2 leading-relaxed">{t('sitLead')}</p>
+      </div>
 
       {notebooksLoading ? (
         <p className="text-lg text-slate-500 text-center py-12">{t('loadingNotebooks')}</p>
