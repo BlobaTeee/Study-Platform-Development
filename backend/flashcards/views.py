@@ -72,8 +72,8 @@ class FlashcardViewSet(viewsets.ModelViewSet):
             return Response({'detail': _('history must be a list of turns.')}, status=400)
         asked = sum(1 for t in history if t.get('role') == 'user')
         if asked >= MAX_TURNS:
-            return Response({'detail': _('That is the third question on this card — try recalling it again, '
-                                         'then come back if it is still unclear.')}, status=400)
+            return Response({'detail': _("That's three questions on this card. Try recalling it again, "
+                                         "and come back later if it's still unclear.")}, status=400)
         try:
             return Response({'answer': ask(card, question, history[-2 * MAX_TURNS:])})
         except TutorUnavailable as exc:

@@ -14,11 +14,11 @@ type Notebook = { id: number; title: string; source_count?: number }
 type WeakNotebook = { notebook_id: number; title: string; accuracy: number | null }
 type DueCard = { id: number; question: string; status?: string; overdue_days?: number }
 
-function greetingKey(d = new Date()): 'goodMorning' | 'goodAfternoon' | 'goodEvening' {
-  const h = d.getHours()
-  if (h < 12) return 'goodMorning'
-  if (h < 18) return 'goodAfternoon'
-  return 'goodEvening'
+/** Today's date as the page title ("Thứ Hai, 5 tháng 10"): it says which
+ *  day the owed cards are for, where a time-of-day greeting said nothing. */
+function todayTitle(locale: string, d = new Date()): string {
+  const text = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long' }).format(d)
+  return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
 /** The desk for today: what is owed, on an actual card; the week in three
@@ -60,7 +60,7 @@ export default function HomePage() {
   if (notebooks.length === 0) {
     return (
       <div className="space-y-8">
-        <PageHeader title={t(greetingKey())} />
+        <PageHeader title={todayTitle(locale)} />
         <div data-mode="library" className="sheet flex flex-col items-start gap-5 p-8 md:p-10">
           <p className="max-w-[40ch] text-lg leading-relaxed text-slate-700">{t('firstNotebook')}</p>
           <Button asChild size="lg">
@@ -74,7 +74,7 @@ export default function HomePage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title={t(greetingKey())}
+        title={todayTitle(locale)}
         lead={
           streak > 0
             ? t('streak', { count: streak }) + (bestStreak > streak ? t('bestStreak', { count: bestStreak }) : '')

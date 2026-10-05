@@ -35,8 +35,8 @@ def _needs_provider(lang: str) -> bool:
 
 def _provider_required_error(exc) -> GeminiGenerationError:
     return GeminiGenerationError(
-        _('This document is in Vietnamese, which needs an AI provider (Ollama or Gemini) — '
-          'the offline generator only handles English. Check the provider and try again.'))
+        _('This document is in Vietnamese, so it needs Gemini or Ollama. The offline '
+          'generator only handles English. Check the AI settings and try again.'))
 
 
 def _mark(meta, provider: str, reason: str = ''):

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Notebooks — StudyFlow',
+  title: 'Notebooks | StudyFlow',
   description: 'Organize study materials by subject in notebooks',
 }
 
