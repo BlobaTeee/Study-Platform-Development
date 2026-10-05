@@ -1,5 +1,5 @@
 from .document_extract import extract_text_from_document
-from .textnorm import normalise_text
+from .textnorm import clean_summary, normalise_text
 from .ai_provider import get_ai_provider
 
 EMPTY_TEXT_MESSAGES = {
@@ -13,7 +13,8 @@ def finish_text_source(source) -> None:
     """Mark a source whose text is already in hand as ready, with a summary
     if a provider is reachable. Shared by pasted text and fetched pages."""
     try:
-        source.gemini_summary = get_ai_provider().summarize(source.extracted_text, source.title)
+        source.gemini_summary = clean_summary(
+            get_ai_provider().summarize(source.extracted_text, source.title))
     except Exception:
         source.gemini_summary = ''
     source.status = 'ready'
@@ -33,7 +34,7 @@ def process_source(source) -> None:
         if text.strip():
             try:
                 provider = get_ai_provider()
-                source.gemini_summary = provider.summarize(text, source.title)
+                source.gemini_summary = clean_summary(provider.summarize(text, source.title))
             except Exception as exc:
                 source.gemini_summary = ''
             source.status = 'ready'
