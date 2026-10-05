@@ -13,7 +13,6 @@ import {
   type SourceKind,
   formatSourceIdsForQuery,
   isAllowedSourceFile,
-  sourceCountLabel,
   titleFromFileName,
 } from '@/lib/source-utils'
 import { SourceDropZone } from '@/components/source-drop-zone'
@@ -50,6 +49,14 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const router = useRouter()
   const t = useTranslations('notebooks')
   const common = useTranslations('common')
+  const nav = useTranslations('nav')
+  // How long a document is, in the reader's language: pages for a PDF,
+  // slides for a deck, nothing for formats without a page count.
+  const lengthLabel = (fileType: string | undefined, count: number | undefined) =>
+    !count || count <= 0 ? null
+      : fileType === 'pptx' ? t('slides', { count })
+      : fileType === 'pdf' ? t('pages', { count })
+      : null
   const [generating, setGenerating] = useState<'flashcards' | 'quiz' | null>(null)
   const [checkedSourceIds, setCheckedSourceIds] = useState<number[]>([])
   const [activeSourceId, setActiveSourceId] = useState<number | null>(null)
@@ -495,10 +502,10 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
           </Button>
           <Download className="size-4" aria-hidden />
           <span className="mr-1">{t('export')}</span>
-          <Button type="button" variant="ghost" size="sm" disabled={exporting !== null} onClick={() => void exportCsv('flashcards')}>
+          <Button type="button" variant="outline" size="sm" className="ml-1" disabled={exporting !== null} onClick={() => void exportCsv('flashcards')}>
             {t('exportCards')}
           </Button>
-          <Button type="button" variant="ghost" size="sm" disabled={exporting !== null} onClick={() => void exportCsv('questions')}>
+          <Button type="button" variant="outline" size="sm" className="ml-1.5" disabled={exporting !== null} onClick={() => void exportCsv('questions')}>
             {t('exportQuestions')}
           </Button>
         </div>
@@ -529,14 +536,14 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
               {t('sources')}
               <span className="ml-1.5 font-mono text-xs font-normal text-slate-600 tabular-nums">{sources.length}</span>
               {checkedSourceIds.length > 0 && (
-                <span className="ml-1.5 text-xs font-normal text-mode">{t('selectedCount', { count: checkedSourceIds.length })}</span>
+                <span className="ml-1.5 text-xs font-normal text-mode-ink">{t('selectedCount', { count: checkedSourceIds.length })}</span>
               )}
             </h2>
             {readySources.length > 0 && (
               <button
                 type="button"
                 onClick={checkedSourceIds.length === readySources.length ? clearChecked : selectAllReady}
-                className="text-sm font-medium text-mode hover:underline"
+                className="text-sm font-medium text-mode-ink hover:underline"
               >
                 {checkedSourceIds.length === readySources.length ? t('clear') : t('selectAll')}
               </button>
@@ -579,7 +586,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                     onClick={() => setActiveSourceId(src.id)}
                     className="min-w-0 flex-1 px-2 py-2.5 text-left"
                   >
-                    <p className={cn('truncate text-[15px] font-medium', isActive ? 'text-slate-900' : 'text-slate-800')}>{src.title}</p>
+                    <p className={cn('line-clamp-2 break-words text-[15px] font-medium leading-snug', isActive ? 'text-slate-900' : 'text-slate-800')}>{src.title}</p>
                     <p className="mt-0.5 text-sm text-slate-600">
                       {src.status === 'failed' ? (
                         <span className="text-red-700">{t('statusFailed')}</span>
@@ -588,7 +595,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       ) : (
                         <>
                           {src.file_type === 'text' ? t('typeText') : src.file_type === 'url' ? t('typeLink') : fileTypeLabel(src.file_type)}
-                          {sourceCountLabel(src.file_type, src.page_count) ? `, ${sourceCountLabel(src.file_type, src.page_count)}` : ''}
+                          {lengthLabel(src.file_type, src.page_count) ? ` · ${lengthLabel(src.file_type, src.page_count)}` : ''}
                         </>
                       )}
                     </p>
@@ -744,9 +751,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       ? t('typeText')
                       : activeListItem.file_type === 'url'
                         ? ''
-                        : sourceCountLabel(activeListItem.file_type, sourceDetail?.page_count ?? 0)
-                          ? `, ${activeListItem.file_type === 'pptx' ? t('slides', { count: sourceDetail?.page_count ?? 0 }) : t('pages', { count: sourceDetail?.page_count ?? 0 })}`
-                          : `, ${fileTypeLabel(activeListItem.file_type)}`}
+                        : lengthLabel(activeListItem.file_type, sourceDetail?.page_count)
+                          ? ` · ${lengthLabel(activeListItem.file_type, sourceDetail?.page_count)}`
+                          : ` · ${fileTypeLabel(activeListItem.file_type)}`}
                   </p>
                 </div>
               </div>
@@ -760,7 +767,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
               {sourceDetail?.gemini_summary && (
                 <div className="border-t border-slate-200 pt-5">
                   <h3 className="text-sm font-semibold text-slate-900">{t('overview')}</h3>
-                  <p className="mt-2 text-justify text-base leading-relaxed text-slate-700 hyphens-auto">
+                  <p className="mt-2 text-base leading-relaxed text-slate-700 hyphens-auto md:text-justify">
                     {sourceDetail.gemini_summary}
                   </p>
                 </div>
@@ -786,7 +793,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                     <div className="min-w-0 flex-1 basis-56">
                       <p className="flex items-center gap-2 text-base font-semibold text-slate-900">
                         <Zap className="size-4 text-mode" aria-hidden />
-                        Flashcards
+                        {nav('flashcards')}
                       </p>
                       <p className="mt-0.5 text-sm text-slate-600">
                         {generationSourceIds.length > 1 ? t('fromAllSelected') : t('aboutTenCards')}
@@ -795,48 +802,56 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                         )}
                       </p>
                     </div>
-                    <Button onClick={handleGenerateFlashcards} disabled={!canGenerate || generating !== null} className="shrink-0">
-                      {generating === 'flashcards' ? (
-                        <>
-                          <Loader2 className="animate-spin" aria-hidden />
-                          {t('generating')}
-                        </>
-                      ) : existingCards > 0 ? t('regenerateFlashcards') : t('generateFlashcards')}
-                    </Button>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <Button
+                        onClick={handleGenerateFlashcards}
+                        disabled={!canGenerate || generating !== null}
+                        variant={hasFlashcardsForSources && studyQuery ? 'outline' : 'default'}
+                      >
+                        {generating === 'flashcards' ? (
+                          <>
+                            <Loader2 className="animate-spin" aria-hidden />
+                            {t('generating')}
+                          </>
+                        ) : existingCards > 0 ? t('regenerateFlashcards') : t('generateFlashcards')}
+                      </Button>
+                      {hasFlashcardsForSources && studyQuery && (
+                        <Button asChild>
+                          <Link href={`/dashboard/flashcards?due=1&source=${studyQuery}`}>{t('studyFlashcards')}</Link>
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <div data-mode="quizzes" className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4">
                     <div className="min-w-0 flex-1 basis-56">
                       <p className="flex items-center gap-2 text-base font-semibold text-slate-900">
                         <HelpCircle className="size-4 text-mode" aria-hidden />
-                        Quiz
+                        {nav('quizzes')}
                       </p>
                       <p className="mt-0.5 text-sm text-slate-600">{t('multipleChoice')}</p>
                     </div>
-                    <Button onClick={handleGenerateQuiz} disabled={!canGenerate || generating !== null} className="shrink-0">
-                      {generating === 'quiz' ? (
-                        <>
-                          <Loader2 className="animate-spin" aria-hidden />
-                          {t('generating')}
-                        </>
-                      ) : t('generateQuiz')}
-                    </Button>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <Button
+                        onClick={handleGenerateQuiz}
+                        disabled={!canGenerate || generating !== null}
+                        variant={quizIdForSources && studyQuery ? 'outline' : 'default'}
+                      >
+                        {generating === 'quiz' ? (
+                          <>
+                            <Loader2 className="animate-spin" aria-hidden />
+                            {t('generating')}
+                          </>
+                        ) : t('generateQuiz')}
+                      </Button>
+                      {quizIdForSources && studyQuery && (
+                        <Button asChild>
+                          <Link href={`/dashboard/quizzes?source=${studyQuery}&quiz=${quizIdForSources}`}>{t('takeQuiz')}</Link>
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {(hasFlashcardsForSources || quizIdForSources) && studyQuery && (
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    {hasFlashcardsForSources && (
-                      <Button asChild variant="tinted" data-mode="flashcards">
-                        <Link href={`/dashboard/flashcards?due=1&source=${studyQuery}`}>{t('studyFlashcards')}</Link>
-                      </Button>
-                    )}
-                    {quizIdForSources && (
-                      <Button asChild variant="tinted" data-mode="quizzes">
-                        <Link href={`/dashboard/quizzes?source=${studyQuery}&quiz=${quizIdForSources}`}>{t('takeQuiz')}</Link>
-                      </Button>
-                    )}
-                  </div>
-                )}
               </div>
 
               {sourceDetail?.text_preview && (

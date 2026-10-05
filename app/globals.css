@@ -91,11 +91,26 @@
   --color-mode-analytics-hover: #059669;
   --color-mode-danger: #dc2626;
 
+  /* The same hues one step deeper, for text on white: the bright mode
+     colours above are identity (rules, icons, tints), but as text only blue
+     reaches 4.5:1. Amber 2.2, emerald 2.5, violet 4.2 did not. */
+  --color-mode-library-ink: #1d4ed8;
+  --color-mode-flashcards-ink: #b45309;
+  --color-mode-quizzes-ink: #6d28d9;
+  --color-mode-analytics-ink: #047857;
+
   /* The current section's colour. The dashboard shell sets data-mode on
      the page wrapper per route; primary buttons, focus rings and the
      page rule read it, so one component serves every section. */
   --color-mode: var(--mode);
   --color-mode-hover: var(--mode-hover);
+  /* What a filled button and coloured text use, so both pass WCAG AA in
+     every section: a deeper fill where white text needs it, dark text on
+     amber (white on amber is 2.2:1), and an ink shade for text on white. */
+  --color-mode-strong: var(--mode-strong);
+  --color-mode-strong-hover: var(--mode-strong-hover);
+  --color-mode-on: var(--mode-on);
+  --color-mode-ink: var(--mode-ink);
 
   /* Two-layer paper shadows — a tight contact shadow plus a soft cast,
      warmer and quieter than the default flat shadcn drop shadow. */
@@ -144,22 +159,42 @@
 [data-mode='library'] {
   --mode: #2563eb;
   --mode-hover: #1d4ed8;
+  --mode-strong: #2563eb;
+  --mode-strong-hover: #1d4ed8;
+  --mode-on: #ffffff;
+  --mode-ink: #1d4ed8;
 }
 [data-mode='flashcards'] {
   --mode: #f59e0b;
   --mode-hover: #d97706;
+  --mode-strong: #f59e0b;
+  --mode-strong-hover: #d97706;
+  --mode-on: #0f172a;
+  --mode-ink: #b45309;
 }
 [data-mode='quizzes'] {
   --mode: #8b5cf6;
   --mode-hover: #7c3aed;
+  --mode-strong: #7c3aed;
+  --mode-strong-hover: #6d28d9;
+  --mode-on: #ffffff;
+  --mode-ink: #6d28d9;
 }
 [data-mode='analytics'] {
   --mode: #10b981;
   --mode-hover: #059669;
+  --mode-strong: #047857;
+  --mode-strong-hover: #065f46;
+  --mode-on: #ffffff;
+  --mode-ink: #047857;
 }
 [data-mode='ink'] {
   --mode: #0f172a;
   --mode-hover: #1e293b;
+  --mode-strong: #0f172a;
+  --mode-strong-hover: #1e293b;
+  --mode-on: #ffffff;
+  --mode-ink: #0f172a;
 }
 
 @layer base {

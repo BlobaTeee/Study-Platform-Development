@@ -726,7 +726,7 @@ function MockTestsInner() {
                   isCurrent
                     ? 'border-mode bg-mode text-white'
                     : isAnswered
-                      ? 'border-mode/40 bg-mode/10 text-mode'
+                      ? 'border-mode/40 bg-mode/10 text-mode-ink'
                       : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
                 }`}
               >

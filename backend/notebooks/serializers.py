@@ -1,5 +1,18 @@
 from rest_framework import serializers
 from .models import Notebook, Source
+from .services.textnorm import clean_summary
+
+
+class _CleanSummaryMixin:
+    """Overviews written before the model's lead-in was stripped at ingest
+    ("Here is a summary…:") are cleaned on the way out, so stored rows need
+    no rewrite and every client gets the same text."""
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if 'gemini_summary' in data:
+            data['gemini_summary'] = clean_summary(data['gemini_summary'])
+        return data
 
 #: Characters of document text a source detail returns. The reader only ever
 #: rendered this much, so sending the rest meant shipping a 167,000-character
@@ -8,7 +21,7 @@ from .models import Notebook, Source
 TEXT_PREVIEW_CHARS = 8000
 
 
-class SourceSerializer(serializers.ModelSerializer):
+class SourceSerializer(_CleanSummaryMixin, serializers.ModelSerializer):
     text_preview = serializers.SerializerMethodField()
     text_length = serializers.SerializerMethodField()
 
@@ -38,7 +51,7 @@ class SourceSerializer(serializers.ModelSerializer):
         return len(obj.extracted_text or '')
 
 
-class SourceListSerializer(serializers.ModelSerializer):
+class SourceListSerializer(_CleanSummaryMixin, serializers.ModelSerializer):
     """Lighter payload for notebook detail lists."""
     class Meta:
         model = Source
