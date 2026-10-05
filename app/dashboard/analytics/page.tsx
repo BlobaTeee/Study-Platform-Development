@@ -35,6 +35,7 @@ function notebookRecord(n: WeakNotebook, t: T, common: T): string {
 
 export default function AnalyticsPage() {
   const t = useTranslations('analytics')
+  const nav = useTranslations('nav')
   const common = useTranslations('common')
   const home = useTranslations('home')
   const locale = useLocale()
@@ -63,7 +64,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title={t('title')} />
+      <PageHeader title={nav('analytics')} />
 
       {/* One instrument panel: fourteen days on top, what is owed as one
           line under it, then the notebooks. Hairlines, not tiles. */}

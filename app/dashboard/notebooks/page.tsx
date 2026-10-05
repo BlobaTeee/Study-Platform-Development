@@ -25,8 +25,21 @@ type NotebookItem = {
   description?: string
   source_count?: number
   member_count?: number
-  sources?: { id: number; title: string }[]
+  sources?: { id: number; title: string; file_type?: string }[]
   updated_at: string
+}
+
+/** A short tag for what a source is, so a cover says where the notebook's
+ *  material comes from. Matches Source.FILE_TYPE_CHOICES on the backend. */
+function fileTag(type?: string): string {
+  switch (type) {
+    case 'pdf': return 'PDF'
+    case 'docx': return 'DOC'
+    case 'pptx': return 'PPT'
+    case 'url': return 'WEB'
+    case 'text': return 'TXT'
+    default: return ''
+  }
 }
 
 export default function NotebooksListPage() {
@@ -37,6 +50,7 @@ export default function NotebooksListPage() {
   const [creating, setCreating] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const t = useTranslations('notebooks')
+  const nav = useTranslations('nav')
   const common = useTranslations('common')
   const [confirm, confirmDialog] = useConfirm()
   const [error, setError] = useState('')
@@ -96,10 +110,10 @@ export default function NotebooksListPage() {
     nb.source_count ?? (Array.isArray(nb.sources) ? nb.sources.length : 0)
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-4 py-6 md:px-10 md:py-10">
+    <div className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 md:px-10 md:py-10">
       {confirmDialog}
       <PageHeader
-        title={t('myNotebooks')}
+        title={nav('notebooks')}
         lead={t('lead')}
         action={
           <Button onClick={() => setShowCreate(!showCreate)} size="lg" aria-expanded={showCreate}>
@@ -197,15 +211,29 @@ export default function NotebooksListPage() {
                   <p className="mt-1.5 text-sm text-slate-600 line-clamp-2">{nb.description}</p>
                 )}
                 {/* The spine text: what is inside, in the notebook's own words. */}
-                {Array.isArray(nb.sources) && nb.sources.length > 0 && (
-                  <ul className="mt-3 space-y-0.5 text-sm text-slate-600">
+                {Array.isArray(nb.sources) && nb.sources.length > 0 ? (
+                  <ul className="mt-3 space-y-1 text-sm text-slate-700">
                     {nb.sources.slice(0, 3).map((src) => (
-                      <li key={src.id} className="truncate">{src.title}</li>
+                      <li key={src.id} className="flex min-w-0 items-baseline gap-2">
+                        <span className="w-8 shrink-0 font-mono text-[11px] font-medium text-slate-500">
+                          {fileTag(src.file_type)}
+                        </span>
+                        <span className="truncate">{src.title}</span>
+                      </li>
                     ))}
                   </ul>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-500">{t('noSourcesYet')}</p>
                 )}
+                {/* The list above already shows up to three sources, so a
+                    count only says something when some are not shown. An
+                    empty footer would still take its padding, so it is only
+                    rendered when it has something to say. */}
+                {(!Array.isArray(nb.sources) || sourceCount(nb) > 3 || (nb.member_count ?? 1) > 1) && (
                 <p className="mt-auto pt-4 text-sm text-slate-500">
-                  {common('sources', { count: sourceCount(nb) })}
+                  {Array.isArray(nb.sources)
+                    ? sourceCount(nb) > 3 && t('moreSources', { count: sourceCount(nb) - 3 })
+                    : common('sources', { count: sourceCount(nb) })}
                   {(nb.member_count ?? 1) > 1 && (
                     <span className="mt-0.5 flex items-center gap-1.5 text-slate-600">
                       <Users className="size-3.5" aria-hidden />
@@ -213,6 +241,7 @@ export default function NotebooksListPage() {
                     </span>
                   )}
                 </p>
+                )}
               </Link>
               {/* Deleting is rare: a quiet control that appears on hover / focus. */}
               <button

@@ -31,8 +31,8 @@
     "notebooks": "Notebooks",
     "flashcards": "Flashcards",
     "quizzes": "Quizzes",
-    "tests": "Tests",
-    "analytics": "Analytics",
+    "tests": "Mock tests",
+    "analytics": "Progress",
     "signOut": "Sign out",
     "tagline": "Study workspace",
     "collapse": "Collapse",
@@ -130,7 +130,6 @@
   },
   "notebooks": {
     "library": "Library",
-    "myNotebooks": "My notebooks",
     "lead": "One notebook per subject.",
     "newNotebook": "New notebook",
     "name": "Name",
@@ -292,7 +291,9 @@
     "chatCreate": "Create",
     "chatNoPeople": "Share a notebook with someone first.",
     "chatCreateFailed": "Could not create the group. Try again.",
-    "chatResize": "Resize chat"
+    "chatResize": "Resize chat",
+    "noSourcesYet": "No sources yet.",
+    "moreSources": "{count, plural, one {+# more source} other {+# more sources}}"
   },
   "flashcards": {
     "title": "Flashcards",
@@ -388,7 +389,6 @@
   },
   "tests": {
     "eyebrow": "Mock test",
-    "sitTitle": "Sit a timed test",
     "sitLead": "Once you start, the paper and the clock are fixed.",
     "loadingNotebooks": "Loading notebooks…",
     "loadingTest": "Loading test…",
@@ -471,11 +471,11 @@
     "showMore": "Show {count} more",
     "showFewer": "Show fewer",
     "countRange": "Between 5 and 50.",
-    "durationRange": "Between 5 and 180."
+    "durationRange": "Between 5 and 180.",
+    "sitNow": "Start now"
   },
   "analytics": {
     "eyebrow": "Analytics",
-    "title": "Your progress",
     "readyToStudy": "{count, plural, one {card ready to study} other {cards ready to study}}",
     "studyNow": "Study now",
     "byNotebook": "By notebook",
@@ -499,7 +499,6 @@
   },
   "account": {
     "eyebrow": "Account",
-    "title": "Your account",
     "nameTitle": "Display name",
     "nameLead": "How StudyFlow addresses you. Not shown to anyone else.",
     "nameLabel": "Name",

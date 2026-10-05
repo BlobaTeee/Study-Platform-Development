@@ -130,7 +130,6 @@
   },
   "notebooks": {
     "library": "Thư viện",
-    "myNotebooks": "Sổ tay của tôi",
     "lead": "Mỗi môn một sổ tay.",
     "newNotebook": "Sổ tay mới",
     "name": "Tên",
@@ -292,7 +291,9 @@
     "chatCreate": "Tạo nhóm",
     "chatNoPeople": "Hãy chia sẻ một sổ tay với ai đó trước.",
     "chatCreateFailed": "Không tạo được nhóm. Hãy thử lại.",
-    "chatResize": "Đổi kích thước khung chat"
+    "chatResize": "Đổi kích thước khung chat",
+    "noSourcesYet": "Chưa có tài liệu.",
+    "moreSources": "{count, plural, other {+# tài liệu khác}}"
   },
   "flashcards": {
     "title": "Thẻ",
@@ -388,7 +389,6 @@
   },
   "tests": {
     "eyebrow": "Thi thử",
-    "sitTitle": "Làm bài thi có tính giờ",
     "sitLead": "Bắt đầu rồi thì đề và đồng hồ không đổi nữa.",
     "loadingNotebooks": "Đang tải sổ tay…",
     "loadingTest": "Đang tải bài thi…",
@@ -471,11 +471,11 @@
     "showMore": "Xem thêm {count}",
     "showFewer": "Thu gọn",
     "countRange": "Từ 5 đến 50.",
-    "durationRange": "Từ 5 đến 180."
+    "durationRange": "Từ 5 đến 180.",
+    "sitNow": "Thi ngay"
   },
   "analytics": {
     "eyebrow": "Tiến độ",
-    "title": "Tiến độ của bạn",
     "readyToStudy": "thẻ sẵn sàng để ôn",
     "studyNow": "Ôn ngay",
     "byNotebook": "Theo sổ tay",
@@ -499,7 +499,6 @@
   },
   "account": {
     "eyebrow": "Tài khoản",
-    "title": "Tài khoản của bạn",
     "nameTitle": "Tên hiển thị",
     "nameLead": "Cách StudyFlow gọi bạn. Không ai khác nhìn thấy.",
     "nameLabel": "Tên",
