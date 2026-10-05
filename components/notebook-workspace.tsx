@@ -943,8 +943,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       </div>
                     )}
 
-                    {/* This document's own study set: one row per kind, the
-                        study action first once there is something to study. */}
+                    {/* Making material from this document. Studying it lives in
+                        one place only, the strip at the top: a second "Study"
+                        here made two buttons per task on one page. */}
                     <div className="border-t border-slate-200 pt-5">
                       <h3 className="text-sm font-semibold text-slate-900">{t('fromThisDocument')}</h3>
                       <div className="mt-3 divide-y divide-slate-200 rounded-xl border border-slate-200">
@@ -969,11 +970,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                               {generating === 'flashcards' && selectedIds.length === 0 ? <Loader2 className="animate-spin" aria-hidden /> : null}
                               {activeCounts.cards > 0 ? t('regenerateFlashcards') : t('generateFlashcards')}
                             </Button>
-                            {activeCounts.cards > 0 && (
-                              <Button asChild>
-                                <Link href={`/dashboard/flashcards?due=1&source=${activeCounts.query}`}>{t('studyFlashcards')}</Link>
-                              </Button>
-                            )}
                           </div>
                         </div>
                         <div data-mode="quizzes" className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4">
@@ -993,11 +989,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                               {generating === 'quiz' && selectedIds.length === 0 ? <Loader2 className="animate-spin" aria-hidden /> : null}
                               {t('generateQuiz')}
                             </Button>
-                            {activeCounts.quizId && (
-                              <Button asChild>
-                                <Link href={`/dashboard/quizzes?source=${activeCounts.query}&quiz=${activeCounts.quizId}`}>{t('takeQuiz')}</Link>
-                              </Button>
-                            )}
                           </div>
                         </div>
                       </div>
