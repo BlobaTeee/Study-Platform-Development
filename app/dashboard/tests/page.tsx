@@ -211,7 +211,11 @@ function MockTestsInner() {
   const justResetRef = useRef(false)
 
   useEffect(() => {
-    if (!notebookId && notebooks.length > 0) setNotebookId(notebooks[0].id)
+    if (!notebookId && notebooks.length > 0) {
+      // Arriving from a notebook's "Sit a mock test" picks that notebook.
+      const wanted = Number(searchParams.get('notebook'))
+      setNotebookId(notebooks.some((n) => n.id === wanted) ? wanted : notebooks[0].id)
+    }
   }, [notebooks, notebookId])
 
   useEffect(() => {

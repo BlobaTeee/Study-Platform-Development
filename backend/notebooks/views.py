@@ -50,7 +50,7 @@ from .services.generate import (
 )
 from flashcards.models import Flashcard
 from flashcards.serializers import FlashcardSerializer
-from quizzes.models import Quiz
+from quizzes.models import Question, Quiz
 from quizzes.serializers import QuizSerializer
 
 SUPPORTED_FORMATS = 'PDF, Word (.docx), and PowerPoint (.pptx)'
@@ -311,6 +311,56 @@ class NotebookViewSet(viewsets.ModelViewSet):
         res = HttpResponse(body, content_type='text/csv; charset=utf-8')
         res['Content-Disposition'] = f'attachment; filename="{filename}"'
         return res
+
+    @action(detail=True, methods=['get'])
+    def study_summary(self, request, pk=None):
+        """Where this whole notebook stands: cards for today, quiz record.
+
+        The notebook page leads with what can be studied now, so it needs the
+        notebook's numbers rather than one selection's. `today` is computed
+        exactly as the study queue computes it for `?notebook=`, so the number
+        on the button is the number of cards the button opens. Counts and ids
+        only: no card or question text is loaded.
+        """
+        from django.db.models import Count, Q
+        from django.utils import timezone
+        from quizzes.models import Answer
+        from study_sessions import daily, scheduling
+        from study_sessions.models import CardReview
+        from study_sessions.views import studiable_cards
+
+        notebook = self.get_object()   # 404 unless the user may see it
+        user = request.user
+        today = timezone.localdate()
+
+        cards = list(studiable_cards(user).filter(notebook=notebook).values('id', 'notebook_id'))
+        schedule = scheduling.latest_schedule(list(
+            CardReview.objects.filter(user=user, flashcard__notebook=notebook).latest_per_card()
+            .values('flashcard_id', 'next_review_date', 'review_date')))
+        counts = scheduling.due_counts(cards, schedule, today)
+        plan = daily.plan_for(user, cards, schedule, today, timezone.now())
+        share = scheduling.todays_share(counts, plan.budget,
+                                        exam_new_today=sum(plan.exam_new.values()),
+                                        exam_unseen=plan.exam_unseen)
+
+        quizzes = (Quiz.objects.filter(is_published=True, sources__notebook=notebook)
+                   .distinct().order_by('-created_at'))
+        questions = Question.objects.filter(quiz__in=quizzes).count()
+        tally = Answer.objects.filter(quiz_attempt__user=user, question__quiz__in=quizzes).aggregate(
+            graded=Count('id'), right=Count('id', filter=Q(is_correct=True)))
+        latest = quizzes.first()
+
+        return Response({
+            'cards': len(cards),
+            'due': counts['due'],
+            'today': share['today'],
+            'questions': questions,
+            'accuracy': round(100 * tally['right'] / tally['graded']) if tally['graded'] else None,
+            'latest_quiz': latest and {
+                'id': latest.id,
+                'source_ids': list(latest.sources.values_list('id', flat=True)),
+            },
+        })
 
     @action(detail=True, methods=['get'])
     def material_counts(self, request, pk=None):
