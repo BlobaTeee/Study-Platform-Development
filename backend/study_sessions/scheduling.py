@@ -42,6 +42,11 @@ class Schedule(NamedTuple):
 #: Where a card starts before its first review (matches the CardReview defaults).
 INITIAL = Schedule(interval=1, ease_factor=2.5, repetitions=0)
 
+#: A card marked easy on its very first review comes back after this many days.
+FIRST_EASY_INTERVAL = 4
+#: How much further than good an easy recall pushes a card.
+EASY_BONUS = 1.3
+
 
 def next_schedule(result: str, *, interval: int, ease_factor: float,
                   repetitions: int) -> Schedule:
@@ -63,19 +68,35 @@ def next_schedule(result: str, *, interval: int, ease_factor: float,
         # drifting steadily further away.
         return Schedule(1, max(MIN_EASE_FACTOR, ease_factor - 0.2), 0)
 
+    good = _good_interval(interval, ease_factor, repetitions)
     if result == GOOD:
-        # The first two successes use fixed gaps; after that the card's own ease
-        # takes over, which is what makes intervals grow exponentially.
-        if repetitions == 1:
-            interval = 1
-        elif repetitions == 2:
-            interval = 3
-        else:
-            interval = int(interval * ease_factor)
-        return Schedule(interval, ease_factor, repetitions)
+        return Schedule(good, ease_factor, repetitions)
 
-    # EASY: same stretch as a good recall, plus a lasting ease bonus.
-    return Schedule(int(interval * ease_factor), ease_factor + 0.1, repetitions)
+    # EASY: always further than good would go. It used to multiply the old gap
+    # while good jumped to its fixed steps, so on a second review "very easy"
+    # came back in 2 days and "good" in 3; a learner who marks most cards easy
+    # saw them far too often. Anki's defaults: 4 days for a first easy, then
+    # good's interval x1.3, and never less than a day past good.
+    if repetitions == 1:
+        easy = FIRST_EASY_INTERVAL
+    else:
+        easy = max(good + 1, round(good * EASY_BONUS))
+    return Schedule(easy, ease_factor + 0.1, repetitions)
+
+
+def _good_interval(interval: int, ease_factor: float, repetitions: int) -> int:
+    """The gap a good recall earns, given the review count after this one.
+
+    The first two successes use fixed gaps (1 then 3 days); after that the
+    card's own ease takes over, which is what makes intervals grow. A fixed
+    step never shortens a gap the card already earned — after an easy 4-day
+    review, good must not pull it back to 3.
+    """
+    if repetitions == 1:
+        return 1
+    if repetitions == 2:
+        return max(3, int(interval * ease_factor))
+    return int(interval * ease_factor)
 
 
 # Why a card is in the study queue. A due card is being forgotten right now; a

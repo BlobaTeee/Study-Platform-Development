@@ -72,9 +72,39 @@ def test_good_leaves_ease_alone():
 # ---- easy -------------------------------------------------------------------
 
 def test_easy_makes_the_card_easier_and_stretches_the_interval():
+    # Good would give 10 x 2.5 = 25 days; easy goes a step further (x1.3).
     s = _step("easy", interval=10, ease_factor=2.5, repetitions=3)
-    assert s.interval == 25
+    assert s.interval == 32
     assert s.ease_factor == pytest.approx(2.6)
+
+
+def test_a_first_review_marked_easy_waits_four_days():
+    assert _step("easy", repetitions=0).interval == 4
+
+
+@pytest.mark.parametrize("repetitions", [0, 1, 2, 3, 5])
+@pytest.mark.parametrize("interval", [1, 2, 3, 4, 7, 10, 30])
+@pytest.mark.parametrize("ease", [1.3, 1.8, 2.5, 2.8])
+def test_easy_never_comes_back_sooner_than_good(repetitions, interval, ease):
+    # It did: on a second review good jumped to its fixed 3 days while easy
+    # multiplied the 1-day gap, so "very easy" returned in 2 — sooner. A
+    # learner who marks most cards easy saw the same cards far too often.
+    good = _step("good", interval=interval, ease_factor=ease, repetitions=repetitions)
+    easy = _step("easy", interval=interval, ease_factor=ease, repetitions=repetitions)
+    assert easy.interval > good.interval
+
+
+def test_the_real_card_that_came_back_too_soon():
+    # Card 289 on the dev account: good (+1 day), then easy gave +2 days.
+    s = _step("good", repetitions=0)
+    s = _step("easy", interval=s.interval, ease_factor=s.ease_factor, repetitions=s.repetitions)
+    assert s.interval >= 4
+
+
+@pytest.mark.parametrize("interval", [2, 4, 10])
+def test_good_never_shortens_a_gap_easy_already_earned(interval):
+    s = _step("good", interval=interval, ease_factor=2.5, repetitions=1)
+    assert s.interval >= interval
 
 
 def test_hard_still_resets_further_than_good_advances():
