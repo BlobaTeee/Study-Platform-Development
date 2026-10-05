@@ -23,13 +23,6 @@ export function fileTypeLabel(fileType?: string): string {
   return 'PDF'
 }
 
-export function sourceCountLabel(fileType: string | undefined, pageCount: number): string | null {
-  if (!pageCount || pageCount <= 0) return null
-  if (fileType === 'pptx') return `${pageCount} slides`
-  if (fileType === 'pdf') return `${pageCount} pg`
-  return null
-}
-
 export function parseSourceIdsParam(param: string | null | undefined): number[] {
   if (!param?.trim()) return []
   return [...new Set(param.split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => n > 0))]
