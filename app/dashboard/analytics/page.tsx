@@ -36,6 +36,7 @@ function notebookRecord(n: WeakNotebook, t: T, common: T): string {
 export default function AnalyticsPage() {
   const t = useTranslations('analytics')
   const common = useTranslations('common')
+  const home = useTranslations('home')
   const locale = useLocale()
   const { data: recsRes, isLoading: recsLoading } = useSWR(
     ['/analytics/recommendations'],
@@ -55,12 +56,14 @@ export default function AnalyticsPage() {
     next_date: null,
     next_count: 0,
   }
-  const ready = due.due + due.new
+  // Today's share, as on the home page: the two pages must not disagree, and
+  // the whole debt is the number that makes starting feel pointless.
+  const ready = due.today ?? due.due + due.new
   const weakNotebooks: WeakNotebook[] = recsRes?.data?.weak_notebooks ?? []
 
   return (
     <div className="space-y-8">
-      <PageHeader title={t('title')} lead={t('lead')} />
+      <PageHeader title={t('title')} />
 
       {/* One instrument panel: fourteen days on top, what is owed as one
           line under it, then the notebooks. Hairlines, not tiles. */}
@@ -89,9 +92,12 @@ export default function AnalyticsPage() {
               <p className="min-w-0 text-base text-slate-900">
                 <span className="font-mono text-2xl font-semibold tabular-nums">{ready}</span>{' '}
                 {t('readyToStudy', { count: ready })}
-                {due.overdue > 0 && (
+                {due.overdue > 0 && !due.later && (
                   <span className="ml-2 text-sm text-red-700">{common('overdueCount', { count: due.overdue })}</span>
                 )}
+                {due.later ? (
+                  <span className="mt-1 block text-sm text-slate-600">{home('laterCount', { count: due.later })}</span>
+                ) : null}
               </p>
               <Button asChild>
                 <Link href="/dashboard/flashcards?due=1">
