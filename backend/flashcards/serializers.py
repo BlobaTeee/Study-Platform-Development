@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Flashcard
+from .services.card_format import BLANK
 
 
 class FlashcardSerializer(serializers.ModelSerializer):
@@ -13,10 +14,19 @@ class FlashcardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Flashcard
         fields = ['id', 'user', 'username', 'topic', 'topic_name', 'question', 'answer',
-                  'explanation',
+                  'explanation', 'kind',
                   'difficulty', 'is_public', 'source_ids', 'views_count',
                   'correct_count', 'incorrect_count', 'created_at', 'updated_at']
         read_only_fields = ['user', 'views_count', 'correct_count', 'incorrect_count', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        # An edit that loses the blank leaves a cloze card with nothing to fill in.
+        kind = attrs.get('kind', getattr(self.instance, 'kind', 'basic'))
+        question = attrs.get('question', getattr(self.instance, 'question', ''))
+        if kind == 'cloze' and question.count(BLANK) != 1:
+            raise serializers.ValidationError(
+                {'question': f'A fill-in-the-blank card needs exactly one blank, written {BLANK}.'})
+        return attrs
 
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user

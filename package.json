@@ -8,7 +8,8 @@
     "dev:all": "bash dev.sh",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --test lib/*.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-label": "2.1.8",

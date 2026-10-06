@@ -6,7 +6,7 @@ from django.db import transaction
 from django.utils.translation import gettext as _
 from ml_pipeline.language import detect_language, language_name
 from flashcards.models import Flashcard
-from flashcards.services.card_format import ANSWER_RULES
+from flashcards.services.card_format import ANSWER_RULES, CLOZE_RULES, checked_cloze
 from quizzes.models import Quiz, Question
 from .gemini_client import (
     GeminiNotConfiguredError,
@@ -204,7 +204,14 @@ def _save_flashcards_from_json(
             difficulty = 'medium'
         if not question or not answer:
             continue
+        kind = 'cloze' if str(item.get('kind') or '').strip().lower() == 'cloze' else 'basic'
+        if kind == 'cloze':
+            # A puzzle with no single answer would be graded on luck.
+            question = checked_cloze(question, answer)
+            if question is None:
+                continue
         card = Flashcard.objects.create(
+            kind=kind,
             user=user,
             question=question,
             answer=answer,
@@ -320,8 +327,10 @@ point of the passage.
 
 {ANSWER_RULES}
 
+{CLOZE_RULES}
+
 Return ONLY valid JSON:
-{{"flashcards": [{{"question": "...", "answer": "...", "explanation": "...", "difficulty": "easy|medium|hard"}}]}}
+{{"flashcards": [{{"kind": "basic|cloze", "question": "...", "answer": "...", "explanation": "...", "difficulty": "easy|medium|hard"}}]}}
 
 Source: {label}
 Excerpt:

@@ -349,7 +349,15 @@
     "examSoon": "Thi {days, plural, =0 {hôm nay} =1 {ngày mai} other {sau # ngày}} nên sổ tay này được ôn trước.",
     "relearnTitle": "Ôn lại thẻ hay quên",
     "relearnDone": "Xong rồi. Bạn vừa ôn lại {cards}.",
-    "moreExplanation": "Giải thích thêm"
+    "moreExplanation": "Giải thích thêm",
+    "fillBlank": "Điền vào chỗ trống",
+    "typeMissing": "Gõ từ còn thiếu",
+    "check": "Kiểm tra",
+    "suggestedGrade": "Gợi ý: {grade}. Bạn vẫn tự chọn mức nhớ.",
+    "cloze_correct": "Bạn gõ “{typed}”: đúng rồi.",
+    "cloze_close": "Bạn gõ “{typed}”: gần đúng, xem lại chính tả hoặc dấu.",
+    "cloze_wrong": "Bạn gõ “{typed}”: chưa đúng.",
+    "clozeNeedsBlank": "Câu điền chỗ trống cần đúng một chỗ trống, viết là ___."
   },
   "quizzes": {
     "title": "Bài kiểm tra",
