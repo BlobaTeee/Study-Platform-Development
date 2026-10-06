@@ -87,7 +87,6 @@ export type ForgottenGroup = {
   card_ids: number[]
   count: number
   sample: string
-  other: boolean // the cards that joined no group, kept together last
 }
 
 export const reviewsAPI = {

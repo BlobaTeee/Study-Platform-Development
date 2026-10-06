@@ -509,7 +509,6 @@
     "forgottenTitle": "Thẻ hay quên",
     "forgottenLead": "Những thẻ bạn trả lời sai ở lần ôn gần nhất, gộp theo ý chính. Ôn từng nhóm một sẽ dễ nhớ hơn.",
     "forgottenEmpty": "Hiện chưa có thẻ nào bạn đang quên. Khi ôn, thẻ nào bạn chấm Khó sẽ hiện ở đây, gộp theo ý chính, kèm nút ôn lại và nút giải thích bằng lời của bạn.",
-    "forgottenOther": "Các thẻ khác",
     "forgottenSample": "Ví dụ: {question}",
     "relearnGroup": "Ôn lại nhóm này",
     "explainGroup": "Giải thích bằng lời"

@@ -55,15 +55,80 @@ def test_forgotten_cards_are_grouped_by_concept_biggest_first(client, user, note
     assert groups[0]['sample'] in {q for q, _ in PHONES}
 
 
-def test_a_card_that_fits_no_group_is_still_listed(client, user, notebook):
+def test_a_card_that_fits_no_group_is_its_own_group(client, user, notebook):
+    # No provider in tests: a card the clusters leave out stands alone, named
+    # by its own words, so it can still be explained.
     _cards(user, notebook, PHONES, 'hard')
     lone = _cards(user, notebook, LONE, 'hard')
 
     groups = _groups(client)
 
     assert groups[-1]['card_ids'] == [lone[0].id]
-    assert groups[-1]['other'] is True
-    assert groups[0]['other'] is False
+    assert groups[-1]['label']
+    assert 'other' not in groups[-1]
+
+
+EMOTION = [
+    ('What kind of features should be prioritized to avoid passively displaying information?',
+     'Features for direct action'),
+    ('Emotional goals should belong in the ___ process itself, not as an afterthought.', 'requirements'),
+    ('What approach to app design produced stronger engagement than a purely functional approach?',
+     'Emotion-led design approach'),
+]
+
+
+class _Grouper:
+    """Stands in for the model: groups the cards it is shown."""
+    name = 'stub'
+
+    def __init__(self, reply):
+        self.reply = reply
+        self.calls = 0
+
+    def generate_json(self, prompt):
+        self.calls += 1
+        return self.reply
+
+    def summarize(self, text, title=''):
+        return ''
+
+
+def _use(monkeypatch, provider):
+    monkeypatch.setattr('study_sessions.forgotten.get_ai_provider', lambda: provider)
+
+
+def test_cards_the_words_miss_are_grouped_by_meaning(client, user, notebook, monkeypatch):
+    # Three cards on one idea, in words too different for the clusters.
+    cards = _cards(user, notebook, EMOTION, 'hard')
+    _use(monkeypatch, _Grouper({'groups': [{'label': 'Emotion-led design', 'cards': [1, 2, 3]}]}))
+
+    groups = _groups(client)
+
+    assert len(groups) == 1
+    assert groups[0]['label'] == 'Emotion-led design'
+    assert set(groups[0]['card_ids']) == {c.id for c in cards}
+
+
+def test_a_muddled_grouping_still_lists_every_card_once(client, user, notebook, monkeypatch):
+    cards = _cards(user, notebook, EMOTION, 'hard')
+    # Card 2 twice, card 3 never, a card that does not exist, a group with no name.
+    _use(monkeypatch, _Grouper({'groups': [{'label': 'A', 'cards': [1, 2]},
+                                           {'label': '', 'cards': [2, 9]}]}))
+
+    listed = [i for g in _groups(client) for i in g['card_ids']]
+
+    assert sorted(listed) == sorted(c.id for c in cards)
+
+
+def test_the_grouping_is_remembered_so_a_reload_costs_nothing(client, user, notebook, monkeypatch):
+    _cards(user, notebook, EMOTION, 'hard')
+    grouper = _Grouper({'groups': [{'label': 'Emotion-led design', 'cards': [1, 2, 3]}]})
+    _use(monkeypatch, grouper)
+
+    _groups(client)
+    _groups(client)
+
+    assert grouper.calls == 1
 
 
 def test_a_card_remembered_since_is_not_forgotten(client, user, notebook):
@@ -94,3 +159,13 @@ def test_only_my_own_reviews_count(client, other_client, user, notebook):
     _cards(user, notebook, PHONES, 'hard')
 
     assert other_client.get(URL).json()['groups'] == []
+
+
+def test_a_failed_grouping_is_tried_again_next_time(client, user, notebook, monkeypatch):
+    cards = _cards(user, notebook, EMOTION, 'hard')
+    _groups(client)    # no provider: one card per group, and nothing remembered
+
+    _use(monkeypatch, _Grouper({'groups': [{'label': 'Emotion-led design', 'cards': [1, 2, 3]}]}))
+    groups = _groups(client)
+
+    assert [set(g['card_ids']) for g in groups] == [{c.id for c in cards}]
