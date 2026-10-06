@@ -493,7 +493,8 @@
     "dayReviewed": "{day}: {cards, plural, one {# card} other {# cards}} reviewed, {forgot, plural, =0 {all remembered} other {{recalled} remembered, # forgotten}}.",
     "dayMock": "Mock test: {score}/10.",
     "dayOnly": "{day}:",
-    "dayRest": "{day}: no study."
+    "dayRest": "{day}: no study.",
+    "tapDayHint": "Tap a day to see what you did."
   },
   "account": {
     "eyebrow": "Account",
