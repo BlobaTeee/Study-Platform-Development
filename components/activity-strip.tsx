@@ -50,7 +50,8 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
         {summary.mock_tests > 0 && ` ${t('mockSummary', { count: summary.mock_tests })}`}
       </p>
 
-      <div className="mt-4 max-w-md">
+      <div className="mt-4 grid gap-6 md:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] md:items-start">
+      <div>
         <div className="grid grid-cols-7 gap-1.5" aria-hidden>
           {weekdayNames.map((name, i) => (
             <span key={i} className="text-center text-xs font-medium text-slate-500">{name}</span>
@@ -60,16 +61,23 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
           {weeks.map((week, w) => (
             <div key={w} className="grid grid-cols-7 gap-1.5">
               {week.map((cell, c) => {
-                if (cell === null) return <span key={c} aria-hidden />
-                const day = days[cell]
+                if ('outside' in cell) {
+                  return (
+                    <span key={c} aria-hidden className="grid aspect-square place-items-center text-sm tabular-nums text-slate-300">
+                      {cell.outside.getDate() === 1 ? `1/${cell.outside.getMonth() + 1}` : cell.outside.getDate()}
+                    </span>
+                  )
+                }
+                const index = cell.index
+                const day = days[index]
                 const studied = day.reviews > 0 || day.mock_scores.length > 0
-                const isToday = cell === days.length - 1
+                const isToday = index === days.length - 1
                 return (
                   <button
                     key={day.date}
                     type="button"
-                    onClick={() => setSelected(cell)}
-                    aria-pressed={selected === cell}
+                    onClick={() => setSelected(index)}
+                    aria-pressed={selected === index}
                     aria-label={dayDetail(day, t, locale)}
                     className={cn(
                       'aspect-square rounded-md text-sm font-medium tabular-nums transition-[box-shadow,background-color] duration-150',
@@ -80,7 +88,7 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
                       isToday && 'ring-2 ring-slate-900 ring-offset-1',
                     )}
                   >
-                    {dateNumber(day.date, cell === 0)}
+                    {dateNumber(day.date, index === 0)}
                   </button>
                 )
               })}
@@ -104,11 +112,15 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
         </div>
       </div>
 
-      {chosen && (
-        <p className="mt-4 rounded-lg bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800" aria-live="polite">
-          {dayDetail(chosen, t, locale)}
-        </p>
-      )}
+      <div className="space-y-2">
+        <p className="text-sm text-slate-600">{t('tapDayHint')}</p>
+        {chosen && (
+          <p className="rounded-lg bg-slate-50 px-4 py-3 text-base leading-relaxed text-slate-800" aria-live="polite">
+            {dayDetail(chosen, t, locale)}
+          </p>
+        )}
+      </div>
+      </div>
     </section>
   )
 }
@@ -132,14 +144,27 @@ function dayDetail(day: ActivityDay, t: T, locale: string): string {
 
 /** The days laid out Monday-first in weeks, with blanks before the first day
  *  and after the last so each column is always the same weekday. */
-function asWeeks(days: ActivityDay[]): (number | null)[][] {
+function asWeeks(days: ActivityDay[]): Cell[][] {
   if (days.length === 0) return []
-  const lead = (asLocalDate(days[0].date).getDay() + 6) % 7   // Monday = 0
-  const cells: (number | null)[] = [...Array(lead).fill(null), ...days.map((_, i) => i)]
-  while (cells.length % 7) cells.push(null)
-  const weeks: (number | null)[][] = []
+  const first = asLocalDate(days[0].date)
+  const lead = (first.getDay() + 6) % 7   // Monday = 0
+  const cells: Cell[] = []
+  for (let i = lead; i > 0; i--) cells.push({ outside: shiftDays(first, -i) })
+  days.forEach((_, i) => cells.push({ index: i }))
+  const last = asLocalDate(days[days.length - 1].date)
+  for (let i = 1; cells.length % 7; i++) cells.push({ outside: shiftDays(last, i) })
+  const weeks: Cell[][] = []
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
   return weeks
+}
+
+/** A square in the calendar: one of the fourteen days, or a day just outside
+ *  them that only completes the week, the way a printed month shows the
+ *  neighbouring month's dates in grey. */
+type Cell = { index: number } | { outside: Date }
+
+function shiftDays(d: Date, n: number): Date {
+  return new Date(d.getTime() + n * 86_400_000)
 }
 
 /** Weekday names, Monday first, as short as the language allows while all

@@ -493,7 +493,8 @@
     "dayReviewed": "{day}: ôn {cards} thẻ, {forgot, plural, =0 {nhớ hết} other {nhớ {recalled}, quên #}}.",
     "dayMock": "Thi thử được {score} điểm.",
     "dayOnly": "{day}:",
-    "dayRest": "{day}: không học."
+    "dayRest": "{day}: không học.",
+    "tapDayHint": "Bấm vào một ngày để xem chi tiết."
   },
   "account": {
     "eyebrow": "Tài khoản",
