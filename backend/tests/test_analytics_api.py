@@ -142,7 +142,21 @@ def test_activity_counts_mock_tests_and_summarises(client, user, notebook):
     today = res['days'][-1]
     assert (today['reviews'], today['correct'], today['accuracy']) == (2, 1, 50.0)
     assert today['mock_scores'] == [40.0]
-    assert res['summary'] == {'reviews': 2, 'accuracy': 50.0, 'mock_tests': 1}
+    # `correct` beside the rate, so a page can say "1 of 2 recalled" in plain
+    # words instead of a percentage.
+    assert res['summary'] == {'reviews': 2, 'correct': 1, 'accuracy': 50.0, 'mock_tests': 1}
+
+
+def test_weekly_stats_say_how_many_were_recalled_not_just_a_rate(client, user, notebook):
+    from django.utils import timezone
+    for grade in ('easy', 'good', 'hard'):
+        _review_at(user, notebook, timezone.now(), grade)
+
+    stats = client.get('/api/study/card-reviews/stats/').json()
+
+    assert stats['reviews_this_week'] == 3
+    assert stats['recalled_this_week'] == 2
+    assert stats['accuracy_this_week_percent'] == 66.7
 
 
 def test_seed_reviews_do_not_count_as_study(client, user, notebook):

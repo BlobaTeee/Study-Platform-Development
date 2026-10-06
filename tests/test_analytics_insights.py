@@ -296,12 +296,12 @@ def test_summary_totals_the_window():
     reviews = [_rev(10, "good"), _rev(12, "hard"), _rev(16, "good"), _rev(16, "good")]
     tests = [{"date": _date(2026, 9, 12), "score": 50.0}]
     out = ins.daily_activity(reviews, tests, today=_date(2026, 9, 16), days=14)
-    assert out["summary"] == {"reviews": 4, "accuracy": 75.0, "mock_tests": 1}
+    assert out["summary"] == {"reviews": 4, "correct": 3, "accuracy": 75.0, "mock_tests": 1}
 
 
 def test_summary_accuracy_is_none_when_nothing_was_reviewed():
     out = ins.daily_activity([], [], today=_date(2026, 9, 16), days=14)
-    assert out["summary"] == {"reviews": 0, "accuracy": None, "mock_tests": 0}
+    assert out["summary"] == {"reviews": 0, "correct": 0, "accuracy": None, "mock_tests": 0}
 
 
 def test_unknown_grades_are_not_counted():

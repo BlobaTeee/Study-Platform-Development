@@ -24,7 +24,11 @@
     "metaTitle": "StudyFlow",
     "metaDescription": "Biến ghi chú của bạn thành thẻ, bài kiểm tra và bài thi thử để học hiệu quả.",
     "close": "Đóng",
-    "doneForToday": "Xong phần hôm nay. {cards} còn lại được dời sang những ngày tới."
+    "doneForToday": "Xong phần hôm nay. {cards} còn lại được dời sang những ngày tới.",
+    "masteryStrong": "Nhớ chắc",
+    "masteryGood": "Khá ổn",
+    "masteryShaky": "Còn lơ mơ",
+    "masteryWeak": "Cần ôn thêm"
   },
   "nav": {
     "home": "Trang chủ",
@@ -485,14 +489,14 @@
     "stripEmpty": "Chưa có gì. Chấm vài thẻ là các ngày sẽ hiện ở đây.",
     "now": "nay",
     "cardsGraded": "đã chấm {count} thẻ",
-    "recalledPct": "nhớ {pct}%",
     "mockTests": "{count} lần thi thử",
-    "mockTestScore": "thi thử {pct}%",
+    "mockTestScore": "thi thử được {score} điểm",
     "tableCaption": "Số thẻ đã chấm mỗi ngày, 14 ngày qua",
     "colDay": "Ngày",
     "colCards": "Thẻ",
     "colRecalled": "Nhớ",
-    "colMockTests": "Thi thử"
+    "colMockTests": "Thi thử",
+    "recalledOf": "nhớ được {correct}/{reviews}"
   },
   "account": {
     "eyebrow": "Tài khoản",

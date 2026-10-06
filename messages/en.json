@@ -24,7 +24,11 @@
     "metaTitle": "StudyFlow",
     "metaDescription": "Turn your own notes into flashcards, quizzes and mock tests you can learn from.",
     "close": "Close",
-    "doneForToday": "Done for today. {cards} move to the coming days."
+    "doneForToday": "Done for today. {cards} move to the coming days.",
+    "masteryStrong": "Know it well",
+    "masteryGood": "Getting there",
+    "masteryShaky": "Still shaky",
+    "masteryWeak": "Needs work"
   },
   "nav": {
     "home": "Home",
@@ -485,14 +489,14 @@
     "stripEmpty": "Nothing yet. Grade a few cards and the days fill in here.",
     "now": "now",
     "cardsGraded": "{count, plural, one {# card graded} other {# cards graded}}",
-    "recalledPct": "{pct}% recalled",
     "mockTests": "{count, plural, one {# mock test} other {# mock tests}}",
-    "mockTestScore": "mock test {pct}%",
+    "mockTestScore": "mock test {score}/10",
     "tableCaption": "Cards graded per day, last 14 days",
     "colDay": "Day",
     "colCards": "Cards",
     "colRecalled": "Recalled",
-    "colMockTests": "Mock tests"
+    "colMockTests": "Mock tests",
+    "recalledOf": "{correct} of {reviews} recalled"
   },
   "account": {
     "eyebrow": "Account",

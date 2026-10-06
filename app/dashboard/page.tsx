@@ -5,7 +5,7 @@ import useSWR from 'swr'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
 import { analyticsAPI, flashcardsAPI, notebooksAPI, reviewsAPI, streaksAPI } from '@/lib/api'
-import { type Due, caughtUpMessage, examGroups } from '@/lib/study-format'
+import { type Due, MASTERY_LABEL, caughtUpMessage, examGroups, masteryBarClass, masteryLevel } from '@/lib/study-format'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
 import { ArrowRight, ChevronRight } from 'lucide-react'
@@ -48,7 +48,7 @@ export default function HomePage() {
   const weak: WeakNotebook[] = recsRes?.data?.weak_notebooks ?? []
   const accuracyOf = new Map(weak.map((w) => [w.notebook_id, w.accuracy]))
   const reviewsThisWeek: number = weekRes?.data?.reviews_this_week ?? 0
-  const accuracyThisWeek: number | null = weekRes?.data?.accuracy_this_week_percent ?? null
+  const recalledThisWeek: number | null = weekRes?.data?.recalled_this_week ?? null
   const streak: number = streakRes?.data?.current_streak ?? 0
   const bestStreak: number = streakRes?.data?.best_streak ?? 0
   const notebooks: Notebook[] = (notebooksRes?.data?.results ?? notebooksRes?.data ?? []).slice(0, 6)
@@ -149,8 +149,8 @@ export default function HomePage() {
             <h2 className="text-sm font-semibold text-slate-900">{t('thisWeek')}</h2>
             <dl className="mt-3 divide-y divide-slate-100">
               <Figure label={t('reviewsLabel')} value={reviewsThisWeek} />
-              {accuracyThisWeek != null && (
-                <Figure label={t('recalledLabel')} value={`${accuracyThisWeek}%`} />
+              {recalledThisWeek != null && reviewsThisWeek > 0 && (
+                <Figure label={t('recalledLabel')} value={`${recalledThisWeek}/${reviewsThisWeek}`} />
               )}
               <Figure label={t('streakLabel')} value={streak} muted={streak === 0} />
             </dl>
@@ -198,19 +198,18 @@ function Figure({ label, value, muted }: { label: string; value: number | string
   )
 }
 
-/** A short bar and its number: how well a notebook's material is going.
- *  Colour follows the value (analytics green when it is high) and is never
- *  the only signal: the figure sits beside it. */
+/** A short bar and a word: how well a notebook's material is going. The
+ *  word, not a percentage, is what a student needs; colour follows it and is
+ *  never the only signal. */
 function Mastery({ pct }: { pct: number }) {
+  const common = useTranslations('common')
+  const level = masteryLevel(pct)
   return (
-    <span className="flex shrink-0 items-center gap-2" title={`${pct}%`}>
+    <span className="flex shrink-0 items-center gap-2">
       <span className="h-1.5 w-14 overflow-hidden rounded-full bg-slate-100" aria-hidden>
-        <span
-          className={cn('block h-full rounded-full', pct >= 70 ? 'bg-mode-analytics' : pct >= 40 ? 'bg-mode-flashcards' : 'bg-red-400')}
-          style={{ width: `${Math.max(4, Math.min(100, pct))}%` }}
-        />
+        <span className={cn('block h-full rounded-full', masteryBarClass(level))} style={{ width: `${Math.max(4, Math.min(100, pct))}%` }} />
       </span>
-      <span className="w-10 text-right font-mono text-xs text-slate-600 tabular-nums">{pct}%</span>
+      <span className="w-24 text-right text-xs text-slate-600">{common(MASTERY_LABEL[level])}</span>
     </span>
   )
 }
