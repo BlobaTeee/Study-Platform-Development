@@ -348,7 +348,8 @@
     "doneForTodayReviewed": "Done for today. {cards} reviewed, the rest come first tomorrow.",
     "examSoon": "Test {days, plural, =0 {today} =1 {tomorrow} other {in # days}}, so this notebook goes first.",
     "relearnTitle": "Relearn forgotten cards",
-    "relearnDone": "Done. You went back over {cards}."
+    "relearnDone": "Done. You went back over {cards}.",
+    "moreExplanation": "More explanation"
   },
   "quizzes": {
     "title": "Quiz",

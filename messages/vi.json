@@ -348,7 +348,8 @@
     "doneForTodayReviewed": "Xong phần hôm nay. {cards} đã được chấm, phần còn lại sẽ được ôn trước vào ngày mai.",
     "examSoon": "Thi {days, plural, =0 {hôm nay} =1 {ngày mai} other {sau # ngày}} nên sổ tay này được ôn trước.",
     "relearnTitle": "Ôn lại thẻ hay quên",
-    "relearnDone": "Xong rồi. Bạn vừa ôn lại {cards}."
+    "relearnDone": "Xong rồi. Bạn vừa ôn lại {cards}.",
+    "moreExplanation": "Giải thích thêm"
   },
   "quizzes": {
     "title": "Bài kiểm tra",

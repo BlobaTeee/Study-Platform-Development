@@ -20,6 +20,7 @@ import {
 import {
   ArrowLeft,
   ArrowRight,
+  ChevronDown,
   ChevronLeft,
   Pencil,
   RotateCcw,
@@ -30,6 +31,8 @@ type Flashcard = {
   id: number
   question: string
   answer: string
+  /** The detail behind a short answer; empty on cards made before it existed. */
+  explanation?: string
   difficulty: string
   source_ids?: number[]
   /** Days until this card's notebook's test, when that is this week. */
@@ -382,6 +385,19 @@ function FlashcardsStudy() {
           </div>
         </button>
       </div>
+      )}
+
+      {/* The answer stays short enough to recall; the reasoning waits here,
+          folded, so reading it is a choice made after answering. It sits
+          outside the card because the card itself is the flip button. */}
+      {flipped && !draft && card.explanation && (
+        <details key={`explanation-${card.id}`} className="group -mt-4 rounded-xl border border-slate-200 bg-white px-5 py-3">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-900 [&::-webkit-details-marker]:hidden">
+            <ChevronDown className="size-4 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+            {t('moreExplanation')}
+          </summary>
+          <p className="mt-2 max-w-[65ch] text-base leading-relaxed text-slate-700 text-pretty">{card.explanation}</p>
+        </details>
       )}
 
       {/* Once the answer is showing, grading replaces navigation: the only

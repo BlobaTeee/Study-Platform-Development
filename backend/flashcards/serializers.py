@@ -13,6 +13,7 @@ class FlashcardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Flashcard
         fields = ['id', 'user', 'username', 'topic', 'topic_name', 'question', 'answer',
+                  'explanation',
                   'difficulty', 'is_public', 'source_ids', 'views_count',
                   'correct_count', 'incorrect_count', 'created_at', 'updated_at']
         read_only_fields = ['user', 'views_count', 'correct_count', 'incorrect_count', 'created_at', 'updated_at']

@@ -6,6 +6,7 @@ from django.db import transaction
 from django.utils.translation import gettext as _
 from ml_pipeline.language import detect_language, language_name
 from flashcards.models import Flashcard
+from flashcards.services.card_format import ANSWER_RULES
 from quizzes.models import Quiz, Question
 from .gemini_client import (
     GeminiNotConfiguredError,
@@ -197,6 +198,7 @@ def _save_flashcards_from_json(
     for item in fresh:
         question = (item.get('question') or '').strip()
         answer = (item.get('answer') or '').strip()
+        explanation = str(item.get('explanation') or '').strip()
         difficulty = (item.get('difficulty') or 'medium').lower()
         if difficulty not in ('easy', 'medium', 'hard'):
             difficulty = 'medium'
@@ -206,6 +208,7 @@ def _save_flashcards_from_json(
             user=user,
             question=question,
             answer=answer,
+            explanation=explanation,
             difficulty=difficulty,
             is_public=False,
         )
@@ -315,8 +318,10 @@ things a student must understand. Do not ask about incidental figures (page
 counts, sample sizes, dates of publication) unless the number is itself the
 point of the passage.
 
+{ANSWER_RULES}
+
 Return ONLY valid JSON:
-{{"flashcards": [{{"question": "...", "answer": "...", "difficulty": "easy|medium|hard"}}]}}
+{{"flashcards": [{{"question": "...", "answer": "...", "explanation": "...", "difficulty": "easy|medium|hard"}}]}}
 
 Source: {label}
 Excerpt:

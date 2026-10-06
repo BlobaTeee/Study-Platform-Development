@@ -83,6 +83,7 @@ def replace_card(card, variant: dict):
             notebook=card.notebook,
             question=variant["question"],
             answer=variant["answer"],
+            explanation=variant.get("explanation", ""),
             difficulty=variant.get("difficulty", "medium"),
             is_public=False,
             origin=card,
