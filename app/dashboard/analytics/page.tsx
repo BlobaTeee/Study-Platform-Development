@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
 import useSWR from 'swr'
-import { analyticsAPI } from '@/lib/api'
+import { analyticsAPI, reviewsAPI, type ForgottenGroup } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
 import { type Due, caughtUpMessage, MASTERY_LABEL, masteryBarClass, masteryLevel } from '@/lib/study-format'
@@ -60,6 +60,11 @@ export default function AnalyticsPage() {
   // the whole debt is the number that makes starting feel pointless.
   const ready = due.today ?? due.due + due.new
   const weakNotebooks: WeakNotebook[] = recsRes?.data?.weak_notebooks ?? []
+  const { data: forgottenRes, isLoading: forgottenLoading } = useSWR(
+    ['/study/forgotten-groups'],
+    () => reviewsAPI.getForgottenGroups()
+  )
+  const forgotten: ForgottenGroup[] = forgottenRes?.data?.groups ?? []
 
   return (
     <div className="space-y-8">
@@ -106,6 +111,39 @@ export default function AnalyticsPage() {
                 </Link>
               </Button>
             </>
+          )}
+        </section>
+
+        {/* Cards last answered wrong, one row per idea. Relearning a group
+            together works better than meeting the same idea scattered
+            through a mixed queue; the button opens exactly those cards. */}
+        <section data-mode="flashcards" aria-labelledby="forgotten-title" className="border-t border-slate-200 p-6 md:p-8">
+          <h2 id="forgotten-title" className="text-base font-semibold text-slate-900">{t('forgottenTitle')}</h2>
+          <p className="mt-1 max-w-[65ch] text-sm text-slate-600">{t('forgottenLead')}</p>
+
+          {forgottenLoading ? (
+            <div className="mt-4 h-24 animate-pulse rounded-lg bg-slate-100 motion-reduce:animate-none" aria-busy />
+          ) : forgotten.length === 0 ? (
+            <p className="py-6 text-slate-600">{t('forgottenEmpty')}</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-slate-100">
+              {forgotten.map((g) => (
+                <li key={g.key} className="flex flex-col items-start gap-2 py-3 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="min-w-0 w-full flex-1">
+                    <p className="text-base text-slate-900">
+                      {g.other ? t('forgottenOther') : g.label}
+                      <span className="ml-2 text-sm text-slate-600">{common('cards', { count: g.count })}</span>
+                    </p>
+                    <p className="line-clamp-2 text-sm text-slate-600 sm:line-clamp-1">{t('forgottenSample', { question: g.sample })}</p>
+                  </div>
+                  <Button asChild variant="outline" size="sm" className="shrink-0">
+                    <Link href={`/dashboard/flashcards?cards=${g.card_ids.join(',')}`}>
+                      {t('relearnGroup')}
+                    </Link>
+                  </Button>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
 

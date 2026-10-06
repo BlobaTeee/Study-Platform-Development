@@ -346,7 +346,9 @@
     "tutorFailed": "Gia sư chưa trả lời được lúc này. Hãy thử lại sau một phút.",
     "tutorDone": "Đã hỏi ba câu về thẻ này. Thử nhớ lại lần nữa, nếu vẫn chưa rõ thì quay lại sau.",
     "doneForTodayReviewed": "Xong phần hôm nay. {cards} đã được chấm, phần còn lại sẽ được ôn trước vào ngày mai.",
-    "examSoon": "Thi {days, plural, =0 {hôm nay} =1 {ngày mai} other {sau # ngày}} nên sổ tay này được ôn trước."
+    "examSoon": "Thi {days, plural, =0 {hôm nay} =1 {ngày mai} other {sau # ngày}} nên sổ tay này được ôn trước.",
+    "relearnTitle": "Ôn lại thẻ hay quên",
+    "relearnDone": "Xong rồi. Bạn vừa ôn lại {cards}."
   },
   "quizzes": {
     "title": "Bài kiểm tra",
@@ -494,7 +496,13 @@
     "dayMock": "Thi thử được {score} điểm.",
     "dayOnly": "{day}:",
     "dayRest": "{day}: không học.",
-    "tapDayHint": "Bấm vào một ngày để xem chi tiết."
+    "tapDayHint": "Bấm vào một ngày để xem chi tiết.",
+    "forgottenTitle": "Thẻ hay quên",
+    "forgottenLead": "Những thẻ bạn trả lời sai ở lần ôn gần nhất, gộp theo ý chính. Ôn từng nhóm một sẽ dễ nhớ hơn.",
+    "forgottenEmpty": "Hiện không có thẻ nào bạn đang quên.",
+    "forgottenOther": "Các thẻ khác",
+    "forgottenSample": "Ví dụ: {question}",
+    "relearnGroup": "Ôn lại nhóm này"
   },
   "account": {
     "eyebrow": "Tài khoản",
