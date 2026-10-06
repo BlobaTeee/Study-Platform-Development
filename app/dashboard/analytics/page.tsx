@@ -131,7 +131,7 @@ export default function AnalyticsPage() {
                 <li key={g.key} className="flex flex-col items-start gap-2 py-3 sm:flex-row sm:items-center sm:gap-4">
                   <div className="min-w-0 w-full flex-1">
                     <p className="text-base text-slate-900">
-                      {g.other ? t('forgottenOther') : g.label}
+                      {g.label}
                       <span className="ml-2 text-sm text-slate-600">{common('cards', { count: g.count })}</span>
                     </p>
                     <p className="line-clamp-2 text-sm text-slate-600 sm:line-clamp-1">{t('forgottenSample', { question: g.sample })}</p>
@@ -142,14 +142,11 @@ export default function AnalyticsPage() {
                         {t('relearnGroup')}
                       </Link>
                     </Button>
-                    {/* Explaining needs one idea; the leftover pile has none. */}
-                    {!g.other && (
-                      <Button asChild variant="ghost" size="sm">
-                        <Link href={`/dashboard/explain?cards=${g.card_ids.join(',')}&concept=${encodeURIComponent(g.label)}`}>
-                          {t('explainGroup')}
-                        </Link>
-                      </Button>
-                    )}
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/dashboard/explain?cards=${g.card_ids.join(',')}&concept=${encodeURIComponent(g.label)}`}>
+                        {t('explainGroup')}
+                      </Link>
+                    </Button>
                   </div>
                 </li>
               ))}
