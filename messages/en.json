@@ -511,7 +511,8 @@
     "forgottenEmpty": "There are no cards you're forgetting right now.",
     "forgottenOther": "Other cards",
     "forgottenSample": "For example: {question}",
-    "relearnGroup": "Review this group"
+    "relearnGroup": "Review this group",
+    "explainGroup": "Explain in your words"
   },
   "account": {
     "eyebrow": "Account",
@@ -540,5 +541,33 @@
     "deleteBody": "Everything under {email} is deleted permanently: notebooks, cards, quizzes and test history. This can't be undone.",
     "deleteConfirm": "Delete everything",
     "deleteFailed": "Could not delete the account right now. Try again in a minute."
+  },
+  "explain": {
+    "title": "Explain it in your own words",
+    "backToProgress": "Progress",
+    "thisIdea": "This idea",
+    "concept": "Concept",
+    "prompt": "Explain this idea as if you were teaching someone who hasn't studied it. Use your own words, without looking at the material.",
+    "placeholder": "This idea is about…",
+    "hint": "A few sentences is enough. Getting it wrong is fine; that is how you find what to relearn.",
+    "submit": "Get feedback",
+    "reading": "Reading what you wrote…",
+    "failed": "Feedback could not be written. Try again in a minute.",
+    "noCards": "No group of cards chosen. Open Progress and pick a group of cards you keep forgetting.",
+    "youWrote": "What you wrote",
+    "feedback": "Feedback",
+    "retry": "Explain it again",
+    "level_solid": "You have a solid grasp of this idea.",
+    "level_most": "You have most of it; a few points are missing.",
+    "level_reread": "Reread the material, then try again.",
+    "correct": "What you got right",
+    "missing": "What's missing",
+    "wrong": "Not quite right",
+    "youSaid": "You wrote: {claim}",
+    "actually": "Actually: {correction}",
+    "reread": "Passages to reread",
+    "openDocument": "Open document",
+    "showMore": "Show the whole passage",
+    "showLess": "Show less"
   }
 }

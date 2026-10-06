@@ -511,7 +511,8 @@
     "forgottenEmpty": "Hiện không có thẻ nào bạn đang quên.",
     "forgottenOther": "Các thẻ khác",
     "forgottenSample": "Ví dụ: {question}",
-    "relearnGroup": "Ôn lại nhóm này"
+    "relearnGroup": "Ôn lại nhóm này",
+    "explainGroup": "Giải thích bằng lời"
   },
   "account": {
     "eyebrow": "Tài khoản",
@@ -540,5 +541,33 @@
     "deleteBody": "Mọi thứ thuộc {email} sẽ bị xoá vĩnh viễn: sổ tay, thẻ, quiz và lịch sử thi. Không thể hoàn tác.",
     "deleteConfirm": "Xoá tất cả",
     "deleteFailed": "Hiện không xoá được tài khoản. Hãy thử lại sau một phút."
+  },
+  "explain": {
+    "title": "Giải thích bằng lời của bạn",
+    "backToProgress": "Tiến độ",
+    "thisIdea": "Ý này",
+    "concept": "Ý chính",
+    "prompt": "Giải thích ý này như đang dạy cho một bạn chưa học. Viết bằng lời của bạn, không cần nhìn tài liệu.",
+    "placeholder": "Ý này nói về…",
+    "hint": "Vài câu là đủ. Viết sai cũng không sao, đó là cách tìm ra chỗ cần học lại.",
+    "submit": "Gửi để nhận nhận xét",
+    "reading": "Đang đọc bài của bạn…",
+    "failed": "Chưa nhận xét được. Thử lại sau một phút.",
+    "noCards": "Chưa chọn nhóm thẻ nào. Hãy mở trang Tiến độ và chọn một nhóm thẻ hay quên.",
+    "youWrote": "Bạn đã viết",
+    "feedback": "Nhận xét",
+    "retry": "Thử giải thích lại",
+    "level_solid": "Bạn đã nắm vững ý này.",
+    "level_most": "Bạn nắm được phần lớn, còn thiếu vài ý.",
+    "level_reread": "Nên đọc lại tài liệu rồi thử lại.",
+    "correct": "Bạn nói đúng",
+    "missing": "Còn thiếu",
+    "wrong": "Chưa chính xác",
+    "youSaid": "Bạn viết: {claim}",
+    "actually": "Đúng ra: {correction}",
+    "reread": "Đoạn nên đọc lại",
+    "openDocument": "Mở tài liệu",
+    "showMore": "Xem cả đoạn",
+    "showLess": "Thu gọn"
   }
 }

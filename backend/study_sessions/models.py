@@ -228,3 +228,23 @@ class CardReview(models.Model):
         )
         self.next_review_date = timezone.localdate() + td(days=self.interval)
         self.save()
+
+
+class FeynmanAttempt(models.Model):
+    """One "explain it in your own words" attempt and the feedback on it.
+
+    Kept so a reload, or coming back tomorrow, shows the last feedback
+    rather than asking the model again. `card_key` is the sorted card ids,
+    which is how the page finds the attempt for the group it opened."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='feynman_attempts')
+    card_key = models.CharField(max_length=500, db_index=True)
+    concept = models.CharField(max_length=200)
+    text = models.TextField()
+    feedback = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.user.username} explained {self.concept}'

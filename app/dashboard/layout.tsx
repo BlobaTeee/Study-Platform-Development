@@ -109,7 +109,8 @@ export default function DashboardLayout({
 /** Which of the four colourways a route belongs to. Home and account are ink. */
 function modeFor(pathname: string): 'library' | 'flashcards' | 'quizzes' | 'analytics' | 'ink' {
   if (pathname.startsWith('/dashboard/notebooks')) return 'library'
-  if (pathname.startsWith('/dashboard/flashcards')) return 'flashcards'
+  // Explaining a concept starts from forgotten cards, so it wears their colour.
+  if (pathname.startsWith('/dashboard/flashcards') || pathname.startsWith('/dashboard/explain')) return 'flashcards'
   if (pathname.startsWith('/dashboard/quizzes') || pathname.startsWith('/dashboard/tests')) return 'quizzes'
   if (pathname.startsWith('/dashboard/analytics')) return 'analytics'
   return 'ink'
