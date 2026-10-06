@@ -349,7 +349,15 @@
     "examSoon": "Test {days, plural, =0 {today} =1 {tomorrow} other {in # days}}, so this notebook goes first.",
     "relearnTitle": "Relearn forgotten cards",
     "relearnDone": "Done. You went back over {cards}.",
-    "moreExplanation": "More explanation"
+    "moreExplanation": "More explanation",
+    "fillBlank": "Fill in the blank",
+    "typeMissing": "Type the missing word",
+    "check": "Check",
+    "suggestedGrade": "Suggested: {grade}. The choice is still yours.",
+    "cloze_correct": "You typed “{typed}”: that's right.",
+    "cloze_close": "You typed “{typed}”: nearly, check the spelling or accents.",
+    "cloze_wrong": "You typed “{typed}”: not quite.",
+    "clozeNeedsBlank": "A fill-in-the-blank card needs exactly one blank, written ___."
   },
   "quizzes": {
     "title": "Quiz",

@@ -27,6 +27,10 @@ class Flashcard(models.Model):
     answer = models.TextField()
     # The detail behind a short answer, shown under it once the card is turned.
     explanation = models.TextField(blank=True, default='')
+    # A cloze card's question is a sentence with one blank; its answer is
+    # the hidden term, which the study page asks the student to type.
+    kind = models.CharField(max_length=10, default='basic',
+                            choices=[('basic', 'Question and answer'), ('cloze', 'Fill in the blank')])
     difficulty = models.CharField(max_length=20, default='medium', choices=[('easy', 'Easy'), ('medium', 'Medium'), ('hard', 'Hard')])
     is_public = models.BooleanField(default=False)
     views_count = models.IntegerField(default=0)

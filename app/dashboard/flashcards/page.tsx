@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import useSWR from 'swr'
 import { analyticsAPI, flashcardsAPI, type ReviewGrade } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { BLANK, type ClozeVerdict, checkTyped, splitAtBlank, suggestedGrade } from '@/lib/cloze'
 import { useTranslations } from 'next-intl'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { useConfirm } from '@/components/confirm-dialog'
@@ -33,6 +34,8 @@ type Flashcard = {
   answer: string
   /** The detail behind a short answer; empty on cards made before it existed. */
   explanation?: string
+  /** "cloze": the question is a sentence with one blank, typed into. */
+  kind?: 'basic' | 'cloze'
   difficulty: string
   source_ids?: number[]
   /** Days until this card's notebook's test, when that is this week. */
@@ -97,6 +100,9 @@ function FlashcardsStudy() {
   const [draft, setDraft] = useState<{ question: string; answer: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirm, confirmDialog] = useConfirm()
+  // What was typed into a fill-in-the-blank card, tied to the card it was
+  // typed for so moving on starts the next one empty.
+  const [attempt, setAttempt] = useState<{ id: number; text: string }>({ id: -1, text: '' })
 
   const flashcards = useMemo(() => {
     const live = allCards
@@ -196,6 +202,11 @@ function FlashcardsStudy() {
       setError(t('bothSidesRequired'))
       return
     }
+    // Without its one blank a cloze card has nothing to fill in.
+    if (card.kind === 'cloze' && question.split(BLANK).length !== 2) {
+      setError(t('clozeNeedsBlank'))
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -289,6 +300,11 @@ function FlashcardsStudy() {
   // The clamping effect above runs after this render, so on the frame a graded
   // card leaves the queue the index can still point past the end.
   const card = flashcards[index] ?? flashcards[0]
+  const isCloze = card.kind === 'cloze'
+  const typed = attempt.id === card.id ? attempt.text : ''
+  // Checked once the card is turned, whichever way it was turned.
+  const verdict: ClozeVerdict | null = isCloze && flipped ? checkTyped(typed, card.answer) : null
+  const suggestion = verdict ? suggestedGrade(verdict) : null
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
@@ -380,8 +396,8 @@ function FlashcardsStudy() {
               flipped && 'is-flipped'
             )}
           >
-            <IndexFace side="front" card={card} />
-            <IndexFace side="back" card={card} />
+            <IndexFace side="front" card={card} typed={typed} />
+            <IndexFace side="back" card={card} typed={typed} verdict={verdict} />
           </div>
         </button>
       </div>
@@ -404,7 +420,9 @@ function FlashcardsStudy() {
           question left is how well you recalled it. */}
       {flipped ? (
         <div className="space-y-3">
-          <p className="text-center text-sm text-slate-600">{t('howWell')}</p>
+          <p className="text-center text-sm text-slate-600">
+            {suggestion ? t('suggestedGrade', { grade: t(suggestion) }) : t('howWell')}
+          </p>
           <div className="grid grid-cols-3 gap-3">
             {GRADES.map((g, i) => (
               <button
@@ -415,7 +433,8 @@ function FlashcardsStudy() {
                 className={cn(
                   'rounded-xl border px-4 py-3 text-left transition-[background-color,transform] duration-150 active:translate-y-px disabled:opacity-50',
                   'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30',
-                  g.className
+                  g.className,
+                  suggestion === g.value && 'ring-2 ring-slate-900 ring-offset-2'
                 )}
               >
                 <span className="flex items-baseline justify-between gap-2">
@@ -428,12 +447,41 @@ function FlashcardsStudy() {
           </div>
         </div>
       ) : (
+        <div className="space-y-4">
+        {isCloze && !draft && (
+          // Typing the word is the recall; checking it turns the card. Leaving
+          // the box empty and showing the answer still works, as on any card.
+          <form
+            className="mx-auto flex max-w-md gap-2"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (typed.trim()) setFlipped(true)
+            }}
+          >
+            <input
+              key={card.id}
+              autoFocus
+              value={typed}
+              onChange={(e) => setAttempt({ id: card.id, text: e.target.value })}
+              placeholder={t('typeMissing')}
+              aria-label={t('typeMissing')}
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              className="h-11 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-4 text-base text-slate-900 placeholder:text-slate-500 focus-visible:border-mode focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
+            />
+            <Button type="submit" size="lg" disabled={!typed.trim()}>
+              {t('check')}
+            </Button>
+          </form>
+        )}
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Button variant="outline" size="lg" onClick={goPrev}>
             <ArrowLeft aria-hidden />
             {t('previous')}
           </Button>
-          <Button size="lg" onClick={() => setFlipped(true)} className="px-8">
+          {/* On a cloze card "Check" is the main action; this is the way out. */}
+          <Button size="lg" variant={isCloze ? 'outline' : 'default'} onClick={() => setFlipped(true)} className="px-8">
             <RotateCcw aria-hidden />
             {t('showAnswer')}
           </Button>
@@ -441,6 +489,7 @@ function FlashcardsStudy() {
             {t('skip')}
             <ArrowRight aria-hidden />
           </Button>
+        </div>
         </div>
       )}
 
@@ -498,9 +547,15 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 /** One face of the index card. The tabbed top edge and ruled baseline are
  *  the physical cues; front is amber (prompt), back is ink (recall). */
-function IndexFace({ side, card }: { side: 'front' | 'back'; card: Flashcard }) {
+function IndexFace({ side, card, typed = '', verdict = null }: {
+  side: 'front' | 'back'
+  card: Flashcard
+  typed?: string
+  verdict?: ClozeVerdict | null
+}) {
   const t = useTranslations('flashcards')
   const isFront = side === 'front'
+  const isCloze = card.kind === 'cloze'
   return (
     <div
       className={cn(
@@ -522,14 +577,44 @@ function IndexFace({ side, card }: { side: 'front' | 'back'; card: Flashcard }) 
           isFront ? 'text-mode-ink' : 'text-slate-500'
         )}
       >
-        {isFront ? t('question') : t('answer')}
+        {isFront ? t(isCloze ? 'fillBlank' : 'question') : t('answer')}
       </p>
       <p className="text-2xl leading-relaxed text-slate-900 md:text-[1.75rem] text-pretty">
-        {isFront ? card.question : card.answer}
+        {isCloze ? <ClozeSentence card={card} fill={isFront ? typed : null} /> : isFront ? card.question : card.answer}
       </p>
+      {!isFront && verdict && verdict !== 'empty' && (
+        <p className={cn('mt-5 text-base', verdict === 'wrong' ? 'text-red-800' : verdict === 'close' ? 'text-amber-800' : 'text-emerald-800')}>
+          {t(`cloze_${verdict}`, { typed: typed.trim() })}
+        </p>
+      )}
       {/* Ruled baseline — a single notebook rule under the content */}
       <span className="mt-8 block h-px w-full bg-slate-100" aria-hidden />
     </div>
+  )
+}
+
+/** The cloze sentence. On the front the blank shows what is being typed;
+ *  on the back it holds the answer, marked so the eye lands on it. */
+function ClozeSentence({ card, fill }: { card: Flashcard; fill: string | null }) {
+  const [before, after] = splitAtBlank(card.question)
+  // Punctuation right after the blank stays on its line; otherwise a comma
+  // can wrap away from the word it belongs to and open the next line.
+  const [, glued, rest] = after.match(/^([^\s\p{L}\p{N}]*)([\s\S]*)$/u) ?? [, '', after]
+  return (
+    <>
+      {before}
+      <span className="whitespace-nowrap">
+        {fill === null ? (
+          <mark className="rounded bg-mode/15 px-1 font-semibold text-slate-900">{card.answer}</mark>
+        ) : (
+          <span className="inline-block min-w-[5ch] border-b-2 border-mode px-1 text-center text-mode-ink">
+            {fill.trim() || '\u00a0'}
+          </span>
+        )}
+        {glued}
+      </span>
+      {rest}
+    </>
   )
 }
 
