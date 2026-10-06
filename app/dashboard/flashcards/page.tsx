@@ -54,12 +54,20 @@ function FlashcardsStudy() {
   // Two ways to study, both legitimate: work through a document before an exam,
   // or clear what the schedule says is owed today.
   const dueMode = searchParams.get('due') === '1'
+  // A third: relearn a group of forgotten cards picked on the Progress page.
+  // Those cards are due tomorrow, not today, so they come by id.
+  const cardsParam = searchParams.get('cards')
+  const cardIds = useMemo(() => parseSourceIdsParam(cardsParam), [cardsParam])
+  const relearn = !dueMode && cardIds.length > 0
+  // Both queues hand each card over once: grading it takes it off the list.
+  const queue = dueMode || relearn
 
   // Scoped to a document, the server picks today's share from that document;
   // the key carries the scope so the two queues never share a cache entry.
   const { data, isLoading } = useSWR(
     dueMode
       ? sourceParam ? ['/flashcards/due', sourceParam] : ['/flashcards/due']
+      : relearn ? ['/flashcards/', 'cards', cardsParam]
       : sourceParam ? ['/flashcards/', sourceParam] : null,
     () => (dueMode ? flashcardsAPI.getDueCards(sourceIds) : flashcardsAPI.getFlashcards())
   )
@@ -100,9 +108,13 @@ function FlashcardsStudy() {
         : live
       return scoped.filter((f) => !graded.has(f.id))
     }
+    if (relearn) {
+      const wanted = new Set(cardIds)
+      return live.filter((f) => wanted.has(f.id) && !graded.has(f.id))
+    }
     if (sourceIds.length === 0) return []
     return live.filter((f) => hasAllSources(f.source_ids, sourceIds))
-  }, [allCards, sourceIds, dueMode, graded, edits, removed])
+  }, [allCards, sourceIds, dueMode, relearn, cardIds, graded, edits, removed])
 
   const total = flashcards.length
 
@@ -136,7 +148,7 @@ function FlashcardsStudy() {
         setGraded((g) => new Set(g).add(card.id))
         // In due mode the card drops out of the queue and the next one slides
         // into this slot, so only the browse mode needs to advance.
-        if (dueMode) setFlipped(false)
+        if (queue) setFlipped(false)
         else goNext()
       } catch {
         // Stay on the card so the grade isn't silently lost.
@@ -145,7 +157,7 @@ function FlashcardsStudy() {
         setSaving(false)
       }
     },
-    [flashcards, index, saving, goNext, dueMode]
+    [flashcards, index, saving, goNext, queue]
   )
 
   // Keyboard: space/enter flips, arrows move, number keys grade a revealed
@@ -218,7 +230,7 @@ function FlashcardsStudy() {
   }
 
   // Studying the due queue needs no document chosen — the schedule already knows.
-  if (!dueMode && (!sourceParam || sourceIds.length === 0)) {
+  if (!queue && (!sourceParam || sourceIds.length === 0)) {
     return <SourceRequired type="flashcards" />
   }
 
@@ -229,7 +241,7 @@ function FlashcardsStudy() {
   if (total === 0) {
     return (
       <div className="mx-auto max-w-3xl">
-        <PageHeader title={dueMode ? t('dueToday') : t('studySession')} />
+        <PageHeader title={dueMode ? t('dueToday') : relearn ? t('relearnTitle') : t('studySession')} />
         <div className="sheet mt-8 flex flex-col items-start gap-5 p-8">
         <p className="max-w-[48ch] text-lg leading-relaxed text-slate-700">
           {dueMode
@@ -242,7 +254,9 @@ function FlashcardsStudy() {
                 // so "nothing due" would be false — say they wait for tomorrow.
                 ? common('doneForToday', { cards: common('cards', { count: heldBack }) })
                 : t('nothingDue')
-            : t('noneForSelection')}
+            : relearn && graded.size > 0
+              ? t('relearnDone', { cards: common('cards', { count: graded.size }) })
+              : t('noneForSelection')}
         </p>
         {/* Studying a document enters the scheduled queue, so "nothing due" is
             the common landing. Offering the whole document here keeps that an
@@ -259,8 +273,8 @@ function FlashcardsStudy() {
           </div>
         ) : (
           <Button asChild variant="ink">
-            <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
-              {dueMode ? t('backToProgress') : t('goToNotebooks')}
+            <Link href={queue ? '/dashboard/analytics' : '/dashboard/notebooks'}>
+              {queue ? t('backToProgress') : t('goToNotebooks')}
             </Link>
           </Button>
         )}
@@ -280,26 +294,26 @@ function FlashcardsStudy() {
       </Suspense>
 
       <PageHeader
-        title={dueMode ? t('dueToday') : t('studySession')}
-        meta={dueMode ? t('leftAndDone', { left: total, done: graded.size }) : `${index + 1} / ${total}`}
+        title={dueMode ? t('dueToday') : relearn ? t('relearnTitle') : t('studySession')}
+        meta={queue ? t('leftAndDone', { left: total, done: graded.size }) : `${index + 1} / ${total}`}
         action={
           <Button asChild variant="outline">
-            <Link href={dueMode ? '/dashboard/analytics' : '/dashboard/notebooks'}>
+            <Link href={queue ? '/dashboard/analytics' : '/dashboard/notebooks'}>
               <ChevronLeft aria-hidden />
-              {dueMode ? t('progress') : t('backToNotebooks')}
+              {queue ? t('progress') : t('backToNotebooks')}
             </Link>
           </Button>
         }
       />
 
       <div className="h-1 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-valuemin={0} aria-valuemax={100}
-        aria-valuenow={Math.round(dueMode ? (graded.size / (graded.size + total)) * 100 : ((index + 1) / total) * 100)}>
+        aria-valuenow={Math.round(queue ? (graded.size / (graded.size + total)) * 100 : ((index + 1) / total) * 100)}>
         <div
           className="h-full bg-mode transition-[width] duration-300 motion-reduce:transition-none"
           style={{
             // Browsing tracks position in the deck; the due queue tracks the
             // debt cleared, since its cards leave as they are graded.
-            width: dueMode
+            width: queue
               ? `${(graded.size / (graded.size + total)) * 100}%`
               : `${((index + 1) / total) * 100}%`,
           }}

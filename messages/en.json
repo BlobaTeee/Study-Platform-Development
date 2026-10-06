@@ -346,7 +346,9 @@
     "tutorFailed": "The tutor could not answer just now. Try again in a minute.",
     "tutorDone": "That's three questions on this card. Try recalling it again, and come back later if it's still unclear.",
     "doneForTodayReviewed": "Done for today. {cards} reviewed, the rest come first tomorrow.",
-    "examSoon": "Test {days, plural, =0 {today} =1 {tomorrow} other {in # days}}, so this notebook goes first."
+    "examSoon": "Test {days, plural, =0 {today} =1 {tomorrow} other {in # days}}, so this notebook goes first.",
+    "relearnTitle": "Relearn forgotten cards",
+    "relearnDone": "Done. You went back over {cards}."
   },
   "quizzes": {
     "title": "Quiz",
@@ -494,7 +496,13 @@
     "dayMock": "Mock test: {score}/10.",
     "dayOnly": "{day}:",
     "dayRest": "{day}: no study.",
-    "tapDayHint": "Tap a day to see what you did."
+    "tapDayHint": "Tap a day to see what you did.",
+    "forgottenTitle": "Cards you keep forgetting",
+    "forgottenLead": "Cards you got wrong the last time you reviewed them, grouped by idea. Going through one group at a time makes them easier to remember.",
+    "forgottenEmpty": "There are no cards you're forgetting right now.",
+    "forgottenOther": "Other cards",
+    "forgottenSample": "For example: {question}",
+    "relearnGroup": "Review this group"
   },
   "account": {
     "eyebrow": "Account",
