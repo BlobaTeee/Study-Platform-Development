@@ -7,7 +7,7 @@ import useSWR from 'swr'
 import { analyticsAPI } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
-import { type Due, caughtUpMessage } from '@/lib/study-format'
+import { type Due, caughtUpMessage, MASTERY_LABEL, masteryBarClass, masteryLevel } from '@/lib/study-format'
 import { ActivityStrip, type ActivityDay, type ActivitySummary } from '@/components/activity-strip'
 import { ArrowRight } from 'lucide-react'
 
@@ -136,11 +136,11 @@ export default function AnalyticsPage() {
                       <span className="flex shrink-0 items-center gap-3">
                         <span className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100" aria-hidden>
                           <span
-                            className={cn('block h-full rounded-full', n.accuracy >= 70 ? 'bg-mode-analytics' : n.accuracy >= 40 ? 'bg-mode-flashcards' : 'bg-red-400')}
+                            className={cn('block h-full rounded-full', masteryBarClass(masteryLevel(n.accuracy)))}
                             style={{ width: `${Math.max(4, Math.min(100, n.accuracy))}%` }}
                           />
                         </span>
-                        <span className="w-12 text-right font-mono text-base tabular-nums text-slate-900">{n.accuracy}%</span>
+                        <span className="w-28 text-right text-base text-slate-900">{common(MASTERY_LABEL[masteryLevel(n.accuracy)])}</span>
                       </span>
                     )}
                     <ArrowRight className="size-4 shrink-0 text-slate-400" aria-hidden />

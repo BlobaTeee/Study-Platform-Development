@@ -374,5 +374,8 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({
             'total_reviews': total_reviews,
             'reviews_this_week': reviews_this_week,
+            # The count behind the rate, so the home page can say "26 of 27"
+            # — a number a student reads at a glance, where 96.3% is not.
+            'recalled_this_week': accuracy_this_week,
             'accuracy_this_week_percent': accuracy_pct,
         })

@@ -66,3 +66,32 @@ export function caughtUpMessage(d: Due, t: CommonT, locale: string): string {
       : t('onDate', { date: when.toLocaleDateString(locale, { day: 'numeric', month: 'short' }) })
   return t('caughtUp', { cards: t('cards', { count: d.next_count }), when: label })
 }
+
+/** How well something is known, in words rather than a percentage. A student
+ *  reads "Still shaky" at a glance; 47.3% needs working out. The thresholds
+ *  are the ones the bar colours use, so word and colour always agree. */
+export type MasteryLevel = 'strong' | 'good' | 'shaky' | 'weak'
+
+export function masteryLevel(pct: number): MasteryLevel {
+  if (pct >= 85) return 'strong'
+  if (pct >= 60) return 'good'
+  if (pct >= 40) return 'shaky'
+  return 'weak'
+}
+
+export const MASTERY_LABEL: Record<MasteryLevel, string> = {
+  strong: 'masteryStrong',
+  good: 'masteryGood',
+  shaky: 'masteryShaky',
+  weak: 'masteryWeak',
+}
+
+export function masteryBarClass(level: MasteryLevel): string {
+  return level === 'weak' ? 'bg-red-400' : level === 'shaky' ? 'bg-mode-flashcards' : 'bg-mode-analytics'
+}
+
+/** A 0-100 score on the 10-point scale Vietnamese students are marked on,
+ *  with the locale's decimal mark ("7,2" in Vietnamese, "7.2" in English). */
+export function scoreOutOfTen(pct: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(pct / 10)
+}

@@ -211,6 +211,7 @@ def daily_activity(reviews: list[dict], mock_tests: list[dict], today, days: int
         "days": out_days,
         "summary": {
             "reviews": total_reviews,
+            "correct": total_correct,
             "accuracy": accuracy(total_correct, total_reviews),
             "mock_tests": sum(len(d["mock_scores"]) for d in out_days),
         },

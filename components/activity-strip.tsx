@@ -2,6 +2,7 @@
 
 import { useId, useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
+import { scoreOutOfTen } from '@/lib/study-format'
 import { cn } from '@/lib/utils'
 
 export type ActivityDay = {
@@ -14,6 +15,7 @@ export type ActivityDay = {
 
 export type ActivitySummary = {
   reviews: number
+  correct?: number
   accuracy: number | null
   mock_tests: number
 }
@@ -63,11 +65,11 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
               {t('cardsGraded', { count: activeDay.reviews })}
             </span>
             <span className="text-slate-500"> · {weekdayLong(activeDay.date, locale)}</span>
-            {activeDay.accuracy != null && (
-              <span className="text-slate-500"> · {t('recalledPct', { pct: activeDay.accuracy })}</span>
+            {activeDay.reviews > 0 && (
+              <span className="text-slate-500"> · {t('recalledOf', { correct: activeDay.correct, reviews: activeDay.reviews })}</span>
             )}
             {activeDay.mock_scores.map((s, i) => (
-              <span key={i} className="text-slate-500"> · {t('mockTestScore', { pct: Math.round(s) })}</span>
+              <span key={i} className="text-slate-500"> · {t('mockTestScore', { score: scoreOutOfTen(s, locale) })}</span>
             ))}
           </div>
         )}
@@ -154,8 +156,8 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
             <tr key={day.date}>
               <td>{weekdayLong(day.date, locale)}</td>
               <td>{day.reviews}</td>
-              <td>{day.accuracy == null ? '—' : `${day.accuracy}%`}</td>
-              <td>{day.mock_scores.length ? day.mock_scores.map((s) => `${Math.round(s)}%`).join(', ') : '—'}</td>
+              <td>{day.reviews ? `${day.correct}/${day.reviews}` : '—'}</td>
+              <td>{day.mock_scores.length ? day.mock_scores.map((s) => `${scoreOutOfTen(s, locale)}/10`).join(', ') : '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -168,14 +170,14 @@ type T = (key: string, values?: Record<string, string | number>) => string
 
 function summaryLine(s: ActivitySummary, t: T): string {
   const parts = [t('cardsGraded', { count: s.reviews })]
-  if (s.accuracy != null) parts.push(t('recalledPct', { pct: s.accuracy }))
+  if (s.reviews > 0 && s.correct != null) parts.push(t('recalledOf', { correct: s.correct, reviews: s.reviews }))
   if (s.mock_tests) parts.push(t('mockTests', { count: s.mock_tests }))
   return parts.join(' · ')
 }
 
 function dayLabel(day: ActivityDay, t: T, locale: string): string {
   const bits = [weekdayLong(day.date, locale), t('cardsGraded', { count: day.reviews })]
-  if (day.accuracy != null) bits.push(t('recalledPct', { pct: day.accuracy }))
+  if (day.reviews > 0) bits.push(t('recalledOf', { correct: day.correct, reviews: day.reviews }))
   if (day.mock_scores.length) bits.push(t('mockTests', { count: day.mock_scores.length }))
   return bits.join(', ')
 }
