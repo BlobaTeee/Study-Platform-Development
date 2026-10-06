@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import useSWR, { mutate } from 'swr'
-import { notebooksAPI, type NotebookStudySummary } from '@/lib/api'
+import { notebooksAPI } from '@/lib/api'
 import {
   SOURCE_ACCEPT,
   fileTypeLabel,
@@ -22,7 +22,6 @@ import {
   AlertCircle,
   ArrowLeft,
   ChevronDown,
-  ClipboardList,
   ClipboardPaste,
   Link2,
   FileUp,
@@ -47,100 +46,6 @@ type SourceItem = {
   gemini_summary: string
 }
 
-
-/** The whole notebook at a glance, with the one thing to do for each mode.
- *  One sheet with three columns rather than three cards: they are parts of
- *  one answer to "what can I study here now", not three products. */
-function StudyStrip({ notebookId, summary }: { notebookId: number; summary: NotebookStudySummary | null }) {
-  const t = useTranslations('notebooks')
-  const nav = useTranslations('nav')
-
-  const cell = (mode: string, icon: React.ReactNode, title: string, body: React.ReactNode, action?: React.ReactNode) => (
-    <div data-mode={mode} className="flex min-w-0 flex-col gap-1.5 p-5">
-      <p className="flex items-center gap-2 text-base font-semibold text-slate-900">
-        {icon}
-        {title}
-      </p>
-      {summary === null ? (
-        <div className="space-y-2 pt-1" aria-busy>
-          <div className="h-4 w-3/4 animate-pulse rounded bg-slate-100 motion-reduce:animate-none" />
-          <div className="h-4 w-1/2 animate-pulse rounded bg-slate-100 motion-reduce:animate-none" />
-        </div>
-      ) : (
-        <>
-          <div className="text-sm leading-relaxed text-slate-700">{body}</div>
-          {action && <div className="mt-auto pt-3">{action}</div>}
-        </>
-      )}
-    </div>
-  )
-
-  const latest = summary?.latest_quiz ?? null
-  const hasQuestions = (summary?.questions ?? 0) > 0
-
-  return (
-    <section aria-labelledby="study-heading" className="space-y-3">
-      <h2 id="study-heading" className="text-sm font-semibold text-slate-900">{t('studyWhole')}</h2>
-      <div className="sheet grid divide-y divide-slate-200 md:grid-cols-3 md:divide-x md:divide-y-0">
-        {cell(
-          'flashcards',
-          <Zap className="size-4 text-mode" aria-hidden />,
-          nav('flashcards'),
-          summary && summary.cards === 0 ? (
-            <p>{t('noCardsYet')}</p>
-          ) : (
-            <>
-              <p className="text-base font-medium text-slate-900">
-                {t('cardsToday', { count: summary?.today ?? 0 })}
-              </p>
-              <p className="text-slate-600">{t('cardsInNotebook', { count: summary?.cards ?? 0 })}</p>
-            </>
-          ),
-          summary && summary.today > 0 ? (
-            <Button asChild>
-              <Link href={`/dashboard/flashcards?due=1&notebook=${notebookId}`}>{t('studyFlashcards')}</Link>
-            </Button>
-          ) : undefined
-        )}
-        {cell(
-          'quizzes',
-          <HelpCircle className="size-4 text-mode" aria-hidden />,
-          nav('quizzes'),
-          !hasQuestions || !latest ? (
-            <p>{t('noQuizYet')}</p>
-          ) : (
-            <p className="text-base font-medium text-slate-900">
-              {summary?.accuracy == null
-                ? t('quizNotTaken', { questions: summary?.questions ?? 0 })
-                : t('quizRecord', { questions: summary?.questions ?? 0, accuracy: summary.accuracy })}
-            </p>
-          ),
-          hasQuestions && latest ? (
-            <Button asChild>
-              <Link href={`/dashboard/quizzes?source=${formatSourceIdsForQuery(latest.source_ids)}&quiz=${latest.id}`}>
-                {t('takeQuiz')}
-              </Link>
-            </Button>
-          ) : undefined
-        )}
-        {cell(
-          'quizzes',
-          <ClipboardList className="size-4 text-mode" aria-hidden />,
-          nav('tests'),
-          <>
-            <p>{t('mockTestBlurb')}</p>
-            {!hasQuestions && <p className="text-slate-600">{t('mockTestNeedsQuiz')}</p>}
-          </>,
-          hasQuestions ? (
-            <Button asChild variant="outline">
-              <Link href={`/dashboard/tests?notebook=${notebookId}`}>{t('sitMockTest')}</Link>
-            </Button>
-          ) : undefined
-        )}
-      </div>
-    </section>
-  )
-}
 
 /** A button that opens a short list of actions. Closes on an outside click
  *  or Escape; items are plain buttons so they keep their focus ring. */
@@ -285,17 +190,11 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const activeCounts = useMaterialCounts(notebookId, activeIds)
   const selectedCounts = useMaterialCounts(notebookId, selectedIds)
 
-  // The whole notebook's standing, for the study strip at the top.
-  const summaryKey = ['/notebooks/study_summary', notebookId]
-  const { data: summaryRes } = useSWR(summaryKey, () => notebooksAPI.studySummary(notebookId))
-  const summary = summaryRes?.data ?? null
-
   const readySources = sources.filter((s) => s.status === 'ready')
 
   const refresh = () => {
     mutate(swrKey)
     mutate(['/notebooks/'])
-    mutate(['/notebooks/study_summary', notebookId])
   }
 
   useEffect(() => {
@@ -436,7 +335,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       // branch below, which stays on this page — without it the card the
       // button offers to replace is the one it replaced a moment ago.
       mutate(['/notebooks/material_counts', notebookId, studyQuery])
-      mutate(summaryKey)
       if (res.data.generated_by === 'extractive-fallback') {
         setWarning(t('fallbackNotice', { kind: t('kindFlashcards') }))
         return  // stay put so the downgrade is seen, not silently navigated past
@@ -466,7 +364,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       // appears once this is revalidated. Matters on the fallback branch below,
       // which stays on this page.
       mutate(['/notebooks/material_counts', notebookId, studyQuery])
-      mutate(summaryKey)
       if (res.data.generated_by === 'extractive-fallback') {
         setWarning(t('fallbackNotice', { kind: t('kindQuestions') }))
         return  // stay put so the downgrade is seen, not silently navigated past
@@ -683,8 +580,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
           then its documents. Dropping a file anywhere on it still adds it. */}
       <SourceDropZone onFile={uploadFile} disabled={!canDrop} className="flex-col overflow-y-auto bg-slate-50/60">
         <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 md:px-8 md:py-8">
-          <StudyStrip notebookId={notebook.id} summary={summary} />
-
           <section aria-labelledby="documents-heading" className="space-y-3">
             <input
               ref={fileRef}
@@ -943,9 +838,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       </div>
                     )}
 
-                    {/* Making material from this document. Studying it lives in
-                        one place only, the strip at the top: a second "Study"
-                        here made two buttons per task on one page. */}
+                    {/* This document's cards and quiz: what exists, in plain words,
+                        and the two things to do with it. One study button per
+                        kind on the page — this is the only one. */}
                     <div className="border-t border-slate-200 pt-5">
                       <h3 className="text-sm font-semibold text-slate-900">{t('fromThisDocument')}</h3>
                       <div className="mt-3 divide-y divide-slate-200 rounded-xl border border-slate-200">
@@ -956,9 +851,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                               {nav('flashcards')}
                             </p>
                             <p className="mt-0.5 text-sm text-slate-600">
-                              {activeCounts.cards > 0
-                                ? t('replacesCards', { cards: common('cards', { count: activeCounts.cards }) })
-                                : t('aboutTenCards')}
+                              {activeCounts.cards > 0 ? common('cards', { count: activeCounts.cards }) : t('noCardsForDoc')}
                             </p>
                           </div>
                           <div className="flex shrink-0 flex-wrap gap-2">
@@ -970,6 +863,11 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                               {generating === 'flashcards' && selectedIds.length === 0 ? <Loader2 className="animate-spin" aria-hidden /> : null}
                               {activeCounts.cards > 0 ? t('regenerateFlashcards') : t('generateFlashcards')}
                             </Button>
+                            {activeCounts.cards > 0 && (
+                              <Button asChild>
+                                <Link href={`/dashboard/flashcards?due=1&source=${activeCounts.query}`}>{t('studyFlashcards')}</Link>
+                              </Button>
+                            )}
                           </div>
                         </div>
                         <div data-mode="quizzes" className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4">
@@ -978,7 +876,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                               <HelpCircle className="size-4 text-mode" aria-hidden />
                               {nav('quizzes')}
                             </p>
-                            <p className="mt-0.5 text-sm text-slate-600">{t('multipleChoice')}</p>
+                            <p className="mt-0.5 text-sm text-slate-600">
+                              {activeCounts.quizId ? t('quizReady') : t('noQuizForDoc')}
+                            </p>
                           </div>
                           <div className="flex shrink-0 flex-wrap gap-2">
                             <Button
@@ -989,6 +889,11 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                               {generating === 'quiz' && selectedIds.length === 0 ? <Loader2 className="animate-spin" aria-hidden /> : null}
                               {t('generateQuiz')}
                             </Button>
+                            {activeCounts.quizId && (
+                              <Button asChild>
+                                <Link href={`/dashboard/quizzes?source=${activeCounts.query}&quiz=${activeCounts.quizId}`}>{t('takeQuiz')}</Link>
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </div>

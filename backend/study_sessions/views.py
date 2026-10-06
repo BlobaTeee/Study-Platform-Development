@@ -326,11 +326,6 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
         wanted = _source_ids_param(request.query_params.get('source'))
         if wanted:
             cards = [c for c in cards if wanted <= set(c['source_ids'])]
-        # Studying a whole notebook: every card in it, whichever documents it
-        # came from. Same rule as above — filter first, then take today's share.
-        notebook = request.query_params.get('notebook', '')
-        if notebook.isdigit():
-            cards = [c for c in cards if c['notebook_id'] == int(notebook)]
 
         today = timezone.localdate()
         plan = daily.plan_for(user, cards, schedule, today, timezone.now())
