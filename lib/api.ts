@@ -99,6 +99,26 @@ export const reviewsAPI = {
   getForgottenGroups: () => api.get<{ groups: ForgottenGroup[] }>('/study/card-reviews/forgotten_groups/'),
 }
 
+export type FeynmanFeedback = {
+  id: number
+  concept: string
+  text: string
+  correct: string[]
+  missing: string[]
+  wrong: { claim: string; correction: string }[]
+  level: 'solid' | 'most' | 'reread'
+  reread: { source_id: number; notebook_id: number; title: string; passage: string }[]
+}
+
+// Explain a concept in your own words; feedback is judged against the
+// passages the cards came from. GET returns the last attempt ({} if none).
+export const explainAPI = {
+  latest: (cardIds: number[]) =>
+    api.get<FeynmanFeedback | Record<string, never>>('/study/explain/', { params: { cards: cardIds.join(',') } }),
+  submit: (data: { card_ids: number[]; concept: string; text: string }) =>
+    api.post<FeynmanFeedback>('/study/explain/', data),
+}
+
 export const quizzesAPI = {
   getQuizzes: (params?: any) => api.get('/quizzes/quizzes/', { params }),
   getAttempts: () => api.get('/quizzes/attempts/'),

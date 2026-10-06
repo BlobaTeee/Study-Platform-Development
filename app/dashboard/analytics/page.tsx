@@ -136,11 +136,21 @@ export default function AnalyticsPage() {
                     </p>
                     <p className="line-clamp-2 text-sm text-slate-600 sm:line-clamp-1">{t('forgottenSample', { question: g.sample })}</p>
                   </div>
-                  <Button asChild variant="outline" size="sm" className="shrink-0">
-                    <Link href={`/dashboard/flashcards?cards=${g.card_ids.join(',')}`}>
-                      {t('relearnGroup')}
-                    </Link>
-                  </Button>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/dashboard/flashcards?cards=${g.card_ids.join(',')}`}>
+                        {t('relearnGroup')}
+                      </Link>
+                    </Button>
+                    {/* Explaining needs one idea; the leftover pile has none. */}
+                    {!g.other && (
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={`/dashboard/explain?cards=${g.card_ids.join(',')}&concept=${encodeURIComponent(g.label)}`}>
+                          {t('explainGroup')}
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

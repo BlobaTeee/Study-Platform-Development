@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 from django.utils import timezone
 from datetime import timedelta
 
@@ -13,6 +14,7 @@ from .serializers import (
 )
 from flashcards.models import Flashcard
 from notebooks.services.membership import notebooks_for
+from studyplatform.throttling import GenerationRateThrottle
 from flashcards.services.regeneration import (
     MAX_REGENERATIONS_PER_FETCH, merge_replacements, select_for_regeneration,
 )
@@ -388,3 +390,42 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
             'recalled_this_week': accuracy_this_week,
             'accuracy_this_week_percent': accuracy_pct,
         })
+
+
+class FeynmanView(APIView):
+    """GET ?cards=1,2,3 → the latest attempt for that group ({} if none).
+    POST {card_ids, concept, text} → feedback on a new attempt."""
+    permission_classes = [IsAuthenticated]
+
+    def get_throttles(self):
+        # Feedback is an LLM call; it shares generation's budget.
+        if self.request.method == 'POST':
+            return [GenerationRateThrottle()]
+        return super().get_throttles()
+
+    def get(self, request):
+        from .feynman import card_key, payload
+        from .models import FeynmanAttempt
+        ids = _source_ids_param(request.query_params.get('cards'))
+        attempt = (FeynmanAttempt.objects.filter(user=request.user, card_key=card_key(ids)).first()
+                   if ids else None)
+        return Response(payload(attempt) if attempt else {})
+
+    def post(self, request):
+        from django.utils.translation import gettext as _
+        from .feynman import MAX_CARDS, MAX_CHARS, MIN_CHARS, ExplainUnavailable, explain, payload
+
+        text = str(request.data.get('text') or '').strip()[:MAX_CHARS]
+        if len(text) < MIN_CHARS:
+            return Response({'detail': _('Write a few sentences first, as if teaching someone.')}, status=400)
+        raw = request.data.get('card_ids')
+        ids = {i for i in raw if isinstance(i, int)} if isinstance(raw, list) else set()
+        cards = list(studiable_cards(request.user).filter(id__in=ids).prefetch_related('sources'))
+        if not ids or len(ids) > MAX_CARDS or len(cards) != len(ids):
+            return Response({'detail': _('Those cards are not yours to study.')}, status=400)
+        concept = str(request.data.get('concept') or '').strip()[:200] or cards[0].question[:200]
+        try:
+            attempt = explain(request.user, cards, concept, text)
+        except ExplainUnavailable as exc:
+            return Response({'detail': str(exc)}, status=503)
+        return Response(payload(attempt), status=status.HTTP_201_CREATED)
