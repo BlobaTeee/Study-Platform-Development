@@ -94,3 +94,21 @@ def test_an_edit_cannot_remove_the_blank(client, user, notebook):
     assert good.status_code == 200
     card.refresh_from_db()
     assert card.question == 'A good product is ___.'
+
+
+def test_cloze_cards_are_spread_through_the_deck_starting_near_the_top(client, notebook, monkeypatch):
+    # The model tends to put them last; a student would meet them only at
+    # the end of the deck, if at all.
+    basics = [{**BASIC, 'question': f'Basic question {i}?'} for i in range(6)]
+    clozes = [{**CLOZE, 'question': f'Cloze sentence {i} is ___ here.', 'answer': f'term{i}'} for i in range(2)]
+    _, res = _generate(client, notebook, monkeypatch, basics + clozes, count=8)
+    assert res.status_code == 201
+
+    listed = client.get('/api/flashcards/flashcards/').json()
+    listed = listed.get('results', listed) if isinstance(listed, dict) else listed
+    expected = ['basic', 'cloze', 'basic', 'basic', 'basic', 'basic', 'cloze', 'basic']
+    # The deck page lists newest first and today's queue oldest first; a
+    # spread that reads the same both ways puts a cloze card second in each.
+    assert [c['kind'] for c in listed] == expected
+    due = client.get('/api/study/card-reviews/due_today/').json()
+    assert [c['kind'] for c in due] == expected
