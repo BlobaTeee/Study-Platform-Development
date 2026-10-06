@@ -29,7 +29,6 @@ function notebookRecord(n: WeakNotebook, t: T, common: T): string {
   const parts: string[] = []
   if (n.cards) parts.push(common('cards', { count: n.cards }))
   if (n.questions) parts.push(t('quizQuestions', { count: n.questions }))
-  parts.push(t('answers', { count: n.reviews }))
   return parts.join(' · ')
 }
 
@@ -134,13 +133,15 @@ export default function AnalyticsPage() {
                       <span className="shrink-0 text-sm text-slate-500">{common('notStudied')}</span>
                     ) : (
                       <span className="flex shrink-0 items-center gap-3">
-                        <span className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100" aria-hidden>
+                        {/* On a phone the word alone carries it; the bar would squeeze
+                            the notebook's name into a sliver. */}
+                        <span className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 sm:block" aria-hidden>
                           <span
                             className={cn('block h-full rounded-full', masteryBarClass(masteryLevel(n.accuracy)))}
                             style={{ width: `${Math.max(4, Math.min(100, n.accuracy))}%` }}
                           />
                         </span>
-                        <span className="w-28 text-right text-base text-slate-900">{common(MASTERY_LABEL[masteryLevel(n.accuracy)])}</span>
+                        <span className="text-right text-sm text-slate-900 sm:w-28 sm:text-base">{common(MASTERY_LABEL[masteryLevel(n.accuracy)])}</span>
                       </span>
                     )}
                     <ArrowRight className="size-4 shrink-0 text-slate-400" aria-hidden />

@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import { scoreOutOfTen } from '@/lib/study-format'
 import { cn } from '@/lib/utils'
@@ -20,166 +20,139 @@ export type ActivitySummary = {
   mock_tests: number
 }
 
-/** The last fourteen days of study as one strip: a column per day, its
- *  height the number of cards graded, a mark above it on days a mock test
- *  was sat. Accuracy is not drawn — a second measure on the same mark reads
- *  wrong — it lives in the hover readout and the line under the strip.
- *
- *  One series, so no legend for the bars; the mock-test mark is the one thing
- *  that needs naming. A skipped day is a gap, on purpose. */
+/** The last fourteen days as a calendar: one square per day, filled when the
+ *  student studied, laid out in weeks under weekday names like a printed
+ *  calendar. It replaced a bar chart whose heights, mock-test dots and
+ *  weekend bands each had to be decoded; a filled square needs no legend
+ *  beyond "studied". How much was done is said in words — in the sentence
+ *  above and in the line under the day that is selected. */
 export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary: ActivitySummary }) {
   const t = useTranslations('analytics')
   const locale = useLocale()
-  const [active, setActive] = useState<number | null>(null)
-  const tableId = useId()
-  const max = Math.max(1, ...days.map((d) => d.reviews))
-  const empty = summary.reviews === 0 && summary.mock_tests === 0
-  const activeDay = active == null ? null : days[active]
+  const lastStudied = findLastIndex(days, (d) => d.reviews > 0 || d.mock_scores.length > 0)
+  const [selected, setSelected] = useState<number>(lastStudied >= 0 ? lastStudied : days.length - 1)
+
+  const studiedDays = days.filter((d) => d.reviews > 0 || d.mock_scores.length > 0).length
+  const recalled = summary.correct ?? days.reduce((n, d) => n + d.correct, 0)
+  const weeks = asWeeks(days)
+  const weekdayNames = weekdayHeaders(locale)
+  const chosen = days[selected]
 
   return (
-    <section aria-labelledby={`${tableId}-title`}>
-      <div className="mb-1 flex items-center justify-between gap-3">
-        <h2 id={`${tableId}-title`} className="text-base font-semibold text-slate-900">
-          {t('last14')}
-        </h2>
-        <p className="flex items-center gap-1.5 text-sm text-slate-600">
-          <span aria-hidden className="inline-block size-2 rounded-full bg-mode-quizzes ring-2 ring-white" />
-          {t('mockTest')}
-        </p>
-      </div>
-      <p className="mb-5 text-sm text-slate-600">
-        {empty ? t('stripEmpty') : summaryLine(summary, t)}
+    <section aria-labelledby="study-calendar-title">
+      <h2 id="study-calendar-title" className="text-base font-semibold text-slate-900">
+        {t('last14')}
+      </h2>
+      <p className="mt-1 text-sm leading-relaxed text-slate-700">
+        {studiedDays === 0
+          ? t('stripEmpty')
+          : t('studySummary', { days: studiedDays, cards: summary.reviews, recalled })}
+        {summary.mock_tests > 0 && ` ${t('mockSummary', { count: summary.mock_tests })}`}
       </p>
 
-      {/* The plot. Each column is the hit target for its day, taller than the
-          bar it holds, so a two-card day is as easy to hover as a thirty-card
-          one. The readout is one element repositioned, not one per column. */}
-      <div className="relative">
-        {activeDay && active != null && (
-          <div
-            role="status"
-            className="pointer-events-none absolute -top-2 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm shadow-sheet"
-            style={{ left: `${((active + 0.5) / days.length) * 100}%` }}
-          >
-            <span className="font-mono font-semibold tabular-nums text-slate-900">
-              {t('cardsGraded', { count: activeDay.reviews })}
-            </span>
-            <span className="text-slate-500"> · {weekdayLong(activeDay.date, locale)}</span>
-            {activeDay.reviews > 0 && (
-              <span className="text-slate-500"> · {t('recalledOf', { correct: activeDay.correct, reviews: activeDay.reviews })}</span>
-            )}
-            {activeDay.mock_scores.map((s, i) => (
-              <span key={i} className="text-slate-500"> · {t('mockTestScore', { score: scoreOutOfTen(s, locale) })}</span>
-            ))}
-          </div>
-        )}
-
-        <div
-          className="flex h-28 items-end gap-0.5 border-b border-slate-200"
-          onMouseLeave={() => setActive(null)}
-          aria-describedby={tableId}
-        >
-          {days.map((day, i) => {
-            const studied = day.reviews > 0
-            const height = studied ? Math.max(4, Math.round((day.reviews / max) * 100)) : 0
-            return (
-              <button
-                key={day.date}
-                type="button"
-                className={cn(
-                  'group relative flex h-full min-w-0 flex-1 items-end justify-center rounded-sm',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mode-analytics',
-                  // A faint band on Saturday and Sunday: the eye finds the
-                  // week boundaries without reading a single label.
-                  isWeekend(day.date) && 'bg-slate-50',
-                )}
-                onMouseEnter={() => setActive(i)}
-                onFocus={() => setActive(i)}
-                onBlur={() => setActive(null)}
-                aria-label={dayLabel(day, t, locale)}
-              >
-                {day.mock_scores.length > 0 && (
-                  <span
-                    aria-hidden
-                    className="absolute left-1/2 size-2 -translate-x-1/2 rounded-full bg-mode-quizzes ring-2 ring-white"
-                    style={{ bottom: `calc(${height}% + 6px)` }}
-                  />
-                )}
-                <span
-                  aria-hidden
-                  className={cn(
-                    'block w-[70%] max-w-6 rounded-t bg-mode-analytics-hover transition-opacity',
-                    active != null && active !== i && 'opacity-40'
-                  )}
-                  style={{ height: `${height}%` }}
-                />
-              </button>
-            )
-          })}
+      <div className="mt-4 max-w-md">
+        <div className="grid grid-cols-7 gap-1.5" aria-hidden>
+          {weekdayNames.map((name, i) => (
+            <span key={i} className="text-center text-xs font-medium text-slate-500">{name}</span>
+          ))}
         </div>
-        {/* The axis carries dates, not weekday initials: "T5" tells you
-            nothing about which Thursday, and the strip spans two weeks. The
-            month appears on the first column and wherever it turns over. */}
-        <div className="mt-1.5 flex gap-0.5" aria-hidden>
-          {days.map((day, i) => {
-            const today = i === days.length - 1
-            const showsMonth = i === 0 || startsMonth(day.date)
-            // Every other day on a narrow screen: fourteen labels at 26px
-            // each collide, and a gap-toothed axis still reads as dates.
-            const sparse = !today && !showsMonth && (days.length - 1 - i) % 2 === 1
-            return (
-              <span
-                key={day.date}
-                className={cn(
-                  'flex-1 text-center font-mono text-[11px] tabular-nums',
-                  today ? 'font-semibold text-mode-analytics-hover' : 'text-slate-500',
-                  showsMonth && !today && 'text-slate-700',
-                  sparse && 'hidden sm:block',
-                )}
-              >
-                {today ? t('now') : showsMonth ? dayAndMonth(day.date) : dayNumber(day.date, locale)}
-              </span>
-            )
-          })}
+        <div className="mt-1.5 space-y-1.5">
+          {weeks.map((week, w) => (
+            <div key={w} className="grid grid-cols-7 gap-1.5">
+              {week.map((cell, c) => {
+                if (cell === null) return <span key={c} aria-hidden />
+                const day = days[cell]
+                const studied = day.reviews > 0 || day.mock_scores.length > 0
+                const isToday = cell === days.length - 1
+                return (
+                  <button
+                    key={day.date}
+                    type="button"
+                    onClick={() => setSelected(cell)}
+                    aria-pressed={selected === cell}
+                    aria-label={dayDetail(day, t, locale)}
+                    className={cn(
+                      'aspect-square rounded-md text-sm font-medium tabular-nums transition-[box-shadow,background-color] duration-150',
+                      'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode-analytics/40',
+                      studied
+                        ? 'bg-mode-analytics-ink text-white hover:bg-mode-analytics-hover'
+                        : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300',
+                      isToday && 'ring-2 ring-slate-900 ring-offset-1',
+                    )}
+                  >
+                    {dateNumber(day.date, cell === 0)}
+                  </button>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600" aria-hidden>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block size-3 rounded-sm bg-mode-analytics-ink" />
+            {t('legendStudied')}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block size-3 rounded-sm border border-slate-300 bg-white" />
+            {t('legendRest')}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block size-3 rounded-sm ring-2 ring-slate-900 ring-offset-1" />
+            {t('legendToday')}
+          </span>
         </div>
       </div>
 
-      {/* The same data as a table, for screen readers and for anyone the
-          columns don't serve. */}
-      <table id={tableId} className="sr-only">
-        <caption>{t('tableCaption')}</caption>
-        <thead>
-          <tr><th>{t('colDay')}</th><th>{t('colCards')}</th><th>{t('colRecalled')}</th><th>{t('colMockTests')}</th></tr>
-        </thead>
-        <tbody>
-          {days.map((day) => (
-            <tr key={day.date}>
-              <td>{weekdayLong(day.date, locale)}</td>
-              <td>{day.reviews}</td>
-              <td>{day.reviews ? `${day.correct}/${day.reviews}` : '—'}</td>
-              <td>{day.mock_scores.length ? day.mock_scores.map((s) => `${scoreOutOfTen(s, locale)}/10`).join(', ') : '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {chosen && (
+        <p className="mt-4 rounded-lg bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800" aria-live="polite">
+          {dayDetail(chosen, t, locale)}
+        </p>
+      )}
     </section>
   )
 }
 
 type T = (key: string, values?: Record<string, string | number>) => string
 
-function summaryLine(s: ActivitySummary, t: T): string {
-  const parts = [t('cardsGraded', { count: s.reviews })]
-  if (s.reviews > 0 && s.correct != null) parts.push(t('recalledOf', { correct: s.correct, reviews: s.reviews }))
-  if (s.mock_tests) parts.push(t('mockTests', { count: s.mock_tests }))
-  return parts.join(' · ')
+/** One day in plain words: what was reviewed, what stuck, any mock test. */
+function dayDetail(day: ActivityDay, t: T, locale: string): string {
+  const name = longDay(day.date, locale)
+  const parts: string[] = []
+  if (day.reviews > 0) {
+    parts.push(t('dayReviewed', { day: name, cards: day.reviews, recalled: day.correct, forgot: day.reviews - day.correct }))
+  }
+  for (const s of day.mock_scores) {
+    parts.push(t('dayMock', { score: scoreOutOfTen(s, locale) }))
+  }
+  if (parts.length === 0) return t('dayRest', { day: name })
+  // The mock-test sentence needs the day's name only when it stands alone.
+  return day.reviews > 0 ? parts.join(' ') : `${t('dayOnly', { day: name })} ${parts.join(' ')}`
 }
 
-function dayLabel(day: ActivityDay, t: T, locale: string): string {
-  const bits = [weekdayLong(day.date, locale), t('cardsGraded', { count: day.reviews })]
-  if (day.reviews > 0) bits.push(t('recalledOf', { correct: day.correct, reviews: day.reviews }))
-  if (day.mock_scores.length) bits.push(t('mockTests', { count: day.mock_scores.length }))
-  return bits.join(', ')
+/** The days laid out Monday-first in weeks, with blanks before the first day
+ *  and after the last so each column is always the same weekday. */
+function asWeeks(days: ActivityDay[]): (number | null)[][] {
+  if (days.length === 0) return []
+  const lead = (asLocalDate(days[0].date).getDay() + 6) % 7   // Monday = 0
+  const cells: (number | null)[] = [...Array(lead).fill(null), ...days.map((_, i) => i)]
+  while (cells.length % 7) cells.push(null)
+  const weeks: (number | null)[][] = []
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+  return weeks
+}
+
+/** Weekday names, Monday first, as short as the language allows while all
+ *  seven stay distinct: Vietnamese "T2 … CN", English "Mon … Sun" — the
+ *  narrowest English form ("M T W T F S S") repeats letters and reads as
+ *  noise, which is exactly what this view is meant to avoid. */
+function weekdayHeaders(locale: string): string[] {
+  const monday = new Date('2026-09-28T12:00:00')
+  const names = (style: 'narrow' | 'short') =>
+    [...Array(7)].map((_, i) => new Intl.DateTimeFormat(locale, { weekday: style })
+      .format(new Date(monday.getTime() + i * 86_400_000)))
+  const narrow = names('narrow')
+  return new Set(narrow).size === 7 ? narrow : names('short')
 }
 
 // Dates arrive as bare ISO days in the student's zone; parsing them as local
@@ -188,25 +161,18 @@ function asLocalDate(iso: string): Date {
   return new Date(`${iso}T12:00:00`)
 }
 
-function dayNumber(iso: string, locale: string): string {
-  return asLocalDate(iso).toLocaleDateString(locale, { day: 'numeric' })
-}
-
-function dayAndMonth(iso: string): string {
-  // Numeric on purpose: "14/9" reads at 11px where "14 thg 9" would not.
+/** The day of the month; the first square and any 1st also say the month. */
+function dateNumber(iso: string, first: boolean): string {
   const d = asLocalDate(iso)
-  return `${d.getDate()}/${d.getMonth() + 1}`
+  return first || d.getDate() === 1 ? `${d.getDate()}/${d.getMonth() + 1}` : String(d.getDate())
 }
 
-function startsMonth(iso: string): boolean {
-  return asLocalDate(iso).getDate() === 1
+function longDay(iso: string, locale: string): string {
+  const text = asLocalDate(iso).toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })
+  return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-function isWeekend(iso: string): boolean {
-  const day = asLocalDate(iso).getDay()
-  return day === 0 || day === 6
-}
-
-function weekdayLong(iso: string, locale: string): string {
-  return asLocalDate(iso).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' })
+function findLastIndex<T>(items: T[], test: (item: T) => boolean): number {
+  for (let i = items.length - 1; i >= 0; i--) if (test(items[i])) return i
+  return -1
 }
