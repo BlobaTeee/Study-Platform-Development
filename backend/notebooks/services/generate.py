@@ -6,7 +6,7 @@ from django.db import transaction
 from django.utils.translation import gettext as _
 from ml_pipeline.language import detect_language, language_name
 from flashcards.models import Flashcard
-from flashcards.services.card_format import ANSWER_RULES, CLOZE_RULES, checked_cloze
+from flashcards.services.card_format import ANSWER_RULES, CLOZE_RULES, checked_cloze, spread_cloze
 from quizzes.models import Quiz, Question
 from .gemini_client import (
     GeminiNotConfiguredError,
@@ -194,7 +194,7 @@ def _save_flashcards_from_json(
     # it still matters — excerpts overlap, so one run can raise a fact twice.
     fresh = dedupe.new_flashcards(items[:count], [])[:count]
 
-    created = []
+    valid = []
     for item in fresh:
         question = (item.get('question') or '').strip()
         answer = (item.get('answer') or '').strip()
@@ -210,16 +210,11 @@ def _save_flashcards_from_json(
             question = checked_cloze(question, answer)
             if question is None:
                 continue
-        card = Flashcard.objects.create(
-            kind=kind,
-            user=user,
-            question=question,
-            answer=answer,
-            explanation=explanation,
-            difficulty=difficulty,
-            is_public=False,
-        )
-        created.append(card)
+        valid.append({'kind': kind, 'question': question, 'answer': answer,
+                      'explanation': explanation, 'difficulty': difficulty})
+
+    created = [Flashcard.objects.create(user=user, is_public=False, **fields)
+               for fields in spread_cloze(valid)]
 
     # Raising rather than returning [] is what lets the caller fall back to the
     # extractive generator. It is also what protects the existing deck: the

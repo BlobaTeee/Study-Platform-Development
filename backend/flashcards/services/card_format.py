@@ -41,3 +41,26 @@ def checked_cloze(question: str, answer: str) -> str | None:
     if re.search(rf'(?<!\w){re.escape(answer)}(?!\w)', question, re.IGNORECASE):
         return None
     return question
+
+
+def spread_cloze(cards: list[dict]) -> list[dict]:
+    """The deck with its cloze cards spread through it, one second from
+    each end. Models tend to write them last, and a deck is studied from
+    one end — today's queue takes the oldest card first, the deck page
+    shows the newest first — so left alone a student met them at the end
+    of the deck or not at all. Reading the same both ways serves both."""
+    cloze = [c for c in cards if c['kind'] == 'cloze']
+    basic = [c for c in cards if c['kind'] != 'cloze']
+    n, k = len(cards), len(cloze)
+    if not cloze or not basic:
+        return cards
+    if k == 1 or n < 4:
+        slots = {min(1, n - 1) + i for i in range(k)}
+    else:
+        slots = {1 + round(i * (n - 3) / (k - 1)) for i in range(k)}
+    out, cloze_iter, basic_iter = [], iter(cloze), iter(basic)
+    for position in range(n):
+        pick = next(cloze_iter, None) if position in slots else next(basic_iter, None)
+        # A collision in the rounding, or more cloze than basic: whatever is left.
+        out.append(pick or next(cloze_iter, None) or next(basic_iter))
+    return out

@@ -124,7 +124,7 @@ export default function AnalyticsPage() {
           {forgottenLoading ? (
             <div className="mt-4 h-24 animate-pulse rounded-lg bg-slate-100 motion-reduce:animate-none" aria-busy />
           ) : forgotten.length === 0 ? (
-            <p className="py-6 text-slate-600">{t('forgottenEmpty')}</p>
+            <p className="max-w-[65ch] py-6 text-slate-600">{t('forgottenEmpty')}</p>
           ) : (
             <ul className="mt-3 divide-y divide-slate-100">
               {forgotten.map((g) => (
