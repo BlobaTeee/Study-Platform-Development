@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import re
 
+from flashcards.services.card_format import ANSWER_RULES
+
 BLANK = "______"
 _WORD = re.compile(r"\w+")
 
@@ -42,8 +44,10 @@ Write ONE different flashcard that tests the same underlying concept from
 another angle. Use different wording, and prefer a different facet of the
 concept. Do not restate the existing question.
 {grounding}
+{ANSWER_RULES}
+
 Return ONLY valid JSON:
-{{"question": "...", "answer": "...", "difficulty": "easy|medium|hard"}}
+{{"question": "...", "answer": "...", "explanation": "...", "difficulty": "easy|medium|hard"}}
 """
 
 
@@ -58,7 +62,9 @@ def _clean(payload: dict) -> dict | None:
     difficulty = str(payload.get("difficulty") or "medium").strip().lower()
     if difficulty not in ("easy", "medium", "hard"):
         difficulty = "medium"
-    return {"question": question, "answer": answer, "difficulty": difficulty}
+    explanation = str(payload.get("explanation") or "").strip()
+    return {"question": question, "answer": answer, "explanation": explanation,
+            "difficulty": difficulty}
 
 
 def reformat_fallback(question: str, answer: str) -> dict | None:

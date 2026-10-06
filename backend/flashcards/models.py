@@ -25,6 +25,8 @@ class Flashcard(models.Model):
     )
     question = models.TextField()
     answer = models.TextField()
+    # The detail behind a short answer, shown under it once the card is turned.
+    explanation = models.TextField(blank=True, default='')
     difficulty = models.CharField(max_length=20, default='medium', choices=[('easy', 'Easy'), ('medium', 'Medium'), ('hard', 'Hard')])
     is_public = models.BooleanField(default=False)
     views_count = models.IntegerField(default=0)

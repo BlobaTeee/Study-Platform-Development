@@ -118,7 +118,8 @@ def _swap_in_variants(user, ranked, pending):
             continue
         replacements[entry['id']] = {
             'id': new_card.id, 'question': new_card.question,
-            'answer': new_card.answer, 'difficulty': new_card.difficulty,
+            'answer': new_card.answer, 'explanation': new_card.explanation,
+            'difficulty': new_card.difficulty,
             'source_ids': list(new_card.sources.values_list('id', flat=True)),
             'status': entry['status'],
             'overdue_days': entry['overdue_days'], 'regenerated': True,
@@ -307,7 +308,7 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
                  .values('flashcard_id', 'next_review_date', 'review_date'))
         )
         cards = list(studiable_cards(user)
-                     .values('id', 'question', 'answer', 'difficulty', 'notebook_id',
+                     .values('id', 'question', 'answer', 'explanation', 'difficulty', 'notebook_id',
                              'needs_regeneration', 'regeneration_attempts'))
         # Sources ride along so the study page can scope the due queue to a
         # document (`?due=1&source=…`). One query for the collection.
