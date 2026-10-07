@@ -314,12 +314,11 @@ class NotebookViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def material_counts(self, request, pk=None):
-        """What this exact source selection already has: cards, and a quiz.
+        """What this exact source selection already has: cards, how many of
+        them were never studied, and a quiz.
 
-        Generating replaces this selection's deck, so the page has to be able
-        to warn that a press discards cards the learner may have been part-way
-        through. Keyed on the same combined tag that generation writes and
-        retires against, so this is exactly the number the next press replaces.
+        `unseen` is what the workspace needs to say "continue" rather than
+        "make more", and it is the number generation checks before adding.
 
         `quiz_id` is here so the workspace can offer a "study" link without
         downloading every flashcard and every quiz the user owns just to test
@@ -331,17 +330,12 @@ class NotebookViewSet(viewsets.ModelViewSet):
         raw = request.query_params.get('source_ids', '')
         source_ids = sorted({int(i) for i in raw.split(',') if i.strip().isdigit()})
         if not source_ids:
-            return Response({'flashcards': 0, 'quiz_id': None})
+            return Response({'flashcards': 0, 'unseen': 0, 'quiz_id': None})
 
         # The deck for this exact selection — every selected source and no
-        # other — because that is the set a generate press retires, and the
-        # number shown must be the number that press costs. Active cards only:
-        # an archived original is already retired.
-        deck = items_with_exact_sources(
-            Flashcard.sources.through.objects
-            .filter(flashcard__user=request.user, flashcard__archived=False)
-            .values_list('flashcard_id', 'source_id'),
-            source_ids)
+        # other — because that is the set a generate press adds to.
+        from .services.generate import deck_of, unseen_in
+        deck = deck_of(request.user, source_ids)
         quizzes = items_with_exact_sources(
             Quiz.sources.through.objects
             .filter(quiz__user=request.user, quiz__is_published=True)
@@ -349,7 +343,8 @@ class NotebookViewSet(viewsets.ModelViewSet):
             source_ids)
         quiz_id = (Quiz.objects.filter(id__in=quizzes).order_by('-created_at')
                    .values_list('id', flat=True).first())
-        return Response({'flashcards': len(deck), 'quiz_id': quiz_id})
+        return Response({'flashcards': len(deck), 'unseen': unseen_in(request.user, deck),
+                         'quiz_id': quiz_id})
 
     @action(detail=True, methods=['post'], throttle_classes=[GenerationRateThrottle])
     def generate_quiz(self, request, pk=None):

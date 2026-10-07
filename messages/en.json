@@ -194,9 +194,7 @@
     "pages": "{count, plural, one {# page} other {# pages}}",
     "slides": "{count, plural, one {# slide} other {# slides}}",
     "overview": "Overview",
-    "replacesCards": "Replaces {cards}",
     "generating": "Generating…",
-    "regenerateFlashcards": "Regenerate flashcards",
     "generateFlashcards": "Generate flashcards",
     "generateQuiz": "Generate quiz",
     "studyFlashcards": "Study flashcards",
@@ -205,9 +203,6 @@
     "moreCharacters": "… {count} more characters (generation reads the whole document)",
     "selectToGenerateFlashcards": "Select at least one ready source (checkbox) to generate flashcards.",
     "selectToGenerateQuiz": "Select at least one ready source (checkbox) to generate a quiz.",
-    "replaceTitle": "Replace {cards}?",
-    "replaceBody": "The new cards start from scratch, and your review progress on the current ones is retired.",
-    "replaceConfirm": "Replace deck",
     "generateFlashcardsFailed": "Failed to generate flashcards",
     "generateQuizFailed": "Failed to generate quiz",
     "pasteText": "Paste text",
@@ -294,7 +289,10 @@
     "exportQuestionsCsv": "Questions (CSV)",
     "noCardsForDoc": "No cards yet",
     "quizReady": "Quiz ready",
-    "noQuizForDoc": "No quiz yet"
+    "noQuizForDoc": "No quiz yet",
+    "addFlashcards": "Make more cards",
+    "cardsNotStarted": "{cards}, {count} not started",
+    "continueFlashcards": "Continue"
   },
   "flashcards": {
     "title": "Flashcards",
@@ -321,7 +319,6 @@
     "caughtUpReviewed": "Caught up. {cards} reviewed, nothing else is due.",
     "nothingDue": "Nothing due right now. Cards come back as their dates arrive.",
     "noneForSelection": "No flashcards for this selection yet.",
-    "studyAllAnyway": "Study all cards anyway",
     "backToNotebooks": "Back to notebooks",
     "backToProgress": "Back to progress",
     "goToNotebooks": "Go to Notebooks",
@@ -357,7 +354,10 @@
     "cloze_correct": "You typed “{typed}”: that's right.",
     "cloze_close": "You typed “{typed}”: nearly, check the spelling or accents.",
     "cloze_wrong": "You typed “{typed}”: not quite.",
-    "clozeNeedsBlank": "A fill-in-the-blank card needs exactly one blank, written ___."
+    "clozeNeedsBlank": "A fill-in-the-blank card needs exactly one blank, written ___.",
+    "docDone": "You're done with this document's cards for today. They'll come back on schedule. To keep going, make more cards.",
+    "docDoneReviewed": "Done. You reviewed {cards}. This document's cards will come back on schedule. To keep going, make more cards.",
+    "makeMoreCards": "Make more cards"
   },
   "quizzes": {
     "title": "Quiz",

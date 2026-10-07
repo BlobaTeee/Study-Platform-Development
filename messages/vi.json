@@ -194,9 +194,7 @@
     "pages": "{count, plural, other {# trang}}",
     "slides": "{count, plural, other {# slide}}",
     "overview": "Tổng quan",
-    "replacesCards": "Thay thế {cards}",
     "generating": "Đang tạo…",
-    "regenerateFlashcards": "Tạo lại thẻ",
     "generateFlashcards": "Tạo thẻ",
     "generateQuiz": "Tạo bài kiểm tra",
     "studyFlashcards": "Ôn thẻ",
@@ -205,9 +203,6 @@
     "moreCharacters": "… còn {count} ký tự nữa (việc tạo nội dung đọc toàn bộ tài liệu)",
     "selectToGenerateFlashcards": "Tích chọn ít nhất một tài liệu đã sẵn sàng để tạo thẻ.",
     "selectToGenerateQuiz": "Tích chọn ít nhất một tài liệu đã sẵn sàng để tạo bài kiểm tra.",
-    "replaceTitle": "Thay thế {cards}?",
-    "replaceBody": "Bộ thẻ mới bắt đầu từ đầu; tiến độ ôn trên bộ hiện tại sẽ được lưu trữ lại.",
-    "replaceConfirm": "Thay bộ thẻ",
     "generateFlashcardsFailed": "Không tạo được thẻ",
     "generateQuizFailed": "Không tạo được bài kiểm tra",
     "pasteText": "Dán văn bản",
@@ -294,7 +289,10 @@
     "exportQuestionsCsv": "Câu hỏi (CSV)",
     "noCardsForDoc": "Chưa có thẻ",
     "quizReady": "Đã có bài kiểm tra",
-    "noQuizForDoc": "Chưa có bài kiểm tra"
+    "noQuizForDoc": "Chưa có bài kiểm tra",
+    "addFlashcards": "Tạo thêm thẻ",
+    "cardsNotStarted": "{cards}, còn {count} thẻ chưa làm",
+    "continueFlashcards": "Ôn tiếp"
   },
   "flashcards": {
     "title": "Thẻ",
@@ -321,7 +319,6 @@
     "caughtUpReviewed": "Đã ôn xong. {cards} đã được chấm, không còn thẻ đến hạn.",
     "nothingDue": "Hiện không có thẻ đến hạn. Thẻ sẽ quay lại khi tới ngày.",
     "noneForSelection": "Chưa có thẻ nào cho phần đã chọn.",
-    "studyAllAnyway": "Vẫn ôn tất cả thẻ",
     "backToNotebooks": "Về sổ tay",
     "backToProgress": "Về trang tiến độ",
     "goToNotebooks": "Đến Sổ tay",
@@ -357,7 +354,10 @@
     "cloze_correct": "Bạn gõ “{typed}”: đúng rồi.",
     "cloze_close": "Bạn gõ “{typed}”: gần đúng, xem lại chính tả hoặc dấu.",
     "cloze_wrong": "Bạn gõ “{typed}”: chưa đúng.",
-    "clozeNeedsBlank": "Câu điền chỗ trống cần đúng một chỗ trống, viết là ___."
+    "clozeNeedsBlank": "Câu điền chỗ trống cần đúng một chỗ trống, viết là ___.",
+    "docDone": "Hôm nay bạn đã xong thẻ của tài liệu này. Thẻ sẽ quay lại theo lịch ôn. Muốn học thêm thì tạo thêm thẻ.",
+    "docDoneReviewed": "Xong rồi, bạn vừa ôn {cards}. Thẻ của tài liệu này sẽ quay lại theo lịch ôn. Muốn học thêm thì tạo thêm thẻ.",
+    "makeMoreCards": "Tạo thêm thẻ"
   },
   "quizzes": {
     "title": "Bài kiểm tra",

@@ -1,7 +1,7 @@
 """Regenerating a quiz replaces the previous one for the same selection.
 
-Flashcards already work this way (`_replace_deck`). Quizzes used to be
-appended, so every regeneration stacked another quiz on the same sources and
+(Flashcards no longer do: a deck grows instead, see test_add_more_cards.)
+Quizzes used to be appended, so every regeneration stacked another quiz on the same sources and
 the mock-test pool drew near-duplicate — and sometimes contradicting —
 questions from all of them."""
 import pytest

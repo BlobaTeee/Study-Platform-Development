@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import useSWR from 'swr'
-import { analyticsAPI, flashcardsAPI, type ReviewGrade } from '@/lib/api'
+import { analyticsAPI, flashcardsAPI, notebooksAPI, type ReviewGrade } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { BLANK, type ClozeVerdict, checkTyped, splitAtBlank, suggestedGrade } from '@/lib/cloze'
 import { useTranslations } from 'next-intl'
@@ -84,6 +84,13 @@ function FlashcardsStudy() {
     analyticsAPI.getRecommendations()
   )
   const heldBack: number = recsRes?.data?.due?.later ?? 0
+  // A document studied to the end offers more cards, made on its own page;
+  // the link needs the notebook it lives in.
+  const firstSourceId = sourceIds[0]
+  const { data: sourceRes } = useSWR(dueMode && firstSourceId ? ['/notebooks/sources', firstSourceId] : null, () =>
+    notebooksAPI.getSource(firstSourceId)
+  )
+  const notebookOfSource: number | null = sourceRes?.data?.notebook ?? null
 
   const allCards: Flashcard[] = data?.data?.results ?? data?.data ?? []
   const [index, setIndex] = useState(0)
@@ -258,7 +265,13 @@ function FlashcardsStudy() {
         <PageHeader title={dueMode ? t('dueToday') : relearn ? t('relearnTitle') : t('studySession')} />
         <div className="sheet mt-8 flex flex-col items-start gap-5 p-8">
         <p className="max-w-[48ch] text-lg leading-relaxed text-slate-700">
-          {dueMode
+          {dueMode && sourceParam
+            // A document's cards come round on their schedule; studying them
+            // all again now would be cramming, so the way on is more cards.
+            ? graded.size > 0
+              ? t('docDoneReviewed', { cards: common('cards', { count: graded.size }) })
+              : t('docDone')
+            : dueMode
             ? graded.size > 0
               ? t(heldBack > 0 ? 'doneForTodayReviewed' : 'caughtUpReviewed', {
                   cards: common('cards', { count: graded.size }),
@@ -278,10 +291,12 @@ function FlashcardsStudy() {
             schedule — reviewing early is a choice, not the default. */}
         {dueMode && sourceParam ? (
           <div className="flex flex-wrap gap-3">
+            {notebookOfSource && (
+              <Button asChild>
+                <Link href={`/dashboard/notebooks/${notebookOfSource}?source=${firstSourceId}`}>{t('makeMoreCards')}</Link>
+              </Button>
+            )}
             <Button asChild variant="outline">
-              <Link href={`/dashboard/flashcards?source=${sourceParam}`}>{t('studyAllAnyway')}</Link>
-            </Button>
-            <Button asChild variant="ink">
               <Link href="/dashboard/notebooks">{t('backToNotebooks')}</Link>
             </Button>
           </div>
