@@ -50,6 +50,8 @@ def is_transient_error(exc: BaseException) -> bool:
         or 'INTERNAL ERROR' in msg
         or '504' in msg
         or 'DEADLINE_EXCEEDED' in msg
+        # 499 CANCELLED: the server dropped the request on its side.
+        or '499 CANCELLED' in msg
         # A deadline of our own making: the model never answered in time.
         or 'TIMEOUT' in msg
         or 'TIMED OUT' in msg
@@ -111,8 +113,19 @@ def forget_failures() -> None:
     _unavailable_until.clear()
 
 
-def _note_failure(model: str) -> None:
-    seconds = max(0, int(getattr(settings, 'GEMINI_COOLDOWN_SECONDS', 300)))
+#: How long a model out of its day's requests is left alone. The day resets
+#: at midnight Pacific time; an hour keeps a long study session from paying
+#: a failed round trip per call without assuming exactly when that is.
+DAILY_QUOTA_COOLDOWN_SECONDS = 3600
+
+
+def _is_daily_quota(exc) -> bool:
+    return 'perday' in str(exc).lower().replace('_', '')
+
+
+def _note_failure(model: str, seconds: int | None = None) -> None:
+    if seconds is None:
+        seconds = max(0, int(getattr(settings, 'GEMINI_COOLDOWN_SECONDS', 300)))
     if seconds:
         _unavailable_until[model] = time.monotonic() + seconds
 
@@ -274,7 +287,12 @@ def generate_json(prompt: str) -> dict:
         except Exception as exc:
             if is_quota_error(exc):
                 last_quota_error = exc
-                time.sleep(1)
+                if _is_daily_quota(exc):
+                    # Spent for the day: asking first on every call would
+                    # only add a failed round trip.
+                    _note_failure(model, DAILY_QUOTA_COOLDOWN_SECONDS)
+                else:
+                    time.sleep(1)
                 continue
             if is_transient_error(exc) or is_missing_model_error(exc):
                 # Busy or retired: the next one in the list usually works, and
