@@ -340,8 +340,15 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         today = timezone.localdate()
         plan = daily.plan_for(user, cards, schedule, today, timezone.now())
+        budget = plan.budget
+        if wanted:
+            # A document is opened on purpose, usually right after making its
+            # deck: its new cards are offered whatever the day's new-card share
+            # or a backlog elsewhere says. Those limits shape the home queue,
+            # where nobody chose what comes next. Reviews keep their share.
+            budget = budget._replace(new_left=len(cards))
         ranked = scheduling.rank_due_cards(cards, schedule, today, limit=limit,
-                                           budget=plan.budget,
+                                           budget=budget,
                                            exam_days=plan.exam_days,
                                            exam_new=plan.exam_new)
 

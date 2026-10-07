@@ -155,6 +155,32 @@ def test_one_document_still_respects_the_days_allowance(client, user, notebook):
     assert len(_ids(client.get(DUE, {'source': source_ids}))) == 3
 
 
+def test_a_document_just_generated_can_be_studied_after_the_days_new_cards(client, user, notebook):
+    # The day's new cards were spent elsewhere; then the student makes a deck
+    # for this document and opens it. They chose it: all of it is offered.
+    other = Notebook.objects.create(user=user, title='History')
+    make_source(other, 'Wars')
+    for card in _cards(user, other, 2, prefix='earlier'):
+        _record(client, card)                       # today's two new cards
+    fresh = _cards(user, notebook, 5, prefix='fresh')
+    source_ids = ','.join(str(s.id) for s in notebook.sources.all())
+
+    assert set(_ids(client.get(DUE, {'source': source_ids}))) == {c.id for c in fresh}
+    # The home queue still keeps to the day's share of new cards.
+    assert not set(_ids(client.get(DUE))) & {c.id for c in fresh}
+
+
+def test_a_backlog_elsewhere_does_not_hold_back_a_documents_new_cards(client, user, notebook):
+    other = Notebook.objects.create(user=user, title='History')
+    make_source(other, 'Wars')
+    for card in _cards(user, other, 5, prefix='owed'):
+        _owe(user, card)                            # more owed than today can clear
+    fresh = _cards(user, notebook, 3, prefix='fresh')
+    source_ids = ','.join(str(s.id) for s in notebook.sources.all())
+
+    assert set(_ids(client.get(DUE, {'source': source_ids}))) == {c.id for c in fresh}
+
+
 # ---- trang tổng quan -----------------------------------------------------------------
 
 def test_the_summary_tells_todays_share_and_what_waits(client, user, notebook):
