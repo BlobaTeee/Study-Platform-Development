@@ -1,11 +1,12 @@
 """A deck is the cards generated from exactly one selection of sources.
 
-The workspace counts it and regeneration retires it; both must draw the
-same line, and neither may treat a superset as the same deck."""
+The workspace counts it and generation adds to it; both must draw the same
+line, and neither may treat a superset as the same deck. (Adding rather than
+replacing is covered in test_add_more_cards.)"""
 import pytest
 
 from flashcards.models import Flashcard
-from notebooks.services.generate import _replace_deck
+from notebooks.services.generate import _attach_deck
 from quizzes.models import Quiz
 
 pytestmark = pytest.mark.django_db
@@ -62,25 +63,13 @@ def test_another_users_notebook_is_not_found(client, other_user, notebook):
     assert res.status_code == 404
 
 
-# ---- _replace_deck -----------------------------------------------------------
+# ---- _attach_deck ------------------------------------------------------------
 
-def test_regenerating_retires_the_previous_deck_of_the_same_selection(user, notebook):
-    cells, _ = notebook.sources.order_by('id')
-    first = _cards(user, 2)
-    _replace_deck(first, user, [cells.id], notebook)
-    second = _cards(user, 2)
-
-    _replace_deck(second, user, [cells.id], notebook)
-
-    assert [Flashcard.objects.get(id=c.id).archived for c in first] == [True, True]
-    assert [Flashcard.objects.get(id=c.id).archived for c in second] == [False, False]
-
-
-def test_a_new_deck_gets_its_sources_and_notebook(user, notebook):
+def test_a_new_batch_gets_its_sources_and_notebook(user, notebook):
     cells, genetics = notebook.sources.order_by('id')
     cards = _cards(user, 2)
 
-    _replace_deck(cards, user, [cells.id, genetics.id], notebook)
+    _attach_deck(cards, [cells.id, genetics.id], notebook)
 
     for card in cards:
         card.refresh_from_db()
@@ -88,31 +77,11 @@ def test_a_new_deck_gets_its_sources_and_notebook(user, notebook):
         assert card.notebook_id == notebook.id
 
 
-def test_a_deck_of_a_different_selection_is_left_alone(user, notebook):
+def test_attaching_a_batch_never_retires_another(user, notebook):
     cells, genetics = notebook.sources.order_by('id')
-    superset = _cards(user, 1)
-    _replace_deck(superset, user, [cells.id, genetics.id], notebook)
+    first = _cards(user, 2)
+    _attach_deck(first, [cells.id], notebook)
 
-    _replace_deck(_cards(user, 1), user, [cells.id], notebook)
+    _attach_deck(_cards(user, 2), [cells.id], notebook)
 
-    assert Flashcard.objects.get(id=superset[0].id).archived is False
-
-
-def test_a_failed_retirement_leaves_no_half_written_deck(user, notebook, monkeypatch):
-    # Sources are linked and the old deck retired in one transaction: if the
-    # retire step blows up, the new cards must not be left linked (and thus
-    # counted as a live second deck).
-    cells, _ = notebook.sources.order_by('id')
-    _replace_deck(_cards(user, 1), user, [cells.id], notebook)
-    fresh = _cards(user, 1)
-
-    import notebooks.services.generate as generate
-    def boom(*args, **kwargs):
-        raise RuntimeError('retire failed')
-    monkeypatch.setattr(generate, 'items_with_exact_sources', boom)
-
-    with pytest.raises(RuntimeError):
-        _replace_deck(fresh, user, [cells.id], notebook)
-
-    assert fresh[0].sources.count() == 0
-    assert Flashcard.objects.filter(archived=False, sources=cells).count() == 1
+    assert not Flashcard.objects.filter(id__in=[c.id for c in first], archived=True).exists()

@@ -102,9 +102,9 @@ function ActionMenu({ label, icon, items, align = 'right' }: {
   )
 }
 
-/** What an exact set of documents already has: its card count and a quiz.
- *  Counted server-side on the same set a generate press replaces, so the
- *  number shown is the number that press retires. */
+/** What an exact set of documents already has: its cards, how many of them
+ *  were never studied, and a quiz. Counted server-side on the same set a
+ *  generate press adds to. */
 function useMaterialCounts(notebookId: number, ids: number[]) {
   const query = formatSourceIdsForQuery(ids)
   const { data } = useSWR(
@@ -112,9 +112,13 @@ function useMaterialCounts(notebookId: number, ids: number[]) {
     () => notebooksAPI.getMaterialCounts(notebookId, ids)
   )
   const cards: number = data?.data?.flashcards ?? 0
+  const unseen: number = data?.data?.unseen ?? 0
   const quizId: number | null = data?.data?.quiz_id ?? null
-  return { query, cards, quizId }
+  return { query, cards, unseen, quizId }
 }
+
+/** Must match MAX_CARDS_PER_SOURCE in backend/notebooks/services/deck_limits.py. */
+const MAX_UNSTARTED_CARDS = 10
 
 export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const router = useRouter()
@@ -308,23 +312,14 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
   const canDrop = !uploading
 
-  const handleGenerateFlashcards = async (ids: number[], existingCards: number) => {
+  // Generating adds to the selection's deck; the cards already there keep
+  // their schedules, so there is nothing to confirm.
+  const handleGenerateFlashcards = async (ids: number[]) => {
     if (ids.length === 0) {
       setError(t('selectToGenerateFlashcards'))
       return
     }
     const studyQuery = formatSourceIdsForQuery(ids)
-    // Generating replaces this selection's deck, so a second press throws away
-    // whatever review progress the current cards carry. Cheap to confirm, and
-    // impossible to undo from here if we don't.
-    if (existingCards > 0) {
-      const ok = await confirm({
-        title: t('replaceTitle', { cards: common('cards', { count: existingCards }) }),
-        body: t('replaceBody'),
-        confirmLabel: t('replaceConfirm'),
-      })
-      if (!ok) return
-    }
     setGenerating('flashcards')
     setError('')
     setWarning('')
@@ -332,8 +327,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       const res = await notebooksAPI.generateFlashcardsFromSources(notebookId, ids)
       mutate(['/flashcards/'])
       // The deck this selection holds just changed. Matters on the fallback
-      // branch below, which stays on this page — without it the card the
-      // button offers to replace is the one it replaced a moment ago.
+      // branch below, which stays on this page.
       mutate(['/notebooks/material_counts', notebookId, studyQuery])
       if (res.data.generated_by === 'extractive-fallback') {
         setWarning(t('fallbackNotice', { kind: t('kindFlashcards') }))
@@ -751,7 +745,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       <p className="text-sm font-medium text-slate-900">{t('selectionSummary', { count: selectedIds.length })}</p>
                       <p className="mt-0.5 text-xs text-slate-600">
                         {t('selectionHint')}
-                        {selectedCounts.cards > 0 && ` ${t('replacesCards', { cards: common('cards', { count: selectedCounts.cards }) })}.`}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -759,10 +752,10 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                         size="sm"
                         data-mode="flashcards"
                         disabled={generating !== null}
-                        onClick={() => void handleGenerateFlashcards(selectedIds, selectedCounts.cards)}
+                        onClick={() => void handleGenerateFlashcards(selectedIds)}
                       >
                         {generating === 'flashcards' ? <Loader2 className="animate-spin" aria-hidden /> : null}
-                        {selectedCounts.cards > 0 ? t('regenerateFlashcards') : t('generateFlashcards')}
+                        {selectedCounts.cards > 0 ? t('addFlashcards') : t('generateFlashcards')}
                       </Button>
                       <Button
                         size="sm"
@@ -851,21 +844,32 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                               {nav('flashcards')}
                             </p>
                             <p className="mt-0.5 text-sm text-slate-600">
-                              {activeCounts.cards > 0 ? common('cards', { count: activeCounts.cards }) : t('noCardsForDoc')}
+                              {activeCounts.cards === 0
+                                ? t('noCardsForDoc')
+                                : activeCounts.unseen > 0
+                                  ? t('cardsNotStarted', { cards: common('cards', { count: activeCounts.cards }), count: activeCounts.unseen })
+                                  : common('cards', { count: activeCounts.cards })}
                             </p>
                           </div>
                           <div className="flex shrink-0 flex-wrap gap-2">
+                            {/* A full batch not yet started gets no more (the server
+                                refuses it too); the way on is to study them. */}
+                            {activeCounts.unseen < MAX_UNSTARTED_CARDS && (
                             <Button
-                              onClick={() => void handleGenerateFlashcards(activeIds, activeCounts.cards)}
+                              onClick={() => void handleGenerateFlashcards(activeIds)}
                               disabled={activeIds.length === 0 || generating !== null}
                               variant={activeCounts.cards > 0 ? 'outline' : 'default'}
                             >
                               {generating === 'flashcards' && selectedIds.length === 0 ? <Loader2 className="animate-spin" aria-hidden /> : null}
-                              {activeCounts.cards > 0 ? t('regenerateFlashcards') : t('generateFlashcards')}
+                              {activeCounts.cards > 0 ? t('addFlashcards') : t('generateFlashcards')}
                             </Button>
+                            )}
                             {activeCounts.cards > 0 && (
                               <Button asChild>
-                                <Link href={`/dashboard/flashcards?due=1&source=${activeCounts.query}`}>{t('studyFlashcards')}</Link>
+                                <Link href={`/dashboard/flashcards?due=1&source=${activeCounts.query}`}>
+                                  {/* Part-way through the first pass: carry on where it stopped. */}
+                                  {activeCounts.unseen > 0 && activeCounts.unseen < activeCounts.cards ? t('continueFlashcards') : t('studyFlashcards')}
+                                </Link>
                               </Button>
                             )}
                           </div>

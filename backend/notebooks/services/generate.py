@@ -18,7 +18,7 @@ from .ai_provider import get_ai_provider
 from . import dedupe, fallback
 from .decks import items_with_exact_sources
 from .provenance import excerpt_of, source_of
-from .deck_limits import batch_size
+from .deck_limits import MAX_CARDS_PER_SOURCE, batch_size
 
 logger = logging.getLogger(__name__)
 
@@ -181,18 +181,16 @@ def _generate_quiz_ml(sources, user, question_count: int) -> Quiz:
 
 
 def _save_flashcards_from_json(
-    data: dict, user, source_ids: list[int], count: int
+    data: dict, user, source_ids: list[int], count: int, existing: list[str] = ()
 ) -> list[Flashcard]:
     items = data.get('flashcards') or []
     if not items:
         raise GeminiGenerationError('No flashcards were generated.')
 
-    # Deduped against the batch itself only, not against the cards already on
-    # file: those are retired by this generation (see
-    # `generate_flashcards_for_sources`), so rejecting a question for matching
-    # one of them would silently shrink the replacement deck. Within the batch
-    # it still matters — excerpts overlap, so one run can raise a fact twice.
-    fresh = dedupe.new_flashcards(items[:count], [])[:count]
+    # Deduped against the deck the batch joins, and against itself: excerpts
+    # overlap, so one run can raise a fact twice. Not sliced to `count` first:
+    # repeats are dropped, and the ones after them fill the gap.
+    fresh = dedupe.new_flashcards(items, list(existing))[:count]
 
     valid = []
     for item in fresh:
@@ -225,23 +223,14 @@ def _save_flashcards_from_json(
     return created
 
 
-def _replace_deck(cards: list[Flashcard], user, source_ids: list[int], notebook) -> None:
-    """Hand the new deck its sources and notebook, and retire the deck it replaces.
+def _attach_deck(cards: list[Flashcard], source_ids: list[int], notebook) -> None:
+    """Hand a new batch its sources and notebook.
 
-    All three writes live here rather than at each creation site because
-    there are four of them (LLM, ML-primary, local fallback, regeneration) and
-    only this one runs for every provider — the local fallback in particular
-    generates from a stand-in object that has no notebook or sources to read.
-
-    Retirement is "every other active card of exactly this selection" rather
-    than a list captured before generating, so two generations racing each
-    other still leave one deck rather than two. Archiving rather than deleting
-    keeps the reviews already recorded against those cards, which analytics
-    counts.
-
-    Atomic: a crash between the writes would leave the old deck and the new
-    one both live, or a new deck with no sources, which is the stacking and
-    the orphaning this exists to prevent.
+    Both writes live here rather than at each creation site because there are
+    four of them (LLM, ML-primary, local fallback, regeneration) and only this
+    one runs for every provider — the local fallback in particular generates
+    from a stand-in object that has no notebook or sources to read. Atomic, so
+    a crash cannot leave cards linked to their sources but not their notebook.
     """
     fresh_ids = [c.id for c in cards]
     Through = Flashcard.sources.through
@@ -254,42 +243,66 @@ def _replace_deck(cards: list[Flashcard], user, source_ids: list[int], notebook)
             Flashcard.objects.filter(id__in=fresh_ids).update(notebook=notebook)
             for card in cards:
                 card.notebook = notebook
-        previous = items_with_exact_sources(
-            Through.objects
-            .filter(flashcard__user=user, flashcard__archived=False)
-            .exclude(flashcard_id__in=fresh_ids)
-            .values_list('flashcard_id', 'source_id'),
-            source_ids)
-        Flashcard.objects.filter(id__in=previous).update(
-            archived=True, needs_regeneration=False)
+
+
+def deck_of(user, source_ids: list[int]) -> list[int]:
+    """The live cards of exactly this selection of sources."""
+    return list(items_with_exact_sources(
+        Flashcard.sources.through.objects
+        .filter(flashcard__user=user, flashcard__archived=False)
+        .values_list('flashcard_id', 'source_id'),
+        source_ids))
+
+
+def unseen_in(user, card_ids) -> int:
+    """How many of these cards the user has never studied."""
+    from study_sessions.models import CardReview
+    seen = set(CardReview.objects.filter(user=user, flashcard_id__in=card_ids)
+               .values_list('flashcard_id', flat=True))
+    return len(set(card_ids) - seen)
+
+
+class DeckNotStarted(ValueError):
+    """A full batch is still waiting to be studied."""
 
 
 def generate_flashcards_for_sources(sources, user, count: int = 10,
                                     meta: dict | None = None) -> list[Flashcard]:
-    """Generate a source selection's flashcards, replacing any it already has.
+    """Add a batch of cards to a source selection's deck.
 
-    Generating used to append, so a document pressed three times carried
-    thirty cards and the study queue filled with one subject. It now produces
-    one deck of at most `deck_limits.MAX_CARDS_PER_SOURCE`: the old deck is
-    retired
-    only once a replacement is actually in hand, so a failed generation leaves
-    the learner exactly what they had. Pass `meta` to learn which generator
-    was used.
+    The deck grows; it is never swapped. Replacing it threw away the schedule
+    of every card already learned, so a student who finished a deck and
+    wanted more had to give up their progress to get it. The new batch is
+    told what the deck already asks, and a repeat is dropped.
+
+    Generating used to append before, and a document pressed three times
+    carried thirty cards that buried the queue. What stops that now is
+    `DeckNotStarted`: while a full batch has not been started, there is no
+    more. Pass `meta` to learn which generator was used.
     """
+    from django.utils.translation import gettext as _
+
     count = batch_size(count)
     source_ids = [s.id for s in sources]
     # Every source in a request belongs to one notebook (the view filters them
     # by it), so the first one names the deck's owner.
     notebook = getattr(sources[0], 'notebook', None) if sources else None
 
-    cards = _generate_flashcards(sources, user, count, source_ids, meta)
+    deck = deck_of(user, source_ids)
+    waiting = unseen_in(user, deck)
+    if waiting >= MAX_CARDS_PER_SOURCE:
+        raise DeckNotStarted(_('%(count)s cards from this document are still waiting. '
+                               'Study them first, then make more.') % {'count': waiting})
+    existing = list(Flashcard.objects.filter(id__in=deck).values_list('question', flat=True))
+
+    cards = _generate_flashcards(sources, user, count, source_ids, meta, existing)
     if cards:
-        _replace_deck(cards, user, source_ids, notebook)
+        _attach_deck(cards, source_ids, notebook)
     return cards
 
 
 def _generate_flashcards(sources, user, count: int, source_ids: list[int],
-                         meta: dict | None) -> list[Flashcard]:
+                         meta: dict | None, existing: list[str] = ()) -> list[Flashcard]:
     """Run the provider cascade. Creates cards; does not retire anything."""
     # Validate + guard against thin sources up front, for every provider, so the
     # user gets one clear message instead of empty output or a silent fallback.
@@ -309,7 +322,17 @@ def _generate_flashcards(sources, user, count: int, source_ids: list[int],
 
     label = _titles_label(sources)
     chunks = _document_chunks(sources)
-    per_chunk = -(-count // len(chunks))  # ceil, so the excerpts cover `count`
+    # Adding to a deck, a few repeats are likely and are dropped on saving;
+    # asking for a few extra keeps the batch from coming up short.
+    wanted = count + (3 if existing else 0)
+    per_chunk = -(-wanted // len(chunks))  # ceil, so the excerpts cover `wanted`
+    # The newest questions matter most: they are the ones a repeat would echo.
+    asked = '\n'.join(f'- {q}' for q in list(existing)[-40:])
+    already = (f"""
+This document's deck already asks the questions below. Do not repeat them or ask
+the same thing in other words; write about parts of the excerpt they do not cover.
+{asked}
+""" if existing else '')
 
     def build_prompt(chunk: str, n: int) -> str:
         return f"""Create exactly {n} study flashcards from this excerpt.
@@ -319,7 +342,7 @@ Ask about concepts, definitions, mechanisms, reasons and relationships — the
 things a student must understand. Do not ask about incidental figures (page
 counts, sample sizes, dates of publication) unless the number is itself the
 point of the passage.
-
+{already}
 {ANSWER_RULES}
 
 {CLOZE_RULES}
@@ -335,8 +358,8 @@ Excerpt:
     try:
         provider = get_ai_provider()
         items = _generate_over_chunks(
-            provider, chunks, per_chunk, build_prompt, 'flashcards', count)
-        cards = _save_flashcards_from_json({'flashcards': items}, user, source_ids, count)
+            provider, chunks, per_chunk, build_prompt, 'flashcards', wanted)
+        cards = _save_flashcards_from_json({'flashcards': items}, user, source_ids, count, existing)
         _mark(meta, provider.name)
         return cards
     except GeminiNotConfiguredError as exc:
