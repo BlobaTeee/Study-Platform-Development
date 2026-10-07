@@ -20,6 +20,8 @@ from ml_pipeline.weak_concepts import cluster_questions, top_terms
 from notebooks.services.ai_provider import get_ai_provider
 from quizzes.services.concepts import LABEL_TTL, _label
 
+from notebooks.models import Notebook
+
 from .models import CardReview
 
 logger = logging.getLogger(__name__)
@@ -55,9 +57,30 @@ def forgotten_cards(user, cards) -> list:
     return list(cards.filter(id__in=ids).order_by('id'))
 
 
-def forgotten_groups(user, cards) -> list[dict]:
+def forgotten_by_notebook(user, cards) -> list[dict]:
+    """One entry per notebook, the one with most forgotten cards first:
+    {notebook_id, title, count, card_ids, groups}.
+
+    Listed flat, every notebook's groups piled into one long list, subjects
+    mixed. Grouped here they stay one short line per notebook, and a concept
+    is only ever looked for within one subject's cards."""
+    by_notebook: dict = {}
+    for card in forgotten_cards(user, cards):
+        by_notebook.setdefault(card.notebook_id, []).append(card)
+    titles = dict(Notebook.objects.filter(id__in=[i for i in by_notebook if i])
+                  .values_list('id', 'title'))
+    out = [{
+        'notebook_id': nb_id,
+        'title': titles.get(nb_id, ''),
+        'count': len(members),
+        'card_ids': [c.id for c in members],
+        'groups': _concept_groups(members),
+    } for nb_id, members in by_notebook.items()]
+    return sorted(out, key=lambda nb: (-nb['count'], nb['title']))
+
+
+def _concept_groups(cards: list) -> list[dict]:
     """Groups biggest first: {key, label, card_ids, count, sample}."""
-    cards = forgotten_cards(user, cards)
     texts = [f'{c.question} {c.answer}' for c in cards]
     plain = [c.question for c in cards]
     groups, grouped = [], set()

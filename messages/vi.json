@@ -512,11 +512,14 @@
     "dayRest": "{day}: không học.",
     "tapDayHint": "Bấm vào một ngày để xem chi tiết.",
     "forgottenTitle": "Thẻ hay quên",
-    "forgottenLead": "Những thẻ bạn trả lời sai ở lần ôn gần nhất, gộp theo ý chính. Ôn từng nhóm một sẽ dễ nhớ hơn.",
+    "forgottenLead": "Những thẻ bạn trả lời sai ở lần ôn gần nhất, chia theo sổ tay rồi gộp theo ý chính. Bấm vào một sổ tay để xem từng nhóm.",
     "forgottenEmpty": "Hiện chưa có thẻ nào bạn đang quên. Khi ôn, thẻ nào bạn chấm Khó sẽ hiện ở đây, gộp theo ý chính, kèm nút ôn lại và nút giải thích bằng lời của bạn.",
     "forgottenSample": "Ví dụ: {question}",
     "relearnGroup": "Ôn lại nhóm này",
-    "explainGroup": "Giải thích bằng lời"
+    "explainGroup": "Giải thích bằng lời",
+    "forgottenNotebookMeta": "{cards} · {groups} nhóm",
+    "relearnNotebook": "Ôn lại cả {count} thẻ",
+    "untitledNotebook": "Sổ tay chưa đặt tên"
   },
   "account": {
     "eyebrow": "Tài khoản",

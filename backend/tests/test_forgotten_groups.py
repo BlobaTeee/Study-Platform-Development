@@ -36,10 +36,15 @@ def _cards(user, notebook, pairs, *grades):
     return cards
 
 
-def _groups(client):
+def _notebooks(client):
     res = client.get(URL)
     assert res.status_code == 200, res.content
-    return res.json()['groups']
+    return res.json()['notebooks']
+
+
+def _groups(client):
+    """Every concept group, across notebooks, in the order they are listed."""
+    return [g for nb in _notebooks(client) for g in nb['groups']]
 
 
 def test_forgotten_cards_are_grouped_by_concept_biggest_first(client, user, notebook):
@@ -158,7 +163,7 @@ def test_a_replaced_card_stays_forgotten_through_its_variant(client, user, noteb
 def test_only_my_own_reviews_count(client, other_client, user, notebook):
     _cards(user, notebook, PHONES, 'hard')
 
-    assert other_client.get(URL).json()['groups'] == []
+    assert other_client.get(URL).json()['notebooks'] == []
 
 
 def test_a_failed_grouping_is_tried_again_next_time(client, user, notebook, monkeypatch):
@@ -169,3 +174,35 @@ def test_a_failed_grouping_is_tried_again_next_time(client, user, notebook, monk
     groups = _groups(client)
 
     assert [set(g['card_ids']) for g in groups] == [{c.id for c in cards}]
+
+
+# ---- by notebook ---------------------------------------------------------------
+
+def test_groups_are_listed_under_their_notebook_most_forgotten_first(client, user, notebook):
+    from notebooks.models import Notebook
+    from tests.conftest import make_source
+    other = Notebook.objects.create(user=user, title='Transport')
+    make_source(other, 'Cars')
+    phones = _cards(user, notebook, PHONES, 'hard')
+    cars = _cards(user, other, CARS, 'hard')
+
+    listed = _notebooks(client)
+
+    assert [nb['notebook_id'] for nb in listed] == [notebook.id, other.id]
+    assert listed[0]['title'] == notebook.title
+    assert listed[0]['count'] == 3
+    assert set(listed[0]['card_ids']) == {c.id for c in phones}
+    assert set(listed[1]['card_ids']) == {c.id for c in cars}
+
+
+def test_cards_of_two_notebooks_never_share_a_group(client, user, notebook, monkeypatch):
+    from notebooks.models import Notebook
+    from tests.conftest import make_source
+    other = Notebook.objects.create(user=user, title='Copy')
+    make_source(other, 'Phones again')
+    _cards(user, notebook, PHONES[:2], 'hard')
+    _cards(user, other, PHONES[2:] + [PHONES[0]], 'hard')   # same idea, other notebook
+
+    for nb in _notebooks(client):
+        ids = {i for g in nb['groups'] for i in g['card_ids']}
+        assert ids == set(nb['card_ids'])
