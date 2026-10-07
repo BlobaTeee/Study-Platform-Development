@@ -146,3 +146,37 @@ def test_without_a_provider_it_says_so_and_keeps_nothing(client, cards, monkeypa
     assert res.status_code == 503
     assert res.json()['detail']
     assert FeynmanAttempt.objects.count() == 0
+
+
+class _Failing:
+    name = 'stub'
+
+    def __init__(self, exc):
+        self.exc = exc
+
+    def generate_json(self, prompt):
+        raise self.exc
+
+    def summarize(self, text, title=''):
+        return ''
+
+
+@pytest.mark.parametrize('exc, words', [
+    # Out of free requests: say so, and that waiting fixes it.
+    ('quota', 'hết lượt'),
+    # Every model slow or busy: sending again usually works.
+    ('busy', 'quá lâu'),
+])
+def test_a_failure_says_what_happened_in_the_students_language(client, cards, monkeypatch, exc, words):
+    from notebooks.services.gemini_client import GeminiGenerationError, GeminiQuotaError
+    error = (GeminiQuotaError('Gemini API quota exceeded') if exc == 'quota'
+             else GeminiGenerationError('Every Gemini model was busy: Model timed out after 30s'))
+    monkeypatch.setattr('study_sessions.feynman.get_ai_provider', lambda: _Failing(error))
+    (deck, _source) = cards
+
+    res = client.post(URL, {'card_ids': [c.id for c in deck], 'concept': 'x', 'text': TEXT},
+                      format='json', HTTP_ACCEPT_LANGUAGE='vi')
+
+    assert res.status_code == 503
+    assert words in res.json()['detail']
+    assert 'giữ' in res.json()['detail']       # what they wrote is not lost

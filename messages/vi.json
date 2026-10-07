@@ -551,7 +551,7 @@
     "hint": "Vài câu là đủ. Viết sai cũng không sao, đó là cách tìm ra chỗ cần học lại.",
     "submit": "Gửi để nhận nhận xét",
     "reading": "Đang đọc bài của bạn…",
-    "failed": "Chưa nhận xét được. Thử lại sau một phút.",
+    "failed": "Chưa gửi được. Thử lại sau một phút, bài bạn viết vẫn được giữ.",
     "noCards": "Chưa chọn nhóm thẻ nào. Hãy mở trang Tiến độ và chọn một nhóm thẻ hay quên.",
     "youWrote": "Bạn đã viết",
     "feedback": "Nhận xét",
