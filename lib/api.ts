@@ -89,13 +89,22 @@ export type ForgottenGroup = {
   sample: string
 }
 
+/** One notebook's forgotten cards, grouped by concept within it. */
+export type ForgottenNotebook = {
+  notebook_id: number | null
+  title: string
+  count: number
+  card_ids: number[]
+  groups: ForgottenGroup[]
+}
+
 export const reviewsAPI = {
   // Reviews done and recall accuracy over the last 7 days — a real week window,
   // unlike the all-time counts on the analytics summary.
   getWeeklyStats: () => api.get('/study/card-reviews/stats/'),
   // Cards last answered wrong, grouped by concept, so they can be relearned
   // one idea at a time.
-  getForgottenGroups: () => api.get<{ groups: ForgottenGroup[] }>('/study/card-reviews/forgotten_groups/'),
+  getForgottenGroups: () => api.get<{ notebooks: ForgottenNotebook[] }>('/study/card-reviews/forgotten_groups/'),
 }
 
 export type FeynmanFeedback = {

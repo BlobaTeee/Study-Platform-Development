@@ -512,11 +512,14 @@
     "dayRest": "{day}: no study.",
     "tapDayHint": "Tap a day to see what you did.",
     "forgottenTitle": "Cards you keep forgetting",
-    "forgottenLead": "Cards you got wrong the last time you reviewed them, grouped by idea. Going through one group at a time makes them easier to remember.",
+    "forgottenLead": "Cards you got wrong the last time you reviewed them, by notebook and then by idea. Open a notebook to see its groups.",
     "forgottenEmpty": "No cards you're forgetting right now. Cards you mark Hard while reviewing will show up here, grouped by idea, with a button to review them again and one to explain the idea in your own words.",
     "forgottenSample": "For example: {question}",
     "relearnGroup": "Review this group",
-    "explainGroup": "Explain in your words"
+    "explainGroup": "Explain in your words",
+    "forgottenNotebookMeta": "{cards} · {groups, plural, one {# group} other {# groups}}",
+    "relearnNotebook": "Review all {count}",
+    "untitledNotebook": "Untitled notebook"
   },
   "account": {
     "eyebrow": "Account",

@@ -369,8 +369,8 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
     def forgotten_groups(self, request):
         """The cards whose newest grade is a miss, grouped by concept, so a
         student can relearn one idea at a time instead of a mixed pile."""
-        from .forgotten import forgotten_groups
-        return Response({'groups': forgotten_groups(request.user, studiable_cards(request.user))})
+        from .forgotten import forgotten_by_notebook
+        return Response({'notebooks': forgotten_by_notebook(request.user, studiable_cards(request.user))})
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
