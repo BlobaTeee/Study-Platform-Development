@@ -84,13 +84,20 @@ function FlashcardsStudy() {
     analyticsAPI.getRecommendations()
   )
   const heldBack: number = recsRes?.data?.due?.later ?? 0
-  // A document studied to the end offers more cards, made on its own page;
-  // the link needs the notebook it lives in.
+  // A document worked through to the end is done: the way on is a new deck,
+  // made on the document's page, so the link needs its notebook.
   const firstSourceId = sourceIds[0]
   const { data: sourceRes } = useSWR(dueMode && firstSourceId ? ['/notebooks/sources', firstSourceId] : null, () =>
     notebooksAPI.getSource(firstSourceId)
   )
   const notebookOfSource: number | null = sourceRes?.data?.notebook ?? null
+  // An empty queue is "done" only when nothing is left to do; otherwise the
+  // day's allowance ran out, or forgotten cards wait for tomorrow.
+  const { data: countsRes } = useSWR(
+    notebookOfSource && sourceIds.length ? ['/notebooks/material_counts', notebookOfSource, sourceParam] : null,
+    () => notebooksAPI.getMaterialCounts(notebookOfSource!, sourceIds)
+  )
+  const docToDo: number = countsRes?.data?.to_do ?? 0
 
   const allCards: Flashcard[] = data?.data?.results ?? data?.data ?? []
   const [index, setIndex] = useState(0)
@@ -266,11 +273,12 @@ function FlashcardsStudy() {
         <div className="sheet mt-8 flex flex-col items-start gap-5 p-8">
         <p className="max-w-[48ch] text-lg leading-relaxed text-slate-700">
           {dueMode && sourceParam
-            // A document's cards come round on their schedule; studying them
-            // all again now would be cramming, so the way on is more cards.
-            ? graded.size > 0
-              ? t('docDoneReviewed', { cards: common('cards', { count: graded.size }) })
-              : t('docDone')
+            // Remembered cards are done and do not come round again here.
+            ? docToDo > 0
+              ? t('docLater', { cards: common('cards', { count: docToDo }) })
+              : graded.size > 0
+                ? t('docDoneReviewed', { cards: common('cards', { count: graded.size }) })
+                : t('docDone')
             : dueMode
             ? graded.size > 0
               ? t(heldBack > 0 ? 'doneForTodayReviewed' : 'caughtUpReviewed', {
@@ -291,9 +299,9 @@ function FlashcardsStudy() {
             schedule — reviewing early is a choice, not the default. */}
         {dueMode && sourceParam ? (
           <div className="flex flex-wrap gap-3">
-            {notebookOfSource && (
+            {notebookOfSource && docToDo === 0 && (
               <Button asChild>
-                <Link href={`/dashboard/notebooks/${notebookOfSource}?source=${firstSourceId}`}>{t('makeMoreCards')}</Link>
+                <Link href={`/dashboard/notebooks/${notebookOfSource}?source=${firstSourceId}`}>{t('newDeck')}</Link>
               </Button>
             )}
             <Button asChild variant="outline">

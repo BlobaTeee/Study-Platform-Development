@@ -28,16 +28,30 @@ FORGOTTEN_RESULTS = {'hard', 'seed'}
 MAX_LEFTOVERS_FOR_MODEL = 40   # a prompt the model can still read whole
 
 
-def forgotten_cards(user, cards) -> list:
-    """The subset of `cards` (a Flashcard queryset) whose newest review by
-    `user` is a failure, oldest card first."""
+REMEMBERED_RESULTS = {'good', 'easy'}
+
+
+def newest_results(user, cards) -> dict[int, str]:
+    """card id -> the result of `user`'s newest review of it. Cards never
+    reviewed are absent. `cards` is a Flashcard queryset or a list of ids."""
     newest: dict[int, tuple] = {}
     rows = (CardReview.objects.filter(user=user, flashcard__in=cards)
             .latest_per_card().values_list('flashcard_id', 'review_date', 'result'))
     for card_id, when, result in rows:
         if card_id not in newest or when > newest[card_id][0]:
             newest[card_id] = (when, result)
-    ids = [i for i, (_, result) in newest.items() if result in FORGOTTEN_RESULTS]
+    return {i: result for i, (_, result) in newest.items()}
+
+
+def remembered_ids(user, cards) -> set[int]:
+    """The cards whose newest grade says the student knew them."""
+    return {i for i, r in newest_results(user, cards).items() if r in REMEMBERED_RESULTS}
+
+
+def forgotten_cards(user, cards) -> list:
+    """The subset of `cards` (a Flashcard queryset) whose newest review by
+    `user` is a failure, oldest card first."""
+    ids = [i for i, r in newest_results(user, cards).items() if r in FORGOTTEN_RESULTS]
     return list(cards.filter(id__in=ids).order_by('id'))
 
 
