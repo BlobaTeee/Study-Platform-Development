@@ -184,6 +184,12 @@ export type NotebookMemberRow = {
   accuracy: number | null
 }
 
+export type AutoUploadResult = {
+  source: { id: number; title: string }
+  notebook: { id: number; title: string }
+  created_notebook: boolean
+}
+
 export const notebooksAPI = {
   getNotebooks: () => api.get('/notebooks/notebooks/'),
   getNotebook: (id: number) => api.get(`/notebooks/notebooks/${id}/`),
@@ -234,6 +240,17 @@ export const notebooksAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+  // From the notebooks page: the server places the file in the notebook for
+  // its subject, making one if needed.
+  autoUpload: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post<AutoUploadResult>('/notebooks/notebooks/auto_upload/', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  moveSource: (sourceId: number, to: { notebook_id?: number; new_notebook_title?: string; drop_empty_notebook?: boolean }) =>
+    api.post<{ notebook: { id: number; title: string } }>(`/notebooks/sources/${sourceId}/move/`, to),
   uploadPdf: (notebookId: number, file: File, title?: string) =>
     notebooksAPI.uploadSource(notebookId, file, title),
   addTextSource: (notebookId: number, data: { text: string; title?: string }) =>

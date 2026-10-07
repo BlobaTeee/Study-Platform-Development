@@ -67,14 +67,21 @@ class NotebookSerializer(serializers.ModelSerializer):
     # How many people are in it. 1 is a private notebook; more means shared,
     # which is all a cover needs to say.
     member_count = serializers.SerializerMethodField()
+    # Whether the person asking owns it: only their own notebooks may receive
+    # a document they move or upload.
+    is_owner = serializers.SerializerMethodField()
 
     class Meta:
         model = Notebook
         fields = [
-            'id', 'title', 'description', 'source_count', 'member_count', 'sources',
+            'id', 'title', 'description', 'source_count', 'member_count', 'is_owner', 'sources',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
+
+    def get_is_owner(self, obj):
+        request = self.context.get('request')
+        return bool(request and obj.user_id == request.user.id)
 
     def get_source_count(self, obj):
         return obj.sources.count()

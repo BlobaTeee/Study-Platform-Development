@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import useSWR, { mutate } from 'swr'
 import { notebooksAPI } from '@/lib/api'
 import { useConfirm } from '@/components/confirm-dialog'
+import { useAutoUpload } from '@/components/auto-upload'
 import { useTranslations } from 'next-intl'
 import {
   AlertCircle,
@@ -25,6 +26,7 @@ type NotebookItem = {
   description?: string
   source_count?: number
   member_count?: number
+  is_owner?: boolean
   sources?: { id: number; title: string; file_type?: string }[]
   updated_at: string
 }
@@ -60,6 +62,12 @@ export default function NotebooksListPage() {
   // A failed fetch (backend down / network) must NOT look like an empty list —
   // otherwise a stopped server appears as "your notebooks vanished".
   const unreachable = !!loadError && !data
+  // Files dropped here are placed in the notebook for their subject; only the
+  // student's own notebooks can receive one.
+  const upload = useAutoUpload({
+    ownNotebooks: notebooks.filter((nb) => nb.is_owner !== false),
+    onChanged: () => mutate(['/notebooks/']),
+  })
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -116,12 +124,17 @@ export default function NotebooksListPage() {
         title={nav('notebooks')}
         lead={t('lead')}
         action={
-          <Button onClick={() => setShowCreate(!showCreate)} size="lg" aria-expanded={showCreate}>
-            <Plus aria-hidden />
-            {t('newNotebook')}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {upload.trigger}
+            <Button onClick={() => setShowCreate(!showCreate)} size="lg" aria-expanded={showCreate}>
+              <Plus aria-hidden />
+              {t('newNotebook')}
+            </Button>
+          </div>
         }
       />
+
+      {upload.results}
 
       {error && (
         <div role="alert" className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
@@ -188,6 +201,7 @@ export default function NotebooksListPage() {
         <div className="sheet flex flex-col items-start gap-4 p-8 md:p-10">
           <p className="text-lg font-semibold text-slate-900">{t('emptyTitle')}</p>
           <p className="max-w-[55ch] text-slate-600">{t('emptyBody')}</p>
+          <p className="max-w-[55ch] text-slate-600">{t('emptyUploadHint')}</p>
           <Button onClick={() => setShowCreate(true)} size="lg">
             <Plus aria-hidden />
             {t('createFirst')}

@@ -296,7 +296,18 @@
     "quizReady": "Quiz ready",
     "noQuizForDoc": "No quiz yet",
     "cardsToDo": "{cards}, {count} still to do",
-    "continueFlashcards": "Continue"
+    "continueFlashcards": "Continue",
+    "autoUpload": "Upload documents",
+    "autoUploadResults": "Just uploaded",
+    "autoUploadLead": "Each document goes to the notebook for its subject. Wrong one? Press Change.",
+    "placing": "Reading and placing…",
+    "waiting": "Waiting",
+    "newNotebookTag": "(new notebook)",
+    "change": "Change",
+    "moveTo": "Move to…",
+    "newNotebookOption": "New notebook…",
+    "moveFailed": "Could not move it. Try again.",
+    "emptyUploadHint": "Or press \"Upload documents\" above: notebooks are made for you, one per subject."
   },
   "flashcards": {
     "title": "Flashcards",
