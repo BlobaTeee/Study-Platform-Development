@@ -72,6 +72,37 @@ def _document_chunks(sources) -> list[str]:
     return select_chunks(chunks, k=k) or [_sources_text(sources)[:12000]]
 
 
+PASSAGE_SEPARATOR = '\n\n--- Next passage ---\n\n'
+
+
+def _packed(chunks: list[str]) -> list[list[str]]:
+    """The passages grouped into at most `GENERATE_CALLS` requests.
+
+    The free tier gives a model twenty requests a day, and one request per
+    passage spent three of them on every deck. One request carrying every
+    passage covers the same text for a third of the cost; it answers a few
+    seconds slower than three in parallel. Each group keeps its passages
+    apart so every item can still be traced to the one it came from.
+    """
+    calls = max(1, int(getattr(settings, 'GENERATE_CALLS', 1)))
+    size = -(-len(chunks) // calls)
+    return [chunks[i:i + size] for i in range(0, len(chunks), size)]
+
+
+def _passage_of(item: dict, passages: list[str]) -> str:
+    """The passage an item came from, when one request carried several: the
+    one most like its question and answer. Questions keep a source and a
+    passage to reread, and the quality check scores each against its own."""
+    if len(passages) == 1:
+        return passages[0]
+    text = ' '.join(str(item.get(k) or '') for k in
+                    ('question', 'answer', 'question_text', 'correct_answer', 'explanation'))
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    vec = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5), sublinear_tf=True)
+    mat = vec.fit_transform([text] + passages)
+    return passages[int((mat[0] @ mat[1:].T).toarray().ravel().argmax())]
+
+
 def _chunk_results(provider, chunks, per_chunk, build_prompt):
     """Ask the provider about every excerpt, newest answer never jumping the queue.
 
@@ -104,15 +135,16 @@ def _one_chunk(provider, chunk, per_chunk, build_prompt):
         return None, exc
 
 
-def _generate_over_chunks(provider, chunks, per_chunk, build_prompt, key, limit):
-    """Call the provider once per excerpt, aggregating deduped items.
+def _generate_over_chunks(provider, packs, per_chunk, build_prompt, key, limit):
+    """Call the provider once per group of passages, aggregating deduped items.
 
-    A failing excerpt is skipped rather than sinking the whole request; only if
-    every excerpt fails do we raise, letting the caller fall back.
+    A failing request is skipped rather than sinking the whole generation; only
+    if every one fails do we raise, letting the caller fall back.
     """
+    texts = [PASSAGE_SEPARATOR.join(pack) for pack in packs]
     items, seen, errors = [], set(), []
-    for chunk, (data, error) in zip(chunks, _chunk_results(
-            provider, chunks, per_chunk, build_prompt)):
+    for pack, (data, error) in zip(packs, _chunk_results(
+            provider, texts, per_chunk, build_prompt)):
         if error is not None:
             errors.append(error)
             continue
@@ -121,7 +153,7 @@ def _generate_over_chunks(provider, chunks, per_chunk, build_prompt, key, limit)
             if not dedup or dedup in seen:
                 continue
             seen.add(dedup)
-            item['_excerpt'] = chunk   # provenance: the passage this came from
+            item['_excerpt'] = _passage_of(item, pack)   # provenance: its passage
             items.append(item)
     # Every excerpt is asked, since per_chunk is sized so they are all needed to
     # reach the count; a model that over-delivers just has its extras trimmed.
@@ -308,7 +340,7 @@ def _generate_flashcards(sources, user, count: int, source_ids: list[int],
                 raise GeminiGenerationError(f'ML flashcard generation failed: {exc}') from exc
 
     label = _titles_label(sources)
-    chunks = _document_chunks(sources)
+    chunks = _packed(_document_chunks(sources))
     per_chunk = -(-count // len(chunks))  # ceil, so the excerpts cover `count`
 
     def build_prompt(chunk: str, n: int) -> str:
@@ -467,7 +499,7 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Qui
                 raise GeminiGenerationError(f'ML quiz generation failed: {exc}') from exc
 
     label = _titles_label(sources)
-    chunks = _document_chunks(sources)
+    chunks = _packed(_document_chunks(sources))
     # A few more than the quiz needs, so a flawed question can be left out
     # without the quiz coming up short (see the ranking before saving).
     asked = question_count + _quality_margin(question_count)

@@ -96,3 +96,35 @@ def test_every_model_in_cooldown_still_gets_one_last_try(fake):
 
     assert generate_json('x') == {'questions': ['ok']}
     assert models.calls == ['first']
+
+
+# ---- hết lượt trong ngày ---------------------------------------------------------
+
+DAILY = Exception("429 RESOURCE_EXHAUSTED. quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier'")
+PER_MINUTE = Exception("429 RESOURCE_EXHAUSTED. quotaId: 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier'")
+
+
+def test_a_model_out_of_its_days_requests_is_skipped_for_a_while(fake, monkeypatch):
+    # The free tier allows a model a few requests a day. Once they are spent,
+    # asking it first on every call only adds a failed round trip.
+    monkeypatch.setattr(gemini_client.time, 'sleep', lambda s: None)
+    models = fake({'first': DAILY})
+
+    generate_json('x')
+    generate_json('x')
+
+    assert models.calls == ['first', 'second', 'second']
+
+
+def test_a_per_minute_limit_is_tried_again_soon(fake, monkeypatch):
+    # A minute's limit clears in a minute; it must not cost the hour.
+    monkeypatch.setattr(gemini_client.time, 'sleep', lambda s: None)
+    now = [1000.0]
+    monkeypatch.setattr(gemini_client.time, 'monotonic', lambda: now[0])
+    models = fake({'first': PER_MINUTE})
+
+    generate_json('x')
+    now[0] += 61
+    generate_json('x')
+
+    assert models.calls == ['first', 'second', 'first', 'second']

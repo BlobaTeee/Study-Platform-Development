@@ -74,3 +74,13 @@ def test_a_bad_request_fails_at_once_without_burning_the_other_models(fake):
     with pytest.raises(GeminiGenerationError):
         generate_json('x')
     assert models.calls == ['first']
+
+
+def test_a_request_the_server_cancelled_hands_over(fake):
+    # Google answers 499 CANCELLED when it drops a request on its side; the
+    # next model usually answers.
+    models = fake({'first': Exception("499 CANCELLED. {'error': {'code': 499, 'status': 'CANCELLED'}}"),
+                   'second': '{"ok": true}'})
+
+    assert generate_json('x') == {'ok': True}
+    assert models.calls == ['first', 'second']

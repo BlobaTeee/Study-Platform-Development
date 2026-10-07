@@ -110,6 +110,24 @@ GEMINI_MODEL_FALLBACKS = config(
 # single biggest latency win; the cap exists because firing all of them at once
 # is the quickest way to collect a rate-limit error.
 GENERATE_CONCURRENCY = config('GENERATE_CONCURRENCY', default=3, cast=int)
+# Requests one deck or quiz may use. The free tier gives a model 20 requests
+# a day, so the passages go in one request by default; raise it where quota
+# is plentiful and parallel answers (a few seconds faster) are worth more.
+GENERATE_CALLS = config('GENERATE_CALLS', default=1, cast=int)
+
+# Concept names and forgotten-card groupings are kept for a day so a reload
+# costs no AI request. In memory they were lost every time the dev server
+# reloaded, which is every code change; a file survives that. Tests keep an
+# in-memory cache, since they clear it between tests and must not clear the
+# running server's.
+import sys as _sys
+if 'pytest' in _sys.modules:
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+else:
+    CACHES = {'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': config('CACHE_DIR', default=str(BASE_DIR / '.cache' / 'django')),
+    }}
 
 # Một ngày học có giới hạn. Nghỉ hai tuần là có hàng trăm thẻ đến hạn, và hiện
 # nguyên con số đó là lúc người học bỏ cuộc. Phần không vừa trong ngày vẫn đến

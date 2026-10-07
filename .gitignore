@@ -43,3 +43,6 @@ datasets/raw/AI Flashcards/*.csv
 
 # Compiled gettext catalogues (manage.py compilemessages)
 *.mo
+
+# Django file cache (concept names, forgotten-card groups)
+backend/.cache/
