@@ -194,7 +194,9 @@
     "pages": "{count, plural, other {# trang}}",
     "slides": "{count, plural, other {# slide}}",
     "overview": "Tổng quan",
+    "replacesCards": "Thay thế {cards}",
     "generating": "Đang tạo…",
+    "regenerateFlashcards": "Tạo lại thẻ",
     "generateFlashcards": "Tạo thẻ",
     "generateQuiz": "Tạo bài kiểm tra",
     "studyFlashcards": "Ôn thẻ",
@@ -203,6 +205,9 @@
     "moreCharacters": "… còn {count} ký tự nữa (việc tạo nội dung đọc toàn bộ tài liệu)",
     "selectToGenerateFlashcards": "Tích chọn ít nhất một tài liệu đã sẵn sàng để tạo thẻ.",
     "selectToGenerateQuiz": "Tích chọn ít nhất một tài liệu đã sẵn sàng để tạo bài kiểm tra.",
+    "replaceTitle": "Thay thế {cards}?",
+    "replaceBody": "Bộ thẻ mới bắt đầu từ đầu; tiến độ ôn trên bộ hiện tại sẽ được lưu trữ lại.",
+    "replaceConfirm": "Thay bộ thẻ",
     "generateFlashcardsFailed": "Không tạo được thẻ",
     "generateQuizFailed": "Không tạo được bài kiểm tra",
     "pasteText": "Dán văn bản",
@@ -290,8 +295,7 @@
     "noCardsForDoc": "Chưa có thẻ",
     "quizReady": "Đã có bài kiểm tra",
     "noQuizForDoc": "Chưa có bài kiểm tra",
-    "addFlashcards": "Tạo thêm thẻ",
-    "cardsNotStarted": "{cards}, còn {count} thẻ chưa làm",
+    "cardsToDo": "{cards}, còn {count} thẻ chưa làm",
     "continueFlashcards": "Ôn tiếp"
   },
   "flashcards": {
@@ -355,9 +359,10 @@
     "cloze_close": "Bạn gõ “{typed}”: gần đúng, xem lại chính tả hoặc dấu.",
     "cloze_wrong": "Bạn gõ “{typed}”: chưa đúng.",
     "clozeNeedsBlank": "Câu điền chỗ trống cần đúng một chỗ trống, viết là ___.",
-    "docDone": "Hôm nay bạn đã xong thẻ của tài liệu này. Thẻ sẽ quay lại theo lịch ôn. Muốn học thêm thì tạo thêm thẻ.",
-    "docDoneReviewed": "Xong rồi, bạn vừa ôn {cards}. Thẻ của tài liệu này sẽ quay lại theo lịch ôn. Muốn học thêm thì tạo thêm thẻ.",
-    "makeMoreCards": "Tạo thêm thẻ"
+    "docDone": "Bạn đã làm hết thẻ của tài liệu này. Thẻ bạn quên sẽ quay lại để ôn. Muốn học tiếp thì tạo bộ thẻ mới.",
+    "docDoneReviewed": "Xong rồi, bạn vừa ôn {cards}. Thẻ bạn quên sẽ quay lại để ôn. Muốn học tiếp thì tạo bộ thẻ mới.",
+    "newDeck": "Tạo bộ thẻ mới",
+    "docLater": "Hôm nay bạn đã học đủ. Tài liệu này còn {cards} chưa xong, ngày mai học tiếp nhé."
   },
   "quizzes": {
     "title": "Bài kiểm tra",

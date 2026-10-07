@@ -321,7 +321,3 @@ msgstr "Hãy viết vài câu trước, như đang giảng cho một người kh
 
 msgid "Those cards are not yours to study."
 msgstr "Bạn không có quyền học những thẻ này."
-
-#, python-format
-msgid "%(count)s cards from this document are still waiting. Study them first, then make more."
-msgstr "Tài liệu này còn %(count)s thẻ bạn chưa làm. Hãy ôn hết rồi tạo thêm."

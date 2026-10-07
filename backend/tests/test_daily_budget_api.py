@@ -35,9 +35,9 @@ def _cards(user, notebook, n, prefix='Q'):
     return out
 
 
-def _owe(user, card, days_overdue=1):
+def _owe(user, card, days_overdue=1, result='good'):
     """Mark a card as reviewed long ago and due `days_overdue` days back."""
-    review = CardReview.objects.create(user=user, flashcard=card, result='good')
+    review = CardReview.objects.create(user=user, flashcard=card, result=result)
     when = timezone.now() - timedelta(days=days_overdue + 5)
     CardReview.objects.filter(pk=review.pk).update(
         review_date=when,
@@ -134,9 +134,11 @@ def test_studying_one_document_draws_from_that_document(client, user, notebook):
     elsewhere = _cards(user, other, 5, prefix='elsewhere')
     for card in elsewhere:
         _owe(user, card, days_overdue=30)          # older debt, would win globally
+    # Answered wrong: a remembered card is done when studying a document
+    # (test_resume_document), a forgotten one comes back.
     here = _cards(user, notebook, 2, prefix='here')
     for card in here:
-        _owe(user, card, days_overdue=1)
+        _owe(user, card, days_overdue=1, result='hard')
     source_ids = ','.join(str(s.id) for s in notebook.sources.all())
 
     ids = _ids(client.get(DUE, {'source': source_ids}))
@@ -147,7 +149,7 @@ def test_studying_one_document_draws_from_that_document(client, user, notebook):
 def test_one_document_still_respects_the_days_allowance(client, user, notebook):
     here = _cards(user, notebook, 6)
     for card in here:
-        _owe(user, card)
+        _owe(user, card, result='hard')
     source_ids = ','.join(str(s.id) for s in notebook.sources.all())
 
     assert len(_ids(client.get(DUE, {'source': source_ids}))) == 3

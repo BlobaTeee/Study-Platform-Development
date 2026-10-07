@@ -330,13 +330,13 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
         wanted = _source_ids_param(request.query_params.get('source'))
         if wanted:
             cards = [c for c in cards if wanted <= set(c['source_ids'])]
-            # A document finishes its first pass before anything comes round
-            # again: ten cards, five done, the next visit is the other five
-            # rather than all ten. The schedule takes over once every card has
-            # been met; a card forgotten meanwhile waits on the progress page.
-            unseen = [c for c in cards if c['id'] not in schedule]
-            if unseen:
-                cards = unseen
+            # Studying a document is working through its deck: a card already
+            # remembered is done and is not offered again, so ten cards with
+            # four remembered leave six. A card answered wrong is not done; it
+            # comes back on its schedule. New cards come from generating.
+            from .forgotten import remembered_ids
+            done = remembered_ids(user, [c['id'] for c in cards])
+            cards = [c for c in cards if c['id'] not in done]
 
         today = timezone.localdate()
         plan = daily.plan_for(user, cards, schedule, today, timezone.now())
