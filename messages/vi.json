@@ -296,7 +296,18 @@
     "quizReady": "Đã có bài kiểm tra",
     "noQuizForDoc": "Chưa có bài kiểm tra",
     "cardsToDo": "{cards}, còn {count} thẻ chưa làm",
-    "continueFlashcards": "Ôn tiếp"
+    "continueFlashcards": "Ôn tiếp",
+    "autoUpload": "Tải tài liệu lên",
+    "autoUploadResults": "Tài liệu vừa tải lên",
+    "autoUploadLead": "Mỗi tài liệu được xếp vào sổ tay đúng môn. Xếp sai thì bấm Đổi.",
+    "placing": "Đang đọc và xếp vào sổ tay…",
+    "waiting": "Đang chờ",
+    "newNotebookTag": "(sổ tay mới)",
+    "change": "Đổi",
+    "moveTo": "Chuyển sang…",
+    "newNotebookOption": "Sổ tay mới…",
+    "moveFailed": "Không chuyển được. Thử lại.",
+    "emptyUploadHint": "Hoặc bấm \"Tải tài liệu lên\" ở trên: app tự tạo sổ tay theo môn của tài liệu."
   },
   "flashcards": {
     "title": "Thẻ",

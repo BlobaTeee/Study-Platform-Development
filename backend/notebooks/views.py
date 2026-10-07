@@ -25,6 +25,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Prefetch
 
 from .models import Notebook, NotebookMember, Source
@@ -154,6 +155,38 @@ class NotebookViewSet(viewsets.ModelViewSet):
         finish_text_source(source)
         notebook.save(update_fields=['updated_at'])
         return Response(SourceSerializer(source, context={'request': request}).data, status=201)
+
+    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
+    def auto_upload(self, request):
+        """Upload a file from the notebooks page; it is placed in the notebook
+        for its subject, which is made if the student has none (auto_place)."""
+        from .services.auto_place import NothingToRead, place_upload
+
+        uploaded = request.FILES.get('file')
+        if not uploaded:
+            return Response({'detail': _('No file provided.')}, status=400)
+        file_type = file_type_from_filename(uploaded.name)
+        if not file_type:
+            return Response(
+                {'detail': _('Unsupported file type. Supported: %(formats)s.') % {'formats': SUPPORTED_FORMATS}},
+                status=400,
+            )
+        max_bytes = getattr(settings, 'MAX_PDF_UPLOAD_MB', 10) * 1024 * 1024
+        if uploaded.size > max_bytes:
+            return Response(
+                {'detail': _('File too large. Max size is %(mb)s MB.') % {'mb': settings.MAX_PDF_UPLOAD_MB}},
+                status=400,
+            )
+        try:
+            source, notebook, created = place_upload(
+                request.user, uploaded, file_type, getattr(request, 'LANGUAGE_CODE', 'en') or 'en')
+        except NothingToRead:
+            return Response({'detail': _('No text could be extracted from this file.')}, status=400)
+        return Response({
+            'source': SourceSerializer(source, context={'request': request}).data,
+            'notebook': {'id': notebook.id, 'title': notebook.title},
+            'created_notebook': created,
+        }, status=201)
 
     @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser])
     def upload_pdf(self, request, pk=None):
@@ -585,6 +618,45 @@ class SourceViewSet(
         if instance.file:
             instance.file.delete(save=False)
         instance.delete()
+
+    @action(detail=True, methods=['post'])
+    def move(self, request, pk=None):
+        """Move a document to another of the student's own notebooks, or to a
+        new one ({notebook_id} or {new_notebook_title}). Cards made from this
+        document alone go with it.
+
+        `drop_empty_notebook` removes the notebook it leaves if that is now
+        empty: the page sends it only for a notebook made for this very file
+        a moment ago, so a notebook the student made is never deleted here.
+        """
+        from flashcards.models import Flashcard
+        from .services.auto_place import _notebook_named
+
+        source = self.get_object()
+        old = source.notebook
+        if old.user_id != request.user.id:
+            return Response({'detail': _('Only the notebook owner can move its documents.')}, status=403)
+        new_title = str(request.data.get('new_notebook_title') or '').strip()
+        if new_title:
+            target, _created = _notebook_named(request.user, new_title)
+        else:
+            target = Notebook.objects.filter(id=request.data.get('notebook_id'), user=request.user).first()
+            if target is None:
+                return Response({'detail': _('Choose one of your own notebooks.')}, status=400)
+        if target.id == old.id:
+            return Response({'notebook': {'id': target.id, 'title': target.title}})
+
+        with transaction.atomic():
+            source.notebook = target
+            source.save(update_fields=['notebook'])
+            only_this = [c.id for c in Flashcard.objects.filter(notebook=old, sources=source)
+                         if set(c.sources.values_list('id', flat=True)) == {source.id}]
+            Flashcard.objects.filter(id__in=only_this).update(notebook=target)
+            if (request.data.get('drop_empty_notebook') and not old.sources.exists()
+                    and not Flashcard.objects.filter(notebook=old).exists()
+                    and old.members.exclude(user=request.user).count() == 0):
+                old.delete()
+        return Response({'notebook': {'id': target.id, 'title': target.title}})
 
     @action(detail=True, methods=['post'], throttle_classes=[GenerationRateThrottle])
     def generate_flashcards(self, request, pk=None):
