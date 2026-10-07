@@ -303,3 +303,21 @@ msgstr "Hiện không xoá được tài khoản. Hãy thử lại sau một ph�
 
 #~ msgid "Could not fetch that link."
 #~ msgstr "Không tải được liên kết đó."
+
+msgid "Feedback needs the AI provider, which is not available right now."
+msgstr "Phần nhận xét cần AI, hiện AI đang không khả dụng."
+
+msgid "The AI has used up its free requests for now. Wait a few minutes and send again; what you wrote is kept."
+msgstr "AI đã dùng hết lượt miễn phí trong lúc này. Đợi vài phút rồi gửi lại, bài bạn viết vẫn được giữ."
+
+msgid "The AI took too long to answer. Send again; what you wrote is kept."
+msgstr "AI trả lời quá lâu. Hãy gửi lại, bài bạn viết vẫn được giữ."
+
+msgid "Feedback could not be written just now. Try again in a minute; what you wrote is kept."
+msgstr "Chưa viết được nhận xét lúc này. Thử lại sau một phút, bài bạn viết vẫn được giữ."
+
+msgid "Write a few sentences first, as if teaching someone."
+msgstr "Hãy viết vài câu trước, như đang giảng cho một người khác."
+
+msgid "Those cards are not yours to study."
+msgstr "Bạn không có quyền học những thẻ này."

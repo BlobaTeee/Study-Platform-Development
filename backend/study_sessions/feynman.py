@@ -13,7 +13,7 @@ from django.utils.translation import gettext as _
 
 from ml_pipeline.language import detect_language, language_name
 from notebooks.services.ai_provider import get_ai_provider
-from notebooks.services.gemini_client import GeminiNotConfiguredError
+from notebooks.services.gemini_client import GeminiNotConfiguredError, GeminiQuotaError, is_quota_error
 
 from .models import FeynmanAttempt
 
@@ -111,11 +111,23 @@ Return ONLY valid JSON:
         raise ExplainUnavailable(_('Feedback needs the AI provider, which is not available right now.')) from exc
     except Exception as exc:  # noqa: BLE001
         logger.warning('Feynman feedback failed: %s', exc)
-        raise ExplainUnavailable(_('Feedback could not be written just now. Try again in a minute.')) from exc
+        raise ExplainUnavailable(_failure_message(exc)) from exc
 
     return FeynmanAttempt.objects.create(
         user=user, card_key=card_key(c.id for c in cards), concept=concept,
         text=text, feedback=clean(data, passages))
+
+
+def _failure_message(exc) -> str:
+    """Why there is no feedback, in terms the student can act on. Every
+    message says the explanation is kept, since losing a paragraph they
+    just wrote is the worst part of an error here."""
+    if isinstance(exc, GeminiQuotaError) or is_quota_error(exc):
+        return _("The AI has used up its free requests for now. Wait a few minutes and send "
+                 "again; what you wrote is kept.")
+    if 'busy' in str(exc).lower() or 'timed out' in str(exc).lower():
+        return _("The AI took too long to answer. Send again; what you wrote is kept.")
+    return _("Feedback could not be written just now. Try again in a minute; what you wrote is kept.")
 
 
 def clean(data, passages: list[dict]) -> dict:

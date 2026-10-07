@@ -551,7 +551,7 @@
     "hint": "A few sentences is enough. Getting it wrong is fine; that is how you find what to relearn.",
     "submit": "Get feedback",
     "reading": "Reading what you wrote…",
-    "failed": "Feedback could not be written. Try again in a minute.",
+    "failed": "Could not send. Try again in a minute; what you wrote is kept.",
     "noCards": "No group of cards chosen. Open Progress and pick a group of cards you keep forgetting.",
     "youWrote": "What you wrote",
     "feedback": "Feedback",
