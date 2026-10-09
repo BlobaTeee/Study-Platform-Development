@@ -23,6 +23,7 @@ from ..models import Notebook, Source
 from .ai_provider import get_ai_provider
 from .document_extract import extract_text_from_document, title_from_filename
 from .textnorm import clean_summary, normalise_text
+from .writing_style import WRITING_STYLE
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,9 @@ def _subject_and_summary(text: str, title: str, ui_language: str) -> tuple[str, 
 1. Name the school subject or course it belongs to, as a notebook title: 2 to 5 words, in
    {language_name(ui_language)}, general enough that other lectures of the same course fit under it
    (for example "Organic chemistry", not the title of this one lecture). No quotes, no trailing period.
-2. Write a clear 3–5 sentence overview of its main topics, in {doc_language}.
+2. Write a clear overview of its main topics in 3 to 5 sentences, in {doc_language}.
+
+{WRITING_STYLE}
 
 Document text:
 {text[:30000]}

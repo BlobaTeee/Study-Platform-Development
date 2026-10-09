@@ -11,6 +11,7 @@ from django.utils.translation import gettext as _
 
 from ml_pipeline.language import detect_language, language_name
 from notebooks.services.ai_provider import get_ai_provider
+from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
 from notebooks.services.gemini_client import GeminiNotConfiguredError
 
 logger = logging.getLogger(__name__)
@@ -34,9 +35,8 @@ def explain_miss(row) -> str:
                  'No passage is available for this question; explain from the question and '
                  'answers alone, and do not claim what a text says.')
     prompt = f"""A student answered a quiz question wrong. In 2 or 3 sentences, in {language_name(lang)},
-explain what the correct answer is and why the student's choice does not fit — plainly, as a
-patient tutor would, using only what the passage says. Do not repeat the question; do not
-add a greeting.
+explain what the correct answer is and why the student's choice does not fit, using only what
+the passage says. Do not repeat the question.
 
 Question: {row.question_text}
 Options:
@@ -45,6 +45,8 @@ Correct answer: {row.correct_answer}
 Student answered: {row.user_answer or "(left blank)"}
 
 {grounding}
+
+{WRITING_STYLE}
 
 Return ONLY valid JSON: {{"explanation": "..."}}"""
 
@@ -56,7 +58,7 @@ Return ONLY valid JSON: {{"explanation": "..."}}"""
         logger.warning('Explain failed: %s', exc)
         raise ExplainUnavailable(_('Could not write an explanation. Try again in a minute.')) from exc
 
-    text = str(data.get('explanation') or '').strip()
+    text = tidy_prose(str(data.get('explanation') or ''))
     if not text:
         raise ExplainUnavailable(_('Could not write an explanation. Try again in a minute.'))
     row.ai_explanation = text[:2000]

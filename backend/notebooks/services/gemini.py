@@ -3,6 +3,9 @@ from django.conf import settings
 from ml_pipeline.language import detect_language, language_name
 
 
+from .writing_style import WRITING_STYLE
+
+
 def summarize_with_gemini(text: str, title: str = '') -> str:
     """
     Generate a short NotebookLM-style overview using Gemini.
@@ -14,8 +17,10 @@ def summarize_with_gemini(text: str, title: str = '') -> str:
     snippet = text[:30000]
     prompt = (
         f'You are a study assistant. The document is titled "{title or "Untitled"}".\n'
-        'Write a clear 3–5 sentence overview of the main topics and key takeaways.\n'
+        'Write a clear overview of 3 to 5 sentences: what the document covers and what a student\n'
+        'should take from it.\n'
         f'Write in {language_name(detect_language(text))}, the language of the document.\n'
+        f'{WRITING_STYLE}\n'
         'Return plain text only (no JSON, no markdown headings).\n\n'
         f'Document text:\n{snippet}'
     )

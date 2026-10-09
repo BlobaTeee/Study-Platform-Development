@@ -110,7 +110,7 @@ def test_fallback_never_reproduces_an_already_reformatted_card():
     # reformatting this again would reproduce the identical question verbatim
     # if the dedupe guard didn't cover the fallback path too (Finding 1).
     answer = "Conversion of light into chemical energy"
-    question = f"{answer} — which term does this describe? ({vg.BLANK})"
+    question = f"{answer}. Which term does this describe? ({vg.BLANK})"
     provider = FakeProvider(RuntimeError("down"), RuntimeError("down"))
 
     result = vg.generate_variant(question, answer, provider=provider)
@@ -126,7 +126,7 @@ def test_reformat_fallback_does_not_pick_the_blank_as_the_answer():
     # \w matches '_', so naively taking the last regex word from a question
     # that already ends in the "(______)" blank picks the blank itself.
     result = vg.reformat_fallback(
-        "Conversion of light into chemical energy — which term does this "
+        "Conversion of light into chemical energy. Which term does this "
         f"describe? ({vg.BLANK})",
         "Photosynthesis produces the sugars a plant needs",
     )

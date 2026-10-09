@@ -33,6 +33,7 @@ def clean_summary(text: str | None) -> str:
     A preamble with nothing after it is returned unchanged rather than
     blanked: an empty overview would hide that something went wrong.
     """
+    from .writing_style import tidy_prose
     text = text or ""
     stripped = _PREAMBLE.sub("", text, count=1)
-    return stripped if stripped.strip() else text
+    return tidy_prose(stripped if stripped.strip() else text)

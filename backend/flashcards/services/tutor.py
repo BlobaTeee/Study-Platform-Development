@@ -12,6 +12,7 @@ from django.utils.translation import gettext as _
 from ml_pipeline.language import detect_language, language_name
 from notebooks.services.ai_provider import get_ai_provider
 from notebooks.services.gemini_client import GeminiNotConfiguredError
+from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ def ask(card, question: str, history: list[dict]) -> str:
         for t in history if str(t.get('text') or '').strip())
     prompt = f"""You are a patient tutor. A student is reviewing a flashcard, has seen the answer, and
 still has a question. Answer in {language_name(lang)}, in at most 4 sentences, using ONLY the
-passage below. If the passage does not cover the question, say so in one sentence — do not
+passage below. If the passage does not cover the question, say so in one sentence; do not
 invent facts or cite anything the passage does not say. No greeting, no "great question".
 
 Flashcard front: {card.question}
@@ -68,6 +69,8 @@ Flashcard back: {card.answer}
 {grounding}
 
 {('Earlier in this conversation:' + chr(10) + turns + chr(10)) if turns else ''}Student asks: {question}
+
+{WRITING_STYLE}
 
 Return ONLY valid JSON: {{"answer": "..."}}"""
 
@@ -78,7 +81,7 @@ Return ONLY valid JSON: {{"answer": "..."}}"""
     except Exception as exc:  # noqa: BLE001
         logger.warning('Tutor failed: %s', exc)
         raise TutorUnavailable(_('The tutor could not answer just now. Try again in a minute.')) from exc
-    answer = str(data.get('answer') or '').strip()
+    answer = tidy_prose(str(data.get('answer') or ''))
     if not answer:
         raise TutorUnavailable(_('The tutor could not answer just now. Try again in a minute.'))
     return answer[:1500]

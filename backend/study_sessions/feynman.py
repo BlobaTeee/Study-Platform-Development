@@ -14,6 +14,7 @@ from django.utils.translation import gettext as _
 from ml_pipeline.language import detect_language, language_name
 from notebooks.services.ai_provider import get_ai_provider
 from notebooks.services.gemini_client import GeminiNotConfiguredError, GeminiQuotaError, is_quota_error
+from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
 
 from .models import FeynmanAttempt
 
@@ -97,10 +98,12 @@ Flashcards on this concept:
 {flashcards}
 
 Passages:
-{numbered or '(none available — judge from the flashcards alone)'}
+{numbered or '(none available; judge from the flashcards alone)'}
 
 Student's explanation:
 {text}
+
+{WRITING_STYLE}
 
 Return ONLY valid JSON:
 {{"correct": ["..."], "missing": ["..."], "wrong": [{{"claim": "...", "correction": "..."}}], "level": "solid|most|reread", "reread": [1]}}"""
@@ -135,7 +138,7 @@ def clean(data, passages: list[dict]) -> dict:
     data = data if isinstance(data, dict) else {}
     correct = _points(data.get('correct'))
     missing = _points(data.get('missing'))
-    wrong = [{'claim': str(w['claim']).strip()[:300], 'correction': str(w['correction']).strip()[:300]}
+    wrong = [{'claim': tidy_prose(str(w['claim']))[:300], 'correction': tidy_prose(str(w['correction']))[:300]}
              for w in (data.get('wrong') if isinstance(data.get('wrong'), list) else [])
              if isinstance(w, dict) and str(w.get('claim') or '').strip()
              and str(w.get('correction') or '').strip()][:MAX_POINTS]
@@ -152,7 +155,7 @@ def clean(data, passages: list[dict]) -> dict:
 def _points(value) -> list[str]:
     if not isinstance(value, list):
         return []
-    return [str(v).strip()[:300] for v in value if isinstance(v, str) and v.strip()][:MAX_POINTS]
+    return [tidy_prose(v)[:300] for v in value if isinstance(v, str) and v.strip()][:MAX_POINTS]
 
 
 def payload(attempt: FeynmanAttempt) -> dict:
