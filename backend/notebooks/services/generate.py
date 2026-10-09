@@ -7,6 +7,7 @@ from django.utils.translation import gettext as _
 from ml_pipeline.language import detect_language, language_name
 from flashcards.models import Flashcard
 from flashcards.services.card_format import ANSWER_RULES, CLOZE_RULES, checked_cloze, spread_cloze
+from .writing_style import WRITING_STYLE, tidy_prose
 from quizzes.models import Quiz, Question
 from .gemini_client import (
     GeminiNotConfiguredError,
@@ -230,7 +231,7 @@ def _save_flashcards_from_json(
     for item in fresh:
         question = (item.get('question') or '').strip()
         answer = (item.get('answer') or '').strip()
-        explanation = str(item.get('explanation') or '').strip()
+        explanation = tidy_prose(str(item.get('explanation') or ''))
         difficulty = (item.get('difficulty') or 'medium').lower()
         if difficulty not in ('easy', 'medium', 'hard'):
             difficulty = 'medium'
@@ -347,7 +348,7 @@ def _generate_flashcards(sources, user, count: int, source_ids: list[int],
         return f"""Create exactly {n} study flashcards from this excerpt.
 Write in {language_name(lang)}, the language of the excerpt.
 Each flashcard must be answerable from the excerpt alone.
-Ask about concepts, definitions, mechanisms, reasons and relationships — the
+Ask about concepts, definitions, mechanisms, reasons and relationships: the
 things a student must understand. Do not ask about incidental figures (page
 counts, sample sizes, dates of publication) unless the number is itself the
 point of the passage.
@@ -355,6 +356,8 @@ point of the passage.
 {ANSWER_RULES}
 
 {CLOZE_RULES}
+
+{WRITING_STYLE}
 
 Return ONLY valid JSON:
 {{"flashcards": [{{"kind": "basic|cloze", "question": "...", "answer": "...", "explanation": "...", "difficulty": "easy|medium|hard"}}]}}
@@ -438,10 +441,12 @@ Write in {language_name(lang)}, the language of the excerpt.
 For each question give: the question, the single correct answer, and exactly 3
 plausible but incorrect answers (distractors) on the same topic. Do NOT put the
 correct answer in the distractors, and make the distractors distinct.
-Each distractor must be clearly wrong according to the excerpt — never a
+Each distractor must be clearly wrong according to the excerpt, never a
 synonym, a near-synonym, or a partial restatement of the correct answer.
 Write answers and distractors as plain text: no "A)", "B." or similar prefixes.
 Each question must be answerable from the excerpt alone.
+
+{WRITING_STYLE}
 
 Return ONLY valid JSON in exactly this shape:
 {{"questions": [{{"question_text": "...", "correct_answer": "...", "distractors": ["...", "...", "..."], "explanation": "..."}}]}}
@@ -578,7 +583,7 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Qui
             question_type=shaped['question_type'],
             options=shaped['options'],
             correct_answer=shaped['correct_answer'],
-            explanation=shaped['explanation'],
+            explanation=tidy_prose(shaped['explanation']) or None,
             order=order,
             source_id=source_of(passage, source_texts),
             source_excerpt=excerpt_of(passage),

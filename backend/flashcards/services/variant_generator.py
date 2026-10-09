@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 
 from flashcards.services.card_format import ANSWER_RULES
+from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
 
 BLANK = "______"
 _WORD = re.compile(r"\w+")
@@ -46,6 +47,8 @@ concept. Do not restate the existing question.
 {grounding}
 {ANSWER_RULES}
 
+{WRITING_STYLE}
+
 Return ONLY valid JSON:
 {{"question": "...", "answer": "...", "explanation": "...", "difficulty": "easy|medium|hard"}}
 """
@@ -62,7 +65,7 @@ def _clean(payload: dict) -> dict | None:
     difficulty = str(payload.get("difficulty") or "medium").strip().lower()
     if difficulty not in ("easy", "medium", "hard"):
         difficulty = "medium"
-    explanation = str(payload.get("explanation") or "").strip()
+    explanation = tidy_prose(str(payload.get("explanation") or ""))
     return {"question": question, "answer": answer, "explanation": explanation,
             "difficulty": difficulty}
 
@@ -85,7 +88,7 @@ def reformat_fallback(question: str, answer: str) -> dict | None:
     if not term:
         return None
     return {
-        "question": f"{answer.rstrip('.')} — which term does this describe? ({BLANK})",
+        "question": f"{answer.rstrip('.')}. Which term does this describe? ({BLANK})",
         "answer": term.capitalize(),
         "difficulty": "medium",
     }
