@@ -76,7 +76,35 @@ def _document_chunks(sources) -> list[str]:
 PASSAGE_SEPARATOR = '\n\n--- Next passage ---\n\n'
 
 
-def _packed(chunks: list[str]) -> list[list[str]]:
+def _passages_for_round(sources, round_no: int) -> tuple[list[str], bool]:
+    """The passages a top-up round reads, and whether any are new.
+
+    Round 0 reads the document's most informative passages, as an ordinary
+    quiz does; each later round reads the most informative of those no round
+    has read yet, so the pool grows with new material instead of new wording
+    of the same three paragraphs. Once every passage has been read, the round
+    goes back to the best ones and says so (`fresh` is False), and the prompt
+    then asks about the same facts from another angle.
+    """
+    from ml_pipeline.services.chunking import chunk_text, select_chunks
+    k = getattr(settings, 'RAG_CHUNKS', 3)
+    remaining = []
+    for source in sources:
+        remaining.extend(chunk_text(source.extracted_text[:18000]))
+    if len(remaining) <= k:
+        # A short document is read whole by any quiz; there is nothing new
+        # to read, only new angles on what is there.
+        return _document_chunks(sources), False
+    for _ in range(round_no):
+        used = set(select_chunks(remaining, k))
+        remaining = [c for c in remaining if c not in used]
+    picked = select_chunks(remaining, k)
+    if picked:
+        return picked, True
+    return _document_chunks(sources), False
+
+
+def _packed(chunks: list[str], items: int = 0) -> list[list[str]]:
     """The passages grouped into at most `GENERATE_CALLS` requests.
 
     The free tier gives a model twenty requests a day, and one request per
@@ -86,6 +114,10 @@ def _packed(chunks: list[str]) -> list[list[str]]:
     apart so every item can still be traced to the one it came from.
     """
     calls = max(1, int(getattr(settings, 'GENERATE_CALLS', 1)))
+    # Enough requests that none asks for more items than a model writes in
+    # time; never more requests than there are passages to split.
+    per_request = max(1, int(getattr(settings, 'GENERATE_PER_REQUEST', 12)))
+    calls = min(len(chunks), max(calls, -(-items // per_request))) or 1
     size = -(-len(chunks) // calls)
     return [chunks[i:i + size] for i in range(0, len(chunks), size)]
 
@@ -341,7 +373,7 @@ def _generate_flashcards(sources, user, count: int, source_ids: list[int],
                 raise GeminiGenerationError(f'ML flashcard generation failed: {exc}') from exc
 
     label = _titles_label(sources)
-    chunks = _packed(_document_chunks(sources))
+    chunks = _packed(_document_chunks(sources), count)
     per_chunk = -(-count // len(chunks))  # ceil, so the excerpts cover `count`
 
     def build_prompt(chunk: str, n: int) -> str:
@@ -429,13 +461,48 @@ def generate_quiz_for_sources(sources, user, question_count: int = 8,
     return quiz
 
 
-def quiz_prompt(chunk: str, n: int, lang: str, label: str) -> str:
+def generate_more_questions(sources, user, count: int, existing: list[str],
+                            round_no: int, max_count: int = 15) -> Quiz:
+    """Add questions to a notebook's pool for a mock test that needs more.
+
+    Unlike `generate_quiz_for_sources` this retires nothing: a paper being
+    filled must grow, and replacing the previous round's quiz would undo it.
+    That was the bug behind 15-question papers asked for 30 or 50.
+    """
+    passages, fresh = _passages_for_round(sources, round_no)
+    # "Thin" only when there is something to avoid repeating: an empty
+    # notebook's first round on a short note is just an ordinary quiz.
+    return _generate_quiz(sources, user, count, None, existing=existing,
+                          passages=passages, thin=bool(existing) and not fresh,
+                          max_count=max_count)
+
+
+def quiz_prompt(chunk: str, n: int, lang: str, label: str,
+                existing: list[str] = (), thin: bool = False) -> str:
     """The question-generation prompt, at module level so it can be measured.
 
     `ml_pipeline/notebooks/06_question_quality.ipynb` scores what this prompt
     produces; importing it there keeps the scorecard about the real app rather
     than about a copy that drifts.
+
+    `existing` and `thin` are for topping up a mock test: the questions the
+    notebook already has, and whether this excerpt's facts are mostly asked.
     """
+    already = ''
+    if existing:
+        listed = '\n'.join(f'- {q}' for q in list(existing)[-40:])
+        already = f"""
+These questions already exist for this document. Do not repeat them or ask the same thing in
+other words:
+{listed}
+"""
+    if thin:
+        already += """
+Most facts in this excerpt are already asked about. Ask about the same facts
+from a different angle: an example or an application, a cause or an effect, a comparison
+between two ideas, or which statement is NOT true. Each question must still be answerable
+from the excerpt alone.
+"""
     return f"""Create exactly {n} multiple-choice questions from this excerpt.
 Write in {language_name(lang)}, the language of the excerpt.
 For each question give: the question, the single correct answer, and exactly 3
@@ -445,7 +512,7 @@ Each distractor must be clearly wrong according to the excerpt, never a
 synonym, a near-synonym, or a partial restatement of the correct answer.
 Write answers and distractors as plain text: no "A)", "B." or similar prefixes.
 Each question must be answerable from the excerpt alone.
-
+{already}
 {WRITING_STYLE}
 
 Return ONLY valid JSON in exactly this shape:
@@ -482,9 +549,11 @@ def _best_first(items: list[dict]) -> list[dict]:
     return ranked
 
 
-def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Quiz:
+def _generate_quiz(sources, user, question_count: int, meta: dict | None,
+                   existing: list[str] = (), passages: list[str] | None = None,
+                   thin: bool = False, max_count: int = 15) -> Quiz:
     """Run the provider cascade. Creates the quiz; does not retire anything."""
-    question_count = max(4, min(question_count, 15))
+    question_count = max(4, min(question_count, max_count))
     source_ids = [s.id for s in sources]
 
     # Validate + guard against thin sources up front, for every provider, so the
@@ -504,19 +573,25 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None) -> Qui
                 raise GeminiGenerationError(f'ML quiz generation failed: {exc}') from exc
 
     label = _titles_label(sources)
-    chunks = _packed(_document_chunks(sources))
     # A few more than the quiz needs, so a flawed question can be left out
     # without the quiz coming up short (see the ranking before saving).
     asked = question_count + _quality_margin(question_count)
+    chunks = _packed(passages or _document_chunks(sources), asked)
     per_chunk = -(-asked // len(chunks))  # ceil, so excerpts cover the count
 
     def build_prompt(chunk: str, n: int) -> str:
-        return quiz_prompt(chunk, n, lang, label)
+        return quiz_prompt(chunk, n, lang, label, existing, thin)
 
     try:
         provider = get_ai_provider()
         questions_data = _generate_over_chunks(
             provider, chunks, per_chunk, build_prompt, 'questions', asked)
+        if existing:
+            # A question the notebook already asks would only be a duplicate
+            # in the pool; the margin above leaves room to drop it.
+            asked_before = {dedupe.normalize_question(q) for q in existing}
+            questions_data = [q for q in questions_data
+                              if dedupe.normalize_question(q.get('question_text') or '') not in asked_before]
         questions_data = _best_first(questions_data)
         _mark(meta, provider.name)
     except GeminiNotConfiguredError as exc:

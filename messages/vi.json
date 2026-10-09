@@ -458,7 +458,7 @@
     "cancel": "Hủy",
     "questionOf": "Câu {n} / {total} · đã trả lời {answered}",
     "timeRemaining": "Thời gian còn lại",
-    "shortPaper": "Sổ tay này chỉ cung cấp được {questions}, kể cả sau khi tạo thêm, nên đề ngắn hơn yêu cầu.",
+    "shortPaper": "AI chưa tạo kịp đủ câu hỏi lúc này nên đề chỉ có {questions}. Thử lại sau vài phút để có đề đủ số câu bạn chọn.",
     "questionLabel": "Câu {n}",
     "answered": "đã trả lời",
     "notAnswered": "chưa trả lời",

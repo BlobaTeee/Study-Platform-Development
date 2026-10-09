@@ -22,7 +22,7 @@ from .services.paper import (
     sample_paper, source_accuracy, source_weights, clamp_int, _answer_matches,
     MIN_QUESTIONS, MAX_QUESTIONS, MIN_DURATION_MINUTES, MAX_DURATION_MINUTES,
 )
-from .services.topup import questions_to_request, should_continue
+from .services.topup import TOPUP_PER_ROUND, questions_to_request, should_continue
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +205,7 @@ def _top_up_pool(user, notebook, source_ids, pool, requested):
     import logging
     import time
 
-    from notebooks.services.generate import generate_quiz_for_sources
+    from notebooks.services.generate import generate_more_questions
 
     logger = logging.getLogger(__name__)
 
@@ -224,13 +224,18 @@ def _top_up_pool(user, notebook, source_ids, pool, requested):
 
     while should_continue(len(pool), previous_size, requested, rounds,
                           time.monotonic() - started):
-        want = questions_to_request(len(pool), requested)
+        want = questions_to_request(len(pool), requested, per_round_max=TOPUP_PER_ROUND)
         if want <= 0:
             break
         previous_size = len(pool)
         rounds += 1
+        # Told what the pool already asks, and reading passages earlier rounds
+        # did not: each round adds to the pool rather than rewording it.
+        asked = list(Question.objects.filter(id__in=[q['id'] for q in pool])
+                     .values_list('question_text', flat=True))
         try:
-            generate_quiz_for_sources(sources, user, question_count=want)
+            generate_more_questions(sources, user, want, asked, round_no=rounds - 1,
+                                    max_count=TOPUP_PER_ROUND)
         except Exception as exc:  # noqa: BLE001
             # Includes the provider being down, a quota refusal, and documents
             # too thin to generate from. All of them mean "no more questions

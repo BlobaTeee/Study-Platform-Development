@@ -458,7 +458,7 @@
     "cancel": "Cancel",
     "questionOf": "Question {n} of {total} · {answered} answered",
     "timeRemaining": "Time remaining",
-    "shortPaper": "This notebook could only supply {questions}, even after generating more, so the paper is shorter than requested.",
+    "shortPaper": "The AI could not write enough questions just now, so this paper has {questions}. Try again in a few minutes for a full paper.",
     "questionLabel": "Question {n}",
     "answered": "answered",
     "notAnswered": "not answered",
