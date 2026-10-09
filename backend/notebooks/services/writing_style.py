@@ -48,22 +48,45 @@ _CLOSERS = re.compile(
 
 # The model writing about its own input instead of the subject. Removed at the
 # start of a sentence; the sentence keeps its claim.
-_SOURCE = r'(?:the |this )?(?:text|excerpt|passage|document|source|material|article|reading)'
+_SOURCE = (r'(?:the |this )?(?:(?:first|second|third|last|opening|final|next) '
+           r'(?:sentence|line|paragraph|part|section) of (?:the |this )?)?'
+           r'(?:(?:provided|given|above|following|tutorial|lecture|attached|source) )?'
+           r'(?:text|excerpt|passage|document|source|material|article|reading)')
+_ADVERB = r'(?:\w+ly )?'
+# Verbs that take a clause: dropping "The excerpt explicitly states" leaves
+# a sentence. Verbs that take an object only go when "that" follows.
+_CLAUSE_VERBS = (r'(?:states|explains|says|notes|indicates|suggests|argues|claims|specifies|clarifies|'
+                 r'confirms|emphasi[sz]es|highlights|stresses|points out|reports|concludes)')
+_OBJECT_VERBS = (r'(?:mentions|describes|shows|lists|identifies|outlines|names|defines|presents|'
+                 r'gives|includes|discusses|covers|refers to|links|cites|connects|compares|contrasts|'
+                 r'introduces|provides|offers|uses|frames|ties|associates|attributes|recommends)')
+_SENTENCE_START = r'(?:(?<=^)|(?<=[.!?]\s))\s*'
 _ABOUT_SOURCE = re.compile(
-    r'(?:(?<=^)|(?<=[.!?]\s))\s*(?:'
-    # Reporting verbs take a clause, so the rest still reads as a sentence;
-    # "lists", "mentions", "describes", "shows" take an object and only go
-    # when "that" follows.
-    rf'{_SOURCE} (?:states|explains|says|notes|indicates|suggests|argues|claims)(?: that)?\s+'
-    rf'|{_SOURCE} (?:mentions|describes|shows|lists) that\s+'
+    _SENTENCE_START + r'(?:'
+    rf'{_SOURCE} {_ADVERB}{_CLAUSE_VERBS}(?: that)?,?\s+'
+    rf'|{_SOURCE} {_ADVERB}{_OBJECT_VERBS} that\s+'
     rf'|according to {_SOURCE},?\s+'
-    rf'|as {_SOURCE} (?:explains|states|says|notes|describes),?\s+'
+    rf'|as {_SOURCE} {_ADVERB}(?:explains|states|says|notes|describes),?\s+'
     r'|theo (?:đoạn trích|đoạn văn|văn bản|tài liệu|bài),?\s+'
     r'|(?:đoạn trích|đoạn văn|văn bản|tài liệu) (?:cho biết|nói|nêu|giải thích|chỉ ra)(?: rằng)?\s+'
     r')', re.I)
+# "The excerpt states, 'Mobile phones are a lifeline.'": the quote is the claim.
+_QUOTED = re.compile(
+    _SENTENCE_START + rf'{_SOURCE} {_ADVERB}(?:states|says|notes|explains|writes|reads)[,:]\s*'
+    # The closing quote is the one the sentence ends on; an apostrophe inside
+    # the quote ("a device's value") is not it.
+    r'[\'"“‘](?P<quote>.+?)[.!?]?[\'"”’]\s*[.!?]?(?=\s*$|\s+[A-Z])', re.I)
+# "The excerpt lists X as Y" keeps its verb; the document's name takes the
+# subject's place, since without a subject the sentence would be a fragment.
+# "...are not mentioned in the text": inside a sentence, the name replaces it.
+_IN_SOURCE = re.compile(r'\b(in|from|by) (?:the |this )(?:excerpt|text|passage)\b', re.I)
+# Any verb, not a list of them ("prioritizes", "frames"): the list never ends.
+_OBJECT_SUBJECT = re.compile(_SENTENCE_START + rf'{_SOURCE} {_ADVERB}(?=[a-z]+s\b)', re.I)
 # The same inside a question: "...based on the excerpt?", "mentioned in the text as".
 _QUESTION_SOURCE = re.compile(
     rf',?\s+(?:based on|according to|in|from) {_SOURCE}(?=\s*[?.,]|$)'
+    # "a key finding of the article regarding X": the noun stands without it.
+    rf'|\s+of {_SOURCE}(?=\s+(?:regarding|about|on|concerning)\b)'
     rf'|\b(?:mentioned|described|listed|stated|named) in {_SOURCE}(?: as)?\s+'
     r'|\s+(?:trong|theo) (?:đoạn trích|đoạn văn|văn bản|tài liệu)(?=\s*[?.,]|$)', re.I)
 
@@ -83,10 +106,12 @@ def tidy_question(text: str | None) -> str:
     return tidy_prose(_capitalise_sentences(body)) or text
 
 
-def tidy_prose(text: str | None) -> str:
-    """`text` without dash-as-connector or a chatbot wrapper. Code spans and
-    URLs are left as written. A text that is nothing but a wrapper is kept:
-    blanking it would hide that the model sent nothing useful."""
+def tidy_prose(text: str | None, source_title: str = '') -> str:
+    """`text` without dash-as-connector, a chatbot wrapper, or talk about
+    "the excerpt". Code spans and URLs are left as written. A text that is
+    nothing but a wrapper is kept: blanking it would hide that the model sent
+    nothing useful. `source_title` names the document a sentence like "The
+    text lists X" is about, so it can say "CityHelp lists X" instead."""
     text = (text or '').strip()
     if not text:
         return ''
@@ -103,7 +128,13 @@ def tidy_prose(text: str | None) -> str:
     body = re.sub(r'\x00(\d+)\x00', lambda m: kept[int(m.group(1))], body)
 
     stripped = _CLOSERS.sub('', _OPENERS.sub('', body, count=1), count=1).strip()
-    stripped = _capitalise_sentences(_ABOUT_SOURCE.sub('', stripped)).strip()
+    stripped = _QUOTED.sub(lambda m: m.group('quote').strip() + '. ', stripped).strip()
+    stripped = _ABOUT_SOURCE.sub('', stripped)
+    if source_title:
+        stripped = _IN_SOURCE.sub(lambda m: f'{m.group(1)} {source_title.strip()}', stripped)
+        stripped = _OBJECT_SUBJECT.sub(lambda m: m.group(0)[:len(m.group(0)) - len(m.group(0).lstrip())]
+                                       + source_title.strip() + ' ', stripped)
+    stripped = _capitalise_sentences(stripped).strip()
     return stripped if stripped else body.strip()
 
 
@@ -115,10 +146,34 @@ class CleanGeneratedText:
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        title = _title_of(instance) if self.prose_fields else ''
         for field in self.question_fields:
             if data.get(field):
                 data[field] = tidy_question(data[field])
         for field in self.prose_fields:
             if data.get(field):
-                data[field] = tidy_prose(data[field])
+                data[field] = tidy_prose(data[field], source_title=title)
         return data
+
+
+#: Stands in for a document whose name is not known (an older question, or
+#: one whose document was deleted): what a teacher would say.
+UNNAMED_SOURCE = 'The reading'
+
+
+def _title_of(instance) -> str:
+    """The document a question or card came from, by name, or "The reading"."""
+    # A mock-test row keeps its own copy of the source, and a link back to
+    # the question it was drawn from, which may know more.
+    question = getattr(instance, 'question', None)
+    for item in (instance, question):
+        source = getattr(item, 'source', None)
+        if source is not None:
+            return source.title
+    for holder in (instance, getattr(instance, 'quiz', None), getattr(question, 'quiz', None)):
+        sources = getattr(holder, 'sources', None)
+        if sources is not None:
+            named = [s.title for s in sources.all()[:2]]
+            if len(named) == 1:
+                return named[0]
+    return UNNAMED_SOURCE
