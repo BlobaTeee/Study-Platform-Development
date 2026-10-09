@@ -114,6 +114,10 @@ GENERATE_CONCURRENCY = config('GENERATE_CONCURRENCY', default=3, cast=int)
 # a day, so the passages go in one request by default; raise it where quota
 # is plentiful and parallel answers (a few seconds faster) are worth more.
 GENERATE_CALLS = config('GENERATE_CALLS', default=1, cast=int)
+# The most items one request asks for. A request for 32 quiz questions timed
+# out on every model (412s, then an error); about a dozen answers well inside
+# the deadline. A bigger batch is split into parallel requests of this size.
+GENERATE_PER_REQUEST = config('GENERATE_PER_REQUEST', default=12, cast=int)
 
 # Concept names and forgotten-card groupings are kept for a day so a reload
 # costs no AI request. In memory they were lost every time the dev server

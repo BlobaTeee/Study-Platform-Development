@@ -19,6 +19,11 @@ from __future__ import annotations
 #: caller that did not know would loop forever waiting for the rest.
 QUIZ_MAX_PER_GENERATION = 15
 
+#: A top-up round may ask for more than a quiz press does: it is one request
+#: either way, and a 50-question paper on an empty notebook then fills in two
+#: rounds instead of four.
+TOPUP_PER_ROUND = 25
+
 #: The generator also has a floor: ask for fewer than this and you still get
 #: this many. Harmless — the extras join the pool for later tests — but it is
 #: why a "top up by 1" round is not free.
@@ -38,7 +43,7 @@ MAX_TOPUP_ROUNDS = 3
 #: provider's own ceiling — RAG_CHUNKS x OLLAMA_TIMEOUT, which defaults to
 #: 3 x 120s. Nothing here can shorten that; what it prevents is a slow first
 #: round compounding into three. Lower OLLAMA_TIMEOUT to bound the first.
-TOPUP_TIME_BUDGET_SECONDS = 60
+TOPUP_TIME_BUDGET_SECONDS = 90
 
 
 def questions_to_request(pool_size: int, requested: int,
