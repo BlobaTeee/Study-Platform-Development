@@ -14,7 +14,7 @@ from django.utils.translation import gettext as _
 
 from ml_pipeline.language import detect_language, language_name
 from notebooks.services.ai_provider import get_ai_provider
-from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
+from notebooks.services.writing_style import WRITING_STYLE, tidy_prose, tidy_question
 from notebooks.services.gemini_client import GeminiNotConfiguredError
 from notebooks.services.provenance import excerpt_of
 from notebooks.services.quiz_shaping import shape_quiz_question
@@ -169,7 +169,7 @@ Return ONLY valid JSON in exactly this shape:
     first_sid = used_sources[0] if used_sources else None
     for i, s in enumerate(shaped[:PRACTICE_COUNT]):
         Question.objects.create(
-            quiz=quiz, order=i, question_text=s['question_text'], question_type=s['question_type'],
+            quiz=quiz, order=i, question_text=tidy_question(s['question_text']), question_type=s['question_type'],
             options=s['options'], correct_answer=s['correct_answer'], explanation=tidy_prose(s['explanation']) or None,
             source_id=first_sid, source_excerpt=excerpt_of(joined[0]),
         )
