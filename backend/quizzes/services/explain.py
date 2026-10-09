@@ -58,7 +58,8 @@ Return ONLY valid JSON: {{"explanation": "..."}}"""
         logger.warning('Explain failed: %s', exc)
         raise ExplainUnavailable(_('Could not write an explanation. Try again in a minute.')) from exc
 
-    text = tidy_prose(str(data.get('explanation') or ''))
+    text = tidy_prose(str(data.get('explanation') or ''),
+                      source_title=row.source.title if row.source_id else '')
     if not text:
         raise ExplainUnavailable(_('Could not write an explanation. Try again in a minute.'))
     row.ai_explanation = text[:2000]

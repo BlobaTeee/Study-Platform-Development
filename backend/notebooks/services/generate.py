@@ -248,6 +248,9 @@ def _generate_quiz_ml(sources, user, question_count: int) -> Quiz:
 def _save_flashcards_from_json(
     data: dict, user, source_ids: list[int], count: int
 ) -> list[Flashcard]:
+    from notebooks.models import Source
+    titles = list(Source.objects.filter(id__in=source_ids).values_list('title', flat=True))
+    title = titles[0] if len(titles) == 1 else ''
     items = data.get('flashcards') or []
     if not items:
         raise GeminiGenerationError('No flashcards were generated.')
@@ -263,7 +266,7 @@ def _save_flashcards_from_json(
     for item in fresh:
         question = tidy_question(item.get('question'))
         answer = (item.get('answer') or '').strip()
-        explanation = tidy_prose(str(item.get('explanation') or ''))
+        explanation = tidy_prose(str(item.get('explanation') or ''), source_title=title)
         difficulty = (item.get('difficulty') or 'medium').lower()
         if difficulty not in ('easy', 'medium', 'hard'):
             difficulty = 'medium'
@@ -643,6 +646,7 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None,
     from .quiz_shaping import shape_quiz_question
     rng = random.Random(42)
     source_texts = [(s.id, s.extracted_text) for s in sources]
+    titles = {s.id: s.title for s in sources}
 
     order = 0
     for q in questions_data:
@@ -656,15 +660,16 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None,
         # source containing it is where. A chunk cut across two documents
         # keeps its passage but names no source.
         passage = _without_document_headers(q.get('_excerpt') or '')
+        source_id = source_of(passage, source_texts)
         Question.objects.create(
             quiz=quiz,
             question_text=tidy_question(shaped['question_text']),
             question_type=shaped['question_type'],
             options=shaped['options'],
             correct_answer=shaped['correct_answer'],
-            explanation=tidy_prose(shaped['explanation']) or None,
+            explanation=tidy_prose(shaped['explanation'], source_title=titles.get(source_id, label)) or None,
             order=order,
-            source_id=source_of(passage, source_texts),
+            source_id=source_id,
             source_excerpt=excerpt_of(passage),
         )
         order += 1

@@ -53,6 +53,84 @@ def test_talk_about_the_excerpt_is_removed(raw, expected):
     assert tidy_prose(raw) == expected
 
 
+@pytest.mark.parametrize('raw, expected', [
+    # Shapes measured in the stored mock-test explanations.
+    ('The excerpt explicitly mentions that mobile phones sustain relationships.',
+     'Mobile phones sustain relationships.'),
+    ('The text explicitly states the tone is calm.', 'The tone is calm.'),
+    ('The text specifies that filters cover day and distance.', 'Filters cover day and distance.'),
+    ('The excerpt highlights that tone is a design variable.', 'Tone is a design variable.'),
+    ("The excerpt states, 'mobile phones are a lifeline.'", 'Mobile phones are a lifeline.'),
+    ('The document states: “Interaction design shapes behaviour.”', 'Interaction design shapes behaviour.'),
+    ('The first sentence of the excerpt states the app is calm.', 'The app is calm.'),
+])
+def test_more_ways_of_talking_about_the_excerpt_are_removed(raw, expected):
+    assert tidy_prose(raw) == expected
+
+
+@pytest.mark.parametrize('raw, expected', [
+    # A verb that takes an object cannot lose its subject; the document's own
+    # name stands in, which is what the sentence is about.
+    ('The text explicitly lists depleted batteries as a risk.', 'CityHelp lists depleted batteries as a risk.'),
+    ('The excerpt identifies day filters as a feature.', 'CityHelp identifies day filters as a feature.'),
+    ('The excerpt mentions the free meal locator.', 'CityHelp mentions the free meal locator.'),
+])
+def test_an_object_verb_keeps_the_sentence_with_the_documents_name(raw, expected):
+    assert tidy_prose(raw, source_title='CityHelp') == expected
+
+
+@pytest.mark.parametrize('raw, expected', [
+    ('The excerpt explicitly links self-driving cars to accountability.', 'The reading links self-driving cars to accountability.'),
+    ('The excerpt explicitly cites the IxDA definition of a conceptual model.', 'The reading cites the IxDA definition of a conceptual model.'),
+])
+def test_with_no_document_name_the_reading_stands_in(raw, expected):
+    assert tidy_prose(raw, source_title='The reading') == expected
+
+
+def test_an_apostrophe_inside_a_quote_does_not_end_it():
+    raw = "The excerpt states, 'A device\u2019s value cannot be assessed in isolation.'"
+    assert tidy_prose(raw) == 'A device\u2019s value cannot be assessed in isolation.'
+
+
+def test_any_verb_after_the_excerpt_takes_the_documents_name():
+    raw = "The excerpt prioritizes features that let users take direct action."
+    assert tidy_prose(raw, source_title='CityHelp') == 'CityHelp prioritizes features that let users take direct action.'
+
+
+def test_the_excerpt_inside_a_sentence_becomes_the_documents_name():
+    raw = 'Mobile phones are a lifeline. The other options are not mentioned in the text.'
+    assert tidy_prose(raw, source_title='CityHelp') == \
+        'Mobile phones are a lifeline. The other options are not mentioned in CityHelp.'
+
+
+def test_a_question_without_its_own_source_is_named_by_its_quiz(user, notebook):
+    from notebooks.services.writing_style import _title_of
+    from quizzes.models import Quiz
+    source = notebook.sources.first()
+    quiz = Quiz.objects.create(user=user, title='q', is_published=True)
+    quiz.sources.set([source])
+    q = Question.objects.create(quiz=quiz, question_text='Q?', question_type='multiple_choice',
+                                options=['a', 'b'], correct_answer='a', order=0)
+    assert _title_of(q) == source.title
+
+
+def test_review_explanations_are_served_without_the_excerpt(client, user, notebook):
+    from django.utils import timezone
+    from quizzes.models import MockTest, MockTestQuestion
+    source = notebook.sources.first()
+    test = MockTest.objects.create(user=user, notebook=notebook, question_count=1, duration_minutes=5,
+                                   completed_at=timezone.now(), score=0)
+    MockTestQuestion.objects.create(
+        mock_test=test, order=0, question_text='What do phones sustain?', options=['Ties', 'Jobs'],
+        correct_answer='Ties', user_answer='Jobs', is_correct=False, source=source,
+        explanation='The excerpt explicitly lists relationships as what phones sustain.')
+
+    # A submitted paper answers a second submit with its review.
+    row = client.post(f'/api/quizzes/mock-tests/{test.id}/submit/', {}, format='json').json()['paper'][0]
+
+    assert row['explanation'] == f'{source.title} lists relationships as what phones sustain.'
+
+
 @pytest.mark.parametrize('text', [
     # Cutting "The text lists" would leave a fragment ("Theft, loss ... as
     # factors."): these verbs take an object, not a clause, so the sentence
@@ -62,7 +140,22 @@ def test_talk_about_the_excerpt_is_removed(raw, expected):
     'The passage mentions three meal locations.',
 ])
 def test_a_sentence_that_would_be_left_a_fragment_is_kept(text):
+    # Without the document's name there is nothing to stand in for it.
     assert tidy_prose(text) == text
+
+
+@pytest.mark.parametrize('raw, expected', [
+    ('What is the primary focus of Interaction Design according to the provided text?',
+     'What is the primary focus of Interaction Design?'),
+    ('According to the tutorial document, which component is NOT required?', 'Which component is NOT required?'),
+    ('What is a key finding of the article regarding AI in education?', 'What is a key finding regarding AI in education?'),
+    # A real, named source stays: it says where a claim comes from.
+    ('According to usability.gov, what is the focus of Interaction Design?',
+     'According to usability.gov, what is the focus of Interaction Design?'),
+])
+def test_more_question_shapes(raw, expected):
+    from notebooks.services.writing_style import tidy_question
+    assert tidy_question(raw) == expected
 
 
 @pytest.mark.parametrize('raw, expected', [
