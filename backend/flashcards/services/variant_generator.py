@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 
 from flashcards.services.card_format import ANSWER_RULES
-from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
+from notebooks.services.writing_style import WRITING_STYLE, tidy_prose, tidy_question
 
 BLANK = "______"
 _WORD = re.compile(r"\w+")
@@ -58,7 +58,7 @@ def _clean(payload: dict) -> dict | None:
     """Validate a model payload into a card, or None if it is unusable."""
     if not isinstance(payload, dict):
         return None
-    question = str(payload.get("question") or "").strip()
+    question = tidy_question(str(payload.get("question") or ""))
     answer = str(payload.get("answer") or "").strip()
     if not question or not answer:
         return None

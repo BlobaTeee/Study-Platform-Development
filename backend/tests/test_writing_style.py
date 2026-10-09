@@ -37,6 +37,51 @@ def test_tells_are_tidied_and_the_content_kept(raw, expected):
     assert tidy_prose(raw) == expected
 
 
+@pytest.mark.parametrize('raw, expected', [
+    # The student never sees an "excerpt": writing about it is the model
+    # describing its own input instead of the subject.
+    ('The text states the tone is calm and matter-of-fact.', 'The tone is calm and matter-of-fact.'),
+    ('The excerpt explains that institutional interfaces feel othering.',
+     'Institutional interfaces feel othering.'),
+    ('According to the excerpt, mitochondria make ATP.', 'Mitochondria make ATP.'),
+    ('According to the passage, cells divide.', 'Cells divide.'),
+    ('As the text explains, bonds store energy.', 'Bonds store energy.'),
+    ('Theo đoạn trích, ty thể tạo ra ATP.', 'Ty thể tạo ra ATP.'),
+    ('Đoạn văn cho biết ty thể tạo ra ATP.', 'Ty thể tạo ra ATP.'),
+])
+def test_talk_about_the_excerpt_is_removed(raw, expected):
+    assert tidy_prose(raw) == expected
+
+
+@pytest.mark.parametrize('text', [
+    # Cutting "The text lists" would leave a fragment ("Theft, loss ... as
+    # factors."): these verbs take an object, not a clause, so the sentence
+    # is left as written.
+    'The text lists theft, loss and damage as factors that undermine safety.',
+    'The excerpt describes a calm, matter-of-fact tone.',
+    'The passage mentions three meal locations.',
+])
+def test_a_sentence_that_would_be_left_a_fragment_is_kept(text):
+    assert tidy_prose(text) == text
+
+
+@pytest.mark.parametrize('raw, expected', [
+    ('What is the third requirement for CityHelp based on the excerpt?', 'What is the third requirement for CityHelp?'),
+    ('According to the excerpt, how should good design treat dignity?', 'How should good design treat dignity?'),
+    ('Which element is mentioned in the text as a mobile pattern?', 'Which element is a mobile pattern?'),
+    ('Theo đoạn trích, ty thể tạo ra gì?', 'Ty thể tạo ra gì?'),
+    ('What do mitochondria make?', 'What do mitochondria make?'),
+])
+def test_questions_do_not_mention_the_excerpt(raw, expected):
+    from notebooks.services.writing_style import tidy_question
+    assert tidy_question(raw) == expected
+
+
+def test_the_guide_shows_an_example_and_bans_talk_about_the_excerpt():
+    assert 'Instead of' in WRITING_STYLE
+    assert 'excerpt' in WRITING_STYLE and 'ensure' in WRITING_STYLE
+
+
 def test_dashes_inside_words_and_code_are_left_alone():
     text = 'A well-known self-driving car uses `rm -rf` and the URL https://a.b/x-y.'
     assert tidy_prose(text) == text
@@ -131,3 +176,28 @@ def test_feynman_feedback_is_tidy(client, user, notebook, monkeypatch):
     assert body['correct'] == ['You named ATP, good.']
     assert body['missing'] == ['The Krebs cycle, its role.']
     assert body['wrong'][0]['correction'] == 'Mitochondria do, not ribosomes.'
+
+
+# ---- what is already stored ----------------------------------------------------
+
+def test_stored_cards_and_questions_are_served_clean(client, user, notebook):
+    # Written before the cleanup existed: shown clean, left as stored.
+    card = Flashcard.objects.create(user=user, notebook=notebook, question='What is the tone based on the excerpt?',
+                                    answer='Calm', explanation='The text states the tone is calm — and plain.')
+    from quizzes.models import Quiz
+    quiz = Quiz.objects.create(user=user, title='q', is_published=True)
+    q = Question.objects.create(quiz=quiz, question_text='According to the excerpt, what is the tone?',
+                                question_type='multiple_choice', options=['Calm', 'Loud'], correct_answer='Calm',
+                                explanation='The excerpt explains that the tone is calm.', order=0)
+
+    listed = client.get('/api/flashcards/flashcards/').json()
+    listed = listed.get('results', listed) if isinstance(listed, dict) else listed
+    served = client.get(f'/api/quizzes/quizzes/{quiz.id}/').json()['questions'][0]
+
+    assert listed[0]['question'] == 'What is the tone?'
+    assert listed[0]['explanation'] == 'The tone is calm, and plain.'
+    assert served['question_text'] == 'What is the tone?'
+    assert served['explanation'] == 'The tone is calm.'
+    card.refresh_from_db(); q.refresh_from_db()
+    assert card.question.endswith('based on the excerpt?')
+    assert q.question_text.startswith('According to')

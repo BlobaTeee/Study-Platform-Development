@@ -1,9 +1,14 @@
 from rest_framework import serializers
+
+from notebooks.services.writing_style import CleanGeneratedText
 from .models import Flashcard
 from .services.card_format import BLANK
 
 
-class FlashcardSerializer(serializers.ModelSerializer):
+class FlashcardSerializer(CleanGeneratedText, serializers.ModelSerializer):
+    question_fields = ('question',)
+    prose_fields = ('explanation',)
+
     topic_name = serializers.CharField(source='topic.name', read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)
     # Read-only: provenance is set by generation. A writable list would let a

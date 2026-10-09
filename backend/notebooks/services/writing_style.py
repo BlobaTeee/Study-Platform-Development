@@ -12,18 +12,23 @@ greeting or sign-off wrapped around the content.
 import re
 
 WRITING_STYLE = """Write plainly, like a good teacher explaining to one student:
-- State each point directly. No "not X but Y" or "không chỉ... mà còn" contrasts that only add weight,
-  no one-line closer that repeats the point, no "let's dive in" or "here's the thing" lead-in.
+- Write about the subject itself. Never mention "the excerpt", "the text", "the passage", "the
+  document", "the author says" or "đoạn trích": the student never sees an excerpt.
+- Give the concrete reason or fact. Avoid empty verbs: ensure, aim to, help to, allow, enable, foster,
+  create a sense of. Do not stack adjectives ("ordinary, inclusive, and accessible").
+- State each point directly. No "not X but Y", "rather than" or "không chỉ... mà còn" contrasts that only
+  add weight, no one-line closer that repeats the point, no "let's dive in" lead-in.
 - No em dashes or en dashes. Use a comma, colon, period or parentheses.
-- Give as many items as the material has; do not force lists of three.
-- Use plain verbs (is, are, has), not "serves as", "stands as", "boasts" or "đóng vai trò".
-- Avoid stock words: crucial, pivotal, key (as an adjective), delve, underscore, highlight (as a verb),
-  showcase, robust, vibrant, landscape, tapestry, testament, enhance, foster, additionally, "quan trọng"
-  used for emphasis.
-- Do not inflate: no "plays a key role", "marks a turning point", "the future looks bright".
-- No greeting, praise, offer or sign-off ("Great question", "Certainly", "I hope this helps").
-- No markdown, bold, headings or emojis. Vary sentence length.
-- Say nothing the material does not support."""
+- Use plain verbs (is, are, has), not "serves as", "stands as" or "đóng vai trò".
+- Avoid stock words: crucial, pivotal, key (adjective), delve, underscore, highlight (verb), showcase,
+  robust, vibrant, landscape, seamless, testament, enhance, additionally, "quan trọng" for emphasis.
+- No greeting, praise or sign-off. No markdown, bold or emojis. Say nothing the material does not support.
+Instead of: "Adopting standard conventions ensures that the experience feels ordinary, inclusive, and
+accessible, as the text explains."
+Write: "Most apps use a bottom bar and a map, so an app that looks the same doesn't mark its users
+as different."
+Instead of: "Photosynthesis plays a key role in enabling plants to create energy."
+Write: "Plants turn light, water and carbon dioxide into glucose, which they burn for energy." """
 
 # A dash between two digits is a range ("3–5 sentences"): it becomes a hyphen.
 _RANGE = re.compile(r'(?<=\d)\s*[–—]\s*(?=\d)')
@@ -39,6 +44,43 @@ _CLOSERS = re.compile(
     r'let me know if[^.!?]*|feel free to ask[^.!?]*|'
     r'hy vọng (?:điều|thông tin|lời giải thích) (?:này|trên) (?:sẽ )?giúp ích(?: (?:được )?cho bạn)?|'
     r'chúc bạn học tốt)\s*[.!]*\s*$', re.I)
+
+
+# The model writing about its own input instead of the subject. Removed at the
+# start of a sentence; the sentence keeps its claim.
+_SOURCE = r'(?:the |this )?(?:text|excerpt|passage|document|source|material|article|reading)'
+_ABOUT_SOURCE = re.compile(
+    r'(?:(?<=^)|(?<=[.!?]\s))\s*(?:'
+    # Reporting verbs take a clause, so the rest still reads as a sentence;
+    # "lists", "mentions", "describes", "shows" take an object and only go
+    # when "that" follows.
+    rf'{_SOURCE} (?:states|explains|says|notes|indicates|suggests|argues|claims)(?: that)?\s+'
+    rf'|{_SOURCE} (?:mentions|describes|shows|lists) that\s+'
+    rf'|according to {_SOURCE},?\s+'
+    rf'|as {_SOURCE} (?:explains|states|says|notes|describes),?\s+'
+    r'|theo (?:đoạn trích|đoạn văn|văn bản|tài liệu|bài),?\s+'
+    r'|(?:đoạn trích|đoạn văn|văn bản|tài liệu) (?:cho biết|nói|nêu|giải thích|chỉ ra)(?: rằng)?\s+'
+    r')', re.I)
+# The same inside a question: "...based on the excerpt?", "mentioned in the text as".
+_QUESTION_SOURCE = re.compile(
+    rf',?\s+(?:based on|according to|in|from) {_SOURCE}(?=\s*[?.,]|$)'
+    rf'|\b(?:mentioned|described|listed|stated|named) in {_SOURCE}(?: as)?\s+'
+    r'|\s+(?:trong|theo) (?:đoạn trích|đoạn văn|văn bản|tài liệu)(?=\s*[?.,]|$)', re.I)
+
+
+def _capitalise_sentences(text: str) -> str:
+    return re.sub(r'(^|[.!?]\s+)([a-zà-ỹ])', lambda m: m.group(1) + m.group(2).upper(), text)
+
+
+def tidy_question(text: str | None) -> str:
+    """A question without "based on the excerpt" and its relatives."""
+    text = (text or '').strip()
+    if not text:
+        return ''
+    body = _QUESTION_SOURCE.sub(lambda m: ' ' if m.group(0).endswith(' ') and not m.group(0).startswith((',', ' ')) else '', text)
+    body = _ABOUT_SOURCE.sub('', body)
+    body = re.sub(r'\s+([?.,])', r'\1', re.sub(r'\s{2,}', ' ', body)).strip()
+    return tidy_prose(_capitalise_sentences(body)) or text
 
 
 def tidy_prose(text: str | None) -> str:
@@ -61,4 +103,22 @@ def tidy_prose(text: str | None) -> str:
     body = re.sub(r'\x00(\d+)\x00', lambda m: kept[int(m.group(1))], body)
 
     stripped = _CLOSERS.sub('', _OPENERS.sub('', body, count=1), count=1).strip()
+    stripped = _capitalise_sentences(_ABOUT_SOURCE.sub('', stripped)).strip()
     return stripped if stripped else body.strip()
+
+
+class CleanGeneratedText:
+    """Serializer mixin: generated text written before these rules is shown
+    tidy, without rewriting what is stored. Name the fields per serializer."""
+    question_fields: tuple[str, ...] = ()
+    prose_fields: tuple[str, ...] = ()
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        for field in self.question_fields:
+            if data.get(field):
+                data[field] = tidy_question(data[field])
+        for field in self.prose_fields:
+            if data.get(field):
+                data[field] = tidy_prose(data[field])
+        return data

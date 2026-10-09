@@ -1,11 +1,16 @@
 from django.utils.translation import gettext as _
 from rest_framework import serializers
+
+from notebooks.services.writing_style import CleanGeneratedText
 from .models import (
     Quiz, Question, QuizAttempt, Answer, MockTest, MockTestQuestion, PlannedTest,
 )
 
 
-class QuestionSerializer(serializers.ModelSerializer):
+class QuestionSerializer(CleanGeneratedText, serializers.ModelSerializer):
+    question_fields = ('question_text',)
+    prose_fields = ('explanation',)
+
     class Meta:
         model = Question
         fields = ['id', 'quiz', 'question_text', 'question_type', 'options', 'correct_answer',
@@ -76,7 +81,10 @@ class QuizAttemptSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class MockTestQuestionSerializer(serializers.ModelSerializer):
+class MockTestQuestionSerializer(CleanGeneratedText, serializers.ModelSerializer):
+    question_fields = ('question_text',)
+    prose_fields = ()
+
     """A question as it appears *during* the test — no answer, no marking.
 
     Withholding `correct_answer` and `is_correct` here is what separates a test
@@ -94,7 +102,10 @@ class MockTestQuestionSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class MockTestQuestionReviewSerializer(serializers.ModelSerializer):
+class MockTestQuestionReviewSerializer(CleanGeneratedText, serializers.ModelSerializer):
+    question_fields = ('question_text',)
+    prose_fields = ('explanation', 'ai_explanation')
+
     """The same question after submission, with the marking revealed.
 
     Reads `correct_answer`/`explanation` off this row's own denormalised
