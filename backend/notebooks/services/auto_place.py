@@ -16,19 +16,14 @@ import tempfile
 
 from django.db import transaction
 
-from ml_pipeline.language import detect_language, language_name
 from ml_pipeline.subject_match import best_notebook
 
 from ..models import Notebook, Source
-from .ai_provider import get_ai_provider
 from .document_extract import extract_text_from_document, title_from_filename
-from .textnorm import clean_summary, normalise_text
-from .writing_style import WRITING_STYLE
+from .textnorm import normalise_text
+from .key_points import read_document
 
 logger = logging.getLogger(__name__)
-
-MAX_SUBJECT_CHARS = 60
-
 
 class NothingToRead(ValueError):
     """The file held no extractable text."""
@@ -47,11 +42,13 @@ def place_upload(user, uploaded, file_type: str, ui_language: str = 'en'):
 
     match = best_notebook(text, documents)
     created = False
+    # One request either way: the overview and main ideas, plus the subject's
+    # name when the file needs a notebook of its own.
+    reading = read_document(text, title, subject_language=None if match is not None else ui_language)
+    summary, subject = reading['summary'], reading['subject']
     if match is not None:
         notebook = own[match]
-        summary = _summary(text, title)
     else:
-        subject, summary = _subject_and_summary(text, title, ui_language)
         # Without a model, the file's own name: "Westphalia_treaty" reads as
         # "Westphalia treaty".
         notebook, created = _notebook_named(user, subject or title.replace('_', ' '))
@@ -60,7 +57,7 @@ def place_upload(user, uploaded, file_type: str, ui_language: str = 'en'):
         source = Source.objects.create(
             notebook=notebook, title=title, file=uploaded, file_type=file_type,
             original_filename=uploaded.name, status='ready', extracted_text=text,
-            page_count=page_count, gemini_summary=summary)
+            page_count=page_count, gemini_summary=summary, key_points=reading['key_points'])
         notebook.save(update_fields=['updated_at'])
     return source, notebook, created
 
@@ -81,41 +78,6 @@ def _read(uploaded, file_type: str) -> tuple[str, int]:
     if not text.strip():
         raise NothingToRead('No text could be extracted from this file.')
     return text, page_count
-
-
-def _summary(text: str, title: str) -> str:
-    try:
-        return clean_summary(get_ai_provider().summarize(text, title))
-    except Exception as exc:  # noqa: BLE001 — a missing summary never blocks an upload
-        logger.info('Upload summary unavailable: %s', exc)
-        return ''
-
-
-def _subject_and_summary(text: str, title: str, ui_language: str) -> tuple[str, str]:
-    """The subject's name (in the student's language) and the overview (in
-    the document's), from one request. Either may come back empty."""
-    doc_language = language_name(detect_language(text))
-    prompt = f"""A student uploaded a document titled "{title}".
-1. Name the school subject or course it belongs to, as a notebook title: 2 to 5 words, in
-   {language_name(ui_language)}, general enough that other lectures of the same course fit under it
-   (for example "Organic chemistry", not the title of this one lecture). No quotes, no trailing period.
-2. Write a clear overview of its main topics in 3 to 5 sentences, in {doc_language}.
-
-{WRITING_STYLE}
-
-Document text:
-{text[:30000]}
-
-Return ONLY valid JSON: {{"subject": "...", "summary": "..."}}"""
-    try:
-        data = get_ai_provider().generate_json(prompt)
-    except Exception as exc:  # noqa: BLE001 — named from the file instead
-        logger.info('Subject naming unavailable: %s', exc)
-        return '', ''
-    if not isinstance(data, dict):
-        return '', ''
-    subject = str(data.get('subject') or '').strip().strip('."\'')[:MAX_SUBJECT_CHARS]
-    return subject, clean_summary(str(data.get('summary') or '').strip())
 
 
 def _notebook_named(user, name: str) -> tuple[Notebook, bool]:

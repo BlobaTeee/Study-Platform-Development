@@ -76,6 +76,27 @@ def _document_chunks(sources) -> list[str]:
 PASSAGE_SEPARATOR = '\n\n--- Next passage ---\n\n'
 
 
+IDEA_HEADER = '### Main idea'
+
+
+def _idea_units(sources) -> list[str]:
+    """The documents' main ideas as prompt units, core ideas first: a header
+    line with the idea, then the passage it was read from. Empty when no
+    document's ideas could be read, and generation then uses passages."""
+    from .key_points import ensure_key_points
+    units = []
+    for source in sources:
+        for kp in ensure_key_points(source):
+            units.append((kp['importance'] != 'core',
+                          f"{IDEA_HEADER} ({kp['importance']}): {kp['point']}\n{kp['passage']}"))
+    units.sort(key=lambda u: u[0])     # stable: core first, document order within
+    return [u for _, u in units]
+
+
+def _is_ideas(units) -> bool:
+    return bool(units) and units[0].startswith(IDEA_HEADER)
+
+
 def _passages_for_round(sources, round_no: int) -> tuple[list[str], bool]:
     """The passages a top-up round reads, and whether any are new.
 
@@ -86,6 +107,11 @@ def _passages_for_round(sources, round_no: int) -> tuple[list[str], bool]:
     goes back to the best ones and says so (`fresh` is False), and the prompt
     then asks about the same facts from another angle.
     """
+    ideas = _idea_units(sources)
+    if ideas:
+        # The ideas already cover the whole document, so every round has them
+        # all; what changes is what the pool already asks (never "fresh").
+        return ideas, False
     from ml_pipeline.services.chunking import chunk_text, select_chunks
     k = getattr(settings, 'RAG_CHUNKS', 3)
     remaining = []
@@ -203,7 +229,7 @@ def _use_ml_primary() -> bool:
     return getattr(settings, 'USE_ML_PRIMARY', False)
 
 
-_DOC_HEADER = re.compile(r'^### Document: .*$', re.M)
+_DOC_HEADER = re.compile(r'^### (?:Document: |Main idea).*$', re.M)
 
 
 def _without_document_headers(passage: str) -> str:
@@ -376,11 +402,13 @@ def _generate_flashcards(sources, user, count: int, source_ids: list[int],
                 raise GeminiGenerationError(f'ML flashcard generation failed: {exc}') from exc
 
     label = _titles_label(sources)
-    chunks = _packed(_document_chunks(sources), count)
+    units = _idea_units(sources)
+    chunks = _packed(units or _document_chunks(sources), count)
     per_chunk = -(-count // len(chunks))  # ceil, so the excerpts cover `count`
+    intro = IDEAS_INTRO if units else 'from this excerpt.'
 
     def build_prompt(chunk: str, n: int) -> str:
-        return f"""Create exactly {n} study flashcards from this excerpt.
+        return f"""Create exactly {n} study flashcards {intro}
 Write in {language_name(lang)}, the language of the excerpt.
 Each flashcard must be answerable from the excerpt alone.
 Ask about concepts, definitions, mechanisms, reasons and relationships: the
@@ -482,8 +510,14 @@ def generate_more_questions(sources, user, count: int, existing: list[str],
                           max_count=max_count)
 
 
+IDEAS_INTRO = """on the main ideas of this document, listed below. Each idea
+comes with the passage it was read from: write about the idea, using the passage
+for detail. Cover every core idea before a supporting one; give each idea its own
+item unless there are fewer ideas than items."""
+
+
 def quiz_prompt(chunk: str, n: int, lang: str, label: str,
-                existing: list[str] = (), thin: bool = False) -> str:
+                existing: list[str] = (), thin: bool = False, ideas: bool = False) -> str:
     """The question-generation prompt, at module level so it can be measured.
 
     `ml_pipeline/notebooks/06_question_quality.ipynb` scores what this prompt
@@ -508,7 +542,8 @@ from a different angle: an example or an application, a cause or an effect, a co
 between two ideas, or which statement is NOT true. Each question must still be answerable
 from the excerpt alone.
 """
-    return f"""Create exactly {n} multiple-choice questions from this excerpt.
+    intro = IDEAS_INTRO if ideas else 'from this excerpt.'
+    return f"""Create exactly {n} multiple-choice questions {intro}
 Write in {language_name(lang)}, the language of the excerpt.
 For each question give: the question, the single correct answer, and exactly 3
 plausible but incorrect answers (distractors) on the same topic. Do NOT put the
@@ -583,11 +618,13 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None,
     # A few more than the quiz needs, so a flawed question can be left out
     # without the quiz coming up short (see the ranking before saving).
     asked = question_count + _quality_margin(question_count)
-    chunks = _packed(passages or _document_chunks(sources), asked)
+    units = passages or _idea_units(sources)
+    ideas = _is_ideas(units)
+    chunks = _packed(units or _document_chunks(sources), asked)
     per_chunk = -(-asked // len(chunks))  # ceil, so excerpts cover the count
 
     def build_prompt(chunk: str, n: int) -> str:
-        return quiz_prompt(chunk, n, lang, label, existing, thin)
+        return quiz_prompt(chunk, n, lang, label, existing, thin, ideas)
 
     try:
         provider = get_ai_provider()

@@ -29,12 +29,12 @@ class SourceSerializer(_CleanSummaryMixin, serializers.ModelSerializer):
         model = Source
         fields = [
             'id', 'notebook', 'title', 'file', 'file_type', 'original_filename', 'page_count',
-            'text_preview', 'text_length', 'gemini_summary', 'status', 'error_message',
+            'text_preview', 'text_length', 'gemini_summary', 'key_points', 'status', 'error_message',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
             'file', 'original_filename', 'page_count',
-            'gemini_summary', 'status', 'error_message', 'created_at', 'updated_at',
+            'gemini_summary', 'key_points', 'status', 'error_message', 'created_at', 'updated_at',
         ]
 
     def get_text_preview(self, obj) -> str:
