@@ -159,3 +159,19 @@ def test_reading_on_request_says_so_when_it_cannot(client, user, notebook, monke
 
     assert res.status_code == 503
     assert res.json()['detail']
+
+
+def test_each_point_has_a_short_label_for_the_reader(reader):
+    reader.points = [dict(reader.points[0], label='Phones as a lifeline'),
+                     dict(reader.points[1], label='Flat batteries')]
+    points = read_document(DOC, 'Lecture')['key_points']
+
+    assert [p['label'] for p in points] == ['Phones as a lifeline', 'Flat batteries']
+    assert '"label"' in reader.prompts[-1]
+
+
+def test_a_missing_or_long_label_falls_back_to_nothing(reader):
+    reader.points = [dict(reader.points[0], label='one ' * 30), dict(reader.points[1])]
+    points = read_document(DOC, 'Lecture')['key_points']
+
+    assert all(p['label'] == '' for p in points)

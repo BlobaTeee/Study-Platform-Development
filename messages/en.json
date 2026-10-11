@@ -309,14 +309,13 @@
     "moveFailed": "Could not move it. Try again.",
     "emptyUploadHint": "Or press \"Upload documents\" above: notebooks are made for you, one per subject.",
     "keyPoints": "Main ideas",
-    "keyPointsLead": "{total} ideas, {core} of them core. Cards and questions are written from these. Select an idea to see its passage.",
-    "supportingIdea": "Supporting idea",
-    "showPassage": "Show the passage",
-    "hidePassage": "Hide the passage",
+    "keyPointsLead": "Cards and questions are written from these",
     "readIdeas": "Find the main ideas",
     "readingIdeas": "Reading the document…",
     "readIdeasHint": "The AI reads the whole document once and lists its main ideas to ask about.",
-    "readIdeasFailed": "The main ideas could not be read. Try again in a few minutes."
+    "readIdeasFailed": "The main ideas could not be read. Try again in a few minutes.",
+    "moreIdeas": "Show {count} more",
+    "fewerIdeas": "Show fewer"
   },
   "flashcards": {
     "title": "Flashcards",

@@ -185,7 +185,7 @@ export type NotebookMemberRow = {
 }
 
 /** A document's main idea, with the passage it was read from. */
-export type KeyPoint = { point: string; importance: 'core' | 'supporting'; passage: string }
+export type KeyPoint = { point: string; label?: string; importance: 'core' | 'supporting'; passage: string }
 
 export type AutoUploadResult = {
   source: { id: number; title: string }
