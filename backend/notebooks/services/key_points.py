@@ -45,6 +45,7 @@ def read_document(text: str, title: str, subject_language: str | None = None) ->
 - "summary": an overview of 3 to 5 sentences, in {doc_language}.
 - "key_points": its main ideas, at most {MAX_POINTS}, the most important first. For each:
   "point": the idea in one or two sentences, in {doc_language};
+  "label": the same idea as a short heading of 2 to 6 words, in {doc_language};
   "importance": "core" for what a student must know to pass, "supporting" for the rest;
   "quote": one sentence copied word for word from the document that states or supports it.
   Cover the whole document, its end as much as its start. Skip incidental details (page
@@ -55,7 +56,7 @@ def read_document(text: str, title: str, subject_language: str | None = None) ->
 Document text:
 {read}
 
-Return ONLY valid JSON: {{"summary": "...", "key_points": [{{"point": "...", "importance": "core|supporting", "quote": "..."}}]{', "subject": "..."' if subject_language else ''}}}"""
+Return ONLY valid JSON: {{"summary": "...", "key_points": [{{"point": "...", "label": "...", "importance": "core|supporting", "quote": "..."}}]{', "subject": "..."' if subject_language else ''}}}"""
     try:
         data = get_ai_provider().generate_json(prompt)
     except Exception as exc:  # noqa: BLE001 — no provider, quota, bad JSON
@@ -104,12 +105,22 @@ def _grounded(raw, text: str) -> list[dict]:
         start = index[at]
         points.append({
             'point': point[:400],
+            'label': _label(item.get('label')),
             'importance': item.get('importance') if item.get('importance') in IMPORTANCE else 'supporting',
             'passage': _passage_around(text, start),
         })
     # Core first, keeping the model's order within each.
     points.sort(key=lambda p: IMPORTANCE.index(p['importance']))
     return points[:MAX_POINTS]
+
+
+#: A label is a heading: past this many words it is a sentence again.
+MAX_LABEL_WORDS = 8
+
+
+def _label(raw) -> str:
+    label = tidy_prose(str(raw or '')).strip().rstrip('.')
+    return label if 0 < len(label.split()) <= MAX_LABEL_WORDS else ''
 
 
 _SPACE = re.compile(r'\s+')
