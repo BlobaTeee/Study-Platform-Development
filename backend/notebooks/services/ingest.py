@@ -9,14 +9,18 @@ EMPTY_TEXT_MESSAGES = {
 }
 
 
+def _read(source, text: str) -> None:
+    """Overview and main ideas from one request (key_points.read_document)."""
+    from .key_points import read_document
+    out = read_document(text, source.title)
+    source.gemini_summary = out['summary']
+    source.key_points = out['key_points']
+
+
 def finish_text_source(source) -> None:
     """Mark a source whose text is already in hand as ready, with a summary
     if a provider is reachable. Shared by pasted text and fetched pages."""
-    try:
-        source.gemini_summary = clean_summary(
-            get_ai_provider().summarize(source.extracted_text, source.title))
-    except Exception:
-        source.gemini_summary = ''
+    _read(source, source.extracted_text)
     source.status = 'ready'
     source.save()
 
@@ -32,11 +36,7 @@ def process_source(source) -> None:
         source.extracted_text = text
 
         if text.strip():
-            try:
-                provider = get_ai_provider()
-                source.gemini_summary = clean_summary(provider.summarize(text, source.title))
-            except Exception as exc:
-                source.gemini_summary = ''
+            _read(source, text)
             source.status = 'ready'
         else:
             source.status = 'failed'

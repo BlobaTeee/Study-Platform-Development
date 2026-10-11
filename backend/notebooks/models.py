@@ -175,6 +175,9 @@ class Source(models.Model):
     page_count = models.PositiveIntegerField(default=0)
     extracted_text = models.TextField(blank=True, default='')
     gemini_summary = models.TextField(blank=True, default='')
+    # The document's main ideas, read once from the whole text: a list of
+    # {point, importance: core|supporting, passage}. See services/key_points.
+    key_points = models.JSONField(blank=True, default=list)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='processing')
     error_message = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)

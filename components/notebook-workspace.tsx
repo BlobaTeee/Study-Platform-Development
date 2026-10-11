@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import useSWR, { mutate } from 'swr'
-import { notebooksAPI } from '@/lib/api'
+import { notebooksAPI, type KeyPoint } from '@/lib/api'
 import {
   SOURCE_ACCEPT,
   fileTypeLabel,
@@ -17,6 +17,7 @@ import {
 } from '@/lib/source-utils'
 import { SourceDropZone } from '@/components/source-drop-zone'
 import { useConfirm } from '@/components/confirm-dialog'
+import { KeyPoints } from '@/components/key-points'
 import { NotebookMembers } from '@/components/notebook-members'
 import {
   AlertCircle,
@@ -153,12 +154,15 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const [deletingSourceId, setDeletingSourceId] = useState<number | null>(null)
   const [confirm, confirmDialog] = useConfirm()
   const [loadingSource, setLoadingSource] = useState(false)
+  const [readingIdeas, setReadingIdeas] = useState(false)
+  const [ideasError, setIdeasError] = useState('')
   const [sourceDetail, setSourceDetail] = useState<{
     // Only the opening of the document; `text_length` is how long the whole
     // thing is, so the reader can say what it is not showing.
     text_preview: string
     text_length: number
     gemini_summary: string
+    key_points: KeyPoint[]
     title: string
     page_count: number
     status: string
@@ -246,6 +250,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
           text_preview: res.data.text_preview,
           text_length: res.data.text_length,
           gemini_summary: res.data.gemini_summary,
+          key_points: res.data.key_points ?? [],
           title: res.data.title,
           page_count: res.data.page_count,
           status: res.data.status,
@@ -299,6 +304,22 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       setError(ax.response?.data?.detail || (composer === 'text' ? t('addTextFailed') : t('addLinkFailed')))
     } finally {
       setUploading(false)
+    }
+  }
+
+  // An older document's main ideas, read on request (one AI request, kept).
+  const readIdeas = async () => {
+    if (!activeSourceId) return
+    setReadingIdeas(true)
+    setIdeasError('')
+    try {
+      const res = await notebooksAPI.readSource(activeSourceId)
+      setSourceDetail((d) => (d ? { ...d, key_points: res.data.key_points ?? [], gemini_summary: res.data.gemini_summary } : d))
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { detail?: string } } }
+      setIdeasError(ax.response?.data?.detail || t('readIdeasFailed'))
+    } finally {
+      setReadingIdeas(false)
     }
   }
 
@@ -831,12 +852,32 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       </div>
                     )}
 
-                    {sourceDetail?.gemini_summary && (
+                    {/* The document's main ideas: what its cards and questions are
+                        written from. An older document has none until it is
+                        read; until then its overview stands in. */}
+                    {sourceDetail && sourceDetail.status === 'ready' && (
                       <div className="border-t border-slate-200 pt-5">
-                        <h3 className="text-sm font-semibold text-slate-900">{t('overview')}</h3>
-                        <p className="mt-2 max-w-[75ch] text-base leading-relaxed text-slate-700 hyphens-auto md:text-justify">
-                          {sourceDetail.gemini_summary}
-                        </p>
+                        {sourceDetail.key_points.length > 0 ? (
+                          <KeyPoints points={sourceDetail.key_points} />
+                        ) : (
+                          <>
+                            {sourceDetail.gemini_summary && (
+                              <>
+                                <h3 className="text-sm font-semibold text-slate-900">{t('overview')}</h3>
+                                <p className="mt-2 max-w-[75ch] text-base leading-relaxed text-slate-700 hyphens-auto md:text-justify">
+                                  {sourceDetail.gemini_summary}
+                                </p>
+                              </>
+                            )}
+                            <div className="mt-3 flex flex-wrap items-center gap-3">
+                              <Button variant="outline" size="sm" disabled={readingIdeas} onClick={() => void readIdeas()}>
+                                {readingIdeas ? <Loader2 className="animate-spin" aria-hidden /> : null}
+                                {readingIdeas ? t('readingIdeas') : t('readIdeas')}
+                              </Button>
+                              <span className="text-sm text-slate-600">{ideasError || t('readIdeasHint')}</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
 

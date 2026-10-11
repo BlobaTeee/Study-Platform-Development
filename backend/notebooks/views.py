@@ -619,6 +619,17 @@ class SourceViewSet(
             instance.file.delete(save=False)
         instance.delete()
 
+    @action(detail=True, methods=['post'], throttle_classes=[GenerationRateThrottle])
+    def read(self, request, pk=None):
+        """Read an older document's main ideas now (once; they are kept)."""
+        from .services.key_points import ensure_key_points
+        source = self.get_object()
+        if not ensure_key_points(source):
+            return Response({'detail': _('The main ideas could not be read just now. Try again in a few minutes.')},
+                            status=503)
+        source.refresh_from_db()
+        return Response(SourceSerializer(source, context={'request': request}).data)
+
     @action(detail=True, methods=['post'])
     def move(self, request, pk=None):
         """Move a document to another of the student's own notebooks, or to a

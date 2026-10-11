@@ -53,7 +53,7 @@ class _Namer:
 def namer(monkeypatch):
     n = _Namer()
     for target in ('notebooks.services.ingest.get_ai_provider',
-                   'notebooks.services.auto_place.get_ai_provider'):
+                   'notebooks.services.key_points.get_ai_provider'):
         monkeypatch.setattr(target, lambda: n, raising=False)
     return n
 
@@ -140,7 +140,7 @@ def test_a_shared_notebook_never_receives_the_file(client, user, other_user, nam
 def test_without_a_provider_a_new_notebook_is_named_from_the_file(client, monkeypatch, text_of):
     from tests.conftest import _NoProvider
     for target in ('notebooks.services.ingest.get_ai_provider',
-                   'notebooks.services.auto_place.get_ai_provider'):
+                   'notebooks.services.key_points.get_ai_provider'):
         monkeypatch.setattr(target, lambda: _NoProvider(), raising=False)
 
     body = _upload(client, HISTORY, name='Westphalia_treaty.pdf').json()

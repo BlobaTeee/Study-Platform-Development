@@ -73,6 +73,7 @@ def _no_outside_generation(settings, monkeypatch):
                    'quizzes.services.explain.get_ai_provider',
                    'flashcards.services.tutor.get_ai_provider',
                    'study_sessions.forgotten.get_ai_provider',
+                   'notebooks.services.key_points.get_ai_provider',
                    'study_sessions.feynman.get_ai_provider'):
         monkeypatch.setattr(target, lambda: _NoProvider())
 

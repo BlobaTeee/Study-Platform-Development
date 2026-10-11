@@ -184,6 +184,9 @@ export type NotebookMemberRow = {
   accuracy: number | null
 }
 
+/** A document's main idea, with the passage it was read from. */
+export type KeyPoint = { point: string; importance: 'core' | 'supporting'; passage: string }
+
 export type AutoUploadResult = {
   source: { id: number; title: string }
   notebook: { id: number; title: string }
@@ -231,6 +234,8 @@ export const notebooksAPI = {
     api.patch(`/notebooks/notebooks/${id}/`, data),
   deleteNotebook: (id: number) => api.delete(`/notebooks/notebooks/${id}/`),
   getSource: (id: number) => api.get(`/notebooks/sources/${id}/`),
+  // Read an older document's main ideas now; kept once read.
+  readSource: (id: number) => api.post(`/notebooks/sources/${id}/read/`),
   deleteSource: (id: number) => api.delete(`/notebooks/sources/${id}/`),
   uploadSource: (notebookId: number, file: File, title?: string) => {
     const form = new FormData()

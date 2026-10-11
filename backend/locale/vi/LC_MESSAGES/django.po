@@ -321,3 +321,6 @@ msgstr "Hãy viết vài câu trước, như đang giảng cho một người kh
 
 msgid "Those cards are not yours to study."
 msgstr "Bạn không có quyền học những thẻ này."
+
+msgid "The main ideas could not be read just now. Try again in a few minutes."
+msgstr "Chưa rút được ý chính lúc này. Thử lại sau vài phút."

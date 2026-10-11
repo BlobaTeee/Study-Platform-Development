@@ -307,7 +307,16 @@
     "moveTo": "Chuyển sang…",
     "newNotebookOption": "Sổ tay mới…",
     "moveFailed": "Không chuyển được. Thử lại.",
-    "emptyUploadHint": "Hoặc bấm \"Tải tài liệu lên\" ở trên: app tự tạo sổ tay theo môn của tài liệu."
+    "emptyUploadHint": "Hoặc bấm \"Tải tài liệu lên\" ở trên: app tự tạo sổ tay theo môn của tài liệu.",
+    "keyPoints": "Ý chính",
+    "keyPointsLead": "{total} ý, trong đó {core} ý cốt lõi. Thẻ và câu hỏi được viết từ các ý này. Bấm vào một ý để xem đoạn gốc.",
+    "supportingIdea": "Ý phụ",
+    "showPassage": "Xem đoạn gốc",
+    "hidePassage": "Ẩn đoạn gốc",
+    "readIdeas": "Rút ý chính",
+    "readingIdeas": "Đang đọc tài liệu…",
+    "readIdeasHint": "AI đọc cả tài liệu một lần và rút ra các ý chính để ra câu hỏi.",
+    "readIdeasFailed": "Chưa rút được ý chính. Thử lại sau vài phút."
   },
   "flashcards": {
     "title": "Thẻ",
