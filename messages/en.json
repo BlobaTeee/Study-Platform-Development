@@ -538,7 +538,16 @@
     "explainGroup": "Explain in your words",
     "forgottenNotebookMeta": "{cards} · {groups, plural, one {# group} other {# groups}}",
     "relearnNotebook": "Review all {count}",
-    "untitledNotebook": "Untitled notebook"
+    "untitledNotebook": "Untitled notebook",
+    "mixUpsTitle": "What you mix up",
+    "mixUpsLead": "Ideas you keep confusing with each other, read from the wrong options you chose in different questions.",
+    "mixUpsEmpty": "Nothing you keep mixing up yet. It takes at least 3 wrong answers in a notebook to tell.",
+    "mixUp": "You mix up <strong>{a}</strong> with <strong>{b}</strong>",
+    "mixUpEvidence": "{count, plural, one {Seen in # wrong answer} other {Seen in # wrong answers}}",
+    "contrastCards": "Contrast cards",
+    "misconceptionFailed": "Could not open the contrast cards. Try again later.",
+    "mixUpsPending": "Looking through your wrong answers for mix-ups…",
+    "mixUpsPendingMore": "Still looking through other notebooks…"
   },
   "account": {
     "eyebrow": "Account",

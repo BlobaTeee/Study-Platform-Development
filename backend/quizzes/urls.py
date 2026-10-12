@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     QuizViewSet, QuestionViewSet, QuizAttemptViewSet, MockTestViewSet,
     PlannedTestViewSet, MistakeBankView, WeakConceptsView, PracticeConceptView,
+    MisconceptionsView, MisconceptionPracticeView,
 )
 
 router = DefaultRouter()
@@ -16,5 +17,7 @@ urlpatterns = [
     path('mistakes/', MistakeBankView.as_view(), name='mistake-bank'),
     path('weak-concepts/', WeakConceptsView.as_view(), name='weak-concepts'),
     path('weak-concepts/practice/', PracticeConceptView.as_view(), name='practice-concept'),
+    path('misconceptions/', MisconceptionsView.as_view(), name='misconceptions'),
+    path('misconceptions/practice/', MisconceptionPracticeView.as_view(), name='misconception-practice'),
     path('', include(router.urls)),
 ]

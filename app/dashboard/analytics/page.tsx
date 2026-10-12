@@ -4,8 +4,9 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
 import useSWR from 'swr'
-import { analyticsAPI, reviewsAPI, type ForgottenNotebook } from '@/lib/api'
+import { analyticsAPI, reviewsAPI, type ForgottenNotebook, type MisconceptionNotebook } from '@/lib/api'
 import { ForgottenCards } from '@/components/forgotten-cards'
+import { Misconceptions } from '@/components/misconceptions'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
 import { type Due, caughtUpMessage, MASTERY_LABEL, masteryBarClass, masteryLevel } from '@/lib/study-format'
@@ -66,6 +67,15 @@ export default function AnalyticsPage() {
     () => reviewsAPI.getForgottenGroups()
   )
   const forgotten: ForgottenNotebook[] = forgottenRes?.data?.notebooks ?? []
+  // Finding mix-ups is a model request the server runs on its own: while it
+  // is under way the answer says so, and the page looks again shortly.
+  const { data: mixUpsRes, isLoading: mixUpsLoading } = useSWR(
+    ['/quizzes/misconceptions'],
+    () => reviewsAPI.getMisconceptions(),
+    { refreshInterval: (latest) => (latest?.data?.pending ? 8000 : 0) }
+  )
+  const mixUps: MisconceptionNotebook[] = mixUpsRes?.data?.notebooks ?? []
+  const mixUpsPending = !!mixUpsRes?.data?.pending
 
   return (
     <div className="space-y-8">
@@ -128,6 +138,23 @@ export default function AnalyticsPage() {
             <p className="max-w-[65ch] py-6 text-slate-600">{t('forgottenEmpty')}</p>
           ) : (
             <ForgottenCards notebooks={forgotten} />
+          )}
+        </section>
+
+        {/* What the student keeps confusing, read from the wrong options
+            they chose in more than one question. */}
+        <section data-mode="quizzes" aria-labelledby="mixups-title" className="border-t border-slate-200 p-6 md:p-8">
+          <h2 id="mixups-title" className="text-base font-semibold text-slate-900">{t('mixUpsTitle')}</h2>
+          <p className="mt-1 max-w-[65ch] text-sm text-slate-600">{t('mixUpsLead')}</p>
+          {mixUpsLoading ? (
+            <div className="mt-4 h-20 animate-pulse rounded-lg bg-slate-100 motion-reduce:animate-none" aria-busy />
+          ) : mixUps.length === 0 ? (
+            <p className="max-w-[65ch] py-6 text-slate-600">{t(mixUpsPending ? 'mixUpsPending' : 'mixUpsEmpty')}</p>
+          ) : (
+            <>
+              <Misconceptions notebooks={mixUps} />
+              {mixUpsPending && <p className="mt-2 text-sm text-slate-500">{t('mixUpsPendingMore')}</p>}
+            </>
           )}
         </section>
 

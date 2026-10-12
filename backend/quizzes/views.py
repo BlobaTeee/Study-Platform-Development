@@ -344,6 +344,50 @@ class WeakConceptsView(APIView):
         return Response({'concepts': concepts_for(questions, user=request.user)})
 
 
+class MisconceptionsView(APIView):
+    """What the student keeps confusing, per notebook (services/misconceptions)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from .services.misconceptions import misconceptions
+        notebooks, pending = misconceptions(request.user)
+        # Cards and source ids are for the practice press, not for display.
+        for nb in notebooks:
+            nb['items'] = [{k: v for k, v in item.items() if k not in ('cards', 'source_ids')}
+                           for item in nb['items']]
+        return Response({'notebooks': notebooks, 'pending': pending})
+
+
+class MisconceptionPracticeView(APIView):
+    """Make one misconception's contrast cards (once) and return their ids."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from flashcards.models import Flashcard
+        from .services.misconceptions import find_item
+        notebook = notebooks_for(request.user).filter(id=request.data.get('notebook_id')).first()
+        if notebook is None:
+            return Response({'detail': _('Notebook not found.')}, status=404)
+        item = find_item(request.user, notebook.id, str(request.data.get('key') or ''))
+        if item is None or not item['cards']:
+            return Response({'detail': _('That mix-up is no longer on the list.')}, status=404)
+        # Pressed twice, the same cards: found by their questions in this notebook.
+        existing = {c.question: c.id for c in Flashcard.objects.filter(
+            user=request.user, notebook=notebook, archived=False,
+            question__in=[c['question'] for c in item['cards']])}
+        ids = []
+        for card in item['cards']:
+            if card['question'] in existing:
+                ids.append(existing[card['question']])
+                continue
+            made = Flashcard.objects.create(user=request.user, notebook=notebook, question=card['question'],
+                                            answer=card['answer'], explanation=item['difference'],
+                                            is_public=False)
+            made.sources.set(item['source_ids'])
+            ids.append(made.id)
+        return Response({'card_ids': ids})
+
+
 class PracticeConceptView(APIView):
     """Write a fresh five-question paper on one weak concept."""
     permission_classes = [permissions.IsAuthenticated]
