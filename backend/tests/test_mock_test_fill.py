@@ -131,9 +131,9 @@ def test_pressing_make_quiz_still_replaces_the_documents_quiz(client, lecture, w
 
 
 def test_a_big_round_is_split_into_requests_a_model_answers_in_time(client, lecture, writer, settings):
-    # One request for 32 questions timed out on every model (measured: 412s,
-    # then nothing). No request asks for more than a model writes in time;
-    # the rest go in parallel requests.
+    # One request for 32 questions timed out on every model, then nothing.
+    # No request asks for more than a model writes in time; the rest go in
+    # parallel requests.
     _start(client, lecture, 30)
 
     sizes = [int(re.search(r'Create exactly (\d+)', p).group(1)) for p in writer.prompts]
