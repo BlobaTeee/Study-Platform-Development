@@ -116,8 +116,8 @@ def wait_for_background(timeout: float = 30) -> None:
 def _finding(notebook_id: int, rows: list[dict]) -> list[dict] | None:
     """The cached finding, or None while it is being asked for.
 
-    A model can hold a request for minutes (measured: 256 seconds, and once
-    about ten minutes, before answering), and this runs when the progress
+    With every model busy, a request walks the whole list at 30 seconds a
+    model: two minutes before it gives up, and this runs when the progress
     page loads. So the request goes on a thread of its own and the page says
     the finding is on its way; the next look reads it from the cache.
     """
