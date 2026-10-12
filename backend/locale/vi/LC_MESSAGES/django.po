@@ -324,3 +324,6 @@ msgstr "Bạn không có quyền học những thẻ này."
 
 msgid "The main ideas could not be read just now. Try again in a few minutes."
 msgstr "Chưa rút được ý chính lúc này. Thử lại sau vài phút."
+
+msgid "That mix-up is no longer on the list."
+msgstr "Chỗ nhầm này không còn trong danh sách."

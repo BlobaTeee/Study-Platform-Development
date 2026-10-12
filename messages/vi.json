@@ -538,7 +538,16 @@
     "explainGroup": "Giải thích bằng lời",
     "forgottenNotebookMeta": "{cards} · {groups} nhóm",
     "relearnNotebook": "Ôn lại cả {count} thẻ",
-    "untitledNotebook": "Sổ tay chưa đặt tên"
+    "untitledNotebook": "Sổ tay chưa đặt tên",
+    "mixUpsTitle": "Chỗ hay nhầm",
+    "mixUpsLead": "Những ý bạn hay lẫn với nhau, dựa trên đáp án sai bạn đã chọn ở nhiều câu khác nhau.",
+    "mixUpsEmpty": "Chưa thấy chỗ nào bạn hay nhầm. Cần ít nhất 3 câu sai trong một sổ tay để tìm ra.",
+    "mixUp": "Hay nhầm <strong>{a}</strong> với <strong>{b}</strong>",
+    "mixUpEvidence": "Thấy ở {count} câu sai",
+    "contrastCards": "Ôn thẻ đối chiếu",
+    "misconceptionFailed": "Chưa mở được thẻ đối chiếu. Thử lại sau.",
+    "mixUpsPending": "Đang xem lại các câu bạn làm sai để tìm chỗ hay nhầm…",
+    "mixUpsPendingMore": "Đang xem thêm các sổ tay khác…"
   },
   "account": {
     "eyebrow": "Tài khoản",

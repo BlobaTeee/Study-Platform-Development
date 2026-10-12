@@ -98,10 +98,18 @@ export type ForgottenNotebook = {
   groups: ForgottenGroup[]
 }
 
+/** A mix-up the student keeps making, named from their wrong answers. */
+export type Misconception = { key: string; confused: string; with: string; difference: string; evidence: number; examples: string[] }
+export type MisconceptionNotebook = { notebook_id: number; title: string; items: Misconception[] }
+
 export const reviewsAPI = {
   // Reviews done and recall accuracy over the last 7 days — a real week window,
   // unlike the all-time counts on the analytics summary.
   getWeeklyStats: () => api.get('/study/card-reviews/stats/'),
+  getMisconceptions: () => api.get<{ notebooks: MisconceptionNotebook[]; pending: boolean }>('/quizzes/misconceptions/'),
+  // Makes that mix-up's contrast cards (once) and returns their ids to study.
+  practiseMisconception: (notebookId: number, key: string) =>
+    api.post<{ card_ids: number[] }>('/quizzes/misconceptions/practice/', { notebook_id: notebookId, key }),
   // Cards last answered wrong, grouped by concept, so they can be relearned
   // one idea at a time.
   getForgottenGroups: () => api.get<{ notebooks: ForgottenNotebook[] }>('/study/card-reviews/forgotten_groups/'),
