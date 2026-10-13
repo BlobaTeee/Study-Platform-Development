@@ -77,6 +77,28 @@ loader raises a clear error telling you to fetch it (below); SciQ raw is committ
   verbatim into `source_text` (trivial leakage; only 2,512 unique texts). See
   `docs/specs/2026-07-03-ml-foundation-design.md` §10.
 
+### Duolingo learning traces  (memory forecast: half-life regression)
+
+- **Source:** Settles, B. & Meeder, B. (2016). *A Trainable Spaced Repetition Model for
+  Language Learning.* ACL. Data: Harvard Dataverse, doi:10.7910/DVN/N8XJME,
+  file `settles.acl16.learning_traces.13m.csv.gz` (379 MB, 12.9M rows).
+- **Licence:** Creative Commons Attribution-NonCommercial 4.0 (CC BY-NC 4.0). Academic,
+  non-commercial use with attribution. The weights in `ml_pipeline/models/memory_hlr.json`
+  derive from it and carry the same terms. The app does not use them: its forecast runs on
+  FSRS-6's published parameters (MIT), see `ml_pipeline/fsrs_model.py`.
+- **Committed:** ⛔ no (gitignored). Download into `datasets/raw/Duolingo/`:
+
+  ```bash
+  curl -L -o "datasets/raw/Duolingo/settles.acl16.learning_traces.13m.csv.gz" \
+    "https://dataverse.harvard.edu/api/access/datafile/3091087"
+  ```
+- **Schema:** `p_recall` (share of a session's attempts recalled), `delta` (seconds since
+  the item was last seen), `history_seen`, `history_correct`, plus user, language and
+  lexeme columns the app does not use.
+- **Used by:** `ml_pipeline/notebooks/08_memory_forecast.ipynb` only, an experiment that
+  fits half-life regression (`ml_pipeline/memory_model.py`) and explains why the app uses
+  FSRS instead.
+
 ## Integrity check
 
 Verify a raw file has not drifted/corrupted:

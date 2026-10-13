@@ -102,10 +102,18 @@ export type ForgottenNotebook = {
 export type Misconception = { key: string; confused: string; with: string; difference: string; evidence: number; examples: string[] }
 export type MisconceptionNotebook = { notebook_id: number; title: string; items: Misconception[] }
 
+/** One notebook's memory forecast: expected numbers of studied cards. */
+export type NotebookForecast = {
+  notebook_id: number; title: string; has_exam: boolean; days_ahead: number
+  studied: number; unseen: number; now: number; at_exam: number
+  suggestion: { card_ids: number[]; at_exam: number }
+}
+
 export const reviewsAPI = {
   // Reviews done and recall accuracy over the last 7 days — a real week window,
   // unlike the all-time counts on the analytics summary.
   getWeeklyStats: () => api.get('/study/card-reviews/stats/'),
+  getForecast: () => api.get<{ notebooks: NotebookForecast[] }>('/study/forecast/'),
   getMisconceptions: () => api.get<{ notebooks: MisconceptionNotebook[]; pending: boolean }>('/quizzes/misconceptions/'),
   // Makes that mix-up's contrast cards (once) and returns their ids to study.
   practiseMisconception: (notebookId: number, key: string) =>
