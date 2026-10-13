@@ -4,9 +4,10 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
 import useSWR from 'swr'
-import { analyticsAPI, reviewsAPI, type ForgottenNotebook, type MisconceptionNotebook } from '@/lib/api'
+import { analyticsAPI, reviewsAPI, type ForgottenNotebook, type MisconceptionNotebook, type NotebookForecast } from '@/lib/api'
 import { ForgottenCards } from '@/components/forgotten-cards'
 import { Misconceptions } from '@/components/misconceptions'
+import { MemoryForecast } from '@/components/memory-forecast'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
 import { type Due, caughtUpMessage, MASTERY_LABEL, masteryBarClass, masteryLevel } from '@/lib/study-format'
@@ -76,6 +77,8 @@ export default function AnalyticsPage() {
   )
   const mixUps: MisconceptionNotebook[] = mixUpsRes?.data?.notebooks ?? []
   const mixUpsPending = !!mixUpsRes?.data?.pending
+  const { data: forecastRes } = useSWR(['/study/forecast'], () => reviewsAPI.getForecast())
+  const forecast: NotebookForecast[] = forecastRes?.data?.notebooks ?? []
 
   return (
     <div className="space-y-8">
@@ -124,6 +127,17 @@ export default function AnalyticsPage() {
             </>
           )}
         </section>
+
+        {/* Test-day forecast: how much of what was studied will still be
+            recalled, from the memory model (notebook 08), and the review that
+            raises it most. Hidden until something has been studied. */}
+        {forecast.length > 0 && (
+          <section data-mode="flashcards" aria-labelledby="forecast-title" className="border-t border-slate-200 p-6 md:p-8">
+            <h2 id="forecast-title" className="text-base font-semibold text-slate-900">{t('forecastTitle')}</h2>
+            <p className="mt-1 max-w-[65ch] text-sm text-slate-600">{t('forecastLead')}</p>
+            <MemoryForecast notebooks={forecast} />
+          </section>
+        )}
 
         {/* Cards last answered wrong, by notebook and then by idea.
             Relearning a group together works better than meeting the same

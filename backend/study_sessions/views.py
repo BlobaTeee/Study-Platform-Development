@@ -406,6 +406,15 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
         })
 
 
+class ForecastView(APIView):
+    """How many studied cards each notebook will still recall on test day."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .forecast import forecast
+        return Response({'notebooks': forecast(request.user, studiable_cards(request.user))})
+
+
 class FeynmanView(APIView):
     """GET ?cards=1,2,3 → the latest attempt for that group ({} if none).
     POST {card_ids, concept, text} → feedback on a new attempt."""

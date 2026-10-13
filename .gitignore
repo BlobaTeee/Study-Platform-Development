@@ -34,6 +34,8 @@ ml_pipeline/models/*.joblib
 
 # Large raw dataset kept out of git (137 MB, regenerable from source — see datasets/README.md)
 datasets/raw/AI Flashcards/*.csv
+# Duolingo learning traces (379 MB, CC BY-NC 4.0) — download from Harvard Dataverse, see datasets/README.md
+datasets/raw/Duolingo/*.csv.gz
 
 # IDE parquet-viewer artifacts
 *.parquet.as.json
