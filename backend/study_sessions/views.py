@@ -1,3 +1,6 @@
+import threading
+
+from django.conf import settings
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -129,6 +132,38 @@ def _swap_in_variants(user, ranked, pending):
         }
 
     return merge_replacements(ranked, replacements)
+
+
+# One rewrite at a time per student: a page fetched twice while one runs must
+# not rewrite the same card twice.
+_rewriting: dict[int, threading.Thread] = {}
+_rewriting_lock = threading.Lock()
+
+
+def wait_for_variants(timeout: float = 30) -> None:
+    """Let background rewrites finish (used by tests)."""
+    for thread in list(_rewriting.values()):
+        thread.join(timeout)
+
+
+def _swap_later(user, ranked, pending):
+    with _rewriting_lock:
+        running = _rewriting.get(user.id)
+        if running is not None and running.is_alive():
+            return
+        thread = threading.Thread(target=_swap_in_background, args=(user, ranked, pending), daemon=True)
+        _rewriting[user.id] = thread
+        thread.start()
+
+
+def _swap_in_background(user, ranked, pending):
+    from django.db import close_old_connections
+    try:
+        _swap_in_variants(user, ranked, pending)
+    finally:
+        close_old_connections()
+        with _rewriting_lock:
+            _rewriting.pop(user.id, None)
 
 
 def _source_excerpt(user, source_ids, limit=4000):
@@ -354,7 +389,13 @@ class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         pending = select_for_regeneration(ranked, MAX_REGENERATIONS_PER_FETCH)
         if pending:
-            ranked = _swap_in_variants(user, ranked, pending)
+            if getattr(settings, 'CARD_VARIANTS_IN_BACKGROUND', True):
+                # The rewrite is model calls, seconds each, and this fetch is
+                # what the home and study pages wait on. Cards go out as they
+                # are; the rewrites are in place for the next fetch.
+                _swap_later(user, ranked, pending)
+            else:
+                ranked = _swap_in_variants(user, ranked, pending)
 
         # needs_regeneration is selection-policy plumbing, not part of the
         # public shape: replacements never carry it, so leaving it on
