@@ -96,3 +96,15 @@ def test_reset_replaces_only_that_accounts_data(user, other_user, no_ai):
 def test_an_unknown_email_is_refused(db):
     with pytest.raises(CommandError):
         call_command('seed_demo', email='nobody@example.com')
+
+
+def test_the_wrong_answers_carry_a_real_mix_up(user, no_ai):
+    # Mix-ups are found from what was chosen instead: the student keeps taking
+    # an acid for a base (and mitosis for meiosis), in different questions.
+    _seed(user)
+
+    wrong = MockTestQuestion.objects.filter(mock_test__user=user, is_correct=False).exclude(user_answer='')
+    swapped = [r for r in wrong
+               if ('acid' in r.correct_answer.lower() and 'base' in r.user_answer.lower())
+               or ('base' in r.correct_answer.lower() and 'acid' in r.user_answer.lower())]
+    assert len({r.question_text for r in swapped}) >= 2
