@@ -125,9 +125,18 @@ export default function HomePage() {
               >
                 <span className="absolute left-6 -top-px h-[3px] w-12 rounded-b-full bg-mode md:left-8" aria-hidden />
                 <span className="font-mono text-xs text-slate-500 tabular-nums">1 / {ready}</span>
-                <p className="mt-3 text-xl leading-snug text-slate-900 md:text-2xl text-pretty">
-                  {firstDue?.question ?? t('cardsDueToday', { count: ready })}
-                </p>
+                {/* The queue can take a few seconds (flagged cards are rewritten
+                    on fetch); until then a placeholder line, not the heading again. */}
+                {firstDue || dueRes ? (
+                  <p className="mt-3 text-xl leading-snug text-slate-900 md:text-2xl text-pretty">
+                    {firstDue?.question ?? t('cardsDueToday', { count: ready })}
+                  </p>
+                ) : (
+                  <div className="mt-3 space-y-2" aria-busy>
+                    <div className="h-6 w-4/5 rounded bg-slate-100" />
+                    <div className="h-6 w-1/2 rounded bg-slate-100" />
+                  </div>
+                )}
                 <span className="mt-6 block h-px w-full bg-slate-100" aria-hidden />
               </Link>
 
