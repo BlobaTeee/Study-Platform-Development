@@ -125,7 +125,8 @@ def _finding(notebook_id: int, rows: list[dict]) -> list[dict] | None:
     cache_key = 'misconceptions:' + hashlib.sha1(f'{notebook_id}:{ids}'.encode()).hexdigest()
     cached = cache.get(cache_key)
     if cached is not None:
-        return cached
+        # Merged on reading too: findings cached before the merge existed.
+        return _merged([dict(i) for i in cached])
     if not getattr(settings, 'MISCONCEPTIONS_IN_BACKGROUND', True):
         found = _ask(rows)
         if found is None:
@@ -180,7 +181,31 @@ Return ONLY valid JSON: {{"misconceptions": [{{"confused": "...", "with": "...",
         logger.info('Finding misconceptions failed: %s', exc)
         return None
     raw = data.get('misconceptions') if isinstance(data, dict) else None
-    return [item for m in (raw if isinstance(raw, list) else []) if (item := _checked(m, rows))]
+    return _merged([item for m in (raw if isinstance(raw, list) else []) if (item := _checked(m, rows))])
+
+
+def _pair_key(a: str, b: str) -> str:
+    """Unordered, so the two sides of one confusion share a key."""
+    return hashlib.sha1('|'.join(sorted([a.lower(), b.lower()])).encode()).hexdigest()[:12]
+
+
+def _merged(items: list[dict]) -> list[dict]:
+    """One item per pair of ideas: "acids taken for bases" and "bases taken
+    for acids" are one confusion seen from both sides."""
+    out: dict[str, dict] = {}
+    for item in items:
+        # The key is recomputed from the pair: findings cached before keys
+        # were unordered still carry an ordered one.
+        item['key'] = _pair_key(item['confused'], item['with'])
+        if item['key'] not in out:
+            out[item['key']] = item
+            continue
+        kept = out[item['key']]
+        kept['evidence'] += item['evidence']
+        kept['examples'] = (kept['examples'] + item['examples'])[:3]
+        kept['cards'] = (kept['cards'] + item['cards'])[:MAX_CARDS + 1]
+        kept['source_ids'] = sorted(set(kept['source_ids']) | set(item['source_ids']))
+    return sorted(out.values(), key=lambda i: -i['evidence'])
 
 
 def _checked(m, rows: list[dict]) -> dict | None:
@@ -200,7 +225,7 @@ def _checked(m, rows: list[dict]) -> dict | None:
         if isinstance(c, dict) and str(c.get('question') or '').strip() and str(c.get('answer') or '').strip():
             cards.append({'question': tidy_question(str(c['question'])), 'answer': tidy_prose(str(c['answer']))})
     return {
-        'key': hashlib.sha1(f'{confused.lower()}|{taken_for.lower()}'.encode()).hexdigest()[:12],
+        'key': _pair_key(confused, taken_for),
         'confused': confused,
         'with': taken_for,
         'difference': tidy_prose(str(m.get('difference') or ''))[:400],

@@ -180,3 +180,19 @@ def test_the_page_never_waits_for_the_model(client, user, notebook, finder, sett
     assert first['pending'] is True and first['notebooks'] == []
     assert second['pending'] is False and second['notebooks'][0]['items']
     assert len(finder.prompts) == 1
+
+
+def test_the_same_mix_up_seen_both_ways_is_one_item(client, user, notebook, finder):
+    # "Took an acid for a base" and "took a base for an acid" are one confusion.
+    a = dict(FOUND['misconceptions'][0], confused='Acids', answers=[1, 2],
+             **{'with': 'Bases'}, cards=[{'question': 'Acid or base: pH 2?', 'answer': 'Acid'}])
+    b = dict(FOUND['misconceptions'][0], confused='Bases', answers=[3, 4],
+             **{'with': 'Acids'}, cards=[{'question': 'Acid or base: pH 12?', 'answer': 'Base'}])
+    finder.reply = {'misconceptions': [a, b]}
+    _sat(user, notebook)
+
+    items = _listed(client)[0]['items']
+
+    assert len(items) == 1
+    assert {items[0]['confused'], items[0]['with']} == {'Acids', 'Bases'}
+    assert items[0]['evidence'] == 4
