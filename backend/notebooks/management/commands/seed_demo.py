@@ -38,6 +38,11 @@ PLAN = [
 ]
 #: The topic the simulated student keeps forgetting.
 WEAK_DOCUMENT = 'Chemical reactions'
+#: Two ideas the student keeps mixing up, per document: its quiz carries
+#: SciQ questions whose answer is one and a distractor the other, and a wrong
+#: answer there picks the other one. That is what "What you mix up" finds.
+CONFUSIONS = {'Chemical reactions': ('acid', 'base'), 'Cells and genetics': ('mitosis', 'meiosis')}
+CONFUSION_QUESTIONS = 5
 PASSAGES_PER_DOCUMENT = 32
 CARDS_PER_DOCUMENT = 12
 QUESTIONS_PER_DOCUMENT = 10
@@ -104,6 +109,10 @@ def _build_content(user, rows, rng) -> list[dict]:
 
     used = set()
     documents = []
+    confusing = {}
+    for doc_title, (a, b) in CONFUSIONS.items():
+        confusing[doc_title] = [r for r in rows if _swaps(r, a, b)][:CONFUSION_QUESTIONS]
+        used.update(r['question'] for r in confusing[doc_title])
     for nb_title, docs in PLAN:
         notebook = Notebook.objects.create(user=user, title=nb_title)
         for doc_title, words in docs:
@@ -111,7 +120,8 @@ def _build_content(user, rows, rng) -> list[dict]:
                       and any(re.search(rf'\b{w}', (r['question'] + ' ' + r['support']).lower()) for w in words)]
             picked = picked[:PASSAGES_PER_DOCUMENT]
             used.update(r['question'] for r in picked)
-            text = '\n\n'.join(r['support'].strip() for r in picked)
+            mixed = confusing.get(doc_title, [])
+            text = '\n\n'.join(r['support'].strip() for r in picked + mixed)
             source = Source.objects.create(
                 notebook=notebook, title=doc_title, file_type='text', extracted_text=text, status='ready',
                 gemini_summary=f'{doc_title}: ' + ' '.join(_sentences(picked[0]['support'])[:2]))
@@ -136,7 +146,7 @@ def _build_content(user, rows, rng) -> list[dict]:
                                        description=f'Generated from {doc_title}')
             quiz.sources.set([source])
             questions = []
-            for order, r in enumerate(picked[CARDS_PER_DOCUMENT:CARDS_PER_DOCUMENT + QUESTIONS_PER_DOCUMENT]):
+            for order, r in enumerate(mixed + picked[CARDS_PER_DOCUMENT:CARDS_PER_DOCUMENT + QUESTIONS_PER_DOCUMENT]):
                 options = [r['correct_answer'], r['distractor1'], r['distractor2'], r['distractor3']]
                 rng.shuffle(options)
                 questions.append(Question.objects.create(
@@ -144,8 +154,26 @@ def _build_content(user, rows, rng) -> list[dict]:
                     correct_answer=r['correct_answer'], explanation=(_sentences(r['support']) or [''])[0][:300],
                     order=order, source=source, source_excerpt=r['support'][:2000]))
             documents.append({'notebook': notebook, 'title': doc_title, 'cards': cards, 'questions': questions,
-                              'weak': doc_title == WEAK_DOCUMENT})
+                              'weak': doc_title == WEAK_DOCUMENT, 'confusion': CONFUSIONS.get(doc_title),
+                              'confusing': {q.id for q in questions[:len(mixed)]}})
     return documents
+
+
+def _swaps(row, a: str, b: str) -> bool:
+    """The answer is about one idea and a distractor about the other."""
+    distractors = [row['distractor1'], row['distractor2'], row['distractor3']]
+    right = row['correct_answer'].lower()
+    return any((a in right and b in d.lower()) or (b in right and a in d.lower()) for d in distractors)
+
+
+def _opposite(question, confusion) -> str | None:
+    """The option naming the other idea of the pair, if there is one."""
+    if not confusion:
+        return None
+    a, b = confusion
+    right = question.correct_answer.lower()
+    other = b if a in right else a if b in right else None
+    return next((o for o in question.options if o != question.correct_answer and other and other in o.lower()), None)
 
 
 def _sentences(text: str) -> list[str]:
@@ -164,7 +192,10 @@ def _simulate(user, documents, days, rng):
     history: dict[int, list] = {}
     today = timezone.localdate()
     tz = timezone.get_current_timezone()
-    mock_days = {days // 3, (2 * days) // 3, days - 2}
+    mock_days = [days // 3, (2 * days) // 3, days - 2]
+    # Chemistry, Biology, Chemistry: the two notebooks with a mix-up, so it
+    # shows in more than one sitting.
+    mock_notebooks = [documents[2]['notebook'].id, documents[0]['notebook'].id, documents[2]['notebook'].id]
 
     for back in range(days, 0, -1):
         day = today - timedelta(days=back)
@@ -186,14 +217,15 @@ def _simulate(user, documents, days, rng):
                 chance = retrievability((when - state.last_review).total_seconds() / 86400, state.stability)
             else:
                 chance = 0.8
-            chance *= 0.45 if weak else 1.0
+            chance *= 0.3 if weak else 1.0
             grade = ('easy' if rng.random() < 0.25 else 'good') if rng.random() < chance else 'hard'
             with mock.patch('django.utils.timezone.now', return_value=when):
                 CardReview.record(user, card, grade)
             history.setdefault(card.id, []).append((when, RATING[grade]))
 
         if (days - back) in mock_days:
-            _sit_mock_test(user, documents, evening + timedelta(hours=1), rng, MockTest, MockTestQuestion)
+            nb_id = mock_notebooks[mock_days.index(days - back)]
+            _sit_mock_test(user, documents, nb_id, evening + timedelta(hours=1), rng, MockTest, MockTestQuestion)
 
     biology = documents[0]['notebook']
     PlannedTest.objects.create(
@@ -201,21 +233,21 @@ def _simulate(user, documents, days, rng):
         scheduled_for=timezone.make_aware(datetime.combine(today + timedelta(days=TEST_IN_DAYS), time(9, 0)), tz))
 
 
-def _sit_mock_test(user, documents, when, rng, MockTest, MockTestQuestion):
-    """Ten questions from one notebook; the weak topic goes worse, and a wrong
-    answer is always the same distractor, so a mix-up shows up repeatedly."""
-    notebook_docs = {}
-    for d in documents:
-        notebook_docs.setdefault(d['notebook'].id, []).append(d)
-    nb_id = rng.choice(list(notebook_docs))
-    pool = [(q, d['weak']) for d in notebook_docs[nb_id] for q in d['questions']]
-    paper = rng.sample(pool, min(10, len(pool)))
+def _sit_mock_test(user, documents, nb_id, when, rng, MockTest, MockTestQuestion):
+    """Ten questions from one notebook, every mix-up question among them. The
+    weak topic goes worse, and a mix-up question is mostly answered with the
+    other idea of the pair."""
+    docs = [d for d in documents if d['notebook'].id == nb_id]
+    mixups = [(q, d) for d in docs for q in d['questions'] if q.id in d['confusing']]
+    rest = [(q, d) for d in docs for q in d['questions'] if q.id not in d['confusing']]
+    paper = mixups + rng.sample(rest, max(0, min(10 - len(mixups), len(rest))))
     with mock.patch('django.utils.timezone.now', return_value=when):
         test = MockTest.objects.create(user=user, notebook_id=nb_id, question_count=len(paper), duration_minutes=20)
     right = 0
-    for order, (q, weak) in enumerate(paper):
-        correct = rng.random() < (0.4 if weak else 0.75)
-        wrong_choice = next(o for o in q.options if o != q.correct_answer)
+    for order, (q, d) in enumerate(paper):
+        swapped = _opposite(q, d['confusion']) if q.id in d['confusing'] else None
+        correct = rng.random() < (0.2 if swapped else 0.4 if d['weak'] else 0.75)
+        wrong_choice = swapped or next(o for o in q.options if o != q.correct_answer)
         right += correct
         MockTestQuestion.objects.create(
             mock_test=test, question=q, order=order, question_text=q.question_text, options=q.options,
