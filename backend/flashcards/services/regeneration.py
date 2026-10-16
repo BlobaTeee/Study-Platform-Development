@@ -7,8 +7,8 @@ small.
 """
 from __future__ import annotations
 
-#: Model calls are seconds each, and a due-fetch blocks the study page, so a
-#: backlog is worked through a few cards at a time rather than all at once.
+#: Model calls are seconds each, so a backlog is worked through a few cards at
+#: a time rather than all at once.
 MAX_REGENERATIONS_PER_FETCH = 3
 
 #: Some cards cannot be regenerated at all — a one-word answer leaves the
