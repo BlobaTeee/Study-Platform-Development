@@ -515,7 +515,7 @@
     "readyToStudy": "{count, plural, one {card ready to study} other {cards ready to study}}",
     "studyNow": "Study now",
     "byNotebook": "By notebook",
-    "byNotebookLead": "How well you know each notebook, across flashcards and quizzes together. Weakest first.",
+    "byNotebookLead": "How well you know each notebook, and how many studied cards you will still recall on test day (7 days ahead if none is planned). Weakest first.",
     "byNotebookEmpty": "Nothing yet. Add a source to a notebook and generate flashcards or a quiz from it.",
     "quizQuestions": "{count, plural, one {# quiz question} other {# quiz questions}}",
     "last14": "Last 14 days",
@@ -548,16 +548,10 @@
     "misconceptionFailed": "Could not open the contrast cards. Try again later.",
     "mixUpsPending": "Looking through your wrong answers for mix-ups…",
     "mixUpsPendingMore": "Still looking through other notebooks…",
-    "forecastTitle": "Forecast for test day",
-    "forecastLead": "An estimate of how many studied cards you will still recall on test day, from your own review history.",
-    "forecastExamIn": "test in {days} days",
-    "forecastWeekAhead": "no test planned, looking 7 days ahead",
-    "forecastNow": "You recall about {now} of {studied} studied cards now.",
-    "forecastLaterExam": "Without review, about {later} by test day.",
-    "forecastLaterWeek": "Without review, about {later} in 7 days.",
     "forecastIfReviewed": "Review the {cards} that gain most, today, and it rises to about {after}.",
-    "forecastUnseen": "{count} cards not studied yet are not counted.",
-    "forecastReview": "Review these {count}"
+    "forecastReview": "Review {count}",
+    "forecastShortWeek": "recall {now}/{studied}, {later} in 7 days",
+    "forecastShortExam": "recall {now}/{studied}, {later} on test day (in {days} days)"
   },
   "account": {
     "eyebrow": "Account",

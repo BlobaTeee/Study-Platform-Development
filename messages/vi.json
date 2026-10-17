@@ -515,7 +515,7 @@
     "readyToStudy": "thẻ sẵn sàng để ôn",
     "studyNow": "Ôn ngay",
     "byNotebook": "Theo sổ tay",
-    "byNotebookLead": "Bạn nắm mỗi sổ tay đến đâu, tính cả thẻ lẫn bài kiểm tra. Yếu nhất trước.",
+    "byNotebookLead": "Bạn nắm mỗi sổ tay đến đâu, và còn nhớ bao nhiêu thẻ đã học tới ngày thi (chưa đặt lịch thì tính 7 ngày tới). Yếu nhất trước.",
     "byNotebookEmpty": "Chưa có gì. Thêm tài liệu vào một sổ tay rồi tạo thẻ hoặc bài kiểm tra.",
     "quizQuestions": "{count} câu kiểm tra",
     "last14": "14 ngày qua",
@@ -548,16 +548,10 @@
     "misconceptionFailed": "Chưa mở được thẻ đối chiếu. Thử lại sau.",
     "mixUpsPending": "Đang xem lại các câu bạn làm sai để tìm chỗ hay nhầm…",
     "mixUpsPendingMore": "Đang xem thêm các sổ tay khác…",
-    "forecastTitle": "Dự báo tới ngày thi",
-    "forecastLead": "Ước tính bạn còn nhớ bao nhiêu thẻ đã học vào ngày thi, dựa trên lịch sử ôn của bạn.",
-    "forecastExamIn": "thi sau {days} ngày",
-    "forecastWeekAhead": "chưa đặt lịch thi, tính cho 7 ngày tới",
-    "forecastNow": "Hiện bạn nhớ khoảng {now} trên {studied} thẻ đã học.",
-    "forecastLaterExam": "Nếu không ôn, tới ngày thi còn khoảng {later}.",
-    "forecastLaterWeek": "Nếu không ôn, sau 7 ngày còn khoảng {later}.",
     "forecastIfReviewed": "Ôn {cards} cứu được nhiều nhất ngay hôm nay thì lên khoảng {after}.",
-    "forecastUnseen": "Còn {count} thẻ chưa học, chưa tính vào đây.",
-    "forecastReview": "Ôn {count} thẻ này"
+    "forecastReview": "Ôn {count} thẻ",
+    "forecastShortWeek": "nhớ {now}/{studied}, sau 7 ngày còn {later}",
+    "forecastShortExam": "nhớ {now}/{studied}, tới ngày thi ({days} ngày nữa) còn {later}"
   },
   "account": {
     "eyebrow": "Tài khoản",
