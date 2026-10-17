@@ -7,7 +7,6 @@ import useSWR from 'swr'
 import { analyticsAPI, reviewsAPI, type ForgottenNotebook, type MisconceptionNotebook, type NotebookForecast } from '@/lib/api'
 import { ForgottenCards } from '@/components/forgotten-cards'
 import { Misconceptions } from '@/components/misconceptions'
-import { MemoryForecast } from '@/components/memory-forecast'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
 import { type Due, caughtUpMessage, MASTERY_LABEL, masteryBarClass, masteryLevel } from '@/lib/study-format'
@@ -33,6 +32,18 @@ function notebookRecord(n: WeakNotebook, t: T, common: T): string {
   if (n.cards) parts.push(common('cards', { count: n.cards }))
   if (n.questions) parts.push(t('quizQuestions', { count: n.questions }))
   return parts.join(' · ')
+}
+
+/** The test-day forecast in one phrase, for the notebook's line. Counts are
+ *  expected values from the memory model, so they are rounded. */
+function forecastPhrase(f: NotebookForecast, t: T): string {
+  const values = { now: Math.round(f.now), studied: f.studied, later: Math.round(f.at_exam), days: f.days_ahead }
+  return t(f.has_exam ? 'forecastShortExam' : 'forecastShortWeek', values)
+}
+
+/** The review that raises the forecast most, when it raises it at all. */
+function worthReviewing(f: NotebookForecast | undefined): f is NotebookForecast {
+  return !!f && f.suggestion.card_ids.length > 0 && Math.round(f.suggestion.at_exam) > Math.round(f.at_exam)
 }
 
 export default function AnalyticsPage() {
@@ -79,6 +90,8 @@ export default function AnalyticsPage() {
   const mixUpsPending = !!mixUpsRes?.data?.pending
   const { data: forecastRes } = useSWR(['/study/forecast'], () => reviewsAPI.getForecast())
   const forecast: NotebookForecast[] = forecastRes?.data?.notebooks ?? []
+  const forecastOf = new Map(forecast.map((f) => [f.notebook_id, f]))
+  const anyReview = weakNotebooks.some((n) => worthReviewing(forecastOf.get(n.notebook_id)))
 
   return (
     <div className="space-y-8">
@@ -128,17 +141,6 @@ export default function AnalyticsPage() {
           )}
         </section>
 
-        {/* Test-day forecast: how much of what was studied will still be
-            recalled, from the memory model (notebook 08), and the review that
-            raises it most. Hidden until something has been studied. */}
-        {forecast.length > 0 && (
-          <section data-mode="flashcards" aria-labelledby="forecast-title" className="border-t border-slate-200 p-6 md:p-8">
-            <h2 id="forecast-title" className="text-base font-semibold text-slate-900">{t('forecastTitle')}</h2>
-            <p className="mt-1 max-w-[65ch] text-sm text-slate-600">{t('forecastLead')}</p>
-            <MemoryForecast notebooks={forecast} />
-          </section>
-        )}
-
         {/* Cards last answered wrong, by notebook and then by idea.
             Relearning a group together works better than meeting the same
             idea scattered through a mixed queue. */}
@@ -182,35 +184,67 @@ export default function AnalyticsPage() {
             <p className="py-6 text-slate-600">{t('byNotebookEmpty')}</p>
           ) : (
             <ul className="mt-3 divide-y divide-slate-100">
-              {weakNotebooks.map((n) => (
-                <li key={n.notebook_id}>
-                  <Link
-                    href={`/dashboard/notebooks/${n.notebook_id}`}
-                    className="-mx-2 flex items-center gap-4 rounded-md px-2 py-3 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-base text-slate-900">{n.title}</p>
-                      <p className="text-sm text-slate-600">{notebookRecord(n, t, common)}</p>
-                    </div>
-                    {n.accuracy == null ? (
-                      <span className="shrink-0 text-sm text-slate-500">{common('notStudied')}</span>
-                    ) : (
-                      <span className="flex shrink-0 items-center gap-3">
-                        {/* On a phone the word alone carries it; the bar would squeeze
-                            the notebook's name into a sliver. */}
-                        <span className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 sm:block" aria-hidden>
-                          <span
-                            className={cn('block h-full rounded-full', masteryBarClass(masteryLevel(n.accuracy)))}
-                            style={{ width: `${Math.max(4, Math.min(100, n.accuracy))}%` }}
-                          />
+              {weakNotebooks.map((n) => {
+                const f = forecastOf.get(n.notebook_id)
+                return (
+                  <li key={n.notebook_id} className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                    <Link
+                      href={`/dashboard/notebooks/${n.notebook_id}`}
+                      className="-mx-2 flex min-w-0 flex-1 items-center gap-4 rounded-md px-2 py-3 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-base text-slate-900">{n.title}</p>
+                        <p className="text-sm text-slate-600">
+                          {notebookRecord(n, t, common)}
+                          {/* The test-day forecast, folded in so a notebook is one
+                              line on this page rather than a paragraph of its own. */}
+                          {f && f.studied > 0 && (
+                            <span className="block text-slate-700 sm:inline">
+                              <span className="hidden sm:inline">{' · '}</span>
+                              {forecastPhrase(f, t)}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      {n.accuracy == null ? (
+                        <span className="shrink-0 text-sm text-slate-500">{common('notStudied')}</span>
+                      ) : (
+                        <span className="flex shrink-0 items-center gap-3">
+                          {/* On a phone the word alone carries it; the bar would squeeze
+                              the notebook's name into a sliver. */}
+                          <span className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 sm:block" aria-hidden>
+                            <span
+                              className={cn('block h-full rounded-full', masteryBarClass(masteryLevel(n.accuracy)))}
+                              style={{ width: `${Math.max(4, Math.min(100, n.accuracy))}%` }}
+                            />
+                          </span>
+                          <span className="text-right text-sm text-slate-900 sm:w-28 sm:text-base">{common(MASTERY_LABEL[masteryLevel(n.accuracy)])}</span>
                         </span>
-                        <span className="text-right text-sm text-slate-900 sm:w-28 sm:text-base">{common(MASTERY_LABEL[masteryLevel(n.accuracy)])}</span>
-                      </span>
+                      )}
+                      <ArrowRight className="size-4 shrink-0 text-slate-400" aria-hidden />
+                    </Link>
+                    {/* Every row keeps the button's slot once any row has one, so
+                        the mastery bars stay in one column. */}
+                    {anyReview && (
+                      <div className={cn('flex shrink-0 pb-3 sm:w-24 sm:justify-end sm:pb-0', !worthReviewing(f) && 'hidden sm:flex')}>
+                        {worthReviewing(f) && (
+                          <Button asChild variant="outline" size="sm">
+                            <Link
+                              href={`/dashboard/flashcards?cards=${f.suggestion.card_ids.join(',')}`}
+                              title={t('forecastIfReviewed', {
+                                cards: common('cards', { count: f.suggestion.card_ids.length }),
+                                after: Math.round(f.suggestion.at_exam),
+                              })}
+                            >
+                              {t('forecastReview', { count: f.suggestion.card_ids.length })}
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
                     )}
-                    <ArrowRight className="size-4 shrink-0 text-slate-400" aria-hidden />
-                  </Link>
-                </li>
-              ))}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </section>
