@@ -327,3 +327,36 @@ msgstr "Chưa rút được ý chính lúc này. Thử lại sau vài phút."
 
 msgid "That mix-up is no longer on the list."
 msgstr "Chỗ nhầm này không còn trong danh sách."
+
+msgid "This needs the AI provider, which is not available right now."
+msgstr "Việc này cần đến AI, mà AI hiện chưa dùng được."
+
+msgid "The AI has used up its free requests for now. Wait a few minutes and try again; what you wrote is kept."
+msgstr "AI đã dùng hết lượt miễn phí trong lúc này. Đợi vài phút rồi thử lại, bài bạn viết vẫn được giữ."
+
+msgid "The AI took too long to answer. Try again; what you wrote is kept."
+msgstr "AI trả lời quá lâu. Thử lại nhé, bài bạn viết vẫn được giữ."
+
+msgid "That could not be done just now. Try again in a minute; what you wrote is kept."
+msgstr "Chưa làm được lúc này. Thử lại sau một phút, bài bạn viết vẫn được giữ."
+
+msgid "This document has no text to write problems from."
+msgstr "Tài liệu này không có chữ nào để soạn bài từ đó."
+
+msgid "No usable problem came back for this document. Try again."
+msgstr "AI chưa soạn được bài dùng được cho tài liệu này. Thử lại nhé."
+
+msgid "Something the problem needs is missing."
+msgstr "Đề còn thiếu dữ kiện để giải."
+
+msgid "A rubric could not be written for this problem. Try again."
+msgstr "Chưa soạn được cách chấm cho đề này. Thử lại nhé."
+
+msgid "Write out the whole problem, with everything it gives."
+msgstr "Hãy chép đủ cả đề, kèm mọi dữ kiện đề cho."
+
+msgid "Write at least one step first."
+msgstr "Hãy viết ít nhất một bước trước đã."
+
+msgid "Keep trying a little longer before looking at the solution."
+msgstr "Thử thêm chút nữa rồi hãy xem lời giải."
