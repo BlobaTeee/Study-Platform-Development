@@ -4,9 +4,10 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
 import useSWR from 'swr'
-import { analyticsAPI, reviewsAPI, type ForgottenNotebook, type MisconceptionNotebook, type NotebookForecast } from '@/lib/api'
+import { analyticsAPI, exercisesAPI, reviewsAPI, type ForgottenNotebook, type MisconceptionNotebook, type NotebookForecast, type PracticeMistakes } from '@/lib/api'
 import { ForgottenCards } from '@/components/forgotten-cards'
 import { Misconceptions } from '@/components/misconceptions'
+import { PracticeMistakesList } from '@/components/practice-mistakes'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
 import { type Due, caughtUpMessage, MASTERY_LABEL, masteryBarClass, masteryLevel } from '@/lib/study-format'
@@ -88,6 +89,9 @@ export default function AnalyticsPage() {
   )
   const mixUps: MisconceptionNotebook[] = mixUpsRes?.data?.notebooks ?? []
   const mixUpsPending = !!mixUpsRes?.data?.pending
+  const { data: practiceRes } = useSWR(['/exercises/mistakes'], () => exercisesAPI.mistakes())
+  const practiceMistakes: PracticeMistakes[] = practiceRes?.data?.notebooks ?? []
+  const practice = useTranslations('practice')
   const { data: forecastRes } = useSWR(['/study/forecast'], () => reviewsAPI.getForecast())
   const forecast: NotebookForecast[] = forecastRes?.data?.notebooks ?? []
   const forecastOf = new Map(forecast.map((f) => [f.notebook_id, f]))
@@ -173,6 +177,17 @@ export default function AnalyticsPage() {
             </>
           )}
         </section>
+
+        {/* Errors made in practice problems, by the same five kinds for every
+            subject, so a law notebook and a chemistry one read alike. Hidden
+            until a practice problem has been handed in wrong. */}
+        {practiceMistakes.length > 0 && (
+          <section data-mode="quizzes" aria-labelledby="practice-mistakes-title" className="border-t border-slate-200 p-6 md:p-8">
+            <h2 id="practice-mistakes-title" className="text-base font-semibold text-slate-900">{practice('mistakesTitle')}</h2>
+            <p className="mt-1 max-w-[65ch] text-sm text-slate-600">{practice('mistakesLead')}</p>
+            <PracticeMistakesList notebooks={practiceMistakes} />
+          </section>
+        )}
 
         {/* Weakest notebooks. Each row links to its notebook: that is where
             the sources live and where the next set of cards gets generated. */}
