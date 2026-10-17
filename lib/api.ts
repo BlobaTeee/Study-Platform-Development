@@ -143,6 +143,46 @@ export const explainAPI = {
     api.post<FeynmanFeedback>('/study/explain/', data),
 }
 
+// Practice problems: apply a document to a case it does not spell out, solve
+// in steps, graded against a rubric the page never sees until solved.
+export type ErrorType = 'misread' | 'concept' | 'missing_step' | 'execution' | 'unsupported'
+export type ExerciseSummary = {
+  id: number; notebook_id: number; source_id: number | null; origin: 'document' | 'own'
+  prompt: string; difficulty: 'easy' | 'medium' | 'hard'
+  status: 'new' | 'mastered' | 'revisit'; revisit_on: string | null; due: boolean; attempted: boolean; created_at: string
+}
+export type ExerciseResult = {
+  verdict?: 'passed' | 'needs_work'; met?: number[]; first_wrong_step?: number | null
+  error_type?: ErrorType | null; detail?: string; hint?: string
+}
+export type ExerciseDetail = ExerciseSummary & {
+  notebook_title: string; source_title: string
+  attempts: { id: number; kind: 'submit' | 'hint' | 'reveal'; steps: string[]; result: ExerciseResult; created_at: string }[]
+  checkpoint_count: number
+  met_checkpoints: { id: number; text: string; basis: string }[]
+  failed_submits: number; can_reveal: boolean
+  solution: string[] | null; mistakes: { text: string; type: ErrorType }[] | null
+}
+export type PracticeMistakes = {
+  notebook_id: number; title: string; total: number
+  types: { type: ErrorType; count: number; exercise_ids: number[] }[]
+}
+
+export const exercisesAPI = {
+  list: (params: { notebook?: number; source?: number }) =>
+    api.get<{ results: ExerciseSummary[] }>('/exercises/', { params }),
+  generate: (sourceId: number) =>
+    api.post<{ results: ExerciseSummary[] }>('/exercises/generate/', { source_id: sourceId }),
+  own: (notebookId: number, text: string) =>
+    api.post<ExerciseDetail>('/exercises/own/', { notebook_id: notebookId, text }),
+  get: (id: number) => api.get<ExerciseDetail>(`/exercises/${id}/`),
+  remove: (id: number) => api.delete(`/exercises/${id}/`),
+  submit: (id: number, steps: string[]) => api.post<ExerciseDetail>(`/exercises/${id}/submit/`, { steps }),
+  hint: (id: number, steps: string[]) => api.post<ExerciseDetail>(`/exercises/${id}/hint/`, { steps }),
+  reveal: (id: number) => api.post<ExerciseDetail>(`/exercises/${id}/reveal/`),
+  mistakes: () => api.get<{ notebooks: PracticeMistakes[] }>('/exercises/mistakes/'),
+}
+
 export const quizzesAPI = {
   getQuizzes: (params?: any) => api.get('/quizzes/quizzes/', { params }),
   getAttempts: () => api.get('/quizzes/attempts/'),

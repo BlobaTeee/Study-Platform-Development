@@ -111,7 +111,8 @@ function modeFor(pathname: string): 'library' | 'flashcards' | 'quizzes' | 'anal
   if (pathname.startsWith('/dashboard/notebooks')) return 'library'
   // Explaining a concept starts from forgotten cards, so it wears their colour.
   if (pathname.startsWith('/dashboard/flashcards') || pathname.startsWith('/dashboard/explain')) return 'flashcards'
-  if (pathname.startsWith('/dashboard/quizzes') || pathname.startsWith('/dashboard/tests')) return 'quizzes'
+  if (pathname.startsWith('/dashboard/quizzes') || pathname.startsWith('/dashboard/tests') ||
+      pathname.startsWith('/dashboard/practice')) return 'quizzes'
   if (pathname.startsWith('/dashboard/analytics')) return 'analytics'
   return 'ink'
 }

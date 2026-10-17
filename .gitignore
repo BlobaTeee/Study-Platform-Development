@@ -36,6 +36,8 @@ ml_pipeline/models/*.joblib
 datasets/raw/AI Flashcards/*.csv
 # Duolingo learning traces (379 MB, CC BY-NC 4.0) — download from Harvard Dataverse, see datasets/README.md
 datasets/raw/Duolingo/*.csv.gz
+# ProcessBench (Apache-2.0): downloaded on demand, see datasets/README.md
+datasets/raw/ProcessBench/*.json
 
 # IDE parquet-viewer artifacts
 *.parquet.as.json

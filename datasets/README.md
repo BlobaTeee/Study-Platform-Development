@@ -99,6 +99,22 @@ loader raises a clear error telling you to fetch it (below); SciQ raw is committ
   fits half-life regression (`ml_pipeline/memory_model.py`) and explains why the app uses
   FSRS instead.
 
+### ProcessBench  (practice grader: first wrong step)
+
+- **Source:** Zheng, C. et al. (2024). *ProcessBench: Identifying Process Errors in Mathematical
+  Reasoning.* Qwen team. Data: Hugging Face `Qwen/ProcessBench`.
+- **Licence:** Apache-2.0.
+- **Committed:** ⛔ no (gitignored, 0.6 MB per split). Download into `datasets/raw/ProcessBench/`:
+
+  ```bash
+  curl -L -o datasets/raw/ProcessBench/gsm8k.json \
+    "https://huggingface.co/datasets/Qwen/ProcessBench/resolve/main/gsm8k.json"
+  ```
+- **Schema:** `problem`, `steps` (the solution split into steps), `label` (0-based index of the
+  earliest wrong step, -1 if all are right), `final_answer_correct`, `generator`.
+- **Used by:** `manage.py eval_step_grading` (runs the app's practice grader, resumable) and
+  `ml_pipeline/notebooks/09_step_grading.ipynb` (the metrics), via `ml_pipeline/step_grading.py`.
+
 ## Integrity check
 
 Verify a raw file has not drifted/corrupted:

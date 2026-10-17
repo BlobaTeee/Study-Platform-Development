@@ -18,6 +18,7 @@ import {
 import { SourceDropZone } from '@/components/source-drop-zone'
 import { useConfirm } from '@/components/confirm-dialog'
 import { KeyPoints } from '@/components/key-points'
+import { PracticeRow } from '@/components/practice-row'
 import { NotebookMembers } from '@/components/notebook-members'
 import {
   AlertCircle,
@@ -946,6 +947,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                             )}
                           </div>
                         </div>
+                        <PracticeRow notebookId={notebookId} sourceId={activeListItem.id} disabled={!isReady(activeListItem.id)} />
                       </div>
                     </div>
 

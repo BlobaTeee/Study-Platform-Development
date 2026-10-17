@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'ml',
     'notebooks',
     'study_sessions',
+    'exercises',
 ]
 
 MIDDLEWARE = [
