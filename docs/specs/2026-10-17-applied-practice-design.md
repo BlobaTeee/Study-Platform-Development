@@ -19,9 +19,15 @@ studies (law, programming, economics, languages, sciences), not one subject.
    the provider interface takes text only.
    - *Revised 2026-10-19:* own problems belong to **no notebook**. They were
      first filed under one, but graded from general knowledge, so the
-     notebook had nothing to do with them. They now live on their own page,
-     "Tự luyện" (sidebar, under "Thi thử"), and Progress counts their errors
-     on a line of their own.
+     notebook had nothing to do with them. Progress counts their errors on a
+     line of their own.
+   - *Revised again 2026-10-19:* a separate "Tự luyện" page duplicated the
+     notebook's list of problems, since both are the same feature. There is
+     now **one page, "Bài vận dụng"** (sidebar, under "Thi thử"), holding
+     every problem; where a problem came from (a notebook, or the student) is
+     a filter. The paste-your-own form sits on that page, closed. A
+     document's panel in the notebook keeps only "make problems", the count,
+     and a link to the page filtered to that notebook.
 2. **How work is handed in: submit, with a hint button.** The student writes
    the whole attempt as numbered steps and submits once; "Hint" asks for one
    nudge on the step they are stuck at without submitting.
@@ -43,10 +49,12 @@ studies (law, programming, economics, languages, sciences), not one subject.
 - Notebook → a document → **Make practice problems**: one request writes
   three problems, easy to hard, from the document's main ideas (its key
   points if read, else its text).
-- Sidebar → **Tự luyện**: paste a problem on any subject; one request checks
-  it is complete enough to solve and writes its rubric from general
-  knowledge. Incomplete problems are refused with what is missing. The page
-  lists the problems brought so far.
+- Sidebar → **Bài vận dụng**: every problem, next-to-do first (due again,
+  started, untouched, waiting, mastered), filterable by notebook or "your
+  own" (`?notebook=<id>|own`). "Paste your own problem" opens a form: one
+  request checks the problem is complete enough to solve and writes its
+  rubric from general knowledge. Incomplete problems are refused with what is
+  missing.
 - Problem page: the prompt, step boxes ("+ Add step"), **Hint** (one
   request; a guiding question, never the answer; a hint that repeats the
   reference solution is replaced by one built from the checkpoint), **Submit**

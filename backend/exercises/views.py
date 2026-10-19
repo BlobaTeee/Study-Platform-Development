@@ -21,6 +21,9 @@ def summary(exercise: Exercise) -> dict:
     due = exercise.status == 'revisit' and exercise.revisit_on and exercise.revisit_on <= timezone.localdate()
     return {'id': exercise.id, 'notebook_id': exercise.notebook_id, 'source_id': exercise.source_id,
             'origin': exercise.origin, 'prompt': exercise.prompt, 'difficulty': exercise.difficulty,
+            # Where it came from, for the one list that holds every problem.
+            'notebook_title': exercise.notebook.title if exercise.notebook else '',
+            'source_title': exercise.source.title if exercise.source else '',
             'status': exercise.status, 'revisit_on': exercise.revisit_on, 'due': bool(due),
             # Started but not yet solved, so a list does not call it untouched.
             'attempted': exercise.status == 'new' and grading.round_attempts(exercise).filter(kind='submit').exists(),
@@ -40,8 +43,6 @@ def detail(exercise: Exercise) -> dict:
     checkpoints = ref.get('checkpoints', [])
     return {
         **summary(exercise),
-        'notebook_title': exercise.notebook.title if exercise.notebook else '',
-        'source_title': exercise.source.title if exercise.source else '',
         'attempts': attempts,
         'checkpoint_count': len(checkpoints),
         # Reached checkpoints are named, as feedback; the rest stay hidden.
@@ -75,7 +76,7 @@ class ExerciseListView(APIView):
 
     def get(self, request):
         qs = Exercise.objects.filter(Q(notebook__in=notebooks_for(request.user)) | Q(notebook__isnull=True),
-                                     user=request.user)
+                                     user=request.user).select_related('notebook', 'source')
         if request.query_params.get('own') == '1':
             qs = qs.filter(origin='own')
         for param, field in (('notebook', 'notebook_id'), ('source', 'source_id')):

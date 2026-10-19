@@ -159,7 +159,8 @@ def test_an_own_problem_gets_a_rubric_and_belongs_to_no_notebook(client, model, 
     _exercise(user, notebook)                    # a document problem, not listed with them
     own = client.get('/api/exercises/?own=1').json()['results']
     assert [e['id'] for e in own] == [body['id']]
-    assert len(client.get('/api/exercises/').json()['results']) == 2
+    everything = client.get('/api/exercises/').json()['results']
+    assert [(e['origin'], e['notebook_title']) for e in everything] == [('own', ''), ('document', 'Biology')]
 
 
 # ---- grading -----------------------------------------------------------------------------
