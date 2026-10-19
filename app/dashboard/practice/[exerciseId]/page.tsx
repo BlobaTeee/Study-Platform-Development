@@ -26,9 +26,16 @@ export default function PracticePage({ params }: { params: Promise<{ exerciseId:
 
   const back = (
     <Button asChild variant="outline">
-      <Link href={exercise ? `/dashboard/notebooks/${exercise.notebook_id}${exercise.source_id ? `?source=${exercise.source_id}` : ''}` : '/dashboard/notebooks'}>
+      {/* An own problem belongs to no notebook: it goes back to Practice. */}
+      <Link
+        href={
+          !exercise ? '/dashboard/notebooks'
+            : exercise.notebook_id == null ? '/dashboard/practice'
+              : `/dashboard/notebooks/${exercise.notebook_id}${exercise.source_id ? `?source=${exercise.source_id}` : ''}`
+        }
+      >
         <ChevronLeft aria-hidden />
-        {t('backToNotebook')}
+        {exercise?.notebook_id == null && exercise ? t('backToOwn') : t('backToNotebook')}
       </Link>
     </Button>
   )

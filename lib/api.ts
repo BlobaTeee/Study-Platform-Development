@@ -147,7 +147,7 @@ export const explainAPI = {
 // in steps, graded against a rubric the page never sees until solved.
 export type ErrorType = 'misread' | 'concept' | 'missing_step' | 'execution' | 'unsupported'
 export type ExerciseSummary = {
-  id: number; notebook_id: number; source_id: number | null; origin: 'document' | 'own'
+  id: number; notebook_id: number | null; source_id: number | null; origin: 'document' | 'own'
   prompt: string; difficulty: 'easy' | 'medium' | 'hard'
   status: 'new' | 'mastered' | 'revisit'; revisit_on: string | null; due: boolean; attempted: boolean; created_at: string
 }
@@ -164,17 +164,17 @@ export type ExerciseDetail = ExerciseSummary & {
   solution: string[] | null; mistakes: { text: string; type: ErrorType }[] | null
 }
 export type PracticeMistakes = {
-  notebook_id: number; title: string; total: number
+  notebook_id: number | null; title: string; total: number
   types: { type: ErrorType; count: number; exercise_ids: number[] }[]
 }
 
 export const exercisesAPI = {
-  list: (params: { notebook?: number; source?: number }) =>
+  list: (params: { notebook?: number; source?: number; own?: 1 }) =>
     api.get<{ results: ExerciseSummary[] }>('/exercises/', { params }),
   generate: (sourceId: number) =>
     api.post<{ results: ExerciseSummary[] }>('/exercises/generate/', { source_id: sourceId }),
-  own: (notebookId: number, text: string) =>
-    api.post<ExerciseDetail>('/exercises/own/', { notebook_id: notebookId, text }),
+  // The student's own problem: in no notebook, graded from general knowledge.
+  own: (text: string) => api.post<ExerciseDetail>('/exercises/own/', { text }),
   get: (id: number) => api.get<ExerciseDetail>(`/exercises/${id}/`),
   remove: (id: number) => api.delete(`/exercises/${id}/`),
   submit: (id: number, steps: string[]) => api.post<ExerciseDetail>(`/exercises/${id}/submit/`, { steps }),

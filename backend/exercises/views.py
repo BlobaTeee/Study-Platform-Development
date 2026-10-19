@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -39,7 +40,7 @@ def detail(exercise: Exercise) -> dict:
     checkpoints = ref.get('checkpoints', [])
     return {
         **summary(exercise),
-        'notebook_title': exercise.notebook.title,
+        'notebook_title': exercise.notebook.title if exercise.notebook else '',
         'source_title': exercise.source.title if exercise.source else '',
         'attempts': attempts,
         'checkpoint_count': len(checkpoints),
@@ -68,11 +69,15 @@ class _Generating(APIView):
 
 
 class ExerciseListView(APIView):
-    """GET ?notebook=&source= → the student's problems, oldest first."""
+    """GET ?notebook=&source= → the student's problems, oldest first;
+    ?own=1 → only the problems they brought themselves."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = Exercise.objects.filter(user=request.user, notebook__in=notebooks_for(request.user))
+        qs = Exercise.objects.filter(Q(notebook__in=notebooks_for(request.user)) | Q(notebook__isnull=True),
+                                     user=request.user)
+        if request.query_params.get('own') == '1':
+            qs = qs.filter(origin='own')
         for param, field in (('notebook', 'notebook_id'), ('source', 'source_id')):
             value = request.query_params.get(param)
             if value and value.isdigit():
@@ -94,15 +99,15 @@ class GenerateView(_Generating):
 
 
 class OwnProblemView(_Generating):
-    """POST {notebook_id, text} → the student's own problem, with a rubric."""
+    """POST {text} → the student's own problem, with a rubric. It belongs to
+    no notebook: it is graded from general knowledge, not a document."""
 
     def post(self, request):
-        notebook = get_object_or_404(notebooks_for(request.user), pk=request.data.get('notebook_id'))
         text = str(request.data.get('text') or '').strip()[:problems.MAX_OWN_CHARS]
         if len(text) < problems.MIN_OWN_CHARS:
             return Response({'detail': _('Write out the whole problem, with everything it gives.')}, status=400)
         try:
-            exercise = problems.own_problem(request.user, notebook, text)
+            exercise = problems.own_problem(request.user, text)
         except problems.IncompleteProblem as exc:
             return Response({'detail': str(exc), 'incomplete': True}, status=400)
         except PracticeUnavailable as exc:
