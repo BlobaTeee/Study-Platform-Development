@@ -11,8 +11,8 @@ export function PracticeMistakesList({ notebooks }: { notebooks: PracticeMistake
   return (
     <ul className="mt-3 divide-y divide-slate-100">
       {notebooks.map((nb) => (
-        <li key={nb.notebook_id} className="flex flex-col gap-1.5 py-3 sm:flex-row sm:items-baseline sm:gap-6">
-          <p className="w-40 shrink-0 truncate text-base text-slate-900">{nb.title}</p>
+        <li key={nb.notebook_id ?? 'own'} className="flex flex-col gap-1.5 py-3 sm:flex-row sm:items-baseline sm:gap-6">
+          <p className="w-40 shrink-0 truncate text-base text-slate-900">{nb.notebook_id == null ? t('mistakesOwn') : nb.title}</p>
           <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
             {nb.types.map((k) => (
               <Link

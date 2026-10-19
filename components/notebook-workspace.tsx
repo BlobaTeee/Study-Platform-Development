@@ -947,7 +947,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                             )}
                           </div>
                         </div>
-                        <PracticeRow notebookId={notebookId} sourceId={activeListItem.id} disabled={!isReady(activeListItem.id)} />
+                        <PracticeRow sourceId={activeListItem.id} disabled={!isReady(activeListItem.id)} />
                       </div>
                     </div>
 

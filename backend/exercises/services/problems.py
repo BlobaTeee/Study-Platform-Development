@@ -85,11 +85,12 @@ Return ONLY valid JSON:
             for p in problems]
 
 
-def own_problem(user, notebook, text: str) -> Exercise:
+def own_problem(user, text: str) -> Exercise:
     """The student's own problem: checked for being solvable, then given a
-    rubric. Its checkpoints rest on general knowledge, not a document."""
+    rubric. Its checkpoints rest on general knowledge, not a document, so it
+    belongs to no notebook."""
     problem = own_rubric(text)
-    return Exercise.objects.create(user=user, notebook=notebook, source=None, origin='own', **problem)
+    return Exercise.objects.create(user=user, notebook=None, source=None, origin='own', **problem)
 
 
 def own_rubric(text: str) -> dict:

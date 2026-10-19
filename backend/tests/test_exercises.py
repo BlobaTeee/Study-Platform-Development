@@ -131,11 +131,10 @@ def test_someone_elses_document_is_refused(other_client, model, contract):
     assert res.status_code == 404
 
 
-def test_an_own_problem_that_misses_a_given_is_refused(client, model, notebook):
+def test_an_own_problem_that_misses_a_given_is_refused(client, model):
     model({'complete': False, 'missing': 'The problem does not say how late the delivery was.'})
 
-    res = client.post('/api/exercises/own/', {'notebook_id': notebook.id,
-                                              'text': 'A delivered late. Can B end the contract?'}, format='json')
+    res = client.post('/api/exercises/own/', {'text': 'A delivered late. Can B end the contract?'}, format='json')
 
     assert res.status_code == 400
     assert res.json()['incomplete'] is True
@@ -143,19 +142,24 @@ def test_an_own_problem_that_misses_a_given_is_refused(client, model, notebook):
     assert not Exercise.objects.exists()
 
 
-def test_an_own_problem_gets_a_rubric_without_quotes(client, model, notebook):
+def test_an_own_problem_gets_a_rubric_and_belongs_to_no_notebook(client, model, user, notebook):
     model({'complete': True, 'prompt': 'Solve 2x + 3 = 11 for x and check your answer.', 'difficulty': 'easy',
            'solution': ['2x = 8', 'x = 4'],
            'checkpoints': [{'text': 'Isolates 2x', 'basis': ''}, {'text': 'Finds x = 4', 'basis': ''}],
            'mistakes': [{'text': 'Adds 3 instead of subtracting', 'type': 'execution'}]})
 
-    res = client.post('/api/exercises/own/', {'notebook_id': notebook.id,
-                                              'text': 'Solve 2x + 3 = 11 for x and check your answer.'}, format='json')
+    res = client.post('/api/exercises/own/', {'text': 'Solve 2x + 3 = 11 for x and check your answer.'},
+                      format='json')
 
     assert res.status_code == 201
     body = res.json()
     assert body['origin'] == 'own' and body['checkpoint_count'] == 2
+    assert body['notebook_id'] is None and body['notebook_title'] == ''
     assert body['solution'] is None              # hidden until solved
+    _exercise(user, notebook)                    # a document problem, not listed with them
+    own = client.get('/api/exercises/?own=1').json()['results']
+    assert [e['id'] for e in own] == [body['id']]
+    assert len(client.get('/api/exercises/').json()['results']) == 2
 
 
 # ---- grading -----------------------------------------------------------------------------
@@ -282,6 +286,18 @@ def test_mistakes_are_counted_by_type_per_notebook(client, user, notebook):
     assert body['notebooks'] == [{'notebook_id': notebook.id, 'title': 'Biology', 'total': 3, 'types': [
         {'type': 'concept', 'count': 2, 'exercise_ids': [ex.id]},
         {'type': 'execution', 'count': 1, 'exercise_ids': [ex.id]}]}]
+
+
+def test_own_problems_mistakes_share_a_line_of_their_own(client, user, notebook):
+    own = Exercise.objects.create(user=user, notebook=None, origin='own', prompt='Solve 2x + 3 = 11.',
+                                  reference={'solution': ['x = 4'], 'checkpoints': [], 'mistakes': []})
+    ExerciseAttempt.objects.create(exercise=own, kind='submit', steps=['x'],
+                                   result={'verdict': 'needs_work', 'error_type': 'execution'})
+
+    body = client.get('/api/exercises/mistakes/').json()
+
+    assert body['notebooks'] == [{'notebook_id': None, 'title': '', 'total': 1, 'types': [
+        {'type': 'execution', 'count': 1, 'exercise_ids': [own.id]}]}]
 
 
 # ---- the leak check, on its own -------------------------------------------------------------

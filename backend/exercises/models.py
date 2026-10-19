@@ -13,7 +13,9 @@ class Exercise(models.Model):
     DIFFICULTIES = [('easy', 'Easy'), ('medium', 'Medium'), ('hard', 'Hard')]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='exercises')
-    notebook = models.ForeignKey(Notebook, on_delete=models.CASCADE, related_name='exercises')
+    # None for the student's own problems: they are graded from general
+    # knowledge, so no notebook's documents have anything to do with them.
+    notebook = models.ForeignKey(Notebook, on_delete=models.CASCADE, null=True, blank=True, related_name='exercises')
     source = models.ForeignKey(Source, on_delete=models.SET_NULL, null=True, blank=True, related_name='exercises')
     origin = models.CharField(max_length=10, choices=ORIGINS, default='document')
     prompt = models.TextField()

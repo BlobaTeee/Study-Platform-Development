@@ -225,13 +225,16 @@ def fallback_hint(exercise: Exercise, met: list[int]) -> str:
 
 
 def mistakes_by_notebook(user) -> list[dict]:
-    """Errors made on submit, counted by type per notebook, most first."""
-    out: dict[int, dict] = {}
+    """Errors made on submit, counted by type per notebook (own problems on a
+    line of their own, notebook None), most first."""
+    out: dict[int | None, dict] = {}
     attempts = (ExerciseAttempt.objects.filter(exercise__user=user, kind='submit', result__verdict='needs_work')
                 .select_related('exercise__notebook'))
     for a in attempts:
         nb = a.exercise.notebook
-        entry = out.setdefault(nb.id, {'notebook_id': nb.id, 'title': nb.title, 'total': 0, 'types': {}})
+        # The student's own problems have no notebook; they share one line.
+        key, title = (nb.id, nb.title) if nb else (None, '')
+        entry = out.setdefault(key, {'notebook_id': key, 'title': title, 'total': 0, 'types': {}})
         kind = a.result.get('error_type') or 'missing_step'
         slot = entry['types'].setdefault(kind, {'type': kind, 'count': 0, 'exercise_ids': []})
         slot['count'] += 1

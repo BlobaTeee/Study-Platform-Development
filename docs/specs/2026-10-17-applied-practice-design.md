@@ -17,6 +17,11 @@ studies (law, programming, economics, languages, sciences), not one subject.
    document the student uploaded (first), and the student can type in a
    problem of their own (second). Photographed problems are left for later:
    the provider interface takes text only.
+   - *Revised 2026-10-19:* own problems belong to **no notebook**. They were
+     first filed under one, but graded from general knowledge, so the
+     notebook had nothing to do with them. They now live on their own page,
+     "Tự luyện" (sidebar, under "Thi thử"), and Progress counts their errors
+     on a line of their own.
 2. **How work is handed in: submit, with a hint button.** The student writes
    the whole attempt as numbered steps and submits once; "Hint" asks for one
    nudge on the step they are stuck at without submitting.
@@ -38,9 +43,10 @@ studies (law, programming, economics, languages, sciences), not one subject.
 - Notebook → a document → **Make practice problems**: one request writes
   three problems, easy to hard, from the document's main ideas (its key
   points if read, else its text).
-- Notebook → **Your own problem**: paste a problem; one request checks it is
-  complete enough to solve and writes its rubric. Incomplete problems are
-  refused with what is missing.
+- Sidebar → **Tự luyện**: paste a problem on any subject; one request checks
+  it is complete enough to solve and writes its rubric from general
+  knowledge. Incomplete problems are refused with what is missing. The page
+  lists the problems brought so far.
 - Problem page: the prompt, step boxes ("+ Add step"), **Hint** (one
   request; a guiding question, never the answer; a hint that repeats the
   reference solution is replaced by one built from the checkpoint), **Submit**
@@ -57,7 +63,7 @@ studies (law, programming, economics, languages, sciences), not one subject.
 
 `exercises` app.
 
-- `Exercise`: user, notebook, source (null for own problems), origin
+- `Exercise`: user, notebook (null for own problems), source (null for own problems), origin
   (`document` | `own`), prompt, difficulty, reference (JSON: solution steps,
   checkpoints `[{id, text, basis}]`, mistakes), status (`new` | `mastered` |
   `revisit`), revisit_on, created_at.
@@ -65,16 +71,16 @@ studies (law, programming, economics, languages, sciences), not one subject.
   strings), result (JSON: verdict, met checkpoint ids, first wrong step, error
   type, detail, hint), created_at.
 
-Problems are private to the student who made them, like mock tests; the
-notebook must be one they can read (`notebooks_for`).
+Problems are private to the student who made them, like mock tests; a
+document problem's notebook must be one they can read (`notebooks_for`).
 
 ## API (`/api/exercises/`)
 
 | Method | Path | |
 |---|---|---|
-| GET | `?notebook=&source=` | list (no rubric) |
+| GET | `?notebook=&source=` or `?own=1` | list (no rubric) |
 | POST | `generate/` `{source_id}` | three problems from a document |
-| POST | `own/` `{notebook_id, text}` | the student's own problem |
+| POST | `own/` `{text}` | the student's own problem, in no notebook |
 | GET | `<id>/` | the problem, its attempts; rubric only once passed or unlocked |
 | POST | `<id>/submit/` `{steps}` | grade |
 | POST | `<id>/hint/` `{steps}` | one hint |

@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 
 /** This document's practice problems, in the "from this document" list next
  *  to its cards and quiz: what exists, one line each, and making more. */
-export function PracticeRow({ notebookId, sourceId, disabled }: { notebookId: number; sourceId: number; disabled?: boolean }) {
+export function PracticeRow({ sourceId, disabled }: { sourceId: number; disabled?: boolean }) {
   const t = useTranslations('practice')
   const router = useRouter()
   const { data, mutate } = useSWR(['/exercises', 'source', sourceId], () => exercisesAPI.list({ source: sourceId }))
@@ -55,9 +55,6 @@ export function PracticeRow({ notebookId, sourceId, disabled }: { notebookId: nu
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Button asChild variant="ghost">
-            <Link href={`/dashboard/practice/new?notebook=${notebookId}`}>{t('own')}</Link>
-          </Button>
           <Button onClick={() => void make()} disabled={disabled || making} variant={problems.length ? 'outline' : 'default'}>
             {making ? <Loader2 className="animate-spin" aria-hidden /> : null}
             {making ? t('making') : problems.length ? t('makeMore') : t('make')}
