@@ -627,7 +627,6 @@
     "status_mastered": "Mastered",
     "status_revisit": "Redo later",
     "dueAgain": "Due again",
-    "backToNotebook": "Back to notebook",
     "problem": "Problem",
     "fromDocument": "From {title}",
     "ownProblem": "Your own problem",
@@ -662,7 +661,6 @@
     "checkpoints": "What a correct answer has to reach",
     "commonMistakes": "Common mistakes",
     "notFound": "This problem was not found.",
-    "ownTitle": "Practice",
     "ownLead": "Paste a problem you want to practise, on any subject: homework, one from a book, a case you came across. Include everything it gives. The AI checks it can be solved, then writes how to grade it.",
     "ownPlaceholder": "For example: Company A agreed to deliver 500 units to B by 1 March but delivered on 25 March. What can B do?",
     "ownSubmit": "Create problem",
@@ -672,9 +670,16 @@
     "mistakesTitle": "Mistakes in practice",
     "mistakesLead": "Counted by kind of error across the practice problems you submitted. Most first.",
     "mistakeCount": "{count, plural, one {# time} other {# times}}",
-    "ownList": "Problems you brought",
-    "ownEmpty": "None yet. Paste a problem above to start.",
-    "backToOwn": "Back to Practice",
-    "mistakesOwn": "Practice"
+    "mistakesOwn": "Practice",
+    "pageLead": "All your practice problems in one place: the ones written from your notebooks' documents, and the ones you brought. What to do next is at the top.",
+    "filterAll": "All",
+    "filterOwn": "Your own",
+    "filtersLabel": "Filter by source",
+    "ownToggle": "Paste your own problem",
+    "backToList": "Back to Practice problems",
+    "viewAll": "See them in Practice problems",
+    "listEmpty": "None yet. Open a document in a notebook to make practice problems, or paste your own above.",
+    "listEmptyFiltered": "No problems here.",
+    "ownSource": "Your own problem"
   }
 }

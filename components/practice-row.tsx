@@ -5,15 +5,15 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
-import { ArrowRight, Loader2, PenLine } from 'lucide-react'
+import { Loader2, PenLine } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { exercisesAPI, type ExerciseSummary } from '@/lib/api'
 import { toRedo } from '@/lib/practice'
-import { cn } from '@/lib/utils'
 
 /** This document's practice problems, in the "from this document" list next
- *  to its cards and quiz: what exists, one line each, and making more. */
-export function PracticeRow({ sourceId, disabled }: { sourceId: number; disabled?: boolean }) {
+ *  to its cards and quiz: how many, making more, and a link to the one page
+ *  that lists every problem. */
+export function PracticeRow({ notebookId, sourceId, disabled }: { notebookId: number; sourceId: number; disabled?: boolean }) {
   const t = useTranslations('practice')
   const router = useRouter()
   const { data, mutate } = useSWR(['/exercises', 'source', sourceId], () => exercisesAPI.list({ source: sourceId }))
@@ -52,6 +52,15 @@ export function PracticeRow({ sourceId, disabled }: { sourceId: number; disabled
               : redo > 0
                 ? `${t('count', { count: problems.length })} · ${t('toRedo', { count: redo })}`
                 : t('count', { count: problems.length })}
+            {/* The problems themselves are listed in one place only. */}
+            {problems.length > 0 && (
+              <>
+                {' · '}
+                <Link href={`/dashboard/practice?notebook=${notebookId}`} className="font-medium text-mode-ink underline-offset-4 hover:underline">
+                  {t('viewAll')} →
+                </Link>
+              </>
+            )}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -63,30 +72,6 @@ export function PracticeRow({ sourceId, disabled }: { sourceId: number; disabled
       </div>
       {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
 
-      {problems.length > 0 && (
-        <ul className="mt-3 divide-y divide-slate-100 border-t border-slate-100">
-          {problems.map((p) => (
-            <li key={p.id}>
-              <Link
-                href={`/dashboard/practice/${p.id}`}
-                className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2.5 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
-              >
-                <span className="w-10 shrink-0 text-xs text-slate-600">{t(`difficulty_${p.difficulty}`)}</span>
-                <span className="min-w-0 flex-1 truncate text-sm text-slate-900">{p.prompt}</span>
-                <span
-                  className={cn(
-                    'shrink-0 text-xs',
-                    p.status === 'mastered' ? 'text-emerald-700' : p.due ? 'font-medium text-mode-ink' : 'text-slate-600'
-                  )}
-                >
-                  {p.due ? t('dueAgain') : p.attempted ? t('status_started') : t(`status_${p.status}`)}
-                </span>
-                <ArrowRight className="size-3.5 shrink-0 text-slate-400" aria-hidden />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   )
 }

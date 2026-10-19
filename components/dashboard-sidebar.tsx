@@ -29,9 +29,6 @@ type NavItem = {
   icon: LucideIcon
   /** tint used for the active state, one per study mode */
   activeClass: string
-  /** Active on this path only: a practice problem opened from a notebook
-   *  lives under /dashboard/practice/ too, but is not "Tự luyện". */
-  exact?: boolean
 }
 
 const navItems: NavItem[] = [
@@ -58,7 +55,6 @@ const navItems: NavItem[] = [
     label: 'practice',
     icon: PenLine,
     activeClass: 'bg-mode-quizzes/10 text-mode-quizzes-ink',
-    exact: true,
   },
   {
     href: '/dashboard/analytics',
@@ -101,7 +97,6 @@ function SidebarBody({
   const { user, logout } = useAuth()
   const router = useRouter()
   const isActive = useIsActive()
-  const pathname = usePathname()
   const t = useTranslations('nav')
 
   const handleLogout = () => {
@@ -132,7 +127,7 @@ function SidebarBody({
 
       <nav className="mt-5 flex-1 space-y-0.5">
         {navItems.map((item) => {
-          const active = item.exact ? pathname === item.href : isActive(item.href)
+          const active = isActive(item.href)
           const Icon = item.icon
           return (
             <Link

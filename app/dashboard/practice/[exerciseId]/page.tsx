@@ -26,16 +26,10 @@ export default function PracticePage({ params }: { params: Promise<{ exerciseId:
 
   const back = (
     <Button asChild variant="outline">
-      {/* An own problem belongs to no notebook: it goes back to Practice. */}
-      <Link
-        href={
-          !exercise ? '/dashboard/notebooks'
-            : exercise.notebook_id == null ? '/dashboard/practice'
-              : `/dashboard/notebooks/${exercise.notebook_id}${exercise.source_id ? `?source=${exercise.source_id}` : ''}`
-        }
-      >
+      {/* Back to the list, filtered to where this problem came from. */}
+      <Link href={exercise ? `/dashboard/practice?notebook=${exercise.notebook_id ?? 'own'}` : '/dashboard/practice'}>
         <ChevronLeft aria-hidden />
-        {exercise?.notebook_id == null && exercise ? t('backToOwn') : t('backToNotebook')}
+        {t('backToList')}
       </Link>
     </Button>
   )

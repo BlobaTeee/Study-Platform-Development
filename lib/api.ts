@@ -148,7 +148,7 @@ export const explainAPI = {
 export type ErrorType = 'misread' | 'concept' | 'missing_step' | 'execution' | 'unsupported'
 export type ExerciseSummary = {
   id: number; notebook_id: number | null; source_id: number | null; origin: 'document' | 'own'
-  prompt: string; difficulty: 'easy' | 'medium' | 'hard'
+  prompt: string; difficulty: 'easy' | 'medium' | 'hard'; notebook_title: string; source_title: string
   status: 'new' | 'mastered' | 'revisit'; revisit_on: string | null; due: boolean; attempted: boolean; created_at: string
 }
 export type ExerciseResult = {
@@ -156,7 +156,6 @@ export type ExerciseResult = {
   error_type?: ErrorType | null; detail?: string; hint?: string
 }
 export type ExerciseDetail = ExerciseSummary & {
-  notebook_title: string; source_title: string
   attempts: { id: number; kind: 'submit' | 'hint' | 'reveal'; steps: string[]; result: ExerciseResult; created_at: string }[]
   checkpoint_count: number
   met_checkpoints: { id: number; text: string; basis: string }[]
