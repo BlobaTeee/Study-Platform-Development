@@ -1,0 +1,940 @@
+{
+ "about": "Hand-made check set for the practice grader outside maths. Each problem has a model solution and two more attempts: a wrong one with the 0-based index of its first wrong step and its error type, or a correct shortcut or different route (label -1). A label equal to the number of steps means the attempt stops short. Written for this project; labels set by construction, to be reviewed by a person.",
+ "error_types": [
+  "misread",
+  "concept",
+  "missing_step",
+  "execution",
+  "unsupported"
+ ],
+ "problems": [
+  {
+   "id": "code-1",
+   "subject": "programming",
+   "lang": "en",
+   "problem": "Write a Python function that returns the sum of the even numbers in a list of integers. What does it return for [1, 2, 3, 4]?",
+   "attempts": [
+    {
+     "steps": [
+      "Start a total at 0.",
+      "Loop over each number n in the list.",
+      "If n % 2 == 0, add n to the total.",
+      "Return the total after the loop.",
+      "For [1, 2, 3, 4] the even numbers are 2 and 4, so it returns 6."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Start a total at 0.",
+      "Loop over each number n in the list.",
+      "If n % 2 == 1, add n to the total.",
+      "Return the total after the loop.",
+      "For [1, 2, 3, 4] it returns 4."
+     ],
+     "label": 2,
+     "error_type": "concept",
+     "note": "tests for odd instead of even"
+    },
+    {
+     "steps": [
+      "Start a total at 0.",
+      "Loop over each number n in the list.",
+      "If n % 2 == 0, add n to the total.",
+      "Return the total inside the loop, right after adding.",
+      "For [1, 2, 3, 4] it returns 6."
+     ],
+     "label": 3,
+     "error_type": "execution",
+     "note": "returns on the first even number, so 2, not 6"
+    }
+   ]
+  },
+  {
+   "id": "code-2",
+   "subject": "programming",
+   "lang": "en",
+   "problem": "A sorted list has 1,000,000 items. At most how many comparisons does binary search need to find an item or decide it is absent? Explain.",
+   "attempts": [
+    {
+     "steps": [
+      "Each comparison halves the part of the list still to search.",
+      "After k comparisons at most 1,000,000 / 2^k items remain.",
+      "2^20 = 1,048,576 is the first power of two above 1,000,000.",
+      "So at most 20 comparisons are needed."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Binary search needs about log2(n) comparisons, rounded up.",
+      "log2(1,000,000) is about 19.93, so at most 20."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "valid shortcut"
+    },
+    {
+     "steps": [
+      "Each comparison halves the part of the list still to search.",
+      "After k comparisons at most 1,000,000 / 2^k items remain.",
+      "2^10 = 1,024 is above 1,000, so 2^10 covers 1,000,000.",
+      "So at most 10 comparisons are needed."
+     ],
+     "label": 2,
+     "error_type": "execution",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "code-3",
+   "subject": "programming",
+   "lang": "en",
+   "problem": "In Python, xs = [3, 1, 2]. After running ys = xs and then ys.sort(), what is xs? Explain.",
+   "attempts": [
+    {
+     "steps": [
+      "ys = xs does not copy the list; both names refer to the same list object.",
+      "ys.sort() sorts that one list in place.",
+      "So xs is now [1, 2, 3]."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "ys = xs makes a new copy of the list.",
+      "ys.sort() sorts only the copy.",
+      "So xs is still [3, 1, 2]."
+     ],
+     "label": 0,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "ys = xs makes both names refer to the same list.",
+      "ys.sort() sorts that list in place.",
+      "So xs is [3, 1, 2], because sort returns None."
+     ],
+     "label": 2,
+     "error_type": "unsupported",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "code-4",
+   "subject": "programming",
+   "lang": "en",
+   "problem": "A web page loads a list of 50 posts and then, for each post, runs a separate database query to fetch its author. How many queries does one page load make, and how could it be reduced to a constant number?",
+   "attempts": [
+    {
+     "steps": [
+      "One query fetches the 50 posts.",
+      "Then one query per post fetches its author: 50 more.",
+      "That is 51 queries per page load (the N+1 problem).",
+      "Fetch all the authors at once, with a join or one query using an IN list of author ids, so the page makes 2 queries or 1."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Each post's author is fetched with one query: 50 queries.",
+      "So one page load makes 50 queries.",
+      "Fetch all the authors in one query with an IN list, so the page makes 1 query."
+     ],
+     "label": 1,
+     "error_type": "missing_step",
+     "note": "forgets the query that fetches the posts"
+    },
+    {
+     "steps": [
+      "One query fetches the 50 posts.",
+      "Then one query per post fetches its author: 50 more.",
+      "That is 51 queries per page load.",
+      "Add an index on the author id column so the 50 author queries become one."
+     ],
+     "label": 3,
+     "error_type": "concept",
+     "note": "an index speeds queries up but does not reduce their number"
+    }
+   ]
+  },
+  {
+   "id": "code-5",
+   "subject": "programming",
+   "lang": "en",
+   "problem": "Describe how a function can check whether a string is a palindrome, ignoring case and spaces, and give its result for 'Never odd or even'.",
+   "attempts": [
+    {
+     "steps": [
+      "Lower-case the string.",
+      "Remove the spaces: 'neveroddoreven'.",
+      "Compare it with its reverse; 'neveroddoreven' reversed is 'neveroddoreven'.",
+      "They are equal, so it is a palindrome."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Compare the string with its reverse exactly as given.",
+      "'Never odd or even' reversed is 'neve ro ddo reveN'.",
+      "They differ, so it is not a palindrome."
+     ],
+     "label": 0,
+     "error_type": "misread",
+     "note": "ignores the condition to disregard case and spaces"
+    },
+    {
+     "steps": [
+      "Lower-case the string.",
+      "Remove the spaces: 'neverodorveven'.",
+      "Its reverse is 'nevevrodoreven', which differs.",
+      "So it is not a palindrome."
+     ],
+     "label": 1,
+     "error_type": "execution",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "code-6",
+   "subject": "programming",
+   "lang": "en",
+   "problem": "Explain why 0.1 + 0.2 == 0.3 is False in Python, and how such numbers should be compared.",
+   "attempts": [
+    {
+     "steps": [
+      "Floats are stored in binary, and 0.1, 0.2 and 0.3 have no exact binary form.",
+      "Each is stored as the nearest binary value, so 0.1 + 0.2 gives 0.30000000000000004.",
+      "That is not the same float as the one stored for 0.3, so == is False.",
+      "Compare with a tolerance instead, for example math.isclose(0.1 + 0.2, 0.3)."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Python adds floats with a rounding error that appears only at random.",
+      "So 0.1 + 0.2 sometimes equals 0.3 and sometimes does not.",
+      "Compare with round(x, 1) to be safe."
+     ],
+     "label": 0,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "Floats are stored in binary, and 0.1, 0.2 and 0.3 have no exact binary form.",
+      "Each is stored as the nearest binary value, so 0.1 + 0.2 gives 0.30000000000000004.",
+      "That is not the same float as the one stored for 0.3, so == is False."
+     ],
+     "label": 3,
+     "error_type": "missing_step",
+     "note": "stops short: never says how to compare"
+    }
+   ]
+  },
+  {
+   "id": "law-1",
+   "subject": "contract law",
+   "lang": "en",
+   "problem": "Ana agreed in writing to sell her bicycle to Ben for $300, with delivery on 1 May. On 1 May she refused to hand it over because Carl had offered her $400. Ben had already arranged to resell the bicycle for $350. What can Ben claim from Ana?",
+   "attempts": [
+    {
+     "steps": [
+      "Ana and Ben had a binding contract: an agreed item, an agreed price and a delivery date.",
+      "Refusing to deliver on 1 May is a breach by Ana.",
+      "Damages put Ben where he would have been had the contract been performed.",
+      "He would have paid $300 and resold for $350, so he can claim his lost profit of $50."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Ana and Ben had a binding contract.",
+      "Refusing to deliver on 1 May is a breach by Ana.",
+      "Damages are the extra money Ana gained by breaking the contract.",
+      "So Ben can claim $100, the difference between Carl's price and his."
+     ],
+     "label": 2,
+     "error_type": "concept",
+     "note": "restitution of gain, not loss"
+    },
+    {
+     "steps": [
+      "Ana and Ben had only an informal promise, since nothing was put in writing.",
+      "An informal promise to sell can be withdrawn.",
+      "So Ben can claim nothing."
+     ],
+     "label": 0,
+     "error_type": "misread",
+     "note": "the problem says the agreement was in writing"
+    }
+   ]
+  },
+  {
+   "id": "law-2",
+   "subject": "contract law",
+   "lang": "en",
+   "problem": "A shop displays a jacket with a price tag of $20 by mistake; it should be $200. A customer brings it to the till and insists the shop must sell it for $20. Must it?",
+   "attempts": [
+    {
+     "steps": [
+      "A price tag in a shop is an invitation to treat, not an offer.",
+      "The customer makes the offer at the till by presenting the jacket.",
+      "The shop is free to accept or refuse that offer.",
+      "So the shop does not have to sell it for $20."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "A price tag is an invitation to treat, not an offer, so the shop does not have to sell it for $20."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "valid shortcut"
+    },
+    {
+     "steps": [
+      "A price tag in a shop is an invitation to treat.",
+      "The customer makes the offer at the till.",
+      "The shop may accept or refuse it.",
+      "Because the mistake was the shop's own, it must still sell for $20."
+     ],
+     "label": 3,
+     "error_type": "unsupported",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "law-3",
+   "subject": "contract law",
+   "lang": "en",
+   "problem": "An employee signs a contract saying she will not work for any competitor anywhere in the world for 20 years after leaving. Is the clause likely to be enforced?",
+   "attempts": [
+    {
+     "steps": [
+      "A restraint of trade clause is void unless it protects a legitimate interest and is reasonable.",
+      "Reasonableness depends on the area, the length of time and the activities covered.",
+      "A worldwide ban for 20 years goes far beyond what is needed to protect the employer.",
+      "So the clause is likely to be unenforceable."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "A clause the employee signed freely is always enforced.",
+      "She signed it, so it binds her for 20 years."
+     ],
+     "label": 0,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "A restraint of trade clause is void unless it is reasonable.",
+      "So the clause is unenforceable."
+     ],
+     "label": 1,
+     "error_type": "missing_step",
+     "note": "states the rule but never applies it to the 20 years and the whole world"
+    }
+   ]
+  },
+  {
+   "id": "law-4",
+   "subject": "contract law",
+   "lang": "en",
+   "problem": "Minh, aged 16, buys a $2,000 gaming laptop on credit and later wants to return it. Under the usual common-law rule on contracts made by minors, can he avoid the contract?",
+   "attempts": [
+    {
+     "steps": [
+      "Minh is a minor, so his contracts are generally voidable at his option.",
+      "The exception is necessaries: goods suited to his condition in life and his actual needs.",
+      "A $2,000 gaming laptop is unlikely to count as a necessary.",
+      "So Minh can probably avoid the contract and return the laptop."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Minh is a minor, so his contracts are generally voidable.",
+      "But anything bought on credit is treated as a necessary.",
+      "So he cannot avoid the contract."
+     ],
+     "label": 1,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "Minh is an adult, so the contract binds him fully.",
+      "He cannot return the laptop."
+     ],
+     "label": 0,
+     "error_type": "misread",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "law-5",
+   "subject": "contract law",
+   "lang": "en",
+   "problem": "A posts an offer to B on 1 June. On 2 June A posts a letter revoking the offer; it reaches B on 4 June. B posts an acceptance on 3 June, which reaches A on 6 June. Using the postal rule, is there a contract?",
+   "attempts": [
+    {
+     "steps": [
+      "Under the postal rule, an acceptance takes effect when it is posted.",
+      "A revocation takes effect only when it reaches the offeree.",
+      "B posted the acceptance on 3 June, before the revocation reached B on 4 June.",
+      "So a contract was formed on 3 June."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Under the postal rule, an acceptance takes effect when it is posted.",
+      "A revocation also takes effect when it is posted.",
+      "A's revocation was posted on 2 June, before B's acceptance.",
+      "So there is no contract."
+     ],
+     "label": 1,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "An acceptance takes effect when it is posted.",
+      "A revocation takes effect when it reaches the offeree.",
+      "The revocation reached B on 4 June, before B posted the acceptance.",
+      "So there is no contract."
+     ],
+     "label": 2,
+     "error_type": "misread",
+     "note": "the acceptance was posted on 3 June, before 4 June"
+    }
+   ]
+  },
+  {
+   "id": "law-6",
+   "subject": "contract law",
+   "lang": "en",
+   "problem": "A promises to pay B $500 if B stops smoking for a year. B stops for a year. A refuses to pay, saying B gave him nothing in return. Is A bound to pay?",
+   "attempts": [
+    {
+     "steps": [
+      "A contract needs consideration from each side.",
+      "Giving up a legal right, such as smoking, is valid consideration.",
+      "B gave up smoking for a year at A's request.",
+      "So there is consideration, and A is bound to pay $500."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "A contract needs consideration from each side.",
+      "Consideration must be something of money value given to the promisor.",
+      "A received nothing of money value.",
+      "So A is not bound."
+     ],
+     "label": 1,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "B accepted A's unilateral offer by doing what it asked: not smoking for a year.",
+      "Giving up smoking, which B was free to do, is consideration.",
+      "So A's promise is binding and he owes $500."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "a different valid route"
+    }
+   ]
+  },
+  {
+   "id": "econ-1",
+   "subject": "kinh tế",
+   "lang": "vi",
+   "problem": "Một công ty vay 500 triệu đồng với lãi đơn 8%/năm, trả cả gốc và lãi một lần sau 3 năm. Tổng số tiền phải trả là bao nhiêu?",
+   "attempts": [
+    {
+     "steps": [
+      "Lãi mỗi năm: 500 × 8% = 40 triệu.",
+      "Lãi 3 năm: 40 × 3 = 120 triệu.",
+      "Tổng phải trả: 500 + 120 = 620 triệu."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Lãi được nhập vào gốc mỗi năm: 500 × 1,08³.",
+      "500 × 1,08³ ≈ 629,9 triệu.",
+      "Tổng phải trả khoảng 629,9 triệu."
+     ],
+     "label": 0,
+     "error_type": "misread",
+     "note": "đề nói lãi đơn, bài lại tính lãi kép"
+    },
+    {
+     "steps": [
+      "Lãi mỗi năm: 500 × 8% = 40 triệu.",
+      "Lãi 3 năm: 40 × 3 = 160 triệu.",
+      "Tổng phải trả: 660 triệu."
+     ],
+     "label": 1,
+     "error_type": "execution",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "econ-2",
+   "subject": "kinh tế",
+   "lang": "vi",
+   "problem": "Giá cà phê tăng 10% làm lượng cầu giảm 5%. Tính độ co giãn của cầu theo giá và cho biết doanh thu của người bán tăng hay giảm.",
+   "attempts": [
+    {
+     "steps": [
+      "Độ co giãn = % thay đổi lượng cầu / % thay đổi giá = −5% / 10% = −0,5.",
+      "|−0,5| < 1 nên cầu kém co giãn.",
+      "Khi cầu kém co giãn, tăng giá làm doanh thu tăng.",
+      "Kiểm tra: doanh thu mới = 1,10 × 0,95 = 1,045 lần doanh thu cũ, tức tăng 4,5%."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Độ co giãn = −5% / 10% = −0,5.",
+      "|−0,5| < 1 nên cầu kém co giãn.",
+      "Giá tăng thì người mua mua ít hơn, nên doanh thu luôn giảm.",
+      "Vậy doanh thu giảm."
+     ],
+     "label": 2,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "Độ co giãn = −5% / 10% = −2.",
+      "|−2| > 1 nên cầu co giãn mạnh.",
+      "Khi cầu co giãn mạnh, tăng giá làm doanh thu giảm."
+     ],
+     "label": 0,
+     "error_type": "execution",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "econ-3",
+   "subject": "kinh tế",
+   "lang": "vi",
+   "problem": "Chính phủ đặt giá trần cho thuê nhà thấp hơn giá cân bằng của thị trường. Điều gì xảy ra với thị trường nhà cho thuê? Giải thích theo từng bước.",
+   "attempts": [
+    {
+     "steps": [
+      "Giá trần thấp hơn giá cân bằng nên có hiệu lực: giá thuê không được lên tới mức cân bằng.",
+      "Ở mức giá thấp hơn đó, lượng cầu nhà thuê tăng.",
+      "Cũng ở mức giá đó, lượng cung giảm vì chủ nhà ít muốn cho thuê hơn.",
+      "Lượng cầu vượt lượng cung nên thị trường thiếu hụt nhà cho thuê."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Giá trần thấp hơn giá cân bằng nên không có tác dụng gì.",
+      "Thị trường vẫn ở trạng thái cân bằng."
+     ],
+     "label": 0,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "Giá trần thấp hơn giá cân bằng nên có hiệu lực.",
+      "Ở mức giá thấp hơn, lượng cầu nhà thuê tăng.",
+      "Lượng cung giảm vì chủ nhà ít muốn cho thuê hơn.",
+      "Vì vậy chất lượng nhà cho thuê sẽ tốt lên."
+     ],
+     "label": 3,
+     "error_type": "unsupported",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "econ-4",
+   "subject": "kinh tế",
+   "lang": "vi",
+   "problem": "Một cửa hàng có chi phí cố định 30 triệu đồng mỗi tháng. Mỗi sản phẩm bán giá 150 nghìn, chi phí biến đổi 90 nghìn. Mỗi tháng phải bán bao nhiêu sản phẩm để hoà vốn?",
+   "attempts": [
+    {
+     "steps": [
+      "Lãi gộp trên mỗi sản phẩm: 150 − 90 = 60 nghìn.",
+      "Số sản phẩm hoà vốn = chi phí cố định / lãi gộp mỗi sản phẩm = 30.000 nghìn / 60 nghìn.",
+      "= 500 sản phẩm mỗi tháng."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Số sản phẩm hoà vốn = chi phí cố định / giá bán = 30.000 nghìn / 150 nghìn.",
+      "= 200 sản phẩm."
+     ],
+     "label": 0,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "Mỗi sản phẩm góp 150 − 90 = 60 nghìn vào chi phí cố định, nên cần 30.000 / 60 = 500 sản phẩm."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "giải tắt, vẫn đúng"
+    }
+   ]
+  },
+  {
+   "id": "econ-5",
+   "subject": "kinh tế",
+   "lang": "vi",
+   "problem": "Lạm phát năm nay là 4%. Một khoản tiết kiệm có lãi suất danh nghĩa 6%/năm. Lãi suất thực xấp xỉ là bao nhiêu, và sức mua của khoản tiết kiệm tăng hay giảm?",
+   "attempts": [
+    {
+     "steps": [
+      "Lãi suất thực ≈ lãi suất danh nghĩa − lạm phát.",
+      "= 6% − 4% = 2%.",
+      "Lãi suất thực dương nên sức mua của khoản tiết kiệm tăng khoảng 2% mỗi năm."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Lãi suất thực = lãi suất danh nghĩa + lạm phát = 10%.",
+      "Sức mua tăng 10% mỗi năm."
+     ],
+     "label": 0,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "Lãi suất thực ≈ lãi suất danh nghĩa − lạm phát.",
+      "= 6% − 4% = 2%."
+     ],
+     "label": 2,
+     "error_type": "missing_step",
+     "note": "dừng giữa chừng: chưa trả lời sức mua tăng hay giảm"
+    }
+   ]
+  },
+  {
+   "id": "econ-6",
+   "subject": "kinh tế",
+   "lang": "vi",
+   "problem": "Một nước có GDP danh nghĩa năm 2024 là 1.100 tỷ USD và chỉ số giảm phát GDP là 110 (năm gốc = 100). GDP thực năm 2024 là bao nhiêu?",
+   "attempts": [
+    {
+     "steps": [
+      "GDP thực = GDP danh nghĩa / chỉ số giảm phát × 100.",
+      "= 1.100 / 110 × 100.",
+      "= 1.000 tỷ USD."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "GDP thực = GDP danh nghĩa / chỉ số giảm phát × 100.",
+      "= 1.100 / 110 × 100.",
+      "= 1.210 tỷ USD."
+     ],
+     "label": 2,
+     "error_type": "execution",
+     "note": ""
+    },
+    {
+     "steps": [
+      "GDP thực = GDP danh nghĩa × chỉ số giảm phát / 100.",
+      "= 1.100 × 110 / 100 = 1.210 tỷ USD."
+     ],
+     "label": 0,
+     "error_type": "concept",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "bio-1",
+   "subject": "sinh học",
+   "lang": "vi",
+   "problem": "Ở đậu Hà Lan, hạt vàng (A) trội hoàn toàn so với hạt xanh (a). Lai hai cây dị hợp Aa × Aa. Tỉ lệ kiểu hình ở đời con là bao nhiêu?",
+   "attempts": [
+    {
+     "steps": [
+      "Mỗi cây Aa cho hai loại giao tử A và a, mỗi loại 1/2.",
+      "Tổ hợp giao tử cho đời con: 1 AA : 2 Aa : 1 aa.",
+      "AA và Aa đều cho hạt vàng, aa cho hạt xanh.",
+      "Tỉ lệ kiểu hình: 3 vàng : 1 xanh."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Mỗi cây Aa cho hai loại giao tử A và a, mỗi loại 1/2.",
+      "Tổ hợp giao tử cho đời con: 1 AA : 2 Aa : 1 aa.",
+      "Chỉ AA cho hạt vàng; Aa cho hạt màu trung gian.",
+      "Tỉ lệ kiểu hình: 1 vàng : 2 trung gian : 1 xanh."
+     ],
+     "label": 2,
+     "error_type": "misread",
+     "note": "đề nói trội hoàn toàn"
+    },
+    {
+     "steps": [
+      "Mỗi cây Aa cho hai loại giao tử A và a, mỗi loại 1/2.",
+      "Tổ hợp giao tử cho đời con: 1 AA : 1 Aa : 1 aa.",
+      "AA và Aa cho hạt vàng, aa cho hạt xanh.",
+      "Tỉ lệ kiểu hình: 2 vàng : 1 xanh."
+     ],
+     "label": 1,
+     "error_type": "execution",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "bio-2",
+   "subject": "sinh học",
+   "lang": "vi",
+   "problem": "Một tế bào lưỡng bội của người (2n = 46) giảm phân bình thường. Mỗi tế bào con tạo ra có bao nhiêu nhiễm sắc thể? Giải thích.",
+   "attempts": [
+    {
+     "steps": [
+      "Giảm phân gồm hai lần phân bào nhưng nhiễm sắc thể chỉ nhân đôi một lần.",
+      "Giảm phân I tách các cặp nhiễm sắc thể tương đồng nên số nhiễm sắc thể giảm một nửa.",
+      "Giảm phân II tách các nhiễm sắc tử, số nhiễm sắc thể giữ nguyên.",
+      "Mỗi tế bào con có n = 23 nhiễm sắc thể."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Giảm phân giống nguyên phân: tế bào con giống hệt tế bào mẹ.",
+      "Mỗi tế bào con có 46 nhiễm sắc thể."
+     ],
+     "label": 0,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "Giảm phân gồm hai lần phân bào nhưng nhiễm sắc thể chỉ nhân đôi một lần.",
+      "Giảm phân I tách các cặp nhiễm sắc thể tương đồng nên số nhiễm sắc thể giảm một nửa.",
+      "Giảm phân II tách các nhiễm sắc tử, số nhiễm sắc thể giữ nguyên.",
+      "Có 4 tế bào con nên mỗi tế bào có 46 / 4 = 11,5 nhiễm sắc thể."
+     ],
+     "label": 3,
+     "error_type": "execution",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "bio-3",
+   "subject": "sinh học",
+   "lang": "vi",
+   "problem": "Đặt một tế bào hồng cầu vào dung dịch muối có nồng độ chất tan cao hơn trong tế bào. Điều gì xảy ra với tế bào? Giải thích.",
+   "attempts": [
+    {
+     "steps": [
+      "Dung dịch bên ngoài ưu trương so với tế bào.",
+      "Nước thẩm thấu qua màng từ nơi có nồng độ chất tan thấp sang nơi có nồng độ chất tan cao, tức là từ trong tế bào ra ngoài.",
+      "Tế bào mất nước nên co lại."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Dung dịch bên ngoài ưu trương so với tế bào.",
+      "Nước đi từ nơi có nồng độ chất tan cao sang nơi thấp, tức là vào trong tế bào.",
+      "Tế bào trương lên và có thể vỡ."
+     ],
+     "label": 1,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "Dung dịch bên ngoài nhược trương so với tế bào.",
+      "Nước đi vào tế bào.",
+      "Tế bào trương lên."
+     ],
+     "label": 0,
+     "error_type": "misread",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "bio-4",
+   "subject": "sinh học",
+   "lang": "vi",
+   "problem": "Trong một hệ sinh thái, sinh vật sản xuất tích luỹ 10.000 kcal. Theo quy tắc khoảng 10% năng lượng được truyền lên bậc dinh dưỡng kế tiếp, sinh vật tiêu thụ bậc 2 nhận được khoảng bao nhiêu kcal?",
+   "attempts": [
+    {
+     "steps": [
+      "Sinh vật tiêu thụ bậc 1 nhận khoảng 10% của 10.000 = 1.000 kcal.",
+      "Sinh vật tiêu thụ bậc 2 nhận khoảng 10% của 1.000 = 100 kcal."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Sinh vật tiêu thụ bậc 2 ăn trực tiếp sinh vật sản xuất.",
+      "Nên nhận khoảng 10% của 10.000 = 1.000 kcal."
+     ],
+     "label": 0,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "Hai lần truyền, mỗi lần còn 10%: 10.000 × 0,1 × 0,1 = 100 kcal."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "giải tắt, vẫn đúng"
+    }
+   ]
+  },
+  {
+   "id": "bio-5",
+   "subject": "sinh học",
+   "lang": "vi",
+   "problem": "Vì sao dùng kháng sinh không đúng cách, ví dụ tự ý ngừng thuốc sớm, có thể làm vi khuẩn kháng thuốc phổ biến hơn? Giải thích theo từng bước.",
+   "attempts": [
+    {
+     "steps": [
+      "Trong quần thể vi khuẩn có sẵn một số cá thể mang biến dị giúp chống chịu kháng sinh tốt hơn.",
+      "Kháng sinh giết các vi khuẩn mẫn cảm trước, nên những cá thể chống chịu tốt sống sót nhiều hơn.",
+      "Ngừng thuốc sớm để lại chính những vi khuẩn chống chịu đó; chúng sinh sản và truyền gen cho thế hệ sau.",
+      "Lặp lại nhiều lần, tỉ lệ vi khuẩn kháng thuốc trong quần thể tăng: đó là chọn lọc tự nhiên."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Kháng sinh làm vi khuẩn tự thay đổi để quen với thuốc.",
+      "Vi khuẩn đã quen thuốc truyền khả năng này cho con.",
+      "Vì vậy vi khuẩn kháng thuốc nhiều lên."
+     ],
+     "label": 0,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "Trong quần thể vi khuẩn có sẵn một số cá thể chống chịu kháng sinh tốt hơn.",
+      "Kháng sinh giết các vi khuẩn mẫn cảm trước, những cá thể chống chịu sống sót nhiều hơn.",
+      "Vì vậy uống kháng sinh liều cao hơn bao giờ cũng ngăn được kháng thuốc."
+     ],
+     "label": 2,
+     "error_type": "unsupported",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "bio-6",
+   "subject": "sinh học",
+   "lang": "vi",
+   "problem": "Một gen có 3.000 nucleotit, trong đó A chiếm 20%. Tính số nucleotit loại G của gen.",
+   "attempts": [
+    {
+     "steps": [
+      "Trong ADN, A = T và G = X.",
+      "A + G = 50%, nên G = 50% − 20% = 30%.",
+      "Số G = 30% × 3.000 = 900 nucleotit."
+     ],
+     "label": -1,
+     "error_type": null,
+     "note": "model solution"
+    },
+    {
+     "steps": [
+      "Trong ADN, A = T và G = X.",
+      "G = 100% − 20% = 80%.",
+      "Số G = 80% × 3.000 = 2.400 nucleotit."
+     ],
+     "label": 1,
+     "error_type": "concept",
+     "note": ""
+    },
+    {
+     "steps": [
+      "Trong ADN, A = T và G = X.",
+      "A + G = 50%, nên G = 30%.",
+      "Số G = 30% × 3.000 = 1.000 nucleotit."
+     ],
+     "label": 2,
+     "error_type": "execution",
+     "note": ""
+    }
+   ]
+  }
+ ]
+}

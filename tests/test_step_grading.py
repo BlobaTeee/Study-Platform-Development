@@ -29,3 +29,27 @@ def test_metrics_are_processbenchs():
 
 def test_no_items_gives_no_numbers():
     assert metrics([], [])['f1'] is None
+
+
+def test_the_handmade_set_flattens_to_one_item_per_attempt():
+    from ml_pipeline.step_grading import load
+    items = load('handmade')
+    assert len(items) == 72
+    first = items[0]
+    assert first['id'] == 'code-1/0' and first['label'] == -1 and first['subject'] == 'programming'
+    assert {i['lang'] for i in items} == {'en', 'vi'}
+    assert all(i['label'] == -1 or 0 <= i['label'] <= len(i['steps']) for i in items)
+
+
+def test_stopping_short_keeps_its_own_label_when_the_set_has_one():
+    # The hand-made set labels "stops short" as one past the last step;
+    # ProcessBench has no such label, so there it folds into the last step.
+    graded = {'verdict': 'needs_work', 'first_wrong_step': 4}
+    assert to_label(graded, 3, stops_short=True) == 3
+    assert to_label(graded, 3) == 2
+
+
+def test_each_split_has_its_own_results_file():
+    from ml_pipeline.step_grading import results_path
+    assert results_path('gsm8k').name == 'step_grading_gsm8k.jsonl'
+    assert results_path('handmade').name == 'step_grading_handmade.jsonl'

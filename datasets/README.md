@@ -115,6 +115,22 @@ loader raises a clear error telling you to fetch it (below); SciQ raw is committ
 - **Used by:** `manage.py eval_step_grading` (runs the app's practice grader, resumable) and
   `ml_pipeline/notebooks/09_step_grading.ipynb` (the metrics), via `ml_pipeline/step_grading.py`.
 
+### Hand-made practice set  (practice grader outside maths)
+
+- **Source:** written for this project, `datasets/handmade/practice_steps.json`.
+- **What:** 24 problems in four subjects: programming and contract law (English), kinh tế and
+  sinh học (Vietnamese). Each has a model solution and two more attempts, 72 in all:
+  - attempts wrong on purpose, with the 0-based index of the first wrong step and its error type
+    (`misread`, `concept`, `missing_step`, `execution`, `unsupported`);
+  - attempts right by another route (a shortcut or a different argument), labelled -1.
+
+  A label equal to the number of steps means the attempt stops short.
+- **Labels:** set by construction, not by subject teachers. They should be reviewed, and the set
+  extended by people who teach these subjects.
+- **Committed:** ✅ yes (small, our own).
+- **Used by:** `manage.py eval_step_grading --split handmade` and the "Outside maths" section of
+  `ml_pipeline/notebooks/09_step_grading.ipynb`.
+
 ## Integrity check
 
 Verify a raw file has not drifted/corrupted:

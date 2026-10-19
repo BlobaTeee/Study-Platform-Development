@@ -23,12 +23,27 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / 'datasets' / 'raw' / 'ProcessBench'
-# Kept with the other reports (committed): each line cost two model requests.
-RESULTS = Path(__file__).resolve().parent / 'reports' / 'step_grading_gsm8k.jsonl'
+HANDMADE = ROOT / 'datasets' / 'handmade' / 'practice_steps.json'
+REPORTS = Path(__file__).resolve().parent / 'reports'
+
+
+def results_path(split: str) -> Path:
+    """Kept with the other reports (committed): each line cost model requests."""
+    return REPORTS / f'step_grading_{split}.jsonl'
+
+
+RESULTS = results_path('gsm8k')
 
 
 def load(split: str = 'gsm8k') -> list[dict]:
-    return json.loads((DATA / f'{split}.json').read_text())
+    """A ProcessBench split, or 'handmade': the check set outside maths,
+    one item per attempt, ids like 'code-1/0'."""
+    if split != 'handmade':
+        return json.loads((DATA / f'{split}.json').read_text())
+    doc = json.loads(HANDMADE.read_text())
+    return [{'id': f"{p['id']}/{k}", 'problem': p['problem'], 'subject': p['subject'], 'lang': p['lang'],
+             'steps': a['steps'], 'label': a['label'], 'error_type': a['error_type'], 'note': a.get('note', '')}
+            for p in doc['problems'] for k, a in enumerate(p['attempts'])]
 
 
 def balanced_sample(items: list[dict], n: int, seed: int = 7) -> list[dict]:
@@ -45,17 +60,18 @@ def balanced_sample(items: list[dict], n: int, seed: int = 7) -> list[dict]:
     return out[:n]
 
 
-def to_label(result: dict, n_steps: int) -> int:
+def to_label(result: dict, n_steps: int, stops_short: bool = False) -> int:
     """The app's grade in ProcessBench's terms: a 0-based step, or -1.
 
-    "Stops short" (a step past the last) has no ProcessBench label; the last
-    step is where the attempt went wrong, so it counts as that one."""
+    "Stops short" (a step past the last) has no ProcessBench label; there the
+    last step is where the attempt went wrong, so it counts as that one. The
+    hand-made set does label it, as `n_steps`, so `stops_short` keeps it."""
     if result.get('verdict') == 'passed':
         return -1
     step = result.get('first_wrong_step')
     if not isinstance(step, int) or step < 1:
         return 0
-    return min(step, n_steps) - 1
+    return min(step, n_steps + 1 if stops_short else n_steps) - 1
 
 
 def metrics(gold: list[int], pred: list[int]) -> dict:
@@ -71,7 +87,10 @@ def metrics(gold: list[int], pred: list[int]) -> dict:
             'correct_acc': correct_acc, 'f1': f1, 'detect_acc': detect}
 
 
-def read_results(path: Path = RESULTS) -> list[dict]:
+def read_results(path: Path | str = RESULTS) -> list[dict]:
+    """Graded items so far; `path` may be a split name."""
+    if isinstance(path, str):
+        path = results_path(path)
     if not path.exists():
         return []
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
