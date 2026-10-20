@@ -28,9 +28,10 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--n', type=int, default=40, help='ProcessBench sample size (handmade: all)')
         parser.add_argument('--split', default='gsm8k', help="a ProcessBench split, or 'handmade'")
+        parser.add_argument('--out', default='', help='results name, to measure a changed grader beside the old one')
 
-    def handle(self, *args, n, split, **options):
-        results = step_grading.results_path(split)
+    def handle(self, *args, n, split, out, **options):
+        results = step_grading.results_path(out or split)
         handmade = split == 'handmade'
         done = {r['id'] for r in step_grading.read_results(results)}
         rubrics = json.loads(RUBRICS.read_text()) if RUBRICS.exists() else {}

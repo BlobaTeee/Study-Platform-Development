@@ -85,12 +85,20 @@ Check the attempt against the checkpoints, not the model solution's wording: a d
 valid method that reaches a checkpoint has reached it. The model solution is for you only;
 never quote it.
 
+A short answer is not a wrong one. Do not flag a step for being brief, for skipping working
+the student plainly got right, or for using a known rule or formula without deriving it.
+Report something as missing only when a checkpoint is not reached at all.
+
 - "met": the ids of the checkpoints the attempt reaches correctly.
 - "first_wrong_step": the number of the first step that is wrong, or where something the
   answer needs is missing (if the attempt stops short, the number after its last step).
   null only if every checkpoint is met and no step is wrong.
+- "wrong_step_quote": that step's text copied exactly, or "" if the attempt stops short.
 - "error_type": for that step, one of:
 {ERROR_LIST}
+  Choose by what went wrong: "misread" when the step contradicts something the problem
+  states; "unsupported" when each fact used is right but the conclusion does not follow from
+  them; "concept" only when the rule, definition or principle itself is wrong.
 - "detail": one sentence, specific to this step and this subject, saying what is wrong.
 - "hint": one question that would help the student fix that step without giving the answer.
 
@@ -109,7 +117,7 @@ Student's attempt:
 {WRITING_STYLE}
 
 Return ONLY valid JSON:
-{{"met": [1], "first_wrong_step": 2, "error_type": "concept", "detail": "...", "hint": "..."}}"""
+{{"met": [1], "first_wrong_step": 2, "wrong_step_quote": "...", "error_type": "concept", "detail": "...", "hint": "..."}}"""
 
     return clean_grade(ask(prompt), exercise, steps)
 
@@ -132,12 +140,27 @@ def clean_grade(data: dict, exercise: Exercise, steps: list[str]) -> dict:
                 'detail': '', 'hint': ''}
     if wrong is None:
         wrong = len(steps) + 1
+    # Graders tend to name the right step in words and number it off by one;
+    # the step they quote is the one to trust.
+    quoted = _step_quoted(data.get('wrong_step_quote'), steps)
+    if quoted is not None:
+        wrong = quoted
     error_type = data.get('error_type') if data.get('error_type') in ERROR_TYPES else 'missing_step'
     hint = tidy_prose(str(data.get('hint') or ''))[:400]
     if leaks(hint, exercise):
         hint = fallback_hint(exercise, met)
     return {'verdict': 'needs_work', 'met': met, 'first_wrong_step': wrong, 'error_type': error_type,
             'detail': tidy_prose(str(data.get('detail') or ''))[:400], 'hint': hint}
+
+
+def _step_quoted(quote, steps: list[str]) -> int | None:
+    """The 1-based step a quote was copied from, or None if it matches none."""
+    norm = lambda t: ' '.join(_WORD.findall(str(t).lower()))
+    q = norm(quote or '')
+    if len(q) < 8:
+        return None
+    hits = [i for i, step in enumerate(steps, 1) if q in norm(step) or (len(norm(step)) >= 8 and norm(step) in q)]
+    return hits[0] if len(hits) == 1 else None
 
 
 def hint(exercise: Exercise, steps: list[str]) -> ExerciseAttempt:
