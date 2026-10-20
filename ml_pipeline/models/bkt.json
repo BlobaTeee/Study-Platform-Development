@@ -1,0 +1,5 @@
+{
+ "params": {"init": 0.3, "learn": 0.15, "slip": 0.1, "guess_choice": 0.25, "guess_written": 0.1},
+ "thresholds": {"strong": 0.8, "shaky": 0.5},
+ "source": "defaults; replaced by notebooks/10_knowledge_map.ipynb"
+}
