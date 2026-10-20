@@ -131,6 +131,22 @@ loader raises a clear error telling you to fetch it (below); SciQ raw is committ
 - **Used by:** `manage.py eval_step_grading --split handmade` and the "Outside maths" section of
   `ml_pipeline/notebooks/09_step_grading.ipynb`.
 
+### ASSISTments 2009–2010 skill builder  (knowledge map: BKT)
+
+- **Source:** Feng, M., Heffernan, N. & Koedinger, K. (2009). *Addressing the assessment challenge
+  with an online system that tutors as it assesses.* UMUAI 19(3). Per-student sequences from the
+  Hugging Face mirror `Atomi/ASSISTments2009`.
+- **Licence:** free for research use with citation of the paper above.
+- **Committed:** ⛔ no (gitignored). Download into `datasets/raw/ASSISTments/`:
+
+  ```bash
+  curl -L -o datasets/raw/ASSISTments/assist2009.parquet \
+    "https://huggingface.co/datasets/Atomi/ASSISTments2009/resolve/main/data/train-00000-of-00001.parquet"
+  ```
+- **Schema:** one row per student: `skill_ids`, `skill_names`, `grades` ('1' right, '0' wrong),
+  `attempt_counts`, `answer_types` (`algebra`, `choose_1`, `fill_in_1`, ...), in answer order.
+- **Used by:** `ml_pipeline/notebooks/10_knowledge_map.ipynb` (fits `ml_pipeline/models/bkt.json`).
+
 ## Integrity check
 
 Verify a raw file has not drifted/corrupted:
