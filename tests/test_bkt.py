@@ -8,7 +8,7 @@ P = Params(init=0.3, learn=0.2, slip=0.1, guess_choice=0.25, guess_written=0.1)
 
 def test_a_right_answer_raises_the_chance_and_a_wrong_one_lowers_it():
     assert update(0.5, True, 'choice', P) > 0.5
-    assert update(0.5, False, 'choice', P) < 0.5 + P.learn
+    assert update(0.5, False, 'choice', P) < 0.5
 
 
 def test_a_right_multiple_choice_answer_counts_for_less_than_a_written_one():
