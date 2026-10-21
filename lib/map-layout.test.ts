@@ -48,15 +48,34 @@ test('two cards that point at each other keep the first link', () => {
 })
 
 test('order in a tall layer follows the rows its cards are drawn at', () => {
-  // r0..r7 are one layer of eight, so it wraps: r0..r5 fill the first column
-  // and r6, r7 start the second (drawn at rows 0 and 1). Counting by position
-  // in the whole layer would put r7 at 7 and sort its dependant below r2's;
-  // by drawn row r7 is at 1, above r2 at 2, so its dependant goes first.
+  // r0..r7 all lead on, so one layer of eight wraps: r0, r1 fill the short
+  // first column and r2..r7 the second (r2 drawn at row 0). Counting by
+  // position in the whole layer would put r2 at 2 and sort its dependant
+  // below r1's; by drawn row r2 is at 0, above r1 at 1, so its dependant
+  // goes first.
   const roots = Array.from({ length: 8 }, (_, i) => `r${i}`)
-  const keys = [...roots, 'dOf2', 'dOf7']
-  const edges = [{ from: 'r2', to: 'dOf2' }, { from: 'r7', to: 'dOf7' }]
+  const keys = [...roots, 'dOf1', 'dOf2', 'rest']
+  const edges = [
+    { from: 'r1', to: 'dOf1' },
+    { from: 'r2', to: 'dOf2' },
+    ...['r0', 'r3', 'r4', 'r5', 'r6', 'r7'].map((from) => ({ from, to: 'rest' })),
+  ]
   const pos = layoutMap(keys, edges)
-  assert.ok(pos.dOf7.y < pos.dOf2.y)
+  assert.ok(pos.r1.x < pos.r2.x && pos.r2.y < pos.r1.y)
+  assert.ok(pos.dOf2.y < pos.dOf1.y)
+})
+
+test('in a layer that wraps, concepts that lead on sit next to what they lead to', () => {
+  // Ten first-layer concepts, three with a dependant: those three go in the
+  // layer's last column, so no arrow runs under another first-layer card.
+  const roots = Array.from({ length: 10 }, (_, i) => `r${i}`)
+  const edges = ['r0', 'r4', 'r8'].map((from) => ({ from, to: `dOf${from}` }))
+  const pos = layoutMap([...roots, ...edges.map((e) => e.to)], edges)
+  const lastRootColumn = Math.max(...roots.map((k) => pos[k].x))
+  for (const e of edges) {
+    assert.equal(pos[e.from].x, lastRootColumn, e.from)
+    assert.ok(pos[e.to].x > lastRootColumn)
+  }
 })
 
 test('a key listed twice is placed once', () => {

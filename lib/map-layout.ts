@@ -46,9 +46,13 @@ export function layoutMap(
   keys.forEach((k) => depth(k, new Set()))
 
   // Order within a layer by where its prerequisites sit, so arrows cross less.
+  // A layer that wraps puts the concepts that lead on in its last column, the
+  // one next to what they lead to, so their arrows do not run under the
+  // layer's other cards; the short column goes first.
   const layers: string[][] = []
   for (const k of keys) (layers[layer[k]] ??= []).push(k)
   const rowOf: Record<string, number> = {}
+  const firstChunk = (n: number) => n % MAX_ROWS || MAX_ROWS
   layers.forEach((ks, li) => {
     if (li > 0) {
       const bary = (k: string) => {
@@ -57,15 +61,20 @@ export function layoutMap(
       }
       ks.sort((a, b) => bary(a) - bary(b) || keys.indexOf(a) - keys.indexOf(b))
     }
-    ks.forEach((k, i) => (rowOf[k] = i % MAX_ROWS))
+    if (ks.length > MAX_ROWS) {
+      const leads = (k: string) => (links.some((e) => e.from === k) ? 1 : 0)
+      ks.sort((a, b) => leads(a) - leads(b))
+    }
+    const first = firstChunk(ks.length)
+    ks.forEach((k, i) => (rowOf[k] = i < first ? i : (i - first) % MAX_ROWS))
   })
 
   const pos: Record<string, { x: number; y: number }> = {}
   let column = 0
   layers.forEach((ks) => {
     if (!ks) return
-    for (let start = 0; start < ks.length; start += MAX_ROWS) {
-      const chunk = ks.slice(start, start + MAX_ROWS)
+    for (let start = 0, end = firstChunk(ks.length); start < ks.length; start = end, end += MAX_ROWS) {
+      const chunk = ks.slice(start, end)
       const stagger = column % 2 ? (CARD_H + GAP_Y) / 2 : 0
       chunk.forEach((k, i) => (pos[k] = { x: column * (CARD_W + GAP_X), y: stagger + i * (CARD_H + GAP_Y) }))
       column += 1
