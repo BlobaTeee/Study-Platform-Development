@@ -131,6 +131,18 @@ loader raises a clear error telling you to fetch it (below); SciQ raw is committ
 - **Used by:** `manage.py eval_step_grading --split handmade` and the "Outside maths" section of
   `ml_pipeline/notebooks/09_step_grading.ipynb`.
 
+### Hand-labelled concept attachment  (knowledge map: attachment)
+
+- **Source:** written for this project, `datasets/handmade/concept_attachment.json`.
+- **What:** 81 cards, questions and practice problems of the demo account
+  (`studyflow.demo@gmail.com`, three notebooks), each read against the key points of its own
+  document and given the one it is about (`"<source id>:<index>"`), or `null` when none fits
+  (21 items). Only documents that have key points are covered.
+- **Labels:** by one person. The keys follow the stored key points: if a document is read
+  again, the labels must be redone. Item texts come from `manage.py dump_concept_items`.
+- **Committed:** ✅ yes (small, our own).
+- **Used by:** part 2 of `ml_pipeline/notebooks/10_knowledge_map.ipynb` (`ATTACH_THRESHOLD`).
+
 ### ASSISTments 2009–2010 skill builder  (knowledge map: BKT)
 
 - **Source:** Feng, M., Heffernan, N. & Koedinger, K. (2009). *Addressing the assessment challenge

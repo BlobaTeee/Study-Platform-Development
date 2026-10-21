@@ -1,0 +1,491 @@
+{
+ "about": "Hand-labelled attachment check for the knowledge map: cards, questions and practice problems of the demo account (studyflow.demo@gmail.com), each read against the key points of its own document and given the one it is about, or null when none fits. Concept keys are \"<source id>:<key point index>\" as dumped by manage.py dump_concept_items. Labelled by one person.",
+ "items": [
+  {
+   "notebook": 32,
+   "item": "card:704",
+   "text": "___ is our species. Homo sapiens",
+   "concept": null
+  },
+  {
+   "notebook": 32,
+   "item": "card:703",
+   "text": "What is the term for the process in which living things with beneficial traits produce more offspring than others do? Natural selection",
+   "concept": "46:1"
+  },
+  {
+   "notebook": 32,
+   "item": "card:702",
+   "text": "When populations get close to the carrying capacity, what happens to growth? Slows",
+   "concept": "46:8"
+  },
+  {
+   "notebook": 32,
+   "item": "card:701",
+   "text": "The fossil record shows that this type of event is followed by the evolution of new species to fill the habitats where old species lived? Mass extinction",
+   "concept": "46:10"
+  },
+  {
+   "notebook": 32,
+   "item": "card:700",
+   "text": "___, which is crowding out other species. Human overpopulation",
+   "concept": "46:9"
+  },
+  {
+   "notebook": 32,
+   "item": "card:699",
+   "text": "How do some animals change their depth? By changing their density",
+   "concept": null
+  },
+  {
+   "notebook": 32,
+   "item": "card:698",
+   "text": "Which cycle tracks the flow of nitrogen through an ecosystem? Nitrogen cycle",
+   "concept": "46:5"
+  },
+  {
+   "notebook": 32,
+   "item": "card:697",
+   "text": "What's the term for the gradual progression from simple plants to larger more complex ones in an area? Primary succession",
+   "concept": "46:11"
+  },
+  {
+   "notebook": 32,
+   "item": "card:696",
+   "text": "Photosynthetic protists use ___ to make food. Light energy",
+   "concept": null
+  },
+  {
+   "notebook": 32,
+   "item": "card:695",
+   "text": "What is defined as a change in the inherited traits of organisms over time? Evolution",
+   "concept": "46:0"
+  },
+  {
+   "notebook": 32,
+   "item": "card:694",
+   "text": "Cutting down on the use of chemical fertilizers and preserving wetlands are ways to prevent what \"unlivable\" regions in bodies of water? Dead zones",
+   "concept": "46:13"
+  },
+  {
+   "notebook": 32,
+   "item": "card:693",
+   "text": "Organisms categorized by what species descriptor demonstrate a version of allopatric speciation and have limited regions of overlap with one another, but where they overlap they interbreed successfully?. Ring species",
+   "concept": "46:2"
+  },
+  {
+   "notebook": 32,
+   "item": "q:508",
+   "text": "The Phosphorus Cycle Phosphorus is an essential nutrient for living processes; it is a major component of nucleic acids and phospholipids, and, as calcium phosphate, makes up the supportive components of our bones. Phosphorus is often the limiting nutrient (necessary for growth) in aquatic, particul",
+   "concept": "46:5"
+  },
+  {
+   "notebook": 32,
+   "item": "q:509",
+   "text": "Sympatric speciation occurs when groups from the same species stop mating because of something other than physical or geographic separation. The behavior of two groups that live in the same region is an example of such separation. The separation may be caused by different mating seasons, for example",
+   "concept": "46:2"
+  },
+  {
+   "notebook": 32,
+   "item": "q:510",
+   "text": "Some of the best known types of fungi are mushrooms, which can be edible or poisonous ( Figure below ). Many species are grown commercially, but others are harvested from the wild. When you order a pizza with mushrooms or add them to your salad, you are most likely eating Agaricus bisporus , known a",
+   "concept": null
+  },
+  {
+   "notebook": 32,
+   "item": "q:511",
+   "text": "distinctly differ from the adult form, spending 3 to 15 years as suspension feeders. Once they attain sexual maturity, the adults reproduce and die within days. Lampreys possess a notochord as adults; however, this notochord is surrounded by a cartilaginous structure called an arcualia, which may re",
+   "concept": null
+  },
+  {
+   "notebook": 32,
+   "item": "q:512",
+   "text": "The Major Divisions of Land Plants Land plants are classified into two major groups according to the absence or presence of vascular tissue, as detailed in Figure 14.8. Plants that lack vascular tissue formed of specialized cells for the transport of water and nutrients are referred to as nonvascula",
+   "concept": "46:4"
+  },
+  {
+   "notebook": 32,
+   "item": "q:513",
+   "text": "Ferns are the most common seedless vascular plants ( Figure below ). They usually have large divided leaves called fronds. In most ferns, fronds develop from a curled-up formation called a fiddlehead ( Figure below ). The fiddlehead looks like the curled decoration on the end of a stringed instrumen",
+   "concept": "46:4"
+  },
+  {
+   "notebook": 32,
+   "item": "q:514",
+   "text": "Range shifts are already being observed: for example, some European bird species ranges have moved 91 km northward. The same study suggested that the optimal shift based on warming trends was double that distance, suggesting that the populations are not moving quickly enough. Range shifts have also ",
+   "concept": "46:7"
+  },
+  {
+   "notebook": 32,
+   "item": "q:515",
+   "text": "Wind-blown pollen might land anywhere and be wasted. Another adaptation solved this problem. Plants evolved traits that attract specific animal pollinators. Like the bee in Figure below , a pollinator picks up pollen on its body and carries it directly to another plant of the same species. This grea",
+   "concept": null
+  },
+  {
+   "notebook": 32,
+   "item": "q:516",
+   "text": "Life is complex, and there are millions of species alive today. Many millions more lived in the past and then went extinct. Organisms include microscopic, single-celled organisms. They also include complex, multicellular animals such as you. Clearly, life science is a huge science. That’s why a life",
+   "concept": null
+  },
+  {
+   "notebook": 32,
+   "item": "q:517",
+   "text": "Some predator species are known as keystone species. A keystone species is one that plays an especially important role in its community. Major changes in the numbers of a keystone species affect the populations of many other species in the community. For example, some sea star species are keystone s",
+   "concept": "46:6"
+  },
+  {
+   "notebook": 33,
+   "item": "card:765",
+   "text": "Which substance produces positive hydrogen ions in water? An acid.",
+   "concept": "48:5"
+  },
+  {
+   "notebook": 33,
+   "item": "card:763",
+   "text": "Which substance acts as a proton donor in a reaction? An acid.",
+   "concept": "48:5"
+  },
+  {
+   "notebook": 33,
+   "item": "card:761",
+   "text": "What facilitates the majority of chemical reactions within the human body? Enzymes",
+   "concept": "48:0"
+  },
+  {
+   "notebook": 33,
+   "item": "card:759",
+   "text": "What is the physical state of a reaction mixture when the forward and reverse reaction rates are equal? Chemical equilibrium",
+   "concept": "48:1"
+  },
+  {
+   "notebook": 33,
+   "item": "card:758",
+   "text": "Intrinsic muscles of the hand both originate and ___ within it. insert",
+   "concept": null
+  },
+  {
+   "notebook": 33,
+   "item": "card:755",
+   "text": "In what two types of geological areas is boron widely distributed? Volcanic regions, dry lake regions",
+   "concept": "48:9"
+  },
+  {
+   "notebook": 33,
+   "item": "card:753",
+   "text": "What components are included when an equation represents the beta-minus decay of thorium-234 to protactinium-234? Nuclear symbols",
+   "concept": null
+  },
+  {
+   "notebook": 33,
+   "item": "card:727",
+   "text": "In a glass of sweet tea the sugar is known as the solute and the water is known as what? Solvent",
+   "concept": null
+  },
+  {
+   "notebook": 33,
+   "item": "card:723",
+   "text": "The formation of an amalgam allows the metal to react with what? Air and water",
+   "concept": "48:10"
+  },
+  {
+   "notebook": 33,
+   "item": "card:716",
+   "text": "When electrons return to a lower energy level, they emit energy in the form of ___. Light",
+   "concept": "47:5"
+  },
+  {
+   "notebook": 33,
+   "item": "card:713",
+   "text": "What does lattice energy of an ionic solid measure the strength of? Bonds",
+   "concept": "47:2"
+  },
+  {
+   "notebook": 33,
+   "item": "card:711",
+   "text": "All alkanes are composed of carbon and hydrogen atoms, and have similar bonds, structures, and formulas; noncyclic alkanes all have a formula of cnh2n+2. the number of carbon atoms present in an alkane has what? No limit",
+   "concept": "47:8"
+  },
+  {
+   "notebook": 33,
+   "item": "card:710",
+   "text": "What are unsaturated hydrocarbons with at least one double bond between carbon atoms called? Alkenes",
+   "concept": "47:8"
+  },
+  {
+   "notebook": 33,
+   "item": "card:709",
+   "text": "What is the common word for potential difference in a circuit? Voltage",
+   "concept": null
+  },
+  {
+   "notebook": 33,
+   "item": "card:708",
+   "text": "The ___ is the Sun's innermost layer. Core",
+   "concept": null
+  },
+  {
+   "notebook": 33,
+   "item": "card:707",
+   "text": "Interstitial carbides are produced by the reaction of most transition metals at high temperatures with what element? Carbon",
+   "concept": "47:9"
+  },
+  {
+   "notebook": 33,
+   "item": "card:705",
+   "text": "This sharing of electrons produces what is known as a covalent bond. covalent bonds are ~20 to 50 times stronger than what? Van der waals interactions",
+   "concept": "47:1"
+  },
+  {
+   "notebook": 33,
+   "item": "q:518",
+   "text": "Basic to Bohr’s model is the idea of energy levels. Energy levels are areas located at fixed distances from the nucleus of the atom. They are the only places where electrons can be found. Energy levels are a little like rungs on a ladder. You can stand on one rung or another but not between the rung",
+   "concept": "47:5"
+  },
+  {
+   "notebook": 33,
+   "item": "q:519",
+   "text": "Salts Recall that salts are formed when ions form ionic bonds. In these reactions, one atom gives up one or more electrons, and thus becomes positively charged, whereas the other accepts one or more electrons and becomes negatively charged. You can now define a salt as a substance that, when dissolv",
+   "concept": "47:2"
+  },
+  {
+   "notebook": 33,
+   "item": "q:522",
+   "text": "Although the masses of the electron, the proton, and the neutron are known to a high degree of precision (Table 1.3 \"Properties of Subatomic Particles*\"), the mass of any given atom is not simply the sum of the masses of its electrons, protons, and neutrons. For example, the ratio of the masses of 1",
+   "concept": "47:13"
+  },
+  {
+   "notebook": 33,
+   "item": "q:524",
+   "text": "Some regions of the electron cloud are denser than others. The denser regions are areas where electrons are most likely to be. These regions are called orbitals . Each orbital has a maximum of just two electrons. Different energy levels in the cloud have different numbers of orbitals. Therefore, dif",
+   "concept": "47:5"
+  },
+  {
+   "notebook": 33,
+   "item": "q:526",
+   "text": "Catabolic Reactions Catabolic reactions break down large organic molecules into smaller molecules, releasing the energy contained in the chemical bonds. These energy releases (conversions) are not 100 percent efficient. The amount of energy released is less than the total amount contained in the mol",
+   "concept": "47:14"
+  },
+  {
+   "notebook": 33,
+   "item": "q:527",
+   "text": "Selective precipitation can also be used in qualitative analysis. In this method, reagents are added to an unknown chemical mixture in order to induce precipitation. Certain reagents cause specific ions to precipitate out; therefore, the addition of the reagent can be used to determine whether the i",
+   "concept": null
+  },
+  {
+   "notebook": 33,
+   "item": "q:530",
+   "text": "The strength of an acid depends on the concentration of hydrogen ions it produces when dissolved in water. A stronger acid produces a greater concentration of ions than a weaker acid. For example, when hydrogen chloride is added to water, all of it breaks down into H + and Cl - ions. Therefore, it i",
+   "concept": "48:6"
+  },
+  {
+   "notebook": 33,
+   "item": "q:534",
+   "text": "U92235 + n01® B56141a + K3692r + 3n01 This hypothesis was confirmed by detecting the krypton-92 fission product. As discussed in Section 20.2 \"Nuclear Reactions\", the nucleus usually divides asymmetrically rather than into two equal parts, and the fission of a given nuclide does not give the same pr",
+   "concept": "48:4"
+  },
+  {
+   "notebook": 33,
+   "item": "q:535",
+   "text": "In order to explain the observed phenomenon, scientists develop a number of possible explanations, or hypotheses. A hypothesis is a suggested explanation for a phenomenon or a suggested explanation for a relationship between many phenomena. Hypotheses are always based on evidence that can be tested ",
+   "concept": "48:12"
+  },
+  {
+   "notebook": 33,
+   "item": "q:537",
+   "text": "Proteins are biochemical compounds that consist of one or more chains of small molecules called amino acids. Amino acids are the monomers of proteins. There are only about 20 different amino acids. The sequence of amino acids in chains and the number of chains in a protein determine the protein’s sh",
+   "concept": "48:7"
+  },
+  {
+   "notebook": 33,
+   "item": "q:538",
+   "text": "The two stages of photosynthesis are the light reactions and the Calvin cycle. Do you see how the two stages are related?.",
+   "concept": "48:3"
+  },
+  {
+   "notebook": 33,
+   "item": "q:539",
+   "text": "There are three main ocean zones based on distance from shore. They are the intertidal zone , neritic zone , and oceanic zone . Distance from shore influences how many nutrients are in the water. Why? Most nutrients are washed into ocean water from land. Therefore, water closer to shore tends to hav",
+   "concept": null
+  },
+  {
+   "notebook": 33,
+   "item": "q:540",
+   "text": "(a) Initially, the system (a copper penny and concentrated nitric acid) is at atmospheric pressure. (b) When the penny is added to the nitric acid, the volume of NO2 gas that is formed causes the piston to move upward to maintain the system at atmospheric pressure. In doing so, the system is perform",
+   "concept": "48:8"
+  },
+  {
+   "notebook": 33,
+   "item": "q:541",
+   "text": "Many adults and some children suffer from a deficiency of lactase. These individuals are said to be lactose intolerant because they cannot digest the lactose found in milk. A more serious problem is the genetic disease galactosemia, which results from the absence of an enzyme needed to convert galac",
+   "concept": "48:0"
+  },
+  {
+   "notebook": 33,
+   "item": "ex:1",
+   "text": "One gram of carbohydrates has four calories, one gram of protein has four calories, and one gram of fat has nine calories. One gram of carbohydrates has four calories, one gram of protein has four calories, and one gram of fat has nine calories.",
+   "concept": "48:13"
+  },
+  {
+   "notebook": 33,
+   "item": "ex:2",
+   "text": "A Brønsted-Lowry acid is a molecule or ion that donates a hydrogen ion in a reaction. A Brønsted-Lowry base is a molecule or ion that accepts a hydrogen ion in a reaction.",
+   "concept": "48:5"
+  },
+  {
+   "notebook": 33,
+   "item": "ex:3",
+   "text": "This amount depends on the purity of the material and the shape of the mass, which corresponds to the amount of surface area available from which neutrons can escape, and on the identity of the isotope. The minimum mass capable of supporting sustained fission is called the critical mass. This amount",
+   "concept": "48:4"
+  },
+  {
+   "notebook": 34,
+   "item": "card:752",
+   "text": "The ___ is Earth’s main source of energy. Sun",
+   "concept": "50:4"
+  },
+  {
+   "notebook": 34,
+   "item": "card:751",
+   "text": "What are made from highly reflective metal that is applied to a curved or flat piece of glass? Mirrors",
+   "concept": null
+  },
+  {
+   "notebook": 34,
+   "item": "card:750",
+   "text": "All forms of energy can be interconverted. three things can change the energy of an object: the transfer of heat, work performed on or by an object, or some combination of what? Heat and work",
+   "concept": "50:0"
+  },
+  {
+   "notebook": 34,
+   "item": "card:749",
+   "text": "What is the lowest layer of the atmosphere? Troposphere",
+   "concept": null
+  },
+  {
+   "notebook": 34,
+   "item": "card:748",
+   "text": "___ is a good example. Solar energy",
+   "concept": "50:10"
+  },
+  {
+   "notebook": 34,
+   "item": "card:747",
+   "text": "Millions of years ago, plants used energy from the sun to form what? Carbon compounds",
+   "concept": "50:5"
+  },
+  {
+   "notebook": 34,
+   "item": "card:746",
+   "text": "Although air can transfer heat rapidly by convection, it is a poor conductor and thus a good what? Insulator",
+   "concept": "50:11"
+  },
+  {
+   "notebook": 34,
+   "item": "card:745",
+   "text": "Soluble minerals and clays accumulate in what soil layer, allowing it to hold more water? Subsoil",
+   "concept": null
+  },
+  {
+   "notebook": 34,
+   "item": "card:744",
+   "text": "Figure 8.11 The sun emits energy in the form of ___ radiation. Electromagnetic",
+   "concept": "50:4"
+  },
+  {
+   "notebook": 34,
+   "item": "card:743",
+   "text": "Which radio frequency should you listen to if you want less noise? Fm",
+   "concept": "50:12"
+  },
+  {
+   "notebook": 34,
+   "item": "card:742",
+   "text": "The angle at which light bends when it enters a different medium is known as what? Refraction",
+   "concept": "50:7"
+  },
+  {
+   "notebook": 34,
+   "item": "card:741",
+   "text": "Changes from a less-ordered state to a more-ordered state (such as a liquid to a solid) are always what? Exothermic",
+   "concept": "50:1"
+  },
+  {
+   "notebook": 34,
+   "item": "q:553",
+   "text": "Bacteria can also be chemotrophs. Chemosynthetic bacteria, or chemotrophs , obtain energy by breaking down chemical compounds in their environment. An example of one of these chemicals broken down by bacteria is nitrogen-containing ammonia. These bacteria are important because they help cycle nitrog",
+   "concept": null
+  },
+  {
+   "notebook": 34,
+   "item": "q:554",
+   "text": "Like other spiral galaxies, our galaxy has a disk, a central bulge, and spiral arms. The disk is about 100,000 light-years across and 3,000 light-years thick. Most of the Galaxy’s gas, dust, young stars, and open clusters are in the disk.",
+   "concept": null
+  },
+  {
+   "notebook": 34,
+   "item": "q:555",
+   "text": "Nuclear reactors heat water to steam to drive a turbine for generation of electricity.",
+   "concept": "50:3"
+  },
+  {
+   "notebook": 34,
+   "item": "q:556",
+   "text": "An electric generator is a device that changes kinetic energy to electrical energy through electromagnetic induction. A simple diagram of an electric generator is shown in Figure below . In a generator, some form of energy is applied to turn a shaft. This causes a coil of wire to rotate between oppo",
+   "concept": "50:3"
+  },
+  {
+   "notebook": 34,
+   "item": "q:557",
+   "text": "The warm-air vent is placed near the floor of the room. Warm air is less dense than cold air so it rises. If the warm-air vent were placed near the ceiling instead, how would this affect the transfer of thermal energy throughout the room?.",
+   "concept": "50:6"
+  },
+  {
+   "notebook": 34,
+   "item": "q:558",
+   "text": "The second equation is equivalent to the first. Voltage is not the same as energy. Voltage is the energy per unit charge. Thus a motorcycle battery and a car battery can both have the same voltage (more precisely, the same potential difference between battery terminals), yet one stores much more ene",
+   "concept": "50:8"
+  },
+  {
+   "notebook": 34,
+   "item": "q:559",
+   "text": "The energy of electromagnetic waves depends on their frequency. Low-frequency waves have little energy and are normally harmless. High-frequency waves have a lot of energy and are potentially very harmful.",
+   "concept": "50:2"
+  },
+  {
+   "notebook": 34,
+   "item": "q:560",
+   "text": "6.3 The Laws of Thermodynamics In studying energy, scientists use the term “system” to refer to the matter and its environment involved in energy transfers. Everything outside of the system is called the surroundings. Single cells are biological systems. Systems can be thought of as having a certain",
+   "concept": "50:0"
+  },
+  {
+   "notebook": 34,
+   "item": "q:561",
+   "text": "Uranus is a lot like Jupiter and Saturn. The planet is composed mainly of hydrogen and helium. There is a thick layer of gas on the outside. Further on the inside is liquid. But Uranus has a higher percentage of icy materials than Jupiter and Saturn. These materials include water, ammonia, and metha",
+   "concept": null
+  },
+  {
+   "notebook": 34,
+   "item": "q:562",
+   "text": "The trigeminal pathway carries somatosensory information from the face, head, mouth, and nasal cavity. As with the previously discussed nerve tracts, the sensory pathways of the trigeminal pathway each involve three successive neurons. First, axons from the trigeminal ganglion enter the brain stem a",
+   "concept": null
+  },
+  {
+   "notebook": 34,
+   "item": "ex:4",
+   "text": "The space between the inside and outside walls of a house, for example, is about 9 cm (3.5 in) —large enough for convection to work effectively. Although air can transfer heat rapidly by convection, it is a poor conductor and thus a good insulator.",
+   "concept": "50:11"
+  },
+  {
+   "notebook": 34,
+   "item": "ex:5",
+   "text": "Instead, they form a supercooled liquid, a metastable liquid phase that exists below the normal melting point. Supercooled liquids usually crystallize on standing, or adding a seed crystal of the same or another substance can induce crystallization.",
+   "concept": "50:1"
+  },
+  {
+   "notebook": 34,
+   "item": "ex:6",
+   "text": "So an AM receiver would interpret noise added onto the amplitude of its carrier wave as part of the information. An FM receiver can be made to reject amplitudes other than that of the basic carrier wave and only look for variations in frequency.",
+   "concept": "50:12"
+  }
+ ]
+}
