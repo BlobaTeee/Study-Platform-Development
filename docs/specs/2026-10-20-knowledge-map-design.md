@@ -44,7 +44,8 @@ with the reason visible.
 - **Links**: one request per notebook. The model gets the concepts and
   returns pairs "A is needed before B", each with a one-sentence reason. Kept
   only if both ends exist; at most 3 prerequisites per concept; cycles
-  broken (the lowest-confidence edge of each cycle dropped). Cached on the
+  broken by reading the pairs in reply order and dropping any pair that
+  would close a loop (the model gives no confidence to rank them). Cached on the
   notebook with a hash of its concept ids; recomputed only when the concepts
   change.
 - **Attachment** of practice to concepts, no model call:
@@ -66,15 +67,20 @@ with the reason visible.
   (`choose_1`) and for written answers (`algebra`, `fill_in_1`, used for
   practice problems).
 - **Nhớ (FSRS).** Mean retrievability today of the concept's reviewed cards,
-  shown as "còn nhớ khoảng k/n thẻ".
+  shown as "nhớ k/n thẻ" over the n reviewed cards, with the cards never
+  reviewed counted apart ("· 4 thẻ chưa học").
 - **State**, from the weaker available signal: strong (≥ 0.8), shaky
   (0.5–0.8), weak (< 0.5), not studied (no events). The thresholds are
-  checked in notebook 10. One event only → "mới luyện 1 lần", faint border.
+  checked in notebook 10. One event (one answer, submit or card review)
+  only → "mới luyện 1 lần", faint border.
 - **Action**, from the weaker signal:
   - memory weaker → "Ôn N thẻ" (relearn mode, `/dashboard/flashcards?cards=`);
   - understanding weaker → "Làm bài vận dụng" if the concept has one, else
     "Luyện 5 câu" (the existing weak-concept practice: one request writing 5
-    questions from the concept's passages).
+    questions from the concept's passages); a problem not yet mastered is
+    offered before a mastered one.
+  - a strong concept gets no button; its advice says scheduled reviews are
+    enough.
   - a prerequisite that is weak or shaky is recommended first, with a button
     that selects its card.
 - Computed without model calls, cached per user and notebook, invalidated by
