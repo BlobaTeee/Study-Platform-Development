@@ -54,11 +54,40 @@ def test_cards_give_memory_and_answers_give_understanding(client, user, chem):
     by = {c['label']: c for c in client.get(MAP.format(nb.id)).json()['concepts']}
 
     assert by['Acids']['memory']['total'] == 1 and by['Acids']['understanding'] is None
-    assert by['Acids']['action'] == {'kind': 'cards', 'card_ids': [card.id]}
+    # Reviewed just now, so it is remembered: strong, and nothing to press.
+    assert by['Acids']['state'] == 'strong' and by['Acids']['action'] is None
     assert by['Enzymes']['understanding'] == {'p': pytest.approx(by['Enzymes']['understanding']['p']),
                                               'correct': 0, 'total': 1}
     assert by['Enzymes']['state'] in ('weak', 'shaky')
     assert by['Enzymes']['action'] == {'kind': 'practice', 'question_ids': [q.id]}
+
+
+ACID_CARDS = [('What does an acid donate to a base?', 'A proton'), ('What does an acid give a base in water?', 'A proton'),
+              ('An acid reacts with a base by donating what?', 'A proton'), ('Which donates a proton, acid or base?', 'An acid'),
+              ('What accepts the proton an acid donates?', 'A base'), ('Where do an acid and a base react?', 'In water')]
+
+
+def test_memory_counts_reviewed_cards_and_names_the_unseen(client, user, chem):
+    nb, src = chem
+    cards = [_card(user, nb, src, q, a) for q, a in ACID_CARDS]
+    for card in cards[:2]:
+        CardReview.record(user, card, 'good')
+
+    acids = next(c for c in client.get(MAP.format(nb.id)).json()['concepts'] if c['label'] == 'Acids')
+
+    assert acids['memory']['total'] == 2 and acids['memory']['unseen'] == 4
+    assert acids['memory']['remembered'] <= acids['memory']['total']
+
+
+def test_events_count_every_review_not_every_card(client, user, chem):
+    nb, src = chem
+    card = _card(user, nb, src, *ACID_CARDS[0])
+    for _ in range(5):
+        CardReview.record(user, card, 'good')
+
+    acids = next(c for c in client.get(MAP.format(nb.id)).json()['concepts'] if c['label'] == 'Acids')
+
+    assert acids['events'] == 5
 
 
 def test_a_member_sees_their_own_mastery(client, other_client, user, other_user, chem):
@@ -191,3 +220,18 @@ def test_practice_that_cannot_be_made_is_503(client, monkeypatch, missed):
 def test_practice_with_a_body_that_is_not_an_object_is_400(client, chem):
     nb, _ = chem
     assert client.post(MAP.format(nb.id) + 'practice/', ['x'], format='json').status_code == 400
+
+
+def test_the_exercise_offered_is_one_not_yet_mastered(client, user, missed):
+    from exercises.models import Exercise
+    nb, src = missed
+    ref = {'checkpoints': [{'id': 'c1', 'text': 'Enzymes', 'basis': ENZ}]}
+    done = Exercise.objects.create(user=user, notebook=nb, source=src, prompt='Why do enzymes speed reactions?',
+                                   reference=ref, status='mastered')
+    todo = Exercise.objects.create(user=user, notebook=nb, source=src, prompt='How do enzymes speed reactions?',
+                                   reference=ref, status='new')
+
+    enzymes = next(c for c in client.get(MAP.format(nb.id)).json()['concepts'] if c['label'] == 'Enzymes')
+
+    assert enzymes['state'] != 'strong'
+    assert enzymes['action'] == {'kind': 'exercise', 'exercise_id': todo.id} != {'exercise_id': done.id}

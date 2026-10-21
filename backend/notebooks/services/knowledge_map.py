@@ -56,6 +56,18 @@ def _items(user, notebook):
     return cards, questions, exercises, items
 
 
+# A problem still to do comes before one already mastered.
+EXERCISE_ORDER = {'revisit': 0, 'new': 1, 'mastered': 2}
+
+
+def _review_counts(user, card_ids) -> dict[int, int]:
+    """How many times each card was graded (seed rows are not reviews)."""
+    from django.db.models import Count
+    from study_sessions.models import CardReview
+    return dict(CardReview.objects.grades().filter(user=user, flashcard_id__in=card_ids)
+                .values('flashcard_id').annotate(n=Count('id')).order_by().values_list('flashcard_id', 'n'))
+
+
 def _attached(notebook, concepts, items) -> dict:
     sig = hashlib.sha1((concepts_hash(concepts) + '|'.join(sorted(i['id'] for i in items))).encode()).hexdigest()
     key = f'map-attach:{notebook.id}:{sig}'
@@ -93,6 +105,8 @@ def build_map(user, notebook) -> dict:
     params, thresholds = bkt.load()
     events = _events(user, [q.id for q in questions], [e.id for e in exercises])
     recall = retrievability_today(user, [c.id for c in cards])
+    reviews = _review_counts(user, [c.id for c in cards])
+    exercise_rank = {e.id: EXERCISE_ORDER.get(e.status, 1) for e in exercises}
 
     members: dict[str, dict] = {c['key']: {'cards': [], 'questions': [], 'exercises': []} for c in concepts}
     for item_id, concept in where.items():
@@ -109,16 +123,20 @@ def build_map(user, notebook) -> dict:
         understanding = ({'p': round(bkt.trace([(ok, kind) for _, ok, kind in evs], params), 3),
                           'correct': sum(ok for _, ok, _ in evs), 'total': len(evs)} if evs else None)
         reviewed = [recall[i] for i in m['cards'] if i in recall]
+        # p, remembered and total are over the cards reviewed; the rest are unseen.
         memory = ({'p': round(sum(reviewed) / len(reviewed), 3), 'remembered': round(sum(reviewed)),
-                   'total': len(m['cards'])} if reviewed else None)
+                   'total': len(reviewed), 'unseen': len(m['cards']) - len(reviewed)} if reviewed else None)
         u, mem = (understanding or {}).get('p'), (memory or {}).get('p')
+        state = concept_state(u, mem, thresholds)
         weakest_cards = sorted(m['cards'], key=lambda i: recall.get(i, 0.0))
+        to_do = sorted(m['exercises'], key=lambda i: exercise_rank.get(i, 1))
+        # A strong concept needs only its scheduled reviews, so no button.
+        action = None if state == 'strong' else choose_action(weaker(u, mem), weakest_cards, to_do, m['questions'])
         out.append({'key': c['key'], 'label': c['label'], 'point': c['point'], 'source_ids': c['source_ids'],
-                    'importance': c['importance'], 'state': concept_state(u, mem, thresholds),
+                    'importance': c['importance'], 'state': state,
                     'understanding': understanding, 'memory': memory,
-                    'events': len(evs) + len(reviewed),
-                    'action': choose_action(weaker(u, mem), weakest_cards, m['exercises'], m['questions']),
-                    'first': None})
+                    'events': len(evs) + sum(reviews.get(i, 0) for i in m['cards']),
+                    'action': action, 'first': None})
 
     edges, status = [], 'none' if len(concepts) < 2 else 'missing'
     links = notebook.concept_links or {}
