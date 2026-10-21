@@ -232,6 +232,23 @@
       0 30px 28px -20px rgb(15 23 42 / 0.06);
   }
 
+  /* An index card: white stock, faint blue ruling from the first line down,
+     a soft rose margin rule under the header line, as on a real 3x5 card. */
+  .index-card {
+    background-color: #ffffff;
+    background-image:
+      linear-gradient(rgb(244 63 94 / 0.32), rgb(244 63 94 / 0.32)),
+      repeating-linear-gradient(to bottom, transparent 0 25px, rgb(37 99 235 / 0.11) 25px 26px);
+    background-size: 100% 1.5px, 100% calc(100% - 2.75rem);
+    background-position: 0 2.2rem, 0 2.75rem;
+    background-repeat: no-repeat;
+  }
+  .index-card-rest {
+    box-shadow: 0 1px 1px rgb(15 23 42 / 0.06), 0 8px 18px -8px rgb(15 23 42 / 0.16);
+  }
+  .index-card-front {
+    box-shadow: 0 2px 2px rgb(15 23 42 / 0.06), 0 16px 26px -10px rgb(15 23 42 / 0.24);
+  }
   /* Study-paper texture: faint engineering grid, drawn behind content.
      Kept near-invisible (3–4% ink) so it reads as material, not decoration. */
   .paper-grid {

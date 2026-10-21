@@ -18,7 +18,7 @@ import {
 import { SourceDropZone } from '@/components/source-drop-zone'
 import { useConfirm } from '@/components/confirm-dialog'
 import { KeyPoints } from '@/components/key-points'
-import { PracticeRow } from '@/components/practice-row'
+import { StudyDesk } from '@/components/study-desk'
 import { NotebookMembers } from '@/components/notebook-members'
 import { KnowledgeMap } from '@/components/knowledge-map'
 import {
@@ -28,9 +28,7 @@ import {
   ClipboardPaste,
   Link2,
   FileUp,
-  HelpCircle,
   Loader2,
-  Zap,
   Download,
   FileText,
   Network,
@@ -127,7 +125,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const router = useRouter()
   const t = useTranslations('notebooks')
   const common = useTranslations('common')
-  const nav = useTranslations('nav')
   const mapT = useTranslations('map')
   // How long a document is, in the reader's language: pages for a PDF,
   // slides for a deck, nothing for formats without a page count.
@@ -912,74 +909,25 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                       </div>
                     )}
 
-                    {/* This document's cards and quiz: what exists, in plain words,
-                        and the two things to do with it. One study button per
-                        kind on the page — this is the only one. */}
-                    <div className="border-t border-slate-200 pt-5">
-                      <h3 className="text-sm font-semibold text-slate-900">{t('fromThisDocument')}</h3>
-                      <div className="mt-3 divide-y divide-slate-200 rounded-xl border border-slate-200">
-                        <div data-mode="flashcards" className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4">
-                          <div className="min-w-0 flex-1 basis-48">
-                            <p className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                              <Zap className="size-4 text-mode" aria-hidden />
-                              {nav('flashcards')}
-                            </p>
-                            <p className="mt-0.5 text-sm text-slate-600">
-                              {activeCounts.cards === 0
-                                ? t('noCardsForDoc')
-                                : activeCounts.toDo < activeCounts.cards
-                                  ? t('cardsToDo', { cards: common('cards', { count: activeCounts.cards }), count: activeCounts.toDo })
-                                  : common('cards', { count: activeCounts.cards })}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 flex-wrap gap-2">
-                            <Button
-                              onClick={() => void handleGenerateFlashcards(activeIds, activeCounts.cards)}
-                              disabled={activeIds.length === 0 || generating !== null}
-                              variant={activeCounts.cards > 0 ? 'outline' : 'default'}
-                            >
-                              {generating === 'flashcards' && selectedIds.length === 0 ? <Loader2 className="animate-spin" aria-hidden /> : null}
-                              {activeCounts.cards > 0 ? t('regenerateFlashcards') : t('generateFlashcards')}
-                            </Button>
-                            {activeCounts.cards > 0 && (
-                              <Button asChild>
-                                <Link href={`/dashboard/flashcards?due=1&source=${activeCounts.query}`}>
-                                  {/* Part-way through: carry on with what is left. */}
-                                  {activeCounts.toDo > 0 && activeCounts.toDo < activeCounts.cards ? t('continueFlashcards') : t('studyFlashcards')}
-                                </Link>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        <div data-mode="quizzes" className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4">
-                          <div className="min-w-0 flex-1 basis-48">
-                            <p className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                              <HelpCircle className="size-4 text-mode" aria-hidden />
-                              {nav('quizzes')}
-                            </p>
-                            <p className="mt-0.5 text-sm text-slate-600">
-                              {activeCounts.quizId ? t('quizReady') : t('noQuizForDoc')}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 flex-wrap gap-2">
-                            <Button
-                              onClick={() => void handleGenerateQuiz(activeIds)}
-                              disabled={activeIds.length === 0 || generating !== null}
-                              variant={activeCounts.quizId ? 'outline' : 'default'}
-                            >
-                              {generating === 'quiz' && selectedIds.length === 0 ? <Loader2 className="animate-spin" aria-hidden /> : null}
-                              {t('generateQuiz')}
-                            </Button>
-                            {activeCounts.quizId && (
-                              <Button asChild>
-                                <Link href={`/dashboard/quizzes?source=${activeCounts.query}&quiz=${activeCounts.quizId}`}>{t('takeQuiz')}</Link>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        <PracticeRow notebookId={notebookId} sourceId={activeListItem.id} disabled={!isReady(activeListItem.id)} />
-                      </div>
-                    </div>
+                    {/* This document's deck, quiz and practice problems, as three
+                        index cards; the one worth doing next sits forward. */}
+                    <StudyDesk
+                      notebookId={notebookId}
+                      sourceId={activeListItem.id}
+                      disabled={activeIds.length === 0 || generating !== null}
+                      cards={{
+                        count: activeCounts.cards,
+                        toDo: activeCounts.toDo,
+                        studyHref: `/dashboard/flashcards?due=1&source=${activeCounts.query}`,
+                        busy: generating === 'flashcards' && selectedIds.length === 0,
+                        onMake: () => void handleGenerateFlashcards(activeIds, activeCounts.cards),
+                      }}
+                      quiz={{
+                        href: activeCounts.quizId ? `/dashboard/quizzes?source=${activeCounts.query}&quiz=${activeCounts.quizId}` : null,
+                        busy: generating === 'quiz' && selectedIds.length === 0,
+                        onMake: () => void handleGenerateQuiz(activeIds),
+                      }}
+                    />
 
                     {sourceDetail?.text_preview && (
                       <details className="border-t border-slate-200 pt-4">
