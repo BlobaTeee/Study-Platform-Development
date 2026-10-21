@@ -723,6 +723,7 @@
     "pickHint": "Chọn một khung để xem hai tín hiệu, lời khuyên và việc nên làm tiếp.",
     "failed": "Có lỗi xảy ra, thử lại sau.",
     "zoomIn": "Phóng to",
-    "zoomOut": "Thu nhỏ"
+    "zoomOut": "Thu nhỏ",
+    "viewSwitch": "Cách xem sổ tay"
   }
 }

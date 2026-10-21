@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { notebooksAPI, type ConceptState, type KnowledgeMapData, type MapConcept } from '@/lib/api'
 import { CARD_H, CARD_W, layoutMap } from '@/lib/map-layout'
+import { formatSourceIdsForQuery } from '@/lib/source-utils'
 import { cn } from '@/lib/utils'
 
 type MapT = ReturnType<typeof useTranslations<'map'>>
@@ -73,14 +74,20 @@ function StateDot({ state, className }: { state: ConceptState; className?: strin
 
 /** What the cards read from the map around them; kept out of node data so a
  *  selection does not rebuild (and re-measure) every node. */
-type MapView = { selected: string | null; onlyWeak: boolean; select: (key: string) => void }
-const MapViewContext = createContext<MapView>({ selected: null, onlyWeak: false, select: () => {} })
+type MapView = {
+  selected: string | null
+  onlyWeak: boolean
+  select: (key: string) => void
+  /** Pan a card into view if it is outside the canvas. */
+  reveal: (key: string) => void
+}
+const MapViewContext = createContext<MapView>({ selected: null, onlyWeak: false, select: () => {}, reveal: () => {} })
 
 type ConceptNodeType = Node<{ concept: MapConcept }, 'concept'>
 
 function ConceptNode({ data }: NodeProps<ConceptNodeType>) {
   const t = useTranslations('map')
-  const { selected, onlyWeak, select } = useContext(MapViewContext)
+  const { selected, onlyWeak, select, reveal } = useContext(MapViewContext)
   const c = data.concept
   const isSelected = selected === c.key
   const faded = onlyWeak && c.state === 'strong'
@@ -93,6 +100,10 @@ function ConceptNode({ data }: NodeProps<ConceptNodeType>) {
         type="button"
         data-concept={c.key}
         onClick={() => select(c.key)}
+        // Keyboard focus only: a click lands on a card already in sight.
+        onFocus={(e) => {
+          if (e.currentTarget.matches(':focus-visible')) reveal(c.key)
+        }}
         aria-pressed={isSelected}
         aria-label={`${c.label}. ${t(`state_${c.state}`)}. ${numbersLine(c, t)}${once ? `, ${t('once')}` : ''}`}
         style={{ width: CARD_W, minHeight: CARD_H }}
@@ -130,39 +141,69 @@ function ConceptNode({ data }: NodeProps<ConceptNodeType>) {
 
 const nodeTypes = { concept: ConceptNode }
 
+/** One links request per notebook and concept set at a time, shared across
+ *  remounts: switching views while links are being found joins the request
+ *  already on its way instead of sending a second. Cleared once settled. */
+const linksInFlight = new Map<string, Promise<unknown>>()
+function linksRequest(notebookId: number, set: string): Promise<unknown> {
+  const pending = linksInFlight.get(set)
+  if (pending) return pending
+  const request = notebooksAPI.findMapLinks(notebookId).finally(() => linksInFlight.delete(set))
+  linksInFlight.set(set, request)
+  return request
+}
+
 /** The knowledge map of one notebook: each main idea is a paper card coloured
  *  by the student's weaker side (understanding or memory), arrows say "learn
  *  this first". Links are found once by the server and cached; until then
  *  the cards show without arrows. */
 export function KnowledgeMap({ notebookId }: { notebookId: number }) {
   const t = useTranslations('map')
-  const { data, error, mutate } = useSWR(['/map', notebookId], () => notebooksAPI.getMap(notebookId))
+  // Compare the payload, not the axios response (a new object every fetch):
+  // a refetch that brings the same map keeps the same data, so nothing
+  // downstream rebuilds.
+  const { data, error, mutate } = useSWR(['/map', notebookId], () => notebooksAPI.getMap(notebookId), {
+    compare: (a, b) => JSON.stringify(a?.data) === JSON.stringify(b?.data),
+  })
   const map: KnowledgeMapData | undefined = data?.data
 
   // `missing` means the concepts changed since links were last found. Ask
   // once per set of concepts (reading a new document changes the set and
-  // asks again); a failure leaves the cards up with a retry line.
+  // asks again); a failure leaves the cards up with a retry line. A failure
+  // belongs to its set, so a new set starts clean.
   const asked = useRef<string | null>(null)
   const conceptSet = map ? `${notebookId}:${map.concepts.map((c) => c.key).join('|')}` : null
-  const [linksFailed, setLinksFailed] = useState(false)
-  const findLinks = useCallback(() => {
-    notebooksAPI
-      .findMapLinks(notebookId)
-      .then(() => mutate())
-      .catch(() => setLinksFailed(true))
-  }, [notebookId, mutate])
+  const [failedFor, setFailedFor] = useState<string | null>(null)
+  const findLinks = useCallback(
+    (set: string) => {
+      linksRequest(notebookId, set)
+        .then(() => mutate())
+        .catch(() => setFailedFor(set))
+    },
+    [notebookId, mutate],
+  )
   useEffect(() => {
-    if (map?.edges_status !== 'missing' || asked.current === conceptSet) return
+    if (map?.edges_status !== 'missing' || !conceptSet || asked.current === conceptSet) return
     asked.current = conceptSet
-    findLinks()
+    findLinks(conceptSet)
   }, [map?.edges_status, conceptSet, findLinks])
   const retryLinks = () => {
-    setLinksFailed(false)
-    findLinks()
+    if (!conceptSet) return
+    setFailedFor(null)
+    findLinks(conceptSet)
   }
+  const linksFailed = failedFor !== null && failedFor === conceptSet && map?.edges_status === 'missing'
   const linksPending = map?.edges_status === 'missing' && !linksFailed
 
-  if (error) return <p role="alert" className="text-base text-red-700">{t('failed')}</p>
+  if (error && !map)
+    return (
+      <div role="alert" className="sheet flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-4 text-base text-red-700">
+        {t('failed')}
+        <Button type="button" variant="outline" size="sm" onClick={() => void mutate()}>
+          {t('retry')}
+        </Button>
+      </div>
+    )
   if (!map) return <div className="sheet h-[70dvh] min-h-[420px] animate-pulse motion-reduce:animate-none" aria-busy />
   if (map.concepts.length === 0) return <EmptyMap missing={map.missing_key_points} onRead={() => mutate()} />
   return (
@@ -176,7 +217,7 @@ export function KnowledgeMap({ notebookId }: { notebookId: number }) {
           notebookId={notebookId}
           map={map}
           linksPending={linksPending}
-          linksFailed={linksFailed && map.edges_status === 'missing'}
+          linksFailed={linksFailed}
           onRetryLinks={retryLinks}
         />
       </ReactFlowProvider>
@@ -277,10 +318,10 @@ const fitFloor = (w: number) => (w < 640 ? 0.75 : 0.65)
 
 /** Where to place the map in a canvas of w × h. Computed from the layout's
  *  own positions, so it needs no measured nodes and is the same every time. */
-function fitViewport(nodes: { position: { x: number; y: number } }[], w: number, h: number) {
-  if (!nodes.length || !w || !h) return null
-  const xs = nodes.map((n) => n.position.x)
-  const ys = nodes.map((n) => n.position.y)
+function fitViewport(points: { x: number; y: number }[], w: number, h: number) {
+  if (!points.length || !w || !h) return null
+  const xs = points.map((p) => p.x)
+  const ys = points.map((p) => p.y)
   const minX = Math.min(...xs)
   const minY = Math.min(...ys)
   const bw = Math.max(...xs) + CARD_W - minX
@@ -309,7 +350,7 @@ function MapCanvas({
   onRetryLinks: () => void
 }) {
   const t = useTranslations('map')
-  const { setViewport, setCenter, getZoom, zoomIn, zoomOut } = useReactFlow()
+  const { setViewport, setCenter, getViewport, zoomIn, zoomOut } = useReactFlow()
   const canvasRef = useRef<HTMLDivElement>(null)
   const [placed, setPlaced] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
@@ -332,19 +373,34 @@ function MapCanvas({
     })
   }, [map.edges, byKey])
 
+  // The layout depends only on which cards exist and how they link. Held as
+  // plain strings, a refetch that only moves mastery numbers leaves the
+  // positions, and so the viewport the student panned to, alone.
+  const keySig = JSON.stringify(concepts.map((c) => c.key))
+  const linkSig = JSON.stringify(links.map((e) => [e.from, e.to]))
+  const positions = useMemo(
+    () =>
+      layoutMap(
+        JSON.parse(keySig) as string[],
+        (JSON.parse(linkSig) as [string, string][]).map(([from, to]) => ({ from, to })),
+      ),
+    [keySig, linkSig],
+  )
+
   // Built from the data alone: selection and fading reach the cards through
   // context, so clicking a card does not hand React Flow new nodes to measure.
-  const nodes = useMemo<ConceptNodeType[]>(() => {
-    const pos = layoutMap(concepts.map((c) => c.key), links)
-    return concepts.map((c) => ({
-      id: c.key,
-      type: 'concept',
-      position: pos[c.key],
-      data: { concept: c },
-      draggable: false,
-      selectable: true,
-    }))
-  }, [concepts, links])
+  const nodes = useMemo<ConceptNodeType[]>(
+    () =>
+      concepts.map((c) => ({
+        id: c.key,
+        type: 'concept',
+        position: positions[c.key],
+        data: { concept: c },
+        draggable: false,
+        selectable: true,
+      })),
+    [concepts, positions],
+  )
 
   const edges = useMemo<Edge[]>(
     () =>
@@ -368,16 +424,16 @@ function MapCanvas({
     [links, selected, onlyWeak, byKey],
   )
 
-  // Fit on open (the canvas fades in once placed), and again when arrows
-  // arriving move cards into layers.
+  // Fit on open (the canvas fades in once placed), and again only when the
+  // layout itself changes, such as arrows arriving and moving cards into layers.
   const fit = useCallback(
     (duration: number) => {
       const el = canvasRef.current
-      const vp = el && fitViewport(nodes, el.clientWidth, el.clientHeight)
+      const vp = el && fitViewport(Object.values(positions), el.clientWidth, el.clientHeight)
       if (!vp) return Promise.resolve(false)
       return setViewport(vp, { duration })
     },
-    [nodes, setViewport],
+    [positions, setViewport],
   )
   const placedOnce = useRef(false)
   useEffect(() => {
@@ -386,23 +442,47 @@ function MapCanvas({
     void fit(first ? 0 : motionMs(300)).then(() => setPlaced(true))
   }, [fit])
 
-  const select = useCallback((key: string) => setSelected((k) => (k === key ? null : key)), [])
-  const view = useMemo(() => ({ selected, onlyWeak, select }), [selected, onlyWeak, select])
+  // Centre a card; with `onlyIfHidden`, only when it is not wholly inside
+  // the canvas (keyboard focus must never land on a card out of sight).
+  const centerOn = useCallback(
+    (key: string, onlyIfHidden: boolean) => {
+      const p = positions[key]
+      const el = canvasRef.current
+      if (!p || !el) return
+      const { x, y, zoom } = getViewport()
+      if (onlyIfHidden) {
+        const left = p.x * zoom + x
+        const top = p.y * zoom + y
+        const inside = left >= 0 && top >= 0 && left + CARD_W * zoom <= el.clientWidth && top + CARD_H * zoom <= el.clientHeight
+        if (inside) return
+      }
+      void setCenter(p.x + CARD_W / 2, p.y + CARD_H / 2, {
+        zoom: onlyIfHidden ? zoom : Math.max(zoom, 0.8),
+        duration: motionMs(350),
+      })
+    },
+    [positions, getViewport, setCenter],
+  )
+
+  // After selecting from the panel or the list, focus moves to the new
+  // panel's heading (the old panel, and the button pressed, are gone).
+  const focusHeadingRef = useRef(false)
+  const select = useCallback((key: string) => {
+    focusHeadingRef.current = false
+    setSelected((k) => (k === key ? null : key))
+  }, [])
+  const reveal = useCallback((key: string) => centerOn(key, true), [centerOn])
+  const view = useMemo(() => ({ selected, onlyWeak, select, reveal }), [selected, onlyWeak, select, reveal])
   const current = selected ? byKey.get(selected) ?? null : null
 
   // From the panel or the list: select the card and bring it into view.
   const focusConcept = useCallback(
     (key: string) => {
+      focusHeadingRef.current = key !== selected
       setSelected(key)
-      const n = nodes.find((x) => x.id === key)
-      if (n) {
-        void setCenter(n.position.x + CARD_W / 2, n.position.y + CARD_H / 2, {
-          zoom: Math.max(getZoom(), 0.8),
-          duration: motionMs(350),
-        })
-      }
+      centerOn(key, false)
     },
-    [nodes, setCenter, getZoom],
+    [selected, centerOn],
   )
 
   // Escape closes the panel and hands focus back to the card it was about.
@@ -414,7 +494,11 @@ function MapCanvas({
   useEffect(() => {
     if (!selected) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      // Escape inside a field or another dialog belongs to that, not the map.
+      const target = e.target instanceof Element ? e.target : null
+      if (target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return
+      close()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -471,7 +555,7 @@ function MapCanvas({
                 onClick={() => setOnlyWeak((v) => !v)}
               >
                 <Filter aria-hidden />
-                {onlyWeak ? t('showAll') : t('onlyWeak')}
+                {t('onlyWeak')}
               </Button>
             </div>
           </div>
@@ -537,6 +621,7 @@ function MapCanvas({
                 links={links}
                 notebookId={notebookId}
                 onSelect={focusConcept}
+                focusRequestRef={focusHeadingRef}
               />
             ) : (
               <p className="p-5 text-sm text-slate-600">{t('pickHint')}</p>
@@ -578,6 +663,7 @@ function MapCanvas({
             links={links}
             notebookId={notebookId}
             onSelect={focusConcept}
+            focusRequestRef={focusHeadingRef}
             className="pt-0"
           />
         </div>
@@ -594,6 +680,7 @@ function ConceptDetail({
   links,
   notebookId,
   onSelect,
+  focusRequestRef,
   className,
 }: {
   concept: MapConcept
@@ -601,10 +688,20 @@ function ConceptDetail({
   links: KnowledgeMapData['edges']
   notebookId: number
   onSelect: (key: string) => void
+  /** Set when this panel replaces another by a press inside the panel or the
+   *  list: the visible copy (desktop column or phone sheet) takes focus. */
+  focusRequestRef: React.RefObject<boolean>
   className?: string
 }) {
   const t = useTranslations('map')
   const router = useRouter()
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    const h = headingRef.current
+    if (!focusRequestRef.current || !h || h.offsetParent === null) return
+    focusRequestRef.current = false
+    h.focus({ preventScroll: true })
+  }, [focusRequestRef])
   const [practising, setPractising] = useState(false)
   const [error, setError] = useState('')
   const side = weakerSide(c)
@@ -625,7 +722,7 @@ function ConceptDetail({
     setError('')
     try {
       const res = await notebooksAPI.practiseConcept(notebookId, c.key)
-      router.push(`/dashboard/quizzes?source=${res.data.source_ids.join(',')}&quiz=${res.data.quiz_id}`)
+      router.push(`/dashboard/quizzes?source=${formatSourceIdsForQuery(res.data.source_ids)}&quiz=${res.data.quiz_id}`)
     } catch (err) {
       const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
       setError(detail || t('failed'))
@@ -638,13 +735,13 @@ function ConceptDetail({
     const p = c[which]?.p ?? null
     const weaker = side === which && c.state !== 'strong'
     return (
-      <div key={which} className="space-y-1.5">
-        <div className="flex items-baseline justify-between gap-3 text-sm">
-          <dt className={cn(weaker ? 'font-medium text-slate-900' : 'text-slate-600')}>{t(which)}</dt>
-          <dd className={cn('font-mono text-xs tabular-nums', weaker ? 'font-medium text-slate-900' : 'text-slate-600')}>
+      <li key={which} className="space-y-1.5">
+        <p className="flex items-baseline justify-between gap-3 text-sm">
+          <span className={cn(weaker ? 'font-medium text-slate-900' : 'text-slate-600')}>{t(which)}</span>
+          <span className={cn('font-mono text-xs tabular-nums', weaker ? 'font-medium text-slate-900' : 'text-slate-600')}>
             {text ?? t('notStudiedLine')}
-          </dd>
-        </div>
+          </span>
+        </p>
         <div className="h-[5px] overflow-hidden rounded-full bg-slate-100" aria-hidden>
           {p !== null && (
             <div
@@ -653,7 +750,7 @@ function ConceptDetail({
             />
           )}
         </div>
-      </div>
+      </li>
     )
   }
 
@@ -661,7 +758,13 @@ function ConceptDetail({
   return (
     <div className={cn('space-y-5 p-5', className)}>
       <div className="space-y-1.5">
-        <h3 className="font-display text-lg font-semibold leading-snug text-slate-900">{c.label}</h3>
+        <h3
+          ref={headingRef}
+          tabIndex={-1}
+          className="font-display text-lg font-semibold leading-snug text-slate-900 outline-none"
+        >
+          {c.label}
+        </h3>
         <p className="flex items-center gap-2 text-sm text-slate-700">
           <StateDot state={c.state} />
           {t(`state_${c.state}`)}
@@ -670,10 +773,10 @@ function ConceptDetail({
         {c.point && c.point !== c.label && <p className="text-sm leading-relaxed text-slate-600">{c.point}</p>}
       </div>
 
-      <dl className="space-y-3">
+      <ul className="space-y-3">
         {signal('understanding')}
         {signal('memory')}
-      </dl>
+      </ul>
 
       {advice && <p className="text-sm leading-relaxed text-slate-700">{advice}</p>}
 

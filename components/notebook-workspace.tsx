@@ -622,7 +622,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
           <ViewSwitch
             view={view}
             onChange={showView}
-            labels={{ documents: mapT('documents'), map: mapT('map') }}
+            labels={{ documents: mapT('documents'), map: mapT('map'), list: mapT('viewSwitch') }}
           />
           {view === 'map' ? (
             <div id="notebook-view" role="tabpanel" aria-labelledby="view-tab-map" className="-mt-4">
@@ -1021,7 +1021,7 @@ function ViewSwitch({
 }: {
   view: 'documents' | 'map'
   onChange: (view: 'documents' | 'map') => void
-  labels: { documents: string; map: string }
+  labels: { documents: string; map: string; list: string }
 }) {
   const tabs = [
     { key: 'documents' as const, icon: FileText },
@@ -1030,6 +1030,7 @@ function ViewSwitch({
   return (
     <div
       role="tablist"
+      aria-label={labels.list}
       className="inline-flex rounded-lg bg-slate-100 p-1"
       onKeyDown={(e) => {
         if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return

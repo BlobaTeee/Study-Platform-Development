@@ -723,6 +723,7 @@
     "pickHint": "Pick a card to see its two signals, the advice and what to do next.",
     "failed": "Something went wrong; try again later.",
     "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out"
+    "zoomOut": "Zoom out",
+    "viewSwitch": "Notebook view"
   }
 }
