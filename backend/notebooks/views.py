@@ -305,9 +305,12 @@ class NotebookViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='map/links', throttle_classes=[GenerationRateThrottle])
     def map_links(self, request, pk=None):
         """Find the links between this notebook's concepts (one model request)."""
-        from .services.knowledge_map import LinksUnavailable, find_links
+        from .services.knowledge_map import LinksUnavailable, concepts_of, find_links
+        notebook = self.get_object()
+        if len(concepts_of(notebook)) < 2:
+            return Response({'edges': [], 'edges_status': 'none'})
         try:
-            edges = find_links(self.get_object())
+            edges = find_links(notebook)
         except LinksUnavailable as exc:
             return Response({'detail': str(exc)}, status=503)
         return Response({'edges': edges, 'edges_status': 'ready'})
@@ -316,18 +319,22 @@ class NotebookViewSet(viewsets.ModelViewSet):
     def map_practice(self, request, pk=None):
         """Five fresh questions on one concept, from its questions' passages."""
         import hashlib
-        from quizzes.models import Question
+        from quizzes.models import Question, QuizAttempt
         from quizzes.services.practice import PracticeUnavailable, generate_practice_quiz
         from .services.knowledge_map import build_map
         notebook = self.get_object()
-        concept = next((c for c in build_map(request.user, notebook)['concepts']
-                        if c['key'] == request.data.get('concept')), None)
+        wanted = request.data.get('concept') if isinstance(request.data, dict) else None
+        concept = next((c for c in build_map(request.user, notebook)['concepts'] if c['key'] == wanted), None)
         action_ = (concept or {}).get('action') or {}
         if concept is None or action_.get('kind') != 'practice':
             return Response({'detail': _('This concept has no questions to practise from yet.')}, status=400)
         questions = list(Question.objects.filter(id__in=action_['question_ids']).select_related('source'))
         key = hashlib.sha1(f'map:{notebook.id}:{concept["key"]}'.encode()).hexdigest()[:12]
         existing = Quiz.objects.filter(user=request.user, is_published=True, practice_key=key).first()
+        if existing and QuizAttempt.objects.filter(quiz=existing, user=request.user, is_completed=True).exists():
+            existing.practice_key = ''     # finished: the next practice is a fresh set
+            existing.save(update_fields=['practice_key'])
+            existing = None
         try:
             quiz = existing or generate_practice_quiz(request.user, notebook, concept['label'], questions, key=key)
         except PracticeUnavailable as exc:

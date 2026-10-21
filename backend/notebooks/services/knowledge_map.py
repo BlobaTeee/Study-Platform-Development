@@ -148,6 +148,9 @@ def find_links(notebook) -> list[dict]:
     concepts = concepts_of(notebook)
     if len(concepts) < 2:
         return []
+    cached = notebook.concept_links or {}
+    if cached.get('hash') == concepts_hash(concepts):
+        return cached.get('edges', [])
     listed = '\n'.join(f'{c["index"]}. {c["label"]}: {c["point"]}' for c in concepts)
     lang = language_name(detect_language(listed))
     prompt = f"""These are the concepts of one subject a student is studying. Say which must be
@@ -161,13 +164,16 @@ Concepts:
 {WRITING_STYLE}
 
 Return ONLY valid JSON: {{"links": [{{"before": 1, "after": 2, "why": "..."}}]}}"""
+    unavailable = _('The links between concepts could not be found just now. Try again later.')
     try:
         data = get_ai_provider().generate_json(prompt)
     except Exception as exc:  # noqa: BLE001
-        raise LinksUnavailable(_('The links between concepts could not be found just now. Try again later.')) from exc
+        raise LinksUnavailable(unavailable) from exc
     raw = data.get('links') if isinstance(data, dict) else None
+    if not isinstance(raw, list):
+        raise LinksUnavailable(unavailable)
     edges = [{'from': concepts[a]['key'], 'to': concepts[b]['key'], 'why': tidy_prose(why)}
-             for a, b, why in clean_links(raw or [], len(concepts))]
+             for a, b, why in clean_links(raw, len(concepts))]
     notebook.concept_links = {'hash': concepts_hash(concepts), 'edges': edges}
     notebook.save(update_fields=['concept_links'])
     return edges

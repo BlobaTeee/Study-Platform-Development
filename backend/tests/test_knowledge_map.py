@@ -113,10 +113,25 @@ def test_links_are_cleaned_and_kept(client, monkeypatch, chem):
     assert client.get(MAP.format(nb.id)).json()['edges_status'] == 'ready'
 
 
-def test_a_reply_that_is_not_links_gives_no_edges_but_no_error(client, monkeypatch, chem):
+def test_a_reply_that_is_not_links_is_unavailable_and_saves_nothing(client, monkeypatch, chem):
     nb, _ = chem
-    res = _links(client, monkeypatch, nb, {'nonsense': True})
-    assert res.status_code == 200 and res.json()['edges'] == []
+    assert _links(client, monkeypatch, nb, {'nonsense': True}).status_code == 503
+    assert client.get(MAP.format(nb.id)).json()['edges_status'] == 'missing'
+
+
+def test_cached_links_are_not_asked_for_again(client, monkeypatch, chem):
+    nb, src = chem
+    first = _links(client, monkeypatch, nb, {'links': [{'before': 1, 'after': 2, 'why': 'Acids first'}]})
+    second = _links(client, monkeypatch, nb, RuntimeError('should not be called'))
+    assert second.status_code == 200 and second.json()['edges'] == first.json()['edges'] != []
+
+
+def test_a_notebook_with_one_concept_has_no_links_to_find(client, monkeypatch, chem):
+    nb, src = chem
+    src.key_points = src.key_points[:1]
+    src.save()
+    res = _links(client, monkeypatch, nb, RuntimeError('should not be called'))
+    assert res.status_code == 200 and res.json() == {'edges': [], 'edges_status': 'none'}
 
 
 def test_a_failed_request_is_503_and_the_map_still_loads(client, monkeypatch, chem):
@@ -129,3 +144,50 @@ def test_practice_needs_a_concept_with_questions(client, chem):
     nb, src = chem
     res = client.post(MAP.format(nb.id) + 'practice/', {'concept': f'{src.id}:0'}, format='json')
     assert res.status_code == 400
+
+
+@pytest.fixture
+def missed(user, chem):
+    """Enzymes has a wrong answer, so its action is to practise."""
+    nb, src = chem
+    quiz = Quiz.objects.create(user=user, title='Q', is_published=True)
+    q = Question.objects.create(quiz=quiz, source=src, source_excerpt=ENZ, question_text='What speeds reactions?',
+                                question_type='multiple_choice', options=['Enzymes', 'Salt', 'Ice', 'Sand'],
+                                correct_answer='Enzymes')
+    att = QuizAttempt.objects.create(quiz=quiz, user=user)
+    Answer.objects.create(quiz_attempt=att, question=q, user_answer='Salt', is_correct=False)
+    return nb, src
+
+
+def _practice(client, nb, src, monkeypatch, made):
+    def fake(user, notebook, label, questions, key=''):
+        if isinstance(made, Exception):
+            raise made
+        quiz = Quiz.objects.create(user=user, title=label, is_published=True, practice_key=key)
+        quiz.sources.set([src])
+        return quiz
+    monkeypatch.setattr('quizzes.services.practice.generate_practice_quiz', fake)
+    return client.post(MAP.format(nb.id) + 'practice/', {'concept': f'{src.id}:1'}, format='json')
+
+
+def test_practice_makes_a_quiz_and_reuses_it_until_finished(client, user, monkeypatch, missed):
+    nb, src = missed
+    first = _practice(client, nb, src, monkeypatch, None)
+    assert first.status_code == 201 and first.json()['source_ids'] == [src.id]
+    again = _practice(client, nb, src, monkeypatch, None)
+    assert again.status_code == 200 and again.json()['quiz_id'] == first.json()['quiz_id']
+
+    QuizAttempt.objects.create(quiz_id=first.json()['quiz_id'], user=user, is_completed=True)
+    fresh = _practice(client, nb, src, monkeypatch, None)
+    assert fresh.status_code == 201 and fresh.json()['quiz_id'] != first.json()['quiz_id']
+
+
+def test_practice_that_cannot_be_made_is_503(client, monkeypatch, missed):
+    from quizzes.services.practice import PracticeUnavailable
+    nb, src = missed
+    assert _practice(client, nb, src, monkeypatch, PracticeUnavailable('no')).status_code == 503
+
+
+def test_practice_with_a_body_that_is_not_an_object_is_400(client, chem):
+    nb, _ = chem
+    assert client.post(MAP.format(nb.id) + 'practice/', ['x'], format='json').status_code == 400
