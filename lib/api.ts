@@ -347,6 +347,13 @@ export const notebooksAPI = {
     api.post(`/notebooks/sources/${sourceId}/generate_quiz/`, {
       question_count: questionCount,
     }),
+  // The knowledge map: concepts with the caller's own mastery, and the
+  // prerequisite links between them (found once, then cached).
+  getMap: (id: number) => api.get<KnowledgeMapData>(`/notebooks/notebooks/${id}/map/`),
+  findMapLinks: (id: number) =>
+    api.post<{ edges: KnowledgeMapData['edges'] }>(`/notebooks/notebooks/${id}/map/links/`),
+  practiseConcept: (id: number, concept: string) =>
+    api.post<{ quiz_id: number; source_ids: number[] }>(`/notebooks/notebooks/${id}/map/practice/`, { concept }),
 }
 
 export type WeakConcept = {
@@ -420,5 +427,30 @@ export const analyticsAPI = {
   getActivity: () => api.get('/analytics/sessions/activity/'),
 }
 
+export type ConceptState = 'strong' | 'shaky' | 'weak' | 'not_studied'
+export type ConceptAction =
+  | { kind: 'cards'; card_ids: number[] }
+  | { kind: 'exercise'; exercise_id: number }
+  | { kind: 'practice'; question_ids: number[] }
+export type MapConcept = {
+  key: string
+  label: string
+  point: string
+  source_ids: number[]
+  importance: 'core' | 'supporting'
+  state: ConceptState
+  understanding: { p: number; correct: number; total: number } | null
+  memory: { p: number; remembered: number; total: number } | null
+  events: number
+  action: ConceptAction | null
+  first: string | null
+}
+export type KnowledgeMapData = {
+  concepts: MapConcept[]
+  edges: { from: string; to: string; why: string }[]
+  edges_status: 'ready' | 'missing' | 'none'
+  missing_key_points: { source_id: number; title: string }[]
+  unattached: number
+}
 
 export default api
