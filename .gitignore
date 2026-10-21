@@ -38,6 +38,8 @@ datasets/raw/AI Flashcards/*.csv
 datasets/raw/Duolingo/*.csv.gz
 # ProcessBench (Apache-2.0): downloaded on demand, see datasets/README.md
 datasets/raw/ProcessBench/*.json
+# ASSISTments 2009 (research use, cite): downloaded on demand, see datasets/README.md
+datasets/raw/ASSISTments/*.parquet
 
 # IDE parquet-viewer artifacts
 *.parquet.as.json

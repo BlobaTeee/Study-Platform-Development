@@ -1,0 +1,16 @@
+{
+ "params": {
+  "init": 0.7406692765246253,
+  "learn": 0.05502086979119816,
+  "slip": 0.20440710734048892,
+  "guess_choice": 0.5,
+  "guess_written": 0.26175108970449185
+ },
+ "thresholds": {
+  "strong": 0.8,
+  "shaky": 0.5
+ },
+ "auc": 0.6899,
+ "baseline_auc": 0.695,
+ "source": "ASSISTments 2009, notebooks/10_knowledge_map.ipynb"
+}

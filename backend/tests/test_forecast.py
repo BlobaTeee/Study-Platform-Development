@@ -101,3 +101,16 @@ def test_only_my_own_reviews_count(client, other_client, user, notebook):
 def test_a_notebook_with_nothing_studied_is_left_out(client, user, notebook):
     _card(user, notebook, 'Never studied?')
     assert _forecast(client) == []
+
+
+def test_retrievability_today_covers_only_reviewed_cards(user, notebook):
+    from flashcards.models import Flashcard
+    from study_sessions.forecast import retrievability_today
+    from study_sessions.models import CardReview
+    seen = Flashcard.objects.create(user=user, notebook=notebook, question='Q1?', answer='A')
+    unseen = Flashcard.objects.create(user=user, notebook=notebook, question='Q2?', answer='A')
+    CardReview.record(user, seen, 'good')
+
+    got = retrievability_today(user, [seen.id, unseen.id])
+
+    assert set(got) == {seen.id} and 0.9 < got[seen.id] <= 1.0

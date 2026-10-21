@@ -914,5 +914,1202 @@
    ],
    "language": "en"
   }
+ },
+ "Kelian has two recipes for preparing dishes, one having 20 instructions and the second one having twice as many instructions as the first one. How many instructions does Kelian have to read to prepare the two dishes?": {
+  "prompt": "Kelian has two recipes. The first recipe has 20 instructions. The second recipe has twice as many instructions as the first one. How many instructions does Kelian have to read to prepare the two dishes?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Identify the number of instructions in the first recipe as 20.",
+    "Calculate the number of instructions in the second recipe by multiplying 20 by 2, which equals 40.",
+    "Add the instructions from both recipes together: 20 plus 40 equals 60."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "The second recipe contains 40 instructions.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "The total number of instructions is 60.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Calculating only the instructions for the second recipe and forgetting to add the first.",
+     "type": "missing_step"
+    },
+    {
+     "text": "Adding 20 plus 2 instead of 20 times 2.",
+     "type": "concept"
+    },
+    {
+     "text": "Calculating the total as 80 by multiplying the first recipe by 4.",
+     "type": "execution"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "Emily can peel 6 shrimp a minute and saute 30 shrimp in 10 minutes. How long will it take her to peel and cook 90 shrimp?": {
+  "prompt": "Emily can peel 6 shrimp a minute and saute 30 shrimp in 10 minutes. How long will it take her to peel and cook 90 shrimp?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Calculate the time to peel 90 shrimp: 90 shrimp divided by 6 shrimp per minute equals 15 minutes.",
+    "Calculate the time to saute 90 shrimp: 90 shrimp divided by 30 shrimp per batch equals 3 batches, and 3 batches multiplied by 10 minutes per batch equals 30 minutes.",
+    "Add the peeling time and the cooking time: 15 minutes plus 30 minutes equals 45 minutes."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "The time spent peeling is identified as 15 minutes.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "The time spent sauteing is identified as 30 minutes.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "The total time is the sum of the peeling and cooking durations, resulting in 45 minutes.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Adding the rate of peeling and sauteing together incorrectly.",
+     "type": "concept"
+    },
+    {
+     "text": "Calculating only the peeling time or only the cooking time.",
+     "type": "missing_step"
+    },
+    {
+     "text": "Calculating the sauteing time as 3 minutes instead of 30 minutes.",
+     "type": "execution"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "Stephen borrowed $300 from his sister and promised to return it with an additional 2% of the money he owed. For 11 months Stephen will give his sister $25 per month and the remaining amount, including the interest, will be paid on the twelfth month. How much will Stephen pay in the twelfth month?": {
+  "prompt": "Stephen borrowed $300 from his sister and promised to return it with an additional 2% of the money he owed. For 11 months Stephen will give his sister $25 per month and the remaining amount, including the interest, will be paid on the twelfth month. How much will Stephen pay in the twelfth month?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Calculate 2% of $300 to find the interest Stephen owes (0.02 * $300 = $6).",
+    "Add the interest to the principal amount to find the total amount Stephen must repay ($300 + $6 = $306).",
+    "Multiply the monthly payment by 11 to find the total amount Stephen pays over the first 11 months (11 * $25 = $275).",
+    "Subtract the total amount paid in the first 11 months from the total amount Stephen must repay to find the final payment ($306 - $275 = $31)."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "The interest Stephen owes is $6.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "The total amount Stephen must repay is $306.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "The total amount Stephen pays in the first 11 months is $275.",
+     "basis": ""
+    },
+    {
+     "id": 4,
+     "text": "The final payment Stephen makes in the twelfth month is $31.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Calculates 2% of $300 as $60 instead of $6.",
+     "type": "execution"
+    },
+    {
+     "text": "Does not include the 2% interest when calculating the total amount Stephen must repay.",
+     "type": "missing_step"
+    },
+    {
+     "text": "Calculates the total monthly payments for 12 months instead of 11 months.",
+     "type": "misread"
+    },
+    {
+     "text": "Incorrectly subtracts the total monthly payments from the total amount owed.",
+     "type": "execution"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "A mother goes shopping. She buys cocoa at $4.20, laundry at $9.45 and a package of pasta at $1.35. She pays $20. How much change does the cashier give back?": {
+  "prompt": "A mother goes shopping. She buys cocoa at $4.20, laundry at $9.45 and a package of pasta at $1.35. She pays $20. How much change does the cashier give back?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "First, find the total cost of all items by adding their prices: $4.20 + $9.45 + $1.35.",
+    "Then, subtract the total cost from the $20 the mother paid to find the change."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "The total cost of the items is $15.00.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "The change received is $5.00.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Adding the prices incorrectly, leading to a wrong total cost.",
+     "type": "execution"
+    },
+    {
+     "text": "Subtracting the total cost from the amount paid incorrectly, leading to wrong change.",
+     "type": "execution"
+    },
+    {
+     "text": "Forgetting to include all items when calculating the total cost.",
+     "type": "missing_step"
+    },
+    {
+     "text": "Calculating the total cost correctly but then failing to subtract it from the amount paid to find the change.",
+     "type": "concept"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "Write a Python function that returns the sum of the even numbers in a list of integers. What does it return for [1, 2, 3, 4]?": {
+  "prompt": "Write a Python function that returns the sum of the even numbers in a list of integers. What does it return for [1, 2, 3, 4]?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Define a function that takes a list of integers, such as def sum_even(nums):.",
+    "Filter for numbers divisible by 2 using the modulo operator (num % 2 == 0) and sum them, for example return sum(x for x in nums if x % 2 == 0).",
+    "For the input [1, 2, 3, 4], the even numbers are 2 and 4.",
+    "Add 2 and 4 to get 6."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "A valid Python function that takes a list and sums only its even elements.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "The evaluation shows that the even numbers in [1, 2, 3, 4] are 2 and 4.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "The final result for [1, 2, 3, 4] is 6.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Summing all elements in the list to get 10 instead of filtering for even numbers.",
+     "type": "misread"
+    },
+    {
+     "text": "Checking for odd numbers using x % 2 != 0 or x % 2 == 1 and returning 4.",
+     "type": "concept"
+    },
+    {
+     "text": "Writing the function but omitting the specific return value for [1, 2, 3, 4].",
+     "type": "missing_step"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "A sorted list has 1,000,000 items. At most how many comparisons does binary search need to find an item or decide it is absent? Explain.": {
+  "prompt": "A sorted list has 1,000,000 items. At most how many comparisons does binary search need to find an item or decide it is absent? Explain.",
+  "difficulty": "medium",
+  "reference": {
+   "solution": [
+    "Binary search halves the search space with each comparison.",
+    "The maximum number of comparisons is the smallest integer n such that 2 to the power of n is greater than or equal to the number of items.",
+    "Calculate 2 to the power of 19, which is 524,288.",
+    "Calculate 2 to the power of 20, which is 1,048,576.",
+    "Since 1,048,576 is the first power of 2 that covers 1,000,000 items, the maximum number of comparisons is 20."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "The student identifies that binary search repeatedly divides the search space in half.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "The student solves for n where 2^n >= 1,000,000.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "The student states the final answer is 20.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Using 1,000,000 divided by 2 as a method for counting comparisons.",
+     "type": "concept"
+    },
+    {
+     "text": "Calculating 19 instead of 20 by using incorrect rounding or powers of two.",
+     "type": "execution"
+    },
+    {
+     "text": "Stating the answer is 1,000,000 because of a misunderstanding of worst-case complexity.",
+     "type": "misread"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "In Python, xs = [3, 1, 2]. After running ys = xs and then ys.sort(), what is xs? Explain.": {
+  "prompt": "In Python, xs = [3, 1, 2]. After running ys = xs and then ys.sort(), what is xs? Explain.",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "The assignment ys = xs binds ys to the same list object in memory as xs, without making a new copy.",
+    "The method ys.sort() modifies that shared list in place.",
+    "Because xs and ys reference the exact same list, xs is now [1, 2, 3]."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "State that xs is [1, 2, 3].",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Explain that ys = xs assigns a reference to the existing list, so both variables point to the same object.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "Explain that .sort() mutates the list in place.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Stating that xs remains [3, 1, 2] under the assumption that ys = xs creates an independent copy of the list.",
+     "type": "concept"
+    },
+    {
+     "text": "Stating that ys.sort() returns a new sorted list and leaves xs untouched.",
+     "type": "concept"
+    },
+    {
+     "text": "Giving the correct final list [1, 2, 3] without explaining reference assignment or in-place mutation.",
+     "type": "missing_step"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "A web page loads a list of 50 posts and then, for each post, runs a separate database query to fetch its author. How many queries does one page load make, and how could it be reduced to a constant number?": {
+  "prompt": "A web page loads a list of 50 posts and then, for each post, runs a separate database query to fetch its author. How many queries does one page load make, and how could it be reduced to a constant number?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Identify that the page makes 1 query for the list of posts plus 50 individual queries for authors, totaling 51 queries.",
+    "Explain that the N+1 query problem occurs because the application fetches data in a loop.",
+    "Propose using a JOIN clause in the initial SQL query to fetch posts and authors together.",
+    "Alternatively, propose fetching all necessary author IDs and performing a single query with an IN clause to retrieve all authors at once."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "The calculation result is 51 queries.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "The solution identifies the inefficiency as an N+1 query problem.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "The solution suggests a method to fetch all data in a constant number of queries regardless of the number of posts.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Calculating only 50 queries by ignoring the initial query for the list.",
+     "type": "execution"
+    },
+    {
+     "text": "Suggesting that simply moving the queries to the client side resolves the database load.",
+     "type": "concept"
+    },
+    {
+     "text": "Failing to explain how to combine the queries, such as using JOIN or IN clauses.",
+     "type": "missing_step"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "Describe how a function can check whether a string is a palindrome, ignoring case and spaces, and give its result for 'Never odd or even'.": {
+  "prompt": "Describe the logic for a function that checks if a string is a palindrome while ignoring case and spaces. Then, provide the result of this function for the string 'Never odd or even'.",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "1. Remove all spaces from the string and convert every character to lowercase.",
+    "2. Reverse the processed string.",
+    "3. Compare the processed string with its reversed version.",
+    "4. For the string 'Never odd or even', the processed version is 'neveroddoreven', which equals its reverse, so the result is true."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "The explanation specifies removing spaces and normalizing character case.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "The logic compares the normalized string with its reverse.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "The result for 'Never odd or even' is identified as true.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Comparing the original string without removing spaces or case.",
+     "type": "concept"
+    },
+    {
+     "text": "Concluding the result is false because the input contains uppercase letters.",
+     "type": "misread"
+    },
+    {
+     "text": "Forgetting to ignore spaces, which leads to a false result.",
+     "type": "missing_step"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "Explain why 0.1 + 0.2 == 0.3 is False in Python, and how such numbers should be compared.": {
+  "prompt": "Explain why 0.1 + 0.2 == 0.3 is False in Python, and how such numbers should be compared.",
+  "difficulty": "medium",
+  "reference": {
+   "solution": [
+    "Python, like most programming languages, stores floating-point numbers using binary fractions (IEEE 754 standard).",
+    "Decimal numbers such as 0.1, 0.2, and 0.3 do not have exact binary representations; they are stored as close approximations.",
+    "When 0.1 and 0.2 are added, their approximate binary values are summed. This results in an approximation for 0.3 (e.g., 0.30000000000000004) that is slightly different from the approximation stored for 0.3 directly (e.g., 0.29999999999999999).",
+    "Because these approximations are not precisely identical, the direct equality check 0.1 + 0.2 == 0.3 evaluates to False.",
+    "To compare floating-point numbers correctly, check if their absolute difference is less than a small predefined tolerance (often called epsilon), for example: abs(num1 - num2) < epsilon."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Floating-point numbers (like 0.1, 0.2, 0.3) are stored as approximations in binary.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "The sum of approximations (0.1 + 0.2) results in a value different from the direct approximation of 0.3.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "Direct equality comparison (==) is unreliable for floating-point numbers due to these approximations.",
+     "basis": ""
+    },
+    {
+     "id": 4,
+     "text": "Floating-point numbers should be compared by checking if their absolute difference is within a small tolerance.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Explaining the issue as a Python bug or error, rather than an inherent property of floating-point representation.",
+     "type": "concept"
+    },
+    {
+     "text": "Failing to mention that numbers like 0.1, 0.2, 0.3 do not have exact binary representations.",
+     "type": "missing_step"
+    },
+    {
+     "text": "Suggesting a solution like simply rounding the numbers before comparison, which might lose precision or introduce other errors.",
+     "type": "concept"
+    },
+    {
+     "text": "Not providing a method for correctly comparing floating-point numbers or providing an incomplete method.",
+     "type": "missing_step"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "Ana agreed in writing to sell her bicycle to Ben for $300, with delivery on 1 May. On 1 May she refused to hand it over because Carl had offered her $400. Ben had already arranged to resell the bicycle for $350. What can Ben claim from Ana?": {
+  "prompt": "Ana agreed in writing to sell her bicycle to Ben for $300, with delivery on 1 May. On 1 May, she refused to hand it over because Carl had offered her $400. Ben had already arranged to resell the bicycle for $350. What can Ben claim from Ana?",
+  "difficulty": "medium",
+  "reference": {
+   "solution": [
+    "Identify the breach of contract by Ana due to her failure to deliver the bicycle as agreed.",
+    "Calculate the expectation damages, which aim to place Ben in the position he would have occupied had the contract been performed.",
+    "Determine that the value of performance is the difference between the market value of the bicycle (what Ben could sell it for) and the contract price.",
+    "Conclude that Ben is entitled to $50, which is the $350 resale value minus the $300 contract cost."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Identify that Ana is in breach of contract.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Establish that Ben is entitled to expectation damages.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "Calculate the damages as the difference between the resale price and the contract price, resulting in $50.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Claiming Ben is entitled to the full $350 resale value.",
+     "type": "concept"
+    },
+    {
+     "text": "Claiming Ben is entitled to $100, calculated as the difference between Carl's offer and the contract price.",
+     "type": "misread"
+    },
+    {
+     "text": "Stating Ben cannot claim anything because the contract was not fulfilled.",
+     "type": "concept"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "A shop displays a jacket with a price tag of $20 by mistake; it should be $200. A customer brings it to the till and insists the shop must sell it for $20. Must it?": {
+  "prompt": "A shop displays a jacket with a price tag of $20 by mistake; it should be $200. A customer brings it to the till and insists the shop must sell it for $20. Must it?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Identify that the price tag represents an invitation to treat, not a binding offer.",
+    "Recognize that the contract of sale only forms when the shop accepts the customer's offer to buy at the counter.",
+    "Conclude that the shop has the right to correct the price or refuse the sale because no contract exists at the $20 price point."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "The price tag acts as an invitation to treat and not a legally binding offer.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "The shop is entitled to refuse to sell the item at the incorrectly marked price.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Claiming the shop is legally bound because the customer accepted the offer on the tag.",
+     "type": "concept"
+    },
+    {
+     "text": "Stating that the shop must honor the price because the mistake is their fault.",
+     "type": "unsupported"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "An employee signs a contract saying she will not work for any competitor anywhere in the world for 20 years after leaving. Is the clause likely to be enforced?": {
+  "prompt": "An employee signs a contract saying she will not work for any competitor anywhere in the world for 20 years after leaving. Is the clause likely to be enforced?",
+  "difficulty": "medium",
+  "reference": {
+   "solution": [
+    "1. Courts assess non-compete agreements for reasonableness in geographic scope and duration.",
+    "2. A global restriction is generally too broad to be enforceable unless the company operates in a highly specialized, niche industry with global secrets.",
+    "3. A 20-year term exceeds standard limits, which typically range from six months to two years, as it prevents the employee from earning a living for an unreasonable time.",
+    "4. The clause is likely unenforceable because it imposes an undue hardship on the employee and exceeds the employer's protectable interest."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "The student concludes the clause is likely unenforceable.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "The student identifies the 20-year duration as unreasonable.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "The student notes that the worldwide geographic scope is overly restrictive.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Assuming a contract is always valid simply because the employee signed it.",
+     "type": "concept"
+    },
+    {
+     "text": "Stating that the clause is enforceable because it protects the employer from competition.",
+     "type": "concept"
+    },
+    {
+     "text": "Failing to explain why the duration or geography makes the clause invalid.",
+     "type": "missing_step"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "Minh, aged 16, buys a $2,000 gaming laptop on credit and later wants to return it. Under the usual common-law rule on contracts made by minors, can he avoid the contract?": {
+  "prompt": "Minh, aged 16, buys a $2,000 gaming laptop on credit and later wants to return it. Under the common-law rule on contracts made by minors, can he avoid the contract?",
+  "difficulty": "medium",
+  "reference": {
+   "solution": [
+    "1. Classify the laptop as a luxury item rather than a necessary item.",
+    "2. Determine that minors can avoid contracts for non-necessary items.",
+    "3. Conclude that Minh can avoid the contract and return the laptop."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "The laptop is identified as a non-necessary item.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "The rule for minor's contracts is correctly applied to the situation.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "The conclusion confirms the minor has the legal right to void the contract.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Assuming that a gaming laptop is a necessary item for a minor.",
+     "type": "concept"
+    },
+    {
+     "text": "Stating that the contract is fully binding because the minor signed it.",
+     "type": "concept"
+    },
+    {
+     "text": "Ignoring the age of the minor in the legal analysis.",
+     "type": "misread"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "A posts an offer to B on 1 June. On 2 June A posts a letter revoking the offer; it reaches B on 4 June. B posts an acceptance on 3 June, which reaches A on 6 June. Using the postal rule, is there a contract?": {
+  "prompt": "A posts an offer to B on 1 June. On 2 June A posts a letter revoking the offer; it reaches B on 4 June. B posts an acceptance on 3 June, which reaches A on 6 June. Using the postal rule, is there a contract?",
+  "difficulty": "medium",
+  "reference": {
+   "solution": [
+    "A made an offer to B on 1 June.",
+    "B posted an acceptance on 3 June. According to the postal rule, acceptance is effective at the moment it is posted. Therefore, a contract was formed on 3 June.",
+    "A posted the letter of revocation on 2 June, but revocation is only effective when it is communicated to or received by the offeree. B received the revocation on 4 June.",
+    "Since the acceptance became effective on 3 June, which was before the revocation became effective on 4 June, a valid contract was formed."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "The offer was made on 1 June.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Acceptance became effective on 3 June, when B posted it, due to the postal rule.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "Revocation became effective on 4 June, when B received it, as the postal rule does not apply to revocations.",
+     "basis": ""
+    },
+    {
+     "id": 4,
+     "text": "A contract was formed because the acceptance was effective before the revocation.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Applying the postal rule to the revocation, making it effective on 2 June when posted.",
+     "type": "concept"
+    },
+    {
+     "text": "Stating that the acceptance was effective on 6 June, when A received it, rather than when B posted it.",
+     "type": "concept"
+    },
+    {
+     "text": "Concluding that no contract formed because the revocation was posted before the acceptance was received by the offeror.",
+     "type": "unsupported"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "A promises to pay B $500 if B stops smoking for a year. B stops for a year. A refuses to pay, saying B gave him nothing in return. Is A bound to pay?": {
+  "prompt": "A promises to pay B $500 if B stops smoking for a year. B stops for a year. A refuses to pay, saying B gave him nothing in return. Is A bound to pay?",
+  "difficulty": "medium",
+  "reference": {
+   "solution": [
+    "Identify whether a contract exists by determining if there is consideration.",
+    "Recognize that forbearance, the act of giving up a legal right, constitutes valid consideration.",
+    "Conclude that because B gave up the legal right to smoke, B provided something of value to A.",
+    "Confirm that A is legally bound to pay the $500."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Identify that B's act of stopping smoking constitutes consideration.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Explain that forbearance, or refraining from a legal activity, is sufficient consideration for a contract.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "Conclude that A is legally obligated to pay the agreed amount.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Stating that B provided nothing of value because B did not give A a physical object.",
+     "type": "concept"
+    },
+    {
+     "text": "Concluding that the agreement is unenforceable because it is a personal habit rather than a business transaction.",
+     "type": "concept"
+    },
+    {
+     "text": "Failing to mention the concept of consideration in the explanation.",
+     "type": "missing_step"
+    }
+   ],
+   "language": "en"
+  }
+ },
+ "Một công ty vay 500 triệu đồng với lãi đơn 8%/năm, trả cả gốc và lãi một lần sau 3 năm. Tổng số tiền phải trả là bao nhiêu?": {
+  "prompt": "Một công ty vay 500 triệu đồng với lãi đơn 8%/năm, trả cả gốc và lãi một lần sau 3 năm. Tổng số tiền phải trả là bao nhiêu?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Tính số tiền lãi bằng công thức: Tiền gốc nhân lãi suất nhân số năm.",
+    "Lấy 500 triệu đồng nhân 8% nhân 3 năm bằng 120 triệu đồng.",
+    "Tính tổng số tiền phải trả bằng cách cộng tiền gốc với tiền lãi.",
+    "Lấy 500 triệu đồng cộng 120 triệu đồng bằng 620 triệu đồng."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Xác định đúng số tiền lãi là 120 triệu đồng.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Tính tổng số tiền phải trả sau 3 năm là 620 triệu đồng.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Tính lãi theo lãi kép bằng công thức 500 nhân (1+8%) mũ 3.",
+     "type": "concept"
+    },
+    {
+     "text": "Chỉ trả tiền lãi mà quên cộng tiền gốc ban đầu.",
+     "type": "missing_step"
+    },
+    {
+     "text": "Nhân sai số năm hoặc lãi suất dẫn đến kết quả 540 triệu đồng.",
+     "type": "execution"
+    }
+   ],
+   "language": "vi"
+  }
+ },
+ "Giá cà phê tăng 10% làm lượng cầu giảm 5%. Tính độ co giãn của cầu theo giá và cho biết doanh thu của người bán tăng hay giảm.": {
+  "prompt": "Giá cà phê tăng 10% làm lượng cầu giảm 5%. Tính độ co giãn của cầu theo giá và cho biết doanh thu của người bán tăng hay giảm.",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "1. Tính hệ số co giãn của cầu theo giá (Ed) bằng cách chia phần trăm thay đổi của lượng cầu (-5%) cho phần trăm thay đổi của giá (10%).",
+    "2. Kết quả là Ed = -0.5, cho thấy cầu ít co giãn theo giá vì giá trị tuyệt đối nhỏ hơn 1.",
+    "3. Vì cầu ít co giãn, khi giá tăng, phần trăm tăng của giá lớn hơn phần trăm giảm của lượng cầu.",
+    "4. Doanh thu bằng giá nhân với lượng. Vì giá tăng ảnh hưởng mạnh hơn lượng giảm, doanh thu của người bán tăng."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Tính được hệ số co giãn của cầu theo giá là -0.5.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Kết luận doanh thu tăng do giá tăng đối với mặt hàng có cầu ít co giãn.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Kết luận doanh thu giảm vì lượng cầu giảm.",
+     "type": "concept"
+    },
+    {
+     "text": "Tính sai hệ số co giãn thành -2 (đảo ngược tử và mẫu).",
+     "type": "execution"
+    },
+    {
+     "text": "Bỏ qua dấu âm của hệ số co giãn khi giải thích tính chất của cầu.",
+     "type": "missing_step"
+    }
+   ],
+   "language": "vi"
+  }
+ },
+ "Chính phủ đặt giá trần cho thuê nhà thấp hơn giá cân bằng của thị trường. Điều gì xảy ra với thị trường nhà cho thuê? Giải thích theo từng bước.": {
+  "prompt": "Chính phủ đặt giá trần cho thuê nhà thấp hơn giá cân bằng của thị trường. Điều gì xảy ra với thị trường nhà cho thuê? Giải thích theo từng bước.",
+  "difficulty": "medium",
+  "reference": {
+   "solution": [
+    "1. Giá trần thấp hơn giá cân bằng khiến lượng cầu vượt quá lượng cung.",
+    "2. Nhà cho thuê trở nên khan hiếm do người cung cấp không muốn hoặc không thể cho thuê với giá thấp.",
+    "3. Tình trạng thiếu hụt nhà ở xuất hiện trên thị trường.",
+    "4. Các hệ lụy khác nảy sinh như phân biệt đối xử, chất lượng nhà ở giảm sút hoặc xuất hiện thị trường đen với mức giá cao hơn."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Xác định được tình trạng dư cầu (lượng cầu lớn hơn lượng cung).",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Kết luận được thị trường xảy ra tình trạng thiếu hụt nhà cho thuê.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "Giải thích được nguyên nhân nhà cung cấp rút lui hoặc giảm dịch vụ do giá trần.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Cho rằng giá trần thấp giúp người thuê có nhiều nhà hơn để lựa chọn.",
+     "type": "concept"
+    },
+    {
+     "text": "Quên đề cập đến việc nhà cung cấp giảm lượng nhà cho thuê.",
+     "type": "missing_step"
+    },
+    {
+     "text": "Nhầm lẫn giá trần với giá sàn khiến kết quả ngược lại với thực tế.",
+     "type": "misread"
+    }
+   ],
+   "language": "vi"
+  }
+ },
+ "Một cửa hàng có chi phí cố định 30 triệu đồng mỗi tháng. Mỗi sản phẩm bán giá 150 nghìn, chi phí biến đổi 90 nghìn. Mỗi tháng phải bán bao nhiêu sản phẩm để hoà vốn?": {
+  "prompt": "Một cửa hàng có chi phí cố định 30 triệu đồng mỗi tháng. Mỗi sản phẩm bán giá 150 nghìn, chi phí biến đổi 90 nghìn. Mỗi tháng phải bán bao nhiêu sản phẩm để hoà vốn?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Xác định chi phí cố định là 30.000.000 đồng. Giá bán mỗi sản phẩm là 150.000 đồng. Chi phí biến đổi mỗi sản phẩm là 90.000 đồng.",
+    "Tính lợi nhuận gộp trên mỗi sản phẩm bằng cách lấy giá bán trừ chi phí biến đổi: 150.000 đồng - 90.000 đồng = 60.000 đồng.",
+    "Để hòa vốn, tổng lợi nhuận gộp phải bằng chi phí cố định. Số sản phẩm cần bán để hòa vốn là chi phí cố định chia cho lợi nhuận gộp trên mỗi sản phẩm: 30.000.000 đồng / 60.000 đồng/sản phẩm = 500 sản phẩm."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Tính toán lợi nhuận gộp trên mỗi sản phẩm.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Sử dụng công thức điểm hòa vốn chính xác (Chi phí cố định / Lợi nhuận gộp trên mỗi sản phẩm).",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "Kết quả cuối cùng là 500 sản phẩm.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Lấy chi phí cố định chia cho giá bán sản phẩm mà không trừ chi phí biến đổi.",
+     "type": "concept"
+    },
+    {
+     "text": "Lỗi tính toán khi trừ chi phí biến đổi hoặc khi chia để tìm số sản phẩm.",
+     "type": "execution"
+    },
+    {
+     "text": "Nhầm lẫn giữa các loại chi phí hoặc doanh thu, dẫn đến áp dụng sai giá trị vào công thức.",
+     "type": "misread"
+    }
+   ],
+   "language": "vi"
+  }
+ },
+ "Lạm phát năm nay là 4%. Một khoản tiết kiệm có lãi suất danh nghĩa 6%/năm. Lãi suất thực xấp xỉ là bao nhiêu, và sức mua của khoản tiết kiệm tăng hay giảm?": {
+  "prompt": "Lạm phát năm nay là 4%. Một khoản tiết kiệm có lãi suất danh nghĩa là 6%/năm. Lãi suất thực xấp xỉ là bao nhiêu, và sức mua của khoản tiết kiệm tăng hay giảm?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "1. Dùng công thức lãi suất thực: r = i - π, trong đó i là lãi suất danh nghĩa và π là tỷ lệ lạm phát.",
+    "2. Thay số: r = 6% - 4% = 2%.",
+    "3. Kết luận: Vì lãi suất thực dương, sức mua của khoản tiết kiệm tăng lên."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Xác định lãi suất thực là 2%.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Kết luận rằng sức mua tăng lên vì lãi suất thực lớn hơn không.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Nhầm lẫn giữa lãi suất danh nghĩa và lãi suất thực, cho rằng sức mua giảm vì lãi suất thực thấp hơn lãi suất danh nghĩa.",
+     "type": "concept"
+    },
+    {
+     "text": "Tính toán sai khi cộng hai tỷ lệ thay vì trừ, dẫn đến kết quả 10%.",
+     "type": "execution"
+    },
+    {
+     "text": "Chỉ đưa ra con số lãi suất thực mà không giải thích sức mua tăng hay giảm.",
+     "type": "missing_step"
+    }
+   ],
+   "language": "vi"
+  }
+ },
+ "Một nước có GDP danh nghĩa năm 2024 là 1.100 tỷ USD và chỉ số giảm phát GDP là 110 (năm gốc = 100). GDP thực năm 2024 là bao nhiêu?": {
+  "prompt": "Một nước có GDP danh nghĩa năm 2024 là 1.100 tỷ USD và chỉ số giảm phát GDP là 110 (năm gốc = 100). GDP thực năm 2024 là bao nhiêu?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Sử dụng công thức tính GDP thực tế: GDP thực = GDP danh nghĩa / Chỉ số giảm phát GDP * 100.",
+    "Thay số liệu vào công thức: 1.100 / 110 * 100.",
+    "Tính kết quả: 10 * 100 = 1.000 tỷ USD."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Xác định đúng công thức liên hệ giữa GDP danh nghĩa, GDP thực và chỉ số giảm phát.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Kết quả cuối cùng là 1.000 tỷ USD.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Nhân GDP danh nghĩa với chỉ số giảm phát thay vì chia.",
+     "type": "concept"
+    },
+    {
+     "text": "Quên nhân với 100 khi tính toán tỷ lệ.",
+     "type": "execution"
+    },
+    {
+     "text": "Tính nhầm 1.100 chia 110 bằng 11 thay vì bằng 10.",
+     "type": "execution"
+    }
+   ],
+   "language": "vi"
+  }
+ },
+ "Ở đậu Hà Lan, hạt vàng (A) trội hoàn toàn so với hạt xanh (a). Lai hai cây dị hợp Aa × Aa. Tỉ lệ kiểu hình ở đời con là bao nhiêu?": {
+  "prompt": "Ở đậu Hà Lan, hạt vàng (A) trội hoàn toàn so với hạt xanh (a). Lai hai cây dị hợp Aa × Aa. Tỉ lệ kiểu hình ở đời con là bao nhiêu?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Viết sơ đồ lai: Aa × Aa.",
+    "Xác định giao tử của mỗi cây: A và a.",
+    "Kết hợp giao tử để tạo kiểu gen đời con: 1AA : 2Aa : 1aa.",
+    "Xác định kiểu hình từ kiểu gen: AA và Aa cho hạt vàng, aa cho hạt xanh.",
+    "Tính tỉ lệ: 3 hạt vàng : 1 hạt xanh."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Xác định được tỉ lệ kiểu gen là 1AA:2Aa:1aa",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Xác định được 3 phần tư tổng số cây mang kiểu hình hạt vàng",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "Xác định được 1 phần tư tổng số cây mang kiểu hình hạt xanh",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Nhầm lẫn tỉ lệ kiểu gen 1:2:1 với tỉ lệ kiểu hình",
+     "type": "concept"
+    },
+    {
+     "text": "Tính ra tỉ lệ 2 vàng : 2 xanh do nhân nhầm xác suất",
+     "type": "execution"
+    },
+    {
+     "text": "Quên không quy đổi kiểu gen thành kiểu hình",
+     "type": "missing_step"
+    }
+   ],
+   "language": "vi"
+  }
+ },
+ "Một tế bào lưỡng bội của người (2n = 46) giảm phân bình thường. Mỗi tế bào con tạo ra có bao nhiêu nhiễm sắc thể? Giải thích.": {
+  "prompt": "Một tế bào lưỡng bội của người (2n = 46) giảm phân bình thường. Mỗi tế bào con tạo ra có bao nhiêu nhiễm sắc thể? Giải thích.",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Giảm phân tạo ra 4 tế bào con từ 1 tế bào mẹ.",
+    "Trong quá trình giảm phân, bộ nhiễm sắc thể lưỡng bội 2n của tế bào mẹ giảm đi một nửa.",
+    "Mỗi tế bào con nhận được bộ nhiễm sắc thể đơn bội n = 23 nhiễm sắc thể."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Xác định số lượng nhiễm sắc thể ở mỗi tế bào con là 23.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Giải thích được nguyên nhân là do quá trình giảm phân làm giảm số lượng nhiễm sắc thể xuống một nửa.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Trả lời là 46 nhiễm sắc thể.",
+     "type": "concept"
+    },
+    {
+     "text": "Trả lời là 92 nhiễm sắc thể.",
+     "type": "concept"
+    },
+    {
+     "text": "Không giải thích lý do tại sao số lượng nhiễm sắc thể giảm.",
+     "type": "missing_step"
+    }
+   ],
+   "language": "vi"
+  }
+ },
+ "Đặt một tế bào hồng cầu vào dung dịch muối có nồng độ chất tan cao hơn trong tế bào. Điều gì xảy ra với tế bào? Giải thích.": {
+  "prompt": "Đặt một tế bào hồng cầu vào dung dịch muối có nồng độ chất tan cao hơn trong tế bào. Điều gì xảy ra với tế bào? Giải thích.",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Dung dịch muối có nồng độ chất tan cao hơn trong tế bào là dung dịch ưu trương.",
+    "Nước di chuyển từ nơi có nồng độ chất tan thấp hơn (bên trong tế bào hồng cầu) đến nơi có nồng độ chất tan cao hơn (dung dịch muối bên ngoài) qua màng tế bào.",
+    "Kết quả là tế bào hồng cầu mất nước và co lại (hiện tượng co nguyên sinh).",
+    "Quá trình này xảy ra theo cơ chế thẩm thấu, là sự khuếch tán của nước qua màng bán thấm từ nơi có thế nước cao đến nơi có thế nước thấp."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Tế bào hồng cầu mất nước.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Tế bào hồng cầu co lại (hoặc co nguyên sinh).",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "Hiện tượng này xảy ra do thẩm thấu.",
+     "basis": ""
+    },
+    {
+     "id": 4,
+     "text": "Nước di chuyển từ môi trường có nồng độ chất tan thấp hơn (bên trong tế bào) ra môi trường có nồng độ chất tan cao hơn (dung dịch muối).",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Nghĩ rằng nước sẽ đi vào tế bào, làm tế bào trương phồng hoặc vỡ.",
+     "type": "concept"
+    },
+    {
+     "text": "Không giải thích cơ chế thẩm thấu.",
+     "type": "missing_step"
+    },
+    {
+     "text": "Giải thích sai hướng di chuyển của nước dựa trên nồng độ chất tan.",
+     "type": "concept"
+    }
+   ],
+   "language": "vi"
+  }
+ },
+ "Trong một hệ sinh thái, sinh vật sản xuất tích luỹ 10.000 kcal. Theo quy tắc khoảng 10% năng lượng được truyền lên bậc dinh dưỡng kế tiếp, sinh vật tiêu thụ bậc 2 nhận được khoảng bao nhiêu kcal?": {
+  "prompt": "Trong một hệ sinh thái, sinh vật sản xuất tích luỹ 10.000 kcal. Theo quy tắc khoảng 10% năng lượng được truyền lên bậc dinh dưỡng kế tiếp, sinh vật tiêu thụ bậc 2 nhận được khoảng bao nhiêu kcal?",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Sinh vật sản xuất (bậc 1) có 10.000 kcal.",
+    "Sinh vật tiêu thụ bậc 1 nhận được 10% của 10.000 kcal, bằng 1.000 kcal.",
+    "Sinh vật tiêu thụ bậc 2 nhận được 10% của 1.000 kcal, bằng 100 kcal."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Xác định được sinh vật tiêu thụ bậc 1 nhận 1.000 kcal từ sinh vật sản xuất.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Xác định được sinh vật tiêu thụ bậc 2 nhận 100 kcal từ sinh vật tiêu thụ bậc 1.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Tính trực tiếp 10% của 10.000 và kết luận là 1.000 kcal.",
+     "type": "concept"
+    },
+    {
+     "text": "Tính nhầm 10% của 1.000 thành 10 kcal thay vì 100 kcal.",
+     "type": "execution"
+    }
+   ],
+   "language": "vi"
+  }
+ },
+ "Vì sao dùng kháng sinh không đúng cách, ví dụ tự ý ngừng thuốc sớm, có thể làm vi khuẩn kháng thuốc phổ biến hơn? Giải thích theo từng bước.": {
+  "prompt": "Vì sao dùng kháng sinh không đúng cách, ví dụ tự ý ngừng thuốc sớm, có thể làm vi khuẩn kháng thuốc phổ biến hơn? Giải thích theo từng bước.",
+  "difficulty": "medium",
+  "reference": {
+   "solution": [
+    "Kháng sinh tiêu diệt các vi khuẩn yếu trước.",
+    "Vi khuẩn có biến dị di truyền tự nhiên chống lại thuốc sống sót khi người bệnh ngừng thuốc sớm.",
+    "Các vi khuẩn sống sót này nhân lên và truyền gene kháng thuốc cho các thế hệ sau.",
+    "Quần thể vi khuẩn mới mang gene kháng thuốc chiếm ưu thế và thuốc ban đầu không còn tác dụng."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Nêu được quá trình chọn lọc tự nhiên khi vi khuẩn yếu chết và vi khuẩn khỏe sống sót.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Giải thích được việc ngừng thuốc sớm tạo điều kiện cho vi khuẩn sống sót nhân lên.",
+     "basis": ""
+    },
+    {
+     "id": 3,
+     "text": "Kết luận được rằng quần thể vi khuẩn sau cùng mang gene kháng thuốc.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Cho rằng kháng sinh làm vi khuẩn bị đột biến để kháng thuốc.",
+     "type": "concept"
+    },
+    {
+     "text": "Chỉ giải thích là vi khuẩn quen với thuốc mà không đề cập đến chọn lọc tự nhiên.",
+     "type": "missing_step"
+    },
+    {
+     "text": "Nói rằng kháng sinh tiêu diệt tất cả vi khuẩn ngay lập tức.",
+     "type": "execution"
+    }
+   ],
+   "language": "vi"
+  }
+ },
+ "Một gen có 3.000 nucleotit, trong đó A chiếm 20%. Tính số nucleotit loại G của gen.": {
+  "prompt": "Một gen có 3.000 nucleotit, trong đó A chiếm 20%. Tính số nucleotit loại G của gen.",
+  "difficulty": "easy",
+  "reference": {
+   "solution": [
+    "Tính số lượng nucleotit loại A và T: A = T = 20% x 3.000 = 600 nucleotit.",
+    "Tính tổng số lượng nucleotit loại A và T: A + T = 600 + 600 = 1.200 nucleotit.",
+    "Tính số lượng nucleotit còn lại của gen: G + X = 3.000 - 1.200 = 1.800 nucleotit.",
+    "Tính số lượng nucleotit loại G: G = X = 1.800 / 2 = 900 nucleotit."
+   ],
+   "checkpoints": [
+    {
+     "id": 1,
+     "text": "Xác định được số lượng nucleotit loại A bằng 600.",
+     "basis": ""
+    },
+    {
+     "id": 2,
+     "text": "Xác định được số lượng nucleotit loại G bằng 900.",
+     "basis": ""
+    }
+   ],
+   "mistakes": [
+    {
+     "text": "Lấy 20% của 3.000 rồi nhân với 2 hoặc chia cho 2 thay vì tính theo nguyên tắc bổ sung.",
+     "type": "concept"
+    },
+    {
+     "text": "Tính nhầm kết quả phép nhân 20% x 3.000 bằng 60 hoặc 6000.",
+     "type": "execution"
+    },
+    {
+     "text": "Quên không chia đôi tổng số nucleotit loại G và X để tìm số lượng của riêng loại G.",
+     "type": "missing_step"
+    }
+   ],
+   "language": "vi"
+  }
  }
 }

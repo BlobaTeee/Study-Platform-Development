@@ -313,3 +313,23 @@ def test_a_number_the_problem_never_gave_is_a_leak(user, notebook):
 def test_the_fallback_hint_speaks_the_problems_language(user, notebook):
     ex = _exercise(user, notebook, prompt='Công ty A giao hàng trễ 20 ngày so với hợp đồng. Bên B có quyền gì?')
     assert fallback_hint(ex, [1]) == 'Bài làm của bạn đã có ý này chưa: B may end the contract?'
+
+
+def test_the_wrong_step_is_found_by_its_quote_when_the_number_is_off(user, notebook):
+    # Graders often name the right step in words and give its number off by
+    # one; the quoted step is the one to trust.
+    from exercises.services.grading import clean_grade
+    ex = _exercise(user, notebook)
+    steps = ['A and B had a contract.', 'A breached it by delivering late.', 'Damages are what A gained.']
+    reply = {'met': [1], 'first_wrong_step': 2, 'wrong_step_quote': 'Damages are what A gained',
+             'error_type': 'concept', 'detail': 'Damages compensate loss.', 'hint': 'What did B lose?'}
+    assert clean_grade(reply, ex, steps)['first_wrong_step'] == 3
+
+
+def test_a_quote_that_matches_no_step_leaves_the_number_alone(user, notebook):
+    from exercises.services.grading import clean_grade
+    ex = _exercise(user, notebook)
+    steps = ['A and B had a contract.', 'A breached it.']
+    reply = {'met': [1], 'first_wrong_step': 2, 'wrong_step_quote': 'something never written',
+             'error_type': 'concept', 'detail': 'x', 'hint': 'y'}
+    assert clean_grade(reply, ex, steps)['first_wrong_step'] == 2

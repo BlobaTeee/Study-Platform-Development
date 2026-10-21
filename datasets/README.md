@@ -115,6 +115,50 @@ loader raises a clear error telling you to fetch it (below); SciQ raw is committ
 - **Used by:** `manage.py eval_step_grading` (runs the app's practice grader, resumable) and
   `ml_pipeline/notebooks/09_step_grading.ipynb` (the metrics), via `ml_pipeline/step_grading.py`.
 
+### Hand-made practice set  (practice grader outside maths)
+
+- **Source:** written for this project, `datasets/handmade/practice_steps.json`.
+- **What:** 24 problems in four subjects: programming and contract law (English), kinh tế and
+  sinh học (Vietnamese). Each has a model solution and two more attempts, 72 in all:
+  - attempts wrong on purpose, with the 0-based index of the first wrong step and its error type
+    (`misread`, `concept`, `missing_step`, `execution`, `unsupported`);
+  - attempts right by another route (a shortcut or a different argument), labelled -1.
+
+  A label equal to the number of steps means the attempt stops short.
+- **Labels:** set by construction, not by subject teachers. They should be reviewed, and the set
+  extended by people who teach these subjects.
+- **Committed:** ✅ yes (small, our own).
+- **Used by:** `manage.py eval_step_grading --split handmade` and the "Outside maths" section of
+  `ml_pipeline/notebooks/09_step_grading.ipynb`.
+
+### Hand-labelled concept attachment  (knowledge map: attachment)
+
+- **Source:** written for this project, `datasets/handmade/concept_attachment.json`.
+- **What:** 81 cards, questions and practice problems of the demo account
+  (`studyflow.demo@gmail.com`, three notebooks), each read against the key points of its own
+  document and given the one it is about (`"<source id>:<index>"`), or `null` when none fits
+  (21 items). Only documents that have key points are covered.
+- **Labels:** by one person. The keys follow the stored key points: if a document is read
+  again, the labels must be redone. Item texts come from `manage.py dump_concept_items`.
+- **Committed:** ✅ yes (small, our own).
+- **Used by:** part 2 of `ml_pipeline/notebooks/10_knowledge_map.ipynb` (`ATTACH_THRESHOLD`).
+
+### ASSISTments 2009–2010 skill builder  (knowledge map: BKT)
+
+- **Source:** Feng, M., Heffernan, N. & Koedinger, K. (2009). *Addressing the assessment challenge
+  with an online system that tutors as it assesses.* UMUAI 19(3). Per-student sequences from the
+  Hugging Face mirror `Atomi/ASSISTments2009`.
+- **Licence:** free for research use with citation of the paper above.
+- **Committed:** ⛔ no (gitignored). Download into `datasets/raw/ASSISTments/`:
+
+  ```bash
+  curl -L -o datasets/raw/ASSISTments/assist2009.parquet \
+    "https://huggingface.co/datasets/Atomi/ASSISTments2009/resolve/main/data/train-00000-of-00001.parquet"
+  ```
+- **Schema:** one row per student: `skill_ids`, `skill_names`, `grades` ('1' right, '0' wrong),
+  `attempt_counts`, `answer_types` (`algebra`, `choose_1`, `fill_in_1`, ...), in answer order.
+- **Used by:** `ml_pipeline/notebooks/10_knowledge_map.ipynb` (fits `ml_pipeline/models/bkt.json`).
+
 ## Integrity check
 
 Verify a raw file has not drifted/corrupted:
