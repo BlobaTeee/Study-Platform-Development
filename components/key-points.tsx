@@ -59,7 +59,12 @@ export function KeyPoints({ points }: { points: KeyPoint[] }) {
               {isOpen && (
                 <div className="mb-2 ml-[1.125rem] max-w-[70ch] space-y-2 text-sm leading-relaxed">
                   {p.label && <p className="text-slate-800">{p.point}</p>}
-                  <blockquote className="rounded-md bg-slate-50 px-3 py-2 text-slate-600">{p.passage}</blockquote>
+                  {/* The passage is the document's own words, kept to show the idea is
+                      really there; labelled so it does not read as the summary twice. */}
+                  <figure className="rounded-md bg-slate-50 px-3 py-2">
+                    <figcaption className="text-xs font-medium text-slate-600">{t('quotedFrom')}</figcaption>
+                    <blockquote className="mt-1 text-[13px] leading-relaxed text-slate-600">{p.passage}</blockquote>
+                  </figure>
                 </div>
               )}
             </li>

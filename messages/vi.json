@@ -311,6 +311,7 @@
     "emptyUploadHint": "Hoặc bấm \"Tải tài liệu lên\" ở trên: app tự tạo sổ tay theo môn của tài liệu.",
     "keyPoints": "Ý chính",
     "keyPointsLead": "AI dùng các ý này để ra thẻ và câu hỏi",
+    "quotedFrom": "Trích từ tài liệu",
     "readIdeas": "Rút ý chính",
     "readingIdeas": "Đang đọc tài liệu…",
     "readIdeasHint": "AI đọc cả tài liệu một lần và rút ra các ý chính để ra câu hỏi.",

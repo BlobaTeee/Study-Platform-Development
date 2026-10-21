@@ -311,6 +311,7 @@
     "emptyUploadHint": "Or press \"Upload documents\" above: notebooks are made for you, one per subject.",
     "keyPoints": "Main ideas",
     "keyPointsLead": "Cards and questions are written from these",
+    "quotedFrom": "From the document",
     "readIdeas": "Find the main ideas",
     "readingIdeas": "Reading the document…",
     "readIdeasHint": "The AI reads the whole document once and lists its main ideas to ask about.",
