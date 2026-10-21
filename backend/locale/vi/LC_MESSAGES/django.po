@@ -360,3 +360,9 @@ msgstr "Hãy viết ít nhất một bước trước đã."
 
 msgid "Keep trying a little longer before looking at the solution."
 msgstr "Thử thêm chút nữa rồi hãy xem lời giải."
+
+msgid "The links between concepts could not be found just now. Try again later."
+msgstr "Chưa tìm được mối liên hệ giữa các khái niệm lúc này. Thử lại sau."
+
+msgid "This concept has no questions to practise from yet."
+msgstr "Khái niệm này chưa có câu hỏi để luyện."

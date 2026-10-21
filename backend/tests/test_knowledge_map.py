@@ -88,3 +88,44 @@ def test_cached_links_count_only_for_the_same_concepts(client, chem):
     src.key_points = src.key_points[:1]
     src.save()
     assert client.get(MAP.format(nb.id)).json()['edges_status'] == 'none'
+
+
+class Reply:
+    def __init__(self, data): self.data = data
+    def generate_json(self, prompt):
+        if isinstance(self.data, Exception):
+            raise self.data
+        return self.data
+
+
+def _links(client, monkeypatch, nb, data):
+    monkeypatch.setattr('notebooks.services.knowledge_map.get_ai_provider', lambda: Reply(data))
+    return client.post(MAP.format(nb.id) + 'links/')
+
+
+def test_links_are_cleaned_and_kept(client, monkeypatch, chem):
+    nb, src = chem
+    res = _links(client, monkeypatch, nb, {'links': [{'before': 1, 'after': 2, 'why': 'Enzymes act on acids'},
+                                                     {'before': 2, 'after': 1, 'why': 'loop'},
+                                                     {'before': 7, 'after': 1}]})
+    assert res.status_code == 200
+    assert res.json()['edges'] == [{'from': f'{src.id}:0', 'to': f'{src.id}:1', 'why': 'Enzymes act on acids'}]
+    assert client.get(MAP.format(nb.id)).json()['edges_status'] == 'ready'
+
+
+def test_a_reply_that_is_not_links_gives_no_edges_but_no_error(client, monkeypatch, chem):
+    nb, _ = chem
+    res = _links(client, monkeypatch, nb, {'nonsense': True})
+    assert res.status_code == 200 and res.json()['edges'] == []
+
+
+def test_a_failed_request_is_503_and_the_map_still_loads(client, monkeypatch, chem):
+    nb, _ = chem
+    assert _links(client, monkeypatch, nb, RuntimeError('429 quota')).status_code == 503
+    assert client.get(MAP.format(nb.id)).json()['edges_status'] == 'missing'
+
+
+def test_practice_needs_a_concept_with_questions(client, chem):
+    nb, src = chem
+    res = client.post(MAP.format(nb.id) + 'practice/', {'concept': f'{src.id}:0'}, format='json')
+    assert res.status_code == 400

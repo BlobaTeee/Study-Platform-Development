@@ -10,9 +10,13 @@ separately (find_links) and cached on the notebook.
 import hashlib
 
 from django.core.cache import cache
+from django.utils.translation import gettext as _
 
 from ml_pipeline import bkt
-from ml_pipeline.concept_map import attach, choose_action, concept_state, merge_concepts, weaker
+from ml_pipeline.concept_map import attach, choose_action, clean_links, concept_state, merge_concepts, weaker
+from ml_pipeline.language import detect_language, language_name
+from notebooks.services.ai_provider import get_ai_provider
+from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
 
 ATTACH_TTL = 60 * 60
 
@@ -133,3 +137,37 @@ def build_map(user, notebook) -> dict:
                if not s.key_points]
     return {'concepts': out, 'edges': edges, 'edges_status': status, 'missing_key_points': missing,
             'unattached': sum(1 for v in where.values() if v is None)}
+
+
+class LinksUnavailable(Exception):
+    pass
+
+
+def find_links(notebook) -> list[dict]:
+    """One request: which concepts must be understood before which."""
+    concepts = concepts_of(notebook)
+    if len(concepts) < 2:
+        return []
+    listed = '\n'.join(f'{c["index"]}. {c["label"]}: {c["point"]}' for c in concepts)
+    lang = language_name(detect_language(listed))
+    prompt = f"""These are the concepts of one subject a student is studying. Say which must be
+understood before which: a pair means the second concept cannot be understood without the
+first. Only clear, direct dependencies; at most 3 per concept; none for unrelated concepts.
+For each pair give one short reason in {lang}.
+
+Concepts:
+{listed}
+
+{WRITING_STYLE}
+
+Return ONLY valid JSON: {{"links": [{{"before": 1, "after": 2, "why": "..."}}]}}"""
+    try:
+        data = get_ai_provider().generate_json(prompt)
+    except Exception as exc:  # noqa: BLE001
+        raise LinksUnavailable(_('The links between concepts could not be found just now. Try again later.')) from exc
+    raw = data.get('links') if isinstance(data, dict) else None
+    edges = [{'from': concepts[a]['key'], 'to': concepts[b]['key'], 'why': tidy_prose(why)}
+             for a, b, why in clean_links(raw or [], len(concepts))]
+    notebook.concept_links = {'hash': concepts_hash(concepts), 'edges': edges}
+    notebook.save(update_fields=['concept_links'])
+    return edges
