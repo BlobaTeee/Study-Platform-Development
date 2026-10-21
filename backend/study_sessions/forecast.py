@@ -25,6 +25,24 @@ MAX_SUGGESTED = 20
 MIN_GAIN = 0.05
 
 
+def _histories(user, card_ids) -> dict:
+    """FSRS memory state of each card the user has graded, from its reviews."""
+    reviews: dict[int, list] = {}
+    for card_id, result, when in (CardReview.objects.grades()
+                                  .filter(user=user, flashcard_id__in=list(card_ids))
+                                  .values_list('flashcard_id', 'result', 'review_date')):
+        if result in RATING:
+            reviews.setdefault(card_id, []).append((when, RATING[result]))
+    return {card_id: replay(r) for card_id, r in reviews.items()}
+
+
+def retrievability_today(user, card_ids) -> dict[int, float]:
+    """The chance each reviewed card is recalled right now (FSRS-6)."""
+    now = timezone.now()
+    return {cid: retrievability((now - s.last_review).total_seconds() / 86400, s.stability)
+            for cid, s in _histories(user, card_ids).items()}
+
+
 def forecast(user, cards) -> list[dict]:
     """[{notebook_id, title, has_exam, days_ahead, studied, unseen, now,
     at_exam, suggestion: {card_ids, at_exam}}], notebooks with something
@@ -34,13 +52,7 @@ def forecast(user, cards) -> list[dict]:
 
     now = timezone.now()
     card_notebook = dict(cards.values_list('id', 'notebook_id'))
-    reviews: dict[int, list] = {}
-    for card_id, result, when in (CardReview.objects.grades()
-                                  .filter(user=user, flashcard_id__in=card_notebook)
-                                  .values_list('flashcard_id', 'result', 'review_date')):
-        if result in RATING:
-            reviews.setdefault(card_id, []).append((when, RATING[result]))
-    history = {card_id: replay(r) for card_id, r in reviews.items()}
+    history = _histories(user, card_notebook)
 
     exams = {}
     for nb_id, when in (PlannedTest.objects.filter(user=user, sat_at__isnull=True, scheduled_for__gte=now)
