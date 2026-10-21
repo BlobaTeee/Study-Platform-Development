@@ -30,3 +30,37 @@ test('links to unknown cards are ignored', () => {
   const pos = layoutMap(['a'], [{ from: 'x', to: 'a' }])
   assert.deepEqual(Object.keys(pos), ['a'])
 })
+
+test('a cycle gives the same columns whatever order the keys come in', () => {
+  const edges = [{ from: 'a', to: 'b' }, { from: 'b', to: 'c' }, { from: 'c', to: 'a' }, { from: 'c', to: 'd' }]
+  const one = layoutMap(['a', 'b', 'c', 'd'], edges)
+  const two = layoutMap(['d', 'c', 'b', 'a'], edges)
+  for (const k of ['a', 'b', 'c', 'd']) assert.equal(one[k].x, two[k].x, k)
+  assert.ok(one.a.x < one.b.x && one.b.x < one.c.x && one.c.x < one.d.x)
+})
+
+test('two cards that point at each other keep the first link', () => {
+  const edges = [{ from: 'a', to: 'b' }, { from: 'b', to: 'a' }]
+  for (const keys of [['a', 'b'], ['b', 'a']]) {
+    const pos = layoutMap(keys, edges)
+    assert.ok(pos.a.x < pos.b.x)
+  }
+})
+
+test('order in a tall layer follows the rows its cards are drawn at', () => {
+  // r0..r7 are one layer of eight, so it wraps: r0..r5 fill the first column
+  // and r6, r7 start the second (drawn at rows 0 and 1). Counting by position
+  // in the whole layer would put r7 at 7 and sort its dependant below r2's;
+  // by drawn row r7 is at 1, above r2 at 2, so its dependant goes first.
+  const roots = Array.from({ length: 8 }, (_, i) => `r${i}`)
+  const keys = [...roots, 'dOf2', 'dOf7']
+  const edges = [{ from: 'r2', to: 'dOf2' }, { from: 'r7', to: 'dOf7' }]
+  const pos = layoutMap(keys, edges)
+  assert.ok(pos.dOf7.y < pos.dOf2.y)
+})
+
+test('a key listed twice is placed once', () => {
+  const pos = layoutMap(['a', 'a', 'b'], [])
+  assert.deepEqual(Object.keys(pos).sort(), ['a', 'b'])
+  assert.equal(pos.a.y, 0)
+})
