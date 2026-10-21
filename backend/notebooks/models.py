@@ -9,6 +9,8 @@ class Notebook(models.Model):
     description = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # {"hash", "edges": [{"from", "to", "why"}]}: the knowledge map's links, found once per set of concepts.
+    concept_links = models.JSONField(blank=True, default=dict)
 
     class Meta:
         ordering = ['-updated_at']

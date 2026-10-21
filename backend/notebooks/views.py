@@ -296,6 +296,12 @@ class NotebookViewSet(viewsets.ModelViewSet):
         notebook = self.get_object()
         return Response({'members': member_records(notebook, request.user)})
 
+    @action(detail=True, methods=['get'], url_path='map')
+    def knowledge_map(self, request, pk=None):
+        """Concepts, links and the caller's own mastery for this notebook."""
+        from .services.knowledge_map import build_map
+        return Response(build_map(request.user, self.get_object()))
+
     @action(detail=True, methods=['delete'], url_path=r'members/(?P<member_id>\d+)')
     def remove_member(self, request, pk=None, member_id=None):
         """Leave the notebook, or (as owner) remove someone from it."""
