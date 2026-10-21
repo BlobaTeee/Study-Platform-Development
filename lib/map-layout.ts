@@ -6,8 +6,8 @@
  *  A concept listed twice is placed once, and a link that would close a
  *  cycle is ignored (links are read in the order given), so the layers do
  *  not depend on the order of the keys. */
-export const CARD_W = 208
-export const CARD_H = 112
+export const CARD_W = 240
+export const CARD_H = 136
 const GAP_X = 96
 const GAP_Y = 36
 const MAX_ROWS = 6

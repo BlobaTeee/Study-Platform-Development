@@ -42,6 +42,13 @@ const BAR: Record<ConceptState, string> = {
   weak: 'bg-red-400',
   not_studied: 'bg-slate-300',
 }
+// The state word in the same hue, one step deeper so it reads on white.
+const WORD: Record<ConceptState, string> = {
+  strong: 'text-mode-analytics-ink',
+  shaky: 'text-mode-flashcards-ink',
+  weak: 'text-red-700',
+  not_studied: 'text-slate-600',
+}
 
 /** Which signal is the weaker, as the server decides it (ties go to
  *  understanding): the one the colour and the action follow. */
@@ -57,8 +64,16 @@ function weakerP(c: MapConcept): number | null {
   return side ? c[side]!.p : null
 }
 
+/** "nhớ 2/2 thẻ · 4 thẻ chưa học": the count is over the cards reviewed. */
 const memoryText = (c: MapConcept, t: MapT) =>
-  c.memory ? t('memoryLine', { remembered: c.memory.remembered, total: c.memory.total }) : null
+  c.memory
+    ? [
+        t('memoryLine', { remembered: c.memory.remembered, total: c.memory.total }),
+        c.memory.unseen > 0 ? t('unseenLine', { count: c.memory.unseen }) : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : null
 const understandingText = (c: MapConcept, t: MapT) =>
   c.understanding ? t('understandingLine', { correct: c.understanding.correct, total: c.understanding.total }) : null
 
@@ -106,9 +121,9 @@ function ConceptNode({ data }: NodeProps<ConceptNodeType>) {
         }}
         aria-pressed={isSelected}
         aria-label={`${c.label}. ${t(`state_${c.state}`)}. ${numbersLine(c, t)}${once ? `, ${t('once')}` : ''}`}
-        style={{ width: CARD_W, minHeight: CARD_H }}
+        style={{ width: CARD_W, height: CARD_H }}
         className={cn(
-          'flex flex-col gap-2 rounded-xl border bg-white px-3 py-2.5 text-left shadow-sheet outline-none',
+          'flex flex-col gap-2 overflow-hidden rounded-xl border bg-white px-3.5 py-3 text-left shadow-sheet outline-none',
           'transition-[opacity,box-shadow,border-color] duration-200 motion-reduce:transition-none',
           'hover:shadow-lift focus-visible:ring-[3px] focus-visible:ring-mode/30',
           c.state === 'weak' ? 'border-red-200' : 'border-slate-200',
@@ -118,18 +133,24 @@ function ConceptNode({ data }: NodeProps<ConceptNodeType>) {
         )}
       >
         <span className="flex items-start gap-2">
-          <StateDot state={c.state} className="mt-1.5" />
-          <span className="line-clamp-2 text-[15px] font-medium leading-5 text-slate-900">{c.label}</span>
+          <StateDot state={c.state} className="mt-[6px]" />
+          <span className="line-clamp-2 text-base font-medium leading-[21px] text-slate-900">{c.label}</span>
         </span>
-        <span className="mt-auto block h-[5px] overflow-hidden rounded-full bg-slate-100" aria-hidden>
-          {p !== null && (
-            <span
-              className={cn('block h-full rounded-full', BAR[c.state])}
-              style={{ width: `${Math.max(4, Math.round(p * 100))}%` }}
-            />
-          )}
+        {/* The state in words as well as colour, beside its bar. */}
+        <span className="mt-auto flex items-center gap-2.5" aria-hidden>
+          <span className={cn('shrink-0 text-[13px] font-semibold leading-[18px]', WORD[c.state])}>
+            {t(`state_${c.state}`)}
+          </span>
+          <span className="block h-[5px] min-w-0 flex-1 overflow-hidden rounded-full bg-slate-100">
+            {p !== null && (
+              <span
+                className={cn('block h-full rounded-full', BAR[c.state])}
+                style={{ width: `${Math.max(4, Math.round(p * 100))}%` }}
+              />
+            )}
+          </span>
         </span>
-        <span className="line-clamp-2 font-mono text-[11px] leading-4 text-slate-600 tabular-nums">
+        <span className="line-clamp-2 font-mono text-[13px] leading-[17px] text-slate-600 tabular-nums">
           {numbersLine(c, t)}
           {once && <span className="text-slate-700">{` · ${t('once')}`}</span>}
         </span>
@@ -310,11 +331,11 @@ const motionMs = (ms: number) =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : ms
 
 const FIT_GUTTER = 24
-// Never fit so small that the labels stop being readable: a map wider than
+// Never fit so small that a card stops being readable (label 16px and
+// numbers 13px stay at least 13.6px and 11px on screen): a map wider than
 // the canvas starts at its left edge (where the prerequisites are) and is
-// panned, rather than shrunk to a postage stamp. A phone gets the higher
-// floor: its canvas is narrow and pinching is at hand.
-const fitFloor = (w: number) => (w < 640 ? 0.75 : 0.65)
+// panned, rather than shrunk to a postage stamp.
+const FIT_FLOOR = 0.85
 
 /** Where to place the map in a canvas of w × h. Computed from the layout's
  *  own positions, so it needs no measured nodes and is the same every time. */
@@ -327,14 +348,14 @@ function fitViewport(points: { x: number; y: number }[], w: number, h: number) {
   const bw = Math.max(...xs) + CARD_W - minX
   const bh = Math.max(...ys) + CARD_H - minY
   const fit = Math.min((w - 2 * FIT_GUTTER) / bw, (h - 2 * FIT_GUTTER) / bh)
-  const zoom = Math.min(1, Math.max(fitFloor(w), fit))
+  const zoom = Math.min(1, Math.max(FIT_FLOOR, fit))
   const x = bw * zoom <= w - 2 * FIT_GUTTER ? (w - bw * zoom) / 2 - minX * zoom : FIT_GUTTER - minX * zoom
   const y = bh * zoom <= h - 2 * FIT_GUTTER ? (h - bh * zoom) / 2 - minY * zoom : FIT_GUTTER - minY * zoom
   return { x, y, zoom }
 }
 
-const EDGE = '#94a3b8'
-const EDGE_ACTIVE = '#2563eb'
+const EDGE = 'var(--color-slate-400)'
+const EDGE_ACTIVE = 'var(--color-mode-library)'
 
 function MapCanvas({
   notebookId,
@@ -457,7 +478,7 @@ function MapCanvas({
         if (inside) return
       }
       void setCenter(p.x + CARD_W / 2, p.y + CARD_H / 2, {
-        zoom: onlyIfHidden ? zoom : Math.max(zoom, 0.8),
+        zoom: onlyIfHidden ? zoom : Math.max(zoom, FIT_FLOOR),
         duration: motionMs(350),
       })
     },
@@ -559,6 +580,29 @@ function MapCanvas({
               </Button>
             </div>
           </div>
+          {/* Above the canvas, so it never covers a card. Always mounted so
+              the change is announced. */}
+          <div
+            role="status"
+            className={cn(
+              (linksPending || linksFailed) &&
+                'flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 md:px-4',
+            )}
+          >
+            {linksPending ? (
+              <>
+                <Loader2 className="size-4 animate-spin text-mode motion-reduce:animate-none" aria-hidden />
+                {t('linksPending')}
+              </>
+            ) : linksFailed ? (
+              <>
+                {t('linksFailed')}
+                <Button type="button" variant="link" size="sm" className="h-auto px-0" onClick={onRetryLinks}>
+                  {t('retry')}
+                </Button>
+              </>
+            ) : null}
+          </div>
           <div
             ref={canvasRef}
             className={cn(
@@ -584,28 +628,8 @@ function MapCanvas({
               onPaneClick={() => setSelected(null)}
               proOptions={{ hideAttribution: true }}
             >
-              <Background variant={BackgroundVariant.Lines} gap={22} color="#eef2f7" />
+              <Background variant={BackgroundVariant.Lines} gap={22} color="var(--color-slate-100)" />
             </ReactFlow>
-            {(linksPending || linksFailed) && (
-              <div
-                role="status"
-                className="absolute left-3 right-3 top-3 z-10 flex w-fit max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-sm text-slate-700 shadow-sheet"
-              >
-                {linksPending ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin text-mode motion-reduce:animate-none" aria-hidden />
-                    {t('linksPending')}
-                  </>
-                ) : (
-                  <>
-                    {t('linksFailed')}
-                    <Button type="button" variant="link" size="sm" className="h-auto px-0" onClick={onRetryLinks}>
-                      {t('retry')}
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
           </div>
         </div>
         {/* Desktop: a column beside the canvas, always there so selecting a

@@ -440,7 +440,8 @@ export type MapConcept = {
   importance: 'core' | 'supporting'
   state: ConceptState
   understanding: { p: number; correct: number; total: number } | null
-  memory: { p: number; remembered: number; total: number } | null
+  /** Over the cards reviewed; `unseen` cards of the concept were never reviewed. */
+  memory: { p: number; remembered: number; total: number; unseen: number } | null
   events: number
   action: ConceptAction | null
   first: string | null

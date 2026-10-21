@@ -692,6 +692,7 @@
     "state_not_studied": "Not studied",
     "once": "practised once",
     "memoryLine": "recalled {remembered}/{total} cards",
+    "unseenLine": "{count, plural, one {# card} other {# cards}} not yet studied",
     "understandingLine": "{correct}/{total} correct",
     "notStudiedLine": "not practised yet",
     "understanding": "Understanding",

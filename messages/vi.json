@@ -692,6 +692,7 @@
     "state_not_studied": "Chưa học",
     "once": "mới luyện 1 lần",
     "memoryLine": "nhớ {remembered}/{total} thẻ",
+    "unseenLine": "{count} thẻ chưa học",
     "understandingLine": "đúng {correct}/{total} câu",
     "notStudiedLine": "chưa luyện",
     "understanding": "Hiểu",
