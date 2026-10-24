@@ -142,7 +142,8 @@ def clean_grade(data: dict, exercise: Exercise, steps: list[str]) -> dict:
         wrong = len(steps) + 1
     # Graders tend to name the right step in words and number it off by one;
     # the step they quote is the one to trust.
-    quoted = _step_quoted(data.get('wrong_step_quote'), steps)
+    quote = str(data.get('wrong_step_quote') or '').strip()[:400]   # verbatim, to match the step
+    quoted = _step_quoted(quote, steps)
     if quoted is not None:
         wrong = quoted
     error_type = data.get('error_type') if data.get('error_type') in ERROR_TYPES else 'missing_step'
@@ -150,7 +151,10 @@ def clean_grade(data: dict, exercise: Exercise, steps: list[str]) -> dict:
     if leaks(hint, exercise):
         hint = fallback_hint(exercise, met)
     return {'verdict': 'needs_work', 'met': met, 'first_wrong_step': wrong, 'error_type': error_type,
-            'detail': tidy_prose(str(data.get('detail') or ''))[:400], 'hint': hint}
+            'detail': tidy_prose(str(data.get('detail') or ''))[:400], 'hint': hint,
+            # What the grader quoted and the step it matched (None: no match),
+            # kept so an evaluation can see whether the quote did its job.
+            'quote': quote, 'quote_step': quoted}
 
 
 def _step_quoted(quote, steps: list[str]) -> int | None:
