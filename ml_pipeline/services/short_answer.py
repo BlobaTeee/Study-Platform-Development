@@ -7,6 +7,7 @@ Rules, in order — the first that decides wins:
   2c. reference longer than the scorer   -> near   (the LLM tier's case)
       was trained on
   3. AnswerScorer ranking                -> correct / near / wrong
+     (near whenever the typed answer and the best distractor are close)
 An LLM tie-break for `near` lives in the Django layer (quizzes/services/
 typed_grading.py); this module stays importable without Django so the
 notebook and the pure tests can drive it.
@@ -27,6 +28,12 @@ T_RATIO = 0.6    # 0.985 / recall 0.994 with support; 0.994 / 0.964 without.
 # 14-word reference 0.012 and an unrelated typed answer 0.023 — so past this
 # length the scorer is not consulted and the case goes to the LLM tier.
 MAX_SCORER_REFERENCE_WORDS = 4
+
+# The scorer decides only when the typed answer and the best distractor are
+# this far apart. Closer, it is unreliable: notebook 11 found it right on 33% of
+# university questions overall but on 71% of those it ranks with a gap of at
+# least 0.4 (98.7% on school science); the rest go to the LLM tier.
+MIN_MARGIN = 0.4
 
 _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+")
 _NON_WORD = re.compile(r"[^\w\s]")
@@ -90,6 +97,8 @@ def grade(typed: str, reference: str, question: str, distractors: list[str],
     # "near", which hands the case to the LLM tier or the student's override.
     # ...and a shared word with the reference: with none, the scorer has
     # nothing to anchor on ("CO2" for "carbon dioxide" is the LLM's call).
+    if abs(s_typed - s_dmax) < MIN_MARGIN:
+        return _verdict("near", "unsure", scores)
     if (support.strip() and similarity > 0
             and s_typed >= s_dmax and s_typed >= T_RATIO * s_ref):
         return _verdict("correct", "scorer", scores)

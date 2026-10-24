@@ -129,13 +129,37 @@ def _save_reports(best_name, best_scorer, val_comparison, test_metrics, baseline
     }, indent=2))
 
 
-def train_all(sciq_df: pd.DataFrame | None = None, save: bool = True) -> dict:
+def _beyond_science() -> pd.DataFrame:
+    """The train half of the MMLU university questions with their Wikipedia
+    passages (mmlu_support), or nothing when they have not been fetched."""
+    from . import mmlu_support
+    cache = mmlu_support.load_cache()
+    if not cache:
+        return pd.DataFrame()
+    df = mmlu_support.with_support(mmlu_support.to_sciq_shape(mmlu_support.load()),
+                                   fetch=lambda q: "", cache=cache)
+    return df[df["split"] == "train"]
+
+
+def train_all(sciq_df: pd.DataFrame | None = None, save: bool = True,
+              with_beyond_science: bool = False) -> dict:
+    """Train, select and save the answer scorer. Model selection and the
+    reported test score stay on SciQ; `with_beyond_science` adds the MMLU
+    train half (security, computing, business) to the training rows, which
+    notebook 11 found lifts university questions without hurting SciQ."""
     if sciq_df is None:
         from .dataset_loader import load_scorer_training_data
         sciq_df = load_scorer_training_data()
 
     long = expand_candidates(sciq_df)
     train_long = long[long["split"] == "train"]
+    if with_beyond_science:
+        extra = _beyond_science()
+        if len(extra):
+            extra_long = expand_candidates(extra)
+            # Question ids must not collide once the two sets are stacked.
+            extra_long = extra_long.assign(question_id=extra_long["question_id"] + 10**6)
+            train_long = pd.concat([train_long, extra_long], ignore_index=True)
     val_long = long[long["split"] == "val"]
     test_long = long[long["split"] == "test"]
     # tiny-data guard: fall back to the test split if no validation rows exist
@@ -146,7 +170,7 @@ def train_all(sciq_df: pd.DataFrame | None = None, save: bool = True) -> dict:
     # 1. Compare every model on the SAME validation split.
     val_comparison, scorers = {}, {}
     for name, clf in _candidates().items():
-        scorer = AnswerScorer(classifier=clf).fit(train_long)
+        scorer = AnswerScorer(classifier=clf, analyzer=config.SCORER_ANALYZER).fit(train_long)
         scorers[name] = scorer
         val_comparison[name] = evaluate(scorer, val_long)
 
@@ -173,7 +197,7 @@ def train_all(sciq_df: pd.DataFrame | None = None, save: bool = True) -> dict:
 
 
 def main() -> None:
-    result = train_all()
+    result = train_all(with_beyond_science=True)
     print(json.dumps(result, indent=2))
 
 

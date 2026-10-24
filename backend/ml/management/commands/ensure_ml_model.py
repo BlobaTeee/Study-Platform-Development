@@ -30,7 +30,7 @@ class Command(BaseCommand):
 
         action = "Retraining" if model_path.exists() else "Training"
         self.stdout.write(f"{action} answer scorer -> {model_path}")
-        result = train_all(save=True)
+        result = train_all(save=True, with_beyond_science=True)
         self.stdout.write(
             f"  best_model={result['best_model']} "
             f"accuracy@1={result['test_metrics']['accuracy_at_1']:.4f}"
