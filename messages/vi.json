@@ -45,7 +45,8 @@
     "expandSidebar": "Mở rộng thanh bên",
     "openMenu": "Mở menu",
     "closeMenu": "Đóng menu",
-    "account": "Tài khoản"
+    "account": "Tài khoản",
+    "dueToday": "{count, plural, other {# thẻ đến hạn hôm nay}}"
   },
   "auth": {
     "welcomeBack": "Chào mừng trở lại",

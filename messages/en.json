@@ -45,7 +45,8 @@
     "expandSidebar": "Expand sidebar",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
-    "account": "Account"
+    "account": "Account",
+    "dueToday": "{count, plural, one {# card due today} other {# cards due today}}"
   },
   "auth": {
     "welcomeBack": "Welcome back",
