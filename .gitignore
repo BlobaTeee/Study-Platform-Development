@@ -40,6 +40,8 @@ datasets/raw/Duolingo/*.csv.gz
 datasets/raw/ProcessBench/*.json
 # ASSISTments 2009 (research use, cite): downloaded on demand, see datasets/README.md
 datasets/raw/ASSISTments/*.parquet
+# MMLU (MIT) questions and their Wikipedia passages (CC BY-SA): fetched on demand, see datasets/README.md
+datasets/raw/MMLU/
 
 # IDE parquet-viewer artifacts
 *.parquet.as.json

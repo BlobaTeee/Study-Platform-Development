@@ -159,6 +159,30 @@ loader raises a clear error telling you to fetch it (below); SciQ raw is committ
   `attempt_counts`, `answer_types` (`algebra`, `choose_1`, `fill_in_1`, ...), in answer order.
 - **Used by:** `ml_pipeline/notebooks/10_knowledge_map.ipynb` (fits `ml_pipeline/models/bkt.json`).
 
+### MMLU, seven university subjects, with Wikipedia passages  (answer scorer beyond school science)
+
+- **Source:** Hendrycks, D. et al. (2021). *Measuring Massive Multitask Language Understanding.* ICLR.
+  Hugging Face `cais/mmlu`, test split of `computer_security`, `college_computer_science`,
+  `machine_learning`, `business_ethics`, `management`, `marketing`, `professional_accounting`.
+  Support passages: the lead of the English Wikipedia article a search for the question (then a
+  shorter query) finds, through the public MediaWiki API.
+- **Licence:** MMLU is MIT. Wikipedia text is CC BY-SA 4.0 (attribution: Wikipedia contributors);
+  it is used only to evaluate and train the scorer and is not redistributed.
+- **Committed:** ⛔ no (gitignored). Download into `datasets/raw/MMLU/`, then fetch the passages once:
+
+  ```bash
+  for s in computer_security college_computer_science machine_learning business_ethics \
+           management marketing professional_accounting; do
+    curl -L -o datasets/raw/MMLU/$s.parquet \
+      "https://huggingface.co/datasets/cais/mmlu/resolve/main/$s/test-00000-of-00001.parquet"
+  done
+  .venv/bin/python -c "from ml_pipeline import mmlu_support as m; c=m.load_cache(); \
+    m.with_support(m.to_sciq_shape(m.load()), cache=c); m.save_cache(c)"
+  ```
+- **Size:** 1,031 questions; 710 with a usable passage (333 test / 377 train, split by question).
+- **Used by:** `ml_pipeline/notebooks/11_answer_scorer_domains.ipynb` (evaluation) and
+  `python -m ml_pipeline.train_models` (the train half joins SciQ in the scorer's training rows).
+
 ## Integrity check
 
 Verify a raw file has not drifted/corrupted:
