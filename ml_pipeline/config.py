@@ -25,6 +25,9 @@ AIF_GLOB = "*Part*.csv"
 
 TFIDF_MAX_FEATURES = 20000
 TFIDF_NGRAM = (1, 2)
+# How the answer scorer compares text: hashed character n-grams, which still
+# match words the training text never had. Chosen in notebook 11.
+SCORER_ANALYZER = "char"
 
 PROCESSED_FILES = {
     "sciq": PROCESSED_DIR / "sciq.parquet",

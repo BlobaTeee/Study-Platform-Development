@@ -98,6 +98,7 @@ def test_scorer_ranks_a_good_paraphrase_correct(monkeypatch):
 
 def test_scorer_puts_an_answer_above_distractors_but_below_the_bar_in_near(monkeypatch):
     monkeypatch.setattr(sa, "T_RATIO", 0.8)
+    monkeypatch.setattr(sa, "MIN_MARGIN", 0.0)   # this branch, not the confidence gate
     scorer = StubScorer({"gas": 0.5, "carbon dioxide": 0.9,
                          "oxygen": 0.3, "nitrogen": 0.2, "argon": 0.1})
     out = sa.grade("gas", "carbon dioxide", Q, D, "support", scorer)
@@ -106,6 +107,7 @@ def test_scorer_puts_an_answer_above_distractors_but_below_the_bar_in_near(monke
 
 def test_scorer_puts_an_answer_below_a_distractor_in_wrong(monkeypatch):
     monkeypatch.setattr(sa, "T_RATIO", 0.8)
+    monkeypatch.setattr(sa, "MIN_MARGIN", 0.0)   # this branch, not the confidence gate
     scorer = StubScorer({"water": 0.2, "carbon dioxide": 0.9,
                          "oxygen": 0.3, "nitrogen": 0.2, "argon": 0.1})
     out = sa.grade("water", "carbon dioxide", Q, D, "support", scorer)
@@ -169,3 +171,28 @@ def test_a_typed_answer_sharing_no_word_with_a_short_reference_cannot_be_scorer_
                          "oxygen": 0.3, "nitrogen": 0.2, "argon": 0.1})
     out = sa.grade("unrelated words", "carbon dioxide", Q, D, "support", scorer)
     assert (out["verdict"], out["how"]) == ("near", "scorer")
+
+
+# ---- only a confident scorer decides ----------------------------------------------
+
+def test_an_unsure_scorer_hands_the_answer_to_the_llm():
+    # Typed answer and best distractor almost tied: notebook 11 found the
+    # scorer is right only about a third of the time on such university
+    # questions, so it may not call the answer right or wrong.
+    scorer = StubScorer({"malicious input": 0.42, "SQL injection": 0.9, "Phishing": 0.40,
+                         "Spoofing": 0.1, "Sniffing": 0.1})
+    out = sa.grade("malicious input", "SQL injection", "Which attack inserts code into a query?",
+                   ["Phishing", "Spoofing", "Sniffing"], "SQL injection inserts malicious input.", scorer)
+    assert out["verdict"] == "near" and out["how"] == "unsure"
+
+
+def test_a_confident_scorer_still_decides():
+    scorer = StubScorer({"co2": 0.9, "carbon dioxide": 0.95, "oxygen": 0.1, "nitrogen": 0.1, "argon": 0.1})
+    out = sa.grade("co2", "carbon dioxide", Q, D, "Plants absorb carbon dioxide.", scorer)
+    assert out["how"] == "scorer"
+
+
+def test_a_confident_wrong_answer_is_still_wrong():
+    scorer = StubScorer({"sand": 0.05, "carbon dioxide": 0.95, "oxygen": 0.8, "nitrogen": 0.1, "argon": 0.1})
+    out = sa.grade("sand", "carbon dioxide", Q, D, "Plants absorb carbon dioxide.", scorer)
+    assert out["verdict"] == "wrong" and out["how"] == "scorer"

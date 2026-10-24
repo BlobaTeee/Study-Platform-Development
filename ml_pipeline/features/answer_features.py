@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import HashingVectorizer, TfidfVectorizer
 
 from .. import config
 
@@ -66,16 +66,29 @@ class FeatureBuilder:
         "cand_is_numeric", "support_len_tokens",
     ]
 
-    def __init__(self):
-        self.vectorizer: TfidfVectorizer | None = None
+    def __init__(self, analyzer: str = "word"):
+        # "word": a word vocabulary learnt from the training text (the original
+        # model). "char": character 3-5-grams within words, so a term the
+        # training text never had (e.g. "injection" after school science) still
+        # matches itself in the support. Chosen in notebooks/11_answer_scorer_domains.
+        self.analyzer = analyzer
+        self.vectorizer: TfidfVectorizer | HashingVectorizer | None = None
 
     def fit(self, long_df: pd.DataFrame) -> "FeatureBuilder":
         corpus = pd.concat([long_df["support"], long_df["question"]]).astype(str)
-        self.vectorizer = TfidfVectorizer(
-            max_features=config.TFIDF_MAX_FEATURES,
-            ngram_range=config.TFIDF_NGRAM,
-            stop_words="english",
-        ).fit(corpus)
+        if getattr(self, "analyzer", "word") == "char":
+            # Hashed, not fitted: a learnt vocabulary of character n-grams would
+            # still miss the n-grams of words the training text never had.
+            self.vectorizer = HashingVectorizer(
+                analyzer="char_wb", ngram_range=(3, 5), n_features=2 ** 20,
+                alternate_sign=False, norm="l2", lowercase=True,
+            )
+        else:
+            self.vectorizer = TfidfVectorizer(
+                max_features=config.TFIDF_MAX_FEATURES,
+                ngram_range=config.TFIDF_NGRAM,
+                stop_words="english",
+            ).fit(corpus)
         return self
 
     def transform(self, long_df: pd.DataFrame) -> np.ndarray:

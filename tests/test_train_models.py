@@ -60,3 +60,30 @@ def test_train_all_defaults_to_scorer_training_pool(monkeypatch):
 
     assert called["pool"] is True
     assert "best_model" in result
+
+
+def _toy_beyond():
+    # University-style questions: train half only, as mmlu_support gives them.
+    return pd.DataFrame([{
+        "question": f"Which control blocks attack {i}?", "correct_answer": f"firewall{i}",
+        "distractor1": f"router{i}", "distractor2": f"switch{i}", "distractor3": f"hub{i}",
+        "support": f"A firewall{i} blocks attack {i} at the network edge.", "split": "train",
+        "subject": "computer_security"} for i in range(6)])
+
+
+def test_the_scorer_learns_characters_and_extra_subjects(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "MODELS_DIR", tmp_path / "models")
+    monkeypatch.setattr(config, "REPORTS_DIR", tmp_path / "reports")
+    monkeypatch.setattr(train_models, "_beyond_science", _toy_beyond)
+    train_models.train_all(sciq_df=_toy_sciq(), save=True, with_beyond_science=True)
+
+    scorer = train_models.AnswerScorer.load(tmp_path / "models" / "answer_scorer.joblib")
+    assert scorer.feature_builder.analyzer == config.SCORER_ANALYZER == "char"
+    assert "firewall0" in "".join(scorer.rank("Which control blocks attack 0?",
+                                              ["firewall0", "router0"], "A firewall0 blocks attack 0.")[0][0])
+
+
+def test_without_extra_subjects_only_science_is_used(monkeypatch):
+    monkeypatch.setattr(train_models, "_beyond_science", lambda: (_ for _ in ()).throw(AssertionError("not wanted")))
+    result = train_models.train_all(sciq_df=_toy_sciq(), save=False)
+    assert "best_model" in result

@@ -14,13 +14,13 @@ from .features.answer_features import FeatureBuilder
 
 
 class AnswerScorer:
-    def __init__(self, classifier=None):
+    def __init__(self, classifier=None, analyzer: str = "word"):
         if classifier is None:
             classifier = LogisticRegression(
                 class_weight="balanced", max_iter=1000,
                 random_state=config.RANDOM_SEED)
         self.classifier = classifier
-        self.feature_builder = FeatureBuilder()
+        self.feature_builder = FeatureBuilder(analyzer=analyzer)
         self.scaler = StandardScaler()
 
     def fit(self, train_long_df: pd.DataFrame) -> "AnswerScorer":
@@ -58,3 +58,4 @@ class AnswerScorer:
     @classmethod
     def load(cls, path) -> "AnswerScorer":
         return joblib.load(Path(path))
+
