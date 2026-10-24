@@ -189,7 +189,8 @@ def test_a_wrong_step_is_named_and_the_solution_stays_hidden(client, model, user
     body = res.json()
     result = body['attempts'][-1]['result']
     assert result == {'verdict': 'needs_work', 'met': [1], 'first_wrong_step': 2, 'error_type': 'concept',
-                      'detail': 'Ending the contract needs more than fourteen days of delay.', 'hint': 'How late was A?'}
+                      'detail': 'Ending the contract needs more than fourteen days of delay.', 'hint': 'How late was A?',
+                      'quote': '', 'quote_step': None}
     assert body['attempts'][-1]['steps'] == ['A is in breach.', 'B must wait a month.']   # blank step dropped
     assert body['solution'] is None
     assert [c['id'] for c in body['met_checkpoints']] == [1]
@@ -323,7 +324,10 @@ def test_the_wrong_step_is_found_by_its_quote_when_the_number_is_off(user, noteb
     steps = ['A and B had a contract.', 'A breached it by delivering late.', 'Damages are what A gained.']
     reply = {'met': [1], 'first_wrong_step': 2, 'wrong_step_quote': 'Damages are what A gained',
              'error_type': 'concept', 'detail': 'Damages compensate loss.', 'hint': 'What did B lose?'}
-    assert clean_grade(reply, ex, steps)['first_wrong_step'] == 3
+    graded = clean_grade(reply, ex, steps)
+    assert graded['first_wrong_step'] == 3
+    # Kept so an evaluation can tell a quote that matched from one that did not.
+    assert graded['quote'] == 'Damages are what A gained' and graded['quote_step'] == 3
 
 
 def test_a_quote_that_matches_no_step_leaves_the_number_alone(user, notebook):
