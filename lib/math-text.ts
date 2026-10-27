@@ -55,3 +55,19 @@ export function splitMath(raw: string): MathSegment[] {
 export function hasMath(text: string): boolean {
   return splitMath(text).some((s) => s.kind !== 'text')
 }
+
+/** A short one-line preview (a question in a list). A formula is kept whole
+ *  or left out, never cut, so what is shown still typesets. */
+export function firstLines(text: string, max = 120): string {
+  let out = ''
+  for (const part of splitMath(text.replace(/\s+/g, ' ').trim())) {
+    const piece = part.kind === 'text' ? part.value.replaceAll('$', '\\$') : `$${part.value}$`
+    if (out.length + piece.length <= max) {
+      out += piece
+      continue
+    }
+    if (part.kind === 'text') out += piece.slice(0, max - out.length)
+    return out.trimEnd() + '…'
+  }
+  return out
+}

@@ -118,8 +118,9 @@ class OwnProblemView(_Generating):
 
 
 class ReadPhotoView(_Generating):
-    """POST multipart {image} → {text}: the photographed problem as text, for
-    the student to check before creating it. The photo is not kept."""
+    """POST multipart {image} → {questions: [{label, instruction, text}]}: the
+    photographed questions as text, for the student to pick one and check it
+    before creating it. The photo is not kept."""
     parser_classes = [MultiPartParser]
 
     def post(self, request):
@@ -130,14 +131,14 @@ class ReadPhotoView(_Generating):
             return Response({'detail': _('That photo is too large. Use one under 8 MB.')}, status=400)
         data = upload.read()
         try:
-            text = photo.read_problem(data)
+            questions = photo.read_problems(data)
         except photo.NotAnImage as exc:
             return Response({'detail': str(exc)}, status=400)
         except photo.NoProblemInPhoto as exc:
             return Response({'detail': str(exc), 'no_problem': True}, status=400)
         except PracticeUnavailable as exc:
             return Response({'detail': str(exc)}, status=503)
-        return Response({'text': text})
+        return Response({'questions': questions})
 
 
 class ExerciseDetailView(APIView):

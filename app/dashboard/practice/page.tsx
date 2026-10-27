@@ -9,8 +9,8 @@ import { ArrowRight, Camera, ChevronDown, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MathText } from '@/components/math-text'
 import { PageHeader } from '@/components/page-header'
-import { exercisesAPI, type ExerciseSummary } from '@/lib/api'
-import { hasMath } from '@/lib/math-text'
+import { exercisesAPI, type ExerciseSummary, type PhotoQuestion } from '@/lib/api'
+import { firstLines, hasMath } from '@/lib/math-text'
 import { filtered, filtersFor, inPracticeOrder, parseFilter, type PracticeFilter } from '@/lib/practice'
 import { cn } from '@/lib/utils'
 
@@ -122,6 +122,11 @@ function FilterChip({ active, onClick, label, count }: { active: boolean; onClic
 
 /** The student's own problem: closed until asked for, since most visits are
  *  to carry on with problems that already exist. */
+/** The question as the student will create it, its section's instruction first. */
+function asProblem(q: PhotoQuestion) {
+  return q.instruction ? `${q.instruction}\n${q.text}` : q.text
+}
+
 function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   const t = useTranslations('practice')
   const router = useRouter()
@@ -130,6 +135,9 @@ function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: () => voi
   const [error, setError] = useState<string | null>(null)
   const [reading, setReading] = useState(false)
   const [photo, setPhoto] = useState<string | null>(null)
+  // A photo of a whole page gives several questions; the student picks one.
+  const [questions, setQuestions] = useState<PhotoQuestion[]>([])
+  const [picking, setPicking] = useState(false)
   const picker = useRef<HTMLInputElement>(null)
 
   useEffect(() => () => {
@@ -143,10 +151,13 @@ function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: () => voi
     if (!file.type.startsWith('image/')) return setError(t('photoNotImage'))
     if (file.size > MAX_PHOTO_BYTES) return setError(t('photoTooLarge'))
     setPhoto(URL.createObjectURL(file))
+    setQuestions([])
     setReading(true)
     try {
-      const res = await exercisesAPI.readPhoto(file)
-      setText(res.data.text)
+      const found = (await exercisesAPI.readPhoto(file)).data.questions
+      setQuestions(found)
+      setPicking(found.length > 1)
+      if (found.length === 1) setText(asProblem(found[0]))
     } catch (e) {
       const body = (e as { response?: { data?: { detail?: unknown; no_problem?: boolean } } }).response?.data
       setPhoto(null)
@@ -223,8 +234,39 @@ function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: () => voi
             <div className="flex items-start gap-4" aria-live="polite">
               {/* eslint-disable-next-line @next/next/no-img-element -- a local blob, nothing to optimise */}
               <img src={photo} alt={t('photoAlt')} className="h-24 w-auto max-w-[40%] shrink-0 md:h-40 rounded-md border border-slate-300 object-contain" />
-              {!reading && <p className="max-w-[52ch] text-sm leading-relaxed text-slate-700">{t('photoRead')}</p>}
+              {!reading && !picking && (
+                <div className="max-w-[52ch] space-y-1 text-sm leading-relaxed text-slate-700">
+                  <p>{t('photoRead')}</p>
+                  {questions.length > 1 && (
+                    <button type="button" onClick={() => setPicking(true)} className="font-medium text-mode-ink underline underline-offset-4 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30">
+                      {t('photoPickAgain', { count: questions.length })}
+                    </button>
+                  )}
+                </div>
+              )}
+              {picking && <p className="max-w-[52ch] text-sm leading-relaxed text-slate-700">{t('photoPick', { count: questions.length })}</p>}
             </div>
+          )}
+          {picking && (
+            <ul className="max-h-[26rem] divide-y divide-slate-200 overflow-y-auto rounded-lg border border-slate-300 bg-white">
+              {questions.map((q, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setText(asProblem(q))
+                      setPicking(false)
+                    }}
+                    className="flex w-full gap-3 px-4 py-3 text-left hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-mode/30"
+                  >
+                    <span className="w-20 shrink-0 text-sm font-semibold text-slate-900">{q.label}</span>
+                    <span className="line-clamp-2 text-sm leading-relaxed text-slate-700">
+                      <MathText text={firstLines(q.text)} />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
           <textarea
             id="own-problem"
