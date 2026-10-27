@@ -337,3 +337,14 @@ def test_a_quote_that_matches_no_step_leaves_the_number_alone(user, notebook):
     reply = {'met': [1], 'first_wrong_step': 2, 'wrong_step_quote': 'something never written',
              'error_type': 'concept', 'detail': 'x', 'hint': 'y'}
     assert clean_grade(reply, ex, steps)['first_wrong_step'] == 2
+
+
+def test_the_grader_is_told_a_right_step_before_a_wrong_one_is_not_the_wrong_step(model, user, notebook):
+    # Measured on the hand-made set: graders pointed at the last right step
+    # before the slip (econ-1/2 quoted "40 per year" for "40 x 3 = 160").
+    from exercises.services.grading import grade
+    provider = model({'met': [1, 2], 'first_wrong_step': None})
+    grade(_exercise(user, notebook), ['A is in breach.', 'B may end it.'])
+    prompt = provider.prompts[0]
+    assert 'contains a mistake itself' in prompt
+    assert 'a right step that is followed by a wrong one is not the wrong step' in prompt.lower()
