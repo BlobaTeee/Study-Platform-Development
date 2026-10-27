@@ -6,6 +6,7 @@ import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
 import { Check, ChevronLeft, CircleAlert, Lightbulb, Loader2, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { MathText } from '@/components/math-text'
 import { PageHeader } from '@/components/page-header'
 import { exercisesAPI, type ExerciseDetail } from '@/lib/api'
 import { draftSteps, lastGrade, lastHint } from '@/lib/practice'
@@ -75,8 +76,8 @@ function Problem({ exercise }: { exercise: ExerciseDetail }) {
         <span aria-hidden>·</span>
         <span>{exercise.origin === 'own' ? t('ownProblem') : t('fromDocument', { title: exercise.source_title })}</span>
       </p>
-      <p className="mt-3 max-w-[65ch] whitespace-pre-line text-lg leading-relaxed text-slate-900 text-pretty">
-        {exercise.prompt}
+      <p className="mt-3 max-w-[65ch] text-lg leading-relaxed text-slate-900 text-pretty">
+        <MathText text={exercise.prompt} />
       </p>
       {exercise.origin === 'own' && <p className="mt-3 text-sm text-slate-600">{t('ownGeneralNote')}</p>}
     </section>
@@ -129,11 +130,11 @@ function Attempt({ exercise, onChange }: { exercise: ExerciseDetail; onChange: (
                   {wrongAt && wrongAt <= steps.length ? t('wrongAt', { n: wrongAt }) : t('wrongAfterLast')}
                   {grade.error_type ? ` · ${t(`error_${grade.error_type}`)}` : ''}
                 </p>
-                {grade.detail && <p className="mt-1 text-slate-800">{grade.detail}</p>}
+                {grade.detail && <p className="mt-1 text-slate-800"><MathText text={grade.detail} /></p>}
                 {grade.hint && (
                   <p className="mt-2 flex gap-2 text-slate-700">
                     <Lightbulb className="mt-1 size-4 shrink-0 text-mode-ink" aria-hidden />
-                    {grade.hint}
+                    <MathText text={grade.hint} />
                   </p>
                 )}
               </div>
@@ -146,7 +147,7 @@ function Attempt({ exercise, onChange }: { exercise: ExerciseDetail; onChange: (
                 {exercise.met_checkpoints.map((c) => (
                   <li key={c.id} className="flex max-w-[65ch] gap-2 text-base text-slate-800">
                     <Check className="mt-1 size-4 shrink-0 text-emerald-700" aria-hidden />
-                    {c.text}
+                    <MathText text={c.text} />
                   </li>
                 ))}
               </ul>
@@ -216,7 +217,7 @@ function Attempt({ exercise, onChange }: { exercise: ExerciseDetail; onChange: (
               <Lightbulb className="mt-1 size-4 shrink-0 text-mode-ink" aria-hidden />
               <span>
                 <span className="sr-only">{t('hint')}: </span>
-                {hint}
+                <MathText text={hint} />
               </span>
             </p>
           )}
@@ -278,7 +279,7 @@ function Solved({ exercise }: { exercise: ExerciseDetail }) {
           {exercise.met_checkpoints.map((c) => (
             <li key={c.id} className="flex max-w-[65ch] gap-2 text-base text-slate-800">
               <Check className="mt-1 size-4 shrink-0 text-emerald-700" aria-hidden />
-              {c.text}
+              <MathText text={c.text} />
             </li>
           ))}
         </ul>
@@ -291,7 +292,7 @@ function Solved({ exercise }: { exercise: ExerciseDetail }) {
             {exercise.mistakes.map((m, i) => (
               <li key={i} className="max-w-[65ch] text-base text-slate-800">
                 <span className="text-sm font-medium text-slate-600">{t(`error_${m.type}`)}: </span>
-                {m.text}
+                <MathText text={m.text} />
               </li>
             ))}
           </ul>
@@ -310,7 +311,7 @@ function Steps({ title, steps }: { title: string; steps: string[] }) {
         {steps.map((s, i) => (
           <li key={i} className="flex max-w-[65ch] gap-3 text-base leading-relaxed text-slate-800">
             <span className="mt-0.5 shrink-0 font-mono text-xs tabular-nums text-slate-500">{t('step', { n: i + 1 })}</span>
-            <span className="whitespace-pre-line">{s}</span>
+            <MathText text={s} />
           </li>
         ))}
       </ol>

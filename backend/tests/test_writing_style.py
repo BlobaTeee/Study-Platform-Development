@@ -294,3 +294,14 @@ def test_stored_cards_and_questions_are_served_clean(client, user, notebook):
     card.refresh_from_db(); q.refresh_from_db()
     assert card.question.endswith('based on the excerpt?')
     assert q.question_text.startswith('According to')
+
+
+def test_maths_in_latex_is_left_exactly_as_written():
+    # A photographed problem comes back with its maths in LaTeX; a dash rule
+    # or a capital after ". " must never reach inside it.
+    from notebooks.services.writing_style import tidy_prose
+    text = r'Compute $\int_0^\pi \frac{\sin^2 x}{1+\cos x}\,dx$ — then check $$a -- b. c$$ by hand.'
+    out = tidy_prose(text)
+    assert r'$\int_0^\pi \frac{\sin^2 x}{1+\cos x}\,dx$' in out
+    assert '$$a -- b. c$$' in out
+    assert '—' not in out                     # prose dashes are still tidied

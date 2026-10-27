@@ -246,8 +246,20 @@ def _call_with_deadline(call, seconds: float):
     return box.get('value')
 
 
-def generate_json(prompt: str) -> dict:
+def _contents(prompt: str, images):
+    """The prompt alone, or the images first and then the prompt (the order
+    Gemini's guidance gives for a question about a picture)."""
+    if not images:
+        return prompt
+    from google.genai import types
+    return [types.Part.from_bytes(data=data, mime_type=mime) for data, mime in images] + [prompt]
+
+
+def generate_json(prompt: str, images: list[tuple[bytes, str]] | None = None) -> dict:
+    """JSON from the first model that answers. `images` are (bytes, mime
+    type) pairs sent with the prompt, e.g. a photographed problem."""
     client = _get_client()
+    contents = _contents(prompt, images)
     models = _worth_trying(_model_list())
     last_quota_error = None
     last_transient_error = None
@@ -258,13 +270,13 @@ def generate_json(prompt: str) -> dict:
             wait = _wait_seconds()
             try:
                 response = _call_with_deadline(lambda: client.models.generate_content(
-                    model=model, contents=prompt, config=_request_config()), wait)
+                    model=model, contents=contents, config=_request_config()), wait)
             except Exception as exc:
                 if not _is_thinking_rejected(exc):
                     raise
                 # This model is older than the setting; ask it again plainly.
                 response = _call_with_deadline(lambda: client.models.generate_content(
-                    model=model, contents=prompt, config=_request_config('default')), wait)
+                    model=model, contents=contents, config=_request_config('default')), wait)
             _note_success(model)
             try:
                 return _parse_json_response(response.text or '')
