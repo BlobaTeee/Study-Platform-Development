@@ -167,6 +167,9 @@ export type PracticeMistakes = {
   types: { type: ErrorType; count: number; exercise_ids: number[] }[]
 }
 
+/** One question read from a photo; the instruction is its section's (how to answer). */
+export type PhotoQuestion = { label: string; instruction: string; text: string }
+
 export const exercisesAPI = {
   list: (params: { notebook?: number; source?: number; own?: 1 }) =>
     api.get<{ results: ExerciseSummary[] }>('/exercises/', { params }),
@@ -174,11 +177,12 @@ export const exercisesAPI = {
     api.post<{ results: ExerciseSummary[] }>('/exercises/generate/', { source_id: sourceId }),
   // The student's own problem: in no notebook, graded from general knowledge.
   own: (text: string) => api.post<ExerciseDetail>('/exercises/own/', { text }),
-  // A photo of a problem read into text (maths in LaTeX); the photo is not kept.
+  // A photo read into its questions (maths in LaTeX), for the student to pick
+  // one; the photo is not kept.
   readPhoto: (file: File) => {
     const form = new FormData()
     form.append('image', file)
-    return api.post<{ text: string }>('/exercises/read-photo/', form, {
+    return api.post<{ questions: PhotoQuestion[] }>('/exercises/read-photo/', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },

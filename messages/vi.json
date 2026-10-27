@@ -673,6 +673,8 @@
     "photoReading": "Đang đọc ảnh…",
     "photoNote": "AI chép đề trong ảnh vào ô bên dưới, công thức viết bằng LaTeX. Ảnh không được lưu lại.",
     "photoRead": "Đã chép đề từ ảnh. Đối chiếu với ảnh và sửa chỗ chép sai trước khi tạo bài.",
+    "photoPick": "Ảnh có {count} câu. Chọn câu bạn muốn luyện:",
+    "photoPickAgain": "Chọn câu khác trong ảnh ({count} câu)",
     "photoAlt": "Ảnh đề bạn vừa chọn",
     "photoNoProblem": "Không thấy đề bài nào trong ảnh này. Thử chụp gần hơn, đủ sáng và cả đề nằm trong khung.",
     "photoTooLarge": "Ảnh lớn hơn 8 MB. Chọn ảnh nhỏ hơn hoặc chụp lại.",

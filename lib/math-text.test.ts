@@ -1,7 +1,7 @@
 // Run with: pnpm test  (node --test; Node strips the types itself)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { hasMath, splitMath } from './math-text.ts'
+import { firstLines, hasMath, splitMath } from './math-text.ts'
 
 test('plain text is one text segment', () => {
   assert.deepEqual(splitMath('Solve for x.'), [{ kind: 'text', value: 'Solve for x.' }])
@@ -33,4 +33,17 @@ test('an escaped dollar is a dollar', () => {
 test('hasMath sees real maths', () => {
   assert.equal(hasMath(String.raw`Find $x^2$`), true)
   assert.equal(hasMath('$$a+b$$'), true)
+})
+
+test('firstLines gives a short one-line preview', () => {
+  assert.equal(firstLines('Câu hỏi\nA. 1\nB. 2'), 'Câu hỏi A. 1 B. 2')
+  assert.equal(firstLines('word '.repeat(60)).length <= 121, true)
+  assert.ok(firstLines('word '.repeat(60)).endsWith('…'))
+})
+
+test('firstLines never cuts a formula in half', () => {
+  const text = 'a'.repeat(110) + String.raw` $\frac{x^2 - 1}{x + 2}$ and more`
+  const preview = firstLines(text)
+  assert.ok(!preview.includes(String.raw`$\frac{x^2`) || preview.includes(String.raw`{x + 2}$`))
+  assert.ok(preview.endsWith('…'))
 })

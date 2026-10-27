@@ -673,6 +673,8 @@
     "photoReading": "Reading the photo…",
     "photoNote": "The AI copies the problem into the box below, with maths in LaTeX. The photo is not kept.",
     "photoRead": "Copied from the photo. Check it against the photo and fix anything copied wrong before you create the problem.",
+    "photoPick": "The photo has {count} questions. Choose the one to practise:",
+    "photoPickAgain": "Choose another question from the photo ({count})",
     "photoAlt": "The photo you chose",
     "photoNoProblem": "No problem found in this photo. Try closer, in good light, with the whole problem in frame.",
     "photoTooLarge": "The photo is over 8 MB. Choose a smaller one or take it again.",
