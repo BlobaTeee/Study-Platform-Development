@@ -90,9 +90,13 @@ the student plainly got right, or for using a known rule or formula without deri
 Report something as missing only when a checkpoint is not reached at all.
 
 - "met": the ids of the checkpoints the attempt reaches correctly.
-- "first_wrong_step": the number of the first step that is wrong, or where something the
-  answer needs is missing (if the attempt stops short, the number after its last step).
-  null only if every checkpoint is met and no step is wrong.
+- "first_wrong_step": the number of the first step that contains a mistake itself (a wrong
+  statement, calculation, rule or conclusion).
+  A right step that is followed by a wrong one is not the wrong step.
+  Point at the step where the mistake is written. If a needed step
+  was skipped, give the number of the step written in its place; if the attempt stops
+  short, the number after its last step. null only if every checkpoint is met and no step
+  is wrong.
 - "wrong_step_quote": that step's text copied exactly, or "" if the attempt stops short.
 - "error_type": for that step, one of:
 {ERROR_LIST}
