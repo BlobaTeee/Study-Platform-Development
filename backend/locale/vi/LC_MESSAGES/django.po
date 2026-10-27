@@ -366,3 +366,18 @@ msgstr "Chưa tìm được mối liên hệ giữa các khái niệm lúc này.
 
 msgid "This concept has no questions to practise from yet."
 msgstr "Khái niệm này chưa có câu hỏi để luyện."
+
+msgid "Reading a photo needs the Gemini provider, which is not the one in use."
+msgstr "Đọc ảnh cần dùng Gemini, mà app đang không dùng Gemini."
+
+msgid "That file is not a photo. Use a JPEG, PNG, WEBP or HEIC image."
+msgstr "Tệp này không phải ảnh. Hãy dùng ảnh JPEG, PNG, WEBP hoặc HEIC."
+
+msgid "No problem could be found in this photo. Try a closer, sharper photo of it."
+msgstr "Không thấy đề bài nào trong ảnh. Thử chụp gần và rõ hơn."
+
+msgid "Choose a photo of the problem."
+msgstr "Hãy chọn ảnh chụp đề bài."
+
+msgid "That photo is too large. Use one under 8 MB."
+msgstr "Ảnh quá lớn. Hãy dùng ảnh dưới 8 MB."

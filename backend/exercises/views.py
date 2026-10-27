@@ -5,6 +5,7 @@ from django.utils.translation import gettext as _
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser
 from rest_framework.views import APIView
 
 from notebooks.models import Source
@@ -12,7 +13,7 @@ from notebooks.services.membership import notebooks_for
 from studyplatform.throttling import GenerationRateThrottle
 
 from .models import Exercise
-from .services import grading, problems
+from .services import grading, photo, problems
 from .services.common import PracticeUnavailable, clean_steps
 
 
@@ -114,6 +115,29 @@ class OwnProblemView(_Generating):
         except PracticeUnavailable as exc:
             return Response({'detail': str(exc)}, status=503)
         return Response(detail(exercise), status=status.HTTP_201_CREATED)
+
+
+class ReadPhotoView(_Generating):
+    """POST multipart {image} → {text}: the photographed problem as text, for
+    the student to check before creating it. The photo is not kept."""
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        upload = request.FILES.get('image')
+        if upload is None:
+            return Response({'detail': _('Choose a photo of the problem.')}, status=400)
+        if upload.size > photo.max_bytes():
+            return Response({'detail': _('That photo is too large. Use one under 8 MB.')}, status=400)
+        data = upload.read()
+        try:
+            text = photo.read_problem(data)
+        except photo.NotAnImage as exc:
+            return Response({'detail': str(exc)}, status=400)
+        except photo.NoProblemInPhoto as exc:
+            return Response({'detail': str(exc), 'no_problem': True}, status=400)
+        except PracticeUnavailable as exc:
+            return Response({'detail': str(exc)}, status=503)
+        return Response({'text': text})
 
 
 class ExerciseDetailView(APIView):

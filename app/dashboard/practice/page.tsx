@@ -1,19 +1,23 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
-import { ArrowRight, ChevronDown, Loader2 } from 'lucide-react'
+import { ArrowRight, Camera, ChevronDown, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { MathText } from '@/components/math-text'
 import { PageHeader } from '@/components/page-header'
 import { exercisesAPI, type ExerciseSummary } from '@/lib/api'
+import { hasMath } from '@/lib/math-text'
 import { filtered, filtersFor, inPracticeOrder, parseFilter, type PracticeFilter } from '@/lib/practice'
 import { cn } from '@/lib/utils'
 
 /** Must match MIN_OWN_CHARS in backend/exercises/services/problems.py. */
 const MIN_CHARS = 15
+/** Must match PROBLEM_PHOTO_MAX_BYTES' default in backend/exercises/services/photo.py. */
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024
 
 /** Every practice problem in one place, whatever it came from: written from
  *  a notebook's document, or brought by the student. Where it came from is
@@ -124,6 +128,33 @@ function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: () => voi
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reading, setReading] = useState(false)
+  const [photo, setPhoto] = useState<string | null>(null)
+  const picker = useRef<HTMLInputElement>(null)
+
+  useEffect(() => () => {
+    if (photo) URL.revokeObjectURL(photo)
+  }, [photo])
+
+  // The photo is read into the box, then the student checks it against the
+  // thumbnail before creating the problem. Nothing is kept until then.
+  const readPhoto = async (file: File) => {
+    setError(null)
+    if (!file.type.startsWith('image/')) return setError(t('photoNotImage'))
+    if (file.size > MAX_PHOTO_BYTES) return setError(t('photoTooLarge'))
+    setPhoto(URL.createObjectURL(file))
+    setReading(true)
+    try {
+      const res = await exercisesAPI.readPhoto(file)
+      setText(res.data.text)
+    } catch (e) {
+      const body = (e as { response?: { data?: { detail?: unknown; no_problem?: boolean } } }).response?.data
+      setPhoto(null)
+      setError(body?.no_problem ? t('photoNoProblem') : typeof body?.detail === 'string' ? body.detail : t('failed'))
+    } finally {
+      setReading(false)
+    }
+  }
 
   const create = async () => {
     if (text.trim().length < MIN_CHARS || busy) return
@@ -167,6 +198,34 @@ function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: () => voi
           <label htmlFor="own-problem" className="block max-w-[65ch] text-base leading-relaxed text-slate-700">
             {t('ownLead')}
           </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              ref={picker}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (file) void readPhoto(file)
+              }}
+            />
+            <Button type="button" variant="outline" onClick={() => picker.current?.click()} disabled={reading || busy}>
+              {reading ? <Loader2 className="animate-spin" aria-hidden /> : <Camera aria-hidden />}
+              {reading ? t('photoReading') : t('photoButton')}
+            </Button>
+            <span className="text-sm text-slate-600">{t('photoNote')}</span>
+          </div>
+          {photo && (
+            <div className="flex items-start gap-4" aria-live="polite">
+              {/* eslint-disable-next-line @next/next/no-img-element -- a local blob, nothing to optimise */}
+              <img src={photo} alt={t('photoAlt')} className="h-24 w-auto max-w-[40%] shrink-0 md:h-40 rounded-md border border-slate-300 object-contain" />
+              {!reading && <p className="max-w-[52ch] text-sm leading-relaxed text-slate-700">{t('photoRead')}</p>}
+            </div>
+          )}
           <textarea
             id="own-problem"
             autoFocus
@@ -176,9 +235,17 @@ function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: () => voi
             placeholder={t('ownPlaceholder')}
             className="block w-full resize-y rounded-lg border border-slate-300 bg-white px-4 py-3 text-base leading-relaxed text-slate-900 placeholder:text-slate-500 focus-visible:border-mode focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
           />
+          {hasMath(text) && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-sm font-medium text-slate-700">{t('mathPreview')}</p>
+              <p className="mt-1 max-w-[65ch] text-base leading-relaxed text-slate-900">
+                <MathText text={text} />
+              </p>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="max-w-[48ch] text-sm text-slate-600">{t('ownGeneralNote')}</p>
-            <Button type="submit" disabled={busy || text.trim().length < MIN_CHARS}>
+            <Button type="submit" disabled={busy || reading || text.trim().length < MIN_CHARS}>
               {busy ? <Loader2 className="animate-spin" aria-hidden /> : null}
               {busy ? t('ownChecking') : t('ownSubmit')}
             </Button>

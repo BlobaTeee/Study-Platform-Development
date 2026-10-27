@@ -174,6 +174,14 @@ export const exercisesAPI = {
     api.post<{ results: ExerciseSummary[] }>('/exercises/generate/', { source_id: sourceId }),
   // The student's own problem: in no notebook, graded from general knowledge.
   own: (text: string) => api.post<ExerciseDetail>('/exercises/own/', { text }),
+  // A photo of a problem read into text (maths in LaTeX); the photo is not kept.
+  readPhoto: (file: File) => {
+    const form = new FormData()
+    form.append('image', file)
+    return api.post<{ text: string }>('/exercises/read-photo/', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
   get: (id: number) => api.get<ExerciseDetail>(`/exercises/${id}/`),
   remove: (id: number) => api.delete(`/exercises/${id}/`),
   submit: (id: number, steps: string[]) => api.post<ExerciseDetail>(`/exercises/${id}/submit/`, { steps }),

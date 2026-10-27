@@ -35,6 +35,8 @@ _RANGE = re.compile(r'(?<=\d)\s*[–—]\s*(?=\d)')
 # Any other em or en dash, or a spaced double hyphen, is a clause break.
 _DASH = re.compile(r'\s*[—–]\s*|\s+--\s+')
 _CODE_OR_URL = re.compile(r'`[^`]*`|https?://\S+')
+# Maths in LaTeX ($$...$$ display, $...$ inline) is held out of every rule.
+_MATH = re.compile(r'\$\$.+?\$\$|\$[^$\n]+?\$', re.S)
 
 _OPENERS = re.compile(
     r'^\s*(?:great question|good question|certainly|of course|sure|absolutely|'
@@ -115,6 +117,16 @@ def tidy_prose(text: str | None, source_title: str = '') -> str:
     text = (text or '').strip()
     if not text:
         return ''
+    maths: list[str] = []
+
+    def hold_math(m):
+        maths.append(m.group(0))
+        return f'\x01{len(maths) - 1}\x01'
+
+    def put_math_back(t: str) -> str:
+        return re.sub(r'\x01(\d+)\x01', lambda m: maths[int(m.group(1))], t)
+
+    text = _MATH.sub(hold_math, text)
     kept: list[str] = []
 
     def hold(m):
@@ -135,7 +147,7 @@ def tidy_prose(text: str | None, source_title: str = '') -> str:
         stripped = _OBJECT_SUBJECT.sub(lambda m: m.group(0)[:len(m.group(0)) - len(m.group(0).lstrip())]
                                        + source_title.strip() + ' ', stripped)
     stripped = _capitalise_sentences(stripped).strip()
-    return stripped if stripped else body.strip()
+    return put_math_back(stripped if stripped else body.strip())
 
 
 class CleanGeneratedText:

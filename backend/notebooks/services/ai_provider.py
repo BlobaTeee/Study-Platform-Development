@@ -20,6 +20,11 @@ class AIProvider(ABC):
         """Generate a summary of the given text."""
         pass
 
+    def generate_json_from_images(self, prompt: str, images: list[tuple[bytes, str]]) -> dict:
+        """JSON from a prompt about one or more images. Providers that cannot
+        read images say so."""
+        raise NotImplementedError(f'{self.name} cannot read images')
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -36,6 +41,9 @@ class GeminiProvider(AIProvider):
 
     def generate_json(self, prompt: str) -> dict:
         return self._generate_json_fn(prompt)
+
+    def generate_json_from_images(self, prompt: str, images: list[tuple[bytes, str]]) -> dict:
+        return self._generate_json_fn(prompt, images=images)
 
     def summarize(self, text: str, title: str = '') -> str:
         from .gemini import summarize_with_gemini

@@ -84,3 +84,35 @@ def test_a_request_the_server_cancelled_hands_over(fake):
 
     assert generate_json('x') == {'ok': True}
     assert models.calls == ['first', 'second']
+
+
+def test_an_image_is_sent_before_the_prompt(fake, monkeypatch):
+    seen = []
+
+    class _Seeing(_Models):
+        def generate_content(self, model, contents, config=None, **kwargs):
+            seen.append(contents)
+            return type('R', (), {'text': '{"found": true}'})()
+
+    models = _Seeing({})
+    monkeypatch.setattr(gemini_client, '_get_client', lambda: type('C', (), {'models': models})())
+
+    assert generate_json('read this', images=[(b'\xff\xd8\xff', 'image/jpeg')]) == {'found': True}
+    parts = seen[0]
+    assert isinstance(parts, list) and parts[-1] == 'read this'
+    assert getattr(parts[0], 'inline_data', None) is not None
+    assert parts[0].inline_data.mime_type == 'image/jpeg'
+
+
+def test_a_text_prompt_is_still_sent_as_plain_text(fake, monkeypatch):
+    seen = []
+
+    class _Seeing(_Models):
+        def generate_content(self, model, contents, config=None, **kwargs):
+            seen.append(contents)
+            return type('R', (), {'text': '{"ok": true}'})()
+
+    models = _Seeing({})
+    monkeypatch.setattr(gemini_client, '_get_client', lambda: type('C', (), {'models': models})())
+    generate_json('just text')
+    assert seen == ['just text']

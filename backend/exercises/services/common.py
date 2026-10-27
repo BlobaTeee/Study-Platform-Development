@@ -30,10 +30,14 @@ class PracticeUnavailable(Exception):
     pass
 
 
-def ask(prompt: str) -> dict:
-    """One model request; failures become a message that says the work is kept."""
+def ask(prompt: str, images: list[tuple[bytes, str]] | None = None) -> dict:
+    """One model request (with images, if given); failures become a message
+    that says the work is kept."""
     try:
-        data = ai_provider.get_ai_provider().generate_json(prompt)
+        provider = ai_provider.get_ai_provider()
+        data = provider.generate_json_from_images(prompt, images) if images else provider.generate_json(prompt)
+    except NotImplementedError as exc:
+        raise PracticeUnavailable(_('Reading a photo needs the Gemini provider, which is not the one in use.')) from exc
     except GeminiNotConfiguredError as exc:
         raise PracticeUnavailable(_('This needs the AI provider, which is not available right now.')) from exc
     except Exception as exc:  # noqa: BLE001
