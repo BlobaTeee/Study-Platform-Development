@@ -4,12 +4,12 @@ import { use, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { Check, ChevronLeft, Loader2, LogOut, Users, X } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Loader2, LogOut, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MathText } from '@/components/math-text'
 import { PageHeader } from '@/components/page-header'
 import { liveAPI } from '@/lib/api'
-import { applyBroadcast, optionShares, secondsLeft, type LiveBroadcast, type LiveState } from '@/lib/live'
+import { applyBroadcast, moreThanHalf, optionShares, secondsLeft, type LiveBroadcast, type LiveState } from '@/lib/live'
 import { getSocket } from '@/lib/realtime'
 import { cn } from '@/lib/utils'
 
@@ -27,10 +27,11 @@ export default function LiveRoomPage({ params }: { params: Promise<{ roomId: str
   const [missing, setMissing] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // When the last state arrived, so remaining_ms and next_open_ms become clock times here.
+  // When the last state arrived, so remaining_ms and majority_in_ms become clock times here.
   const [receivedAt, setReceivedAt] = useState(() => Date.now())
   const [now, setNow] = useState(() => Date.now())
   const askedReveal = useRef<number | null>(null)
+  const askedMajority = useRef<number | null>(null)
 
   const take = useCallback((next: LiveState) => {
     setRoom(next)
@@ -85,7 +86,7 @@ export default function LiveRoomPage({ params }: { params: Promise<{ roomId: str
   }, [room?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const deadline = receivedAt + (room?.remaining_ms ?? 0)
-  const nextOpenAt = receivedAt + (room?.next_open_ms ?? 0)
+  const majorityAt = receivedAt + (room?.majority_in_ms ?? 0)
 
   // Time up here: ask for the reveal once per question. Harmless if the
   // server's clock says otherwise; it answers with the state as it is.
@@ -95,6 +96,17 @@ export default function LiveRoomPage({ params }: { params: Promise<{ roomId: str
     askedReveal.current = room.index
     liveAPI.reveal(id).then((res) => take(res.data)).catch(() => {})
   }, [room, now, deadline, id, take])
+
+  // On a reveal, more than half have voted and the 30 s are up here: one of
+  // the voters repeats its vote so the server checks the rule again.
+  const iVoted = !!room && room.voters.includes(room.you.user_id)
+  useEffect(() => {
+    if (!room || room.status !== 'reveal' || !iVoted || now < majorityAt + 300) return
+    if (!moreThanHalf(room.next_votes, room.players.length)) return
+    if (askedMajority.current === room.index) return
+    askedMajority.current = room.index
+    liveAPI.next(id, room.index).then((res) => take(res.data)).catch(() => {})
+  }, [room, iVoted, now, majorityAt, id, take])
 
   const act = async (name: string, call: () => Promise<{ data: LiveState }>) => {
     if (busy) return
@@ -184,7 +196,8 @@ export default function LiveRoomPage({ params }: { params: Promise<{ roomId: str
       ) : room.status === 'reveal' ? (
         <Reveal
           room={room}
-          waitSeconds={room.you.is_host ? 0 : secondsLeft(nextOpenAt, now)}
+          voted={iVoted}
+          majorityIn={secondsLeft(majorityAt, now)}
           busy={busy}
           onNext={() => void act('next', () => liveAPI.next(id, room.index))}
         />
@@ -283,9 +296,10 @@ function Question({ room, secondsLeft: left, share, busy, onAnswer }: {
   )
 }
 
-function Reveal({ room, waitSeconds, busy, onNext }: {
+function Reveal({ room, voted, majorityIn, busy, onNext }: {
   room: LiveState
-  waitSeconds: number
+  voted: boolean
+  majorityIn: number
   busy: string | null
   onNext: () => void
 }) {
@@ -351,12 +365,21 @@ function Reveal({ room, waitSeconds, busy, onNext }: {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 p-6 md:p-8">
-        <p className="max-w-[60ch] text-sm text-slate-700">
-          {room.you.is_host ? t('talkFirst') : waitSeconds > 0 ? t('hostMovesOn', { host: room.host.name, s: waitSeconds }) : t('anyoneMovesOn')}
+        <p className="max-w-[60ch] text-sm text-slate-700" aria-live="polite">
+          {!voted ? t('voteLead') : majorityIn > 0 ? t('votedWaiting', { s: majorityIn }) : t('votedMajority')}
         </p>
-        <Button onClick={onNext} disabled={busy !== null || waitSeconds > 0}>
-          {busy === 'next' && <Loader2 className="animate-spin" aria-hidden />}
+        {/* Everyone votes to go on; the count is the room's, the pressed state is mine. */}
+        <Button
+          onClick={onNext}
+          disabled={busy !== null || voted}
+          aria-pressed={voted}
+          variant={voted ? 'tinted' : 'default'}
+          // Voted is a state to read, not a dead button: keep it at full ink.
+          className={cn('min-w-44', voted && 'bg-mode/10 disabled:opacity-100')}
+        >
+          {busy === 'next' ? <Loader2 className="animate-spin" aria-hidden /> : voted ? <Check aria-hidden /> : null}
           {last ? t('seeResults') : t('next')}
+          <span className="font-mono tabular-nums">{room.next_votes}/{room.players.length}</span>
         </Button>
       </div>
     </section>
@@ -392,18 +415,39 @@ function Finished({ room }: { room: LiveState }) {
         {missed.length > 0 && (
           <>
             <p className="mt-1 max-w-[60ch] text-sm text-slate-700">{t('missedNote')}</p>
-            <ul className="mt-4 space-y-4">
-              {missed.map((m) => (
-                <li key={m.question_id} className="max-w-[65ch] space-y-1.5">
-                  <p className="text-base leading-relaxed text-slate-900"><MathText text={m.text} /></p>
-                  <p className="text-sm text-slate-700">
-                    {m.your_answer ? <>{t('yourAnswer')}: <span className="text-red-800"><MathText text={m.your_answer} /></span> · </> : <>{t('noAnswer')} · </>}
-                    {t('rightAnswer')}: <span className="text-emerald-800"><MathText text={m.correct} /></span>
-                  </p>
-                  {m.explanation && <p className="text-sm leading-relaxed text-slate-700"><MathText text={m.explanation} /></p>}
+            <ol className="mt-4 divide-y divide-slate-200 border-y border-slate-200">
+              {missed.map((m, i) => (
+                <li key={m.question_id} className="flex gap-3 py-4">
+                  <span className="w-5 shrink-0 pt-0.5 font-mono text-sm tabular-nums text-slate-600">{i + 1}</span>
+                  <div className="min-w-0 max-w-[65ch] flex-1 space-y-2">
+                    <p className="text-base leading-snug text-slate-900"><MathText text={m.text} /></p>
+                    {/* What you picked against the answer, as one line to compare. */}
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-red-800">
+                        <X className="size-3.5" aria-hidden />
+                        <span className="sr-only">{t('yourAnswer')}: </span>
+                        {m.your_answer ? <MathText text={m.your_answer} /> : t('blank')}
+                      </span>
+                      <ChevronRight className="size-3.5 text-slate-500" aria-hidden />
+                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 font-medium text-emerald-900">
+                        <Check className="size-3.5" aria-hidden />
+                        <span className="sr-only">{t('rightAnswer')}: </span>
+                        <MathText text={m.correct} />
+                      </span>
+                    </p>
+                    {m.explanation && (
+                      <details className="group text-sm">
+                        <summary className="w-fit cursor-pointer list-none rounded text-mode-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30">
+                          <ChevronRight className="mr-0.5 inline size-3.5 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none" aria-hidden />
+                          {t('why')}
+                        </summary>
+                        <p className="mt-1.5 leading-relaxed text-slate-700"><MathText text={m.explanation} /></p>
+                      </details>
+                    )}
+                  </div>
                 </li>
               ))}
-            </ul>
+            </ol>
           </>
         )}
         <div className="mt-6 flex flex-wrap gap-2">

@@ -29,7 +29,10 @@ export type LiveState = {
     source_title: string
     source_excerpt: string
   } | null
-  next_open_ms: number
+  /** Who has voted to leave this reveal, and when "more than half" starts to count. */
+  voters: number[]
+  next_votes: number
+  majority_in_ms: number
   results: LiveResult[]
   you: { user_id: number; is_host: boolean; joined: boolean; answer: string | null; missed: LiveMiss[] }
 }
@@ -73,4 +76,9 @@ export function applyBroadcast(prev: LiveState, next: LiveBroadcast): LiveState 
       answer: sameQuestion ? prev.you.answer : null,
     },
   }
+}
+
+/** The room's rule after 30 s on a reveal: strictly more than half have voted. */
+export function moreThanHalf(votes: number, players: number): boolean {
+  return players > 0 && votes * 2 > players
 }

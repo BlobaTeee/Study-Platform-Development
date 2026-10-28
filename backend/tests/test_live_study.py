@@ -217,27 +217,110 @@ def test_no_reveal_before_the_time_is_up_unless_all_answered(client, other_clien
     assert other_client.post(f'{ROOMS}{room["id"]}/reveal/').json()['status'] == 'reveal'
 
 
-def test_next_is_for_the_host_or_anyone_once_the_reveal_has_sat(client, other_client, user, shared_notebook):
+def _vote(c, room, index=0):
+    return c.post(f'{ROOMS}{room["id"]}/next/', {'index': index}, format='json')
+
+
+def _third(shared_notebook):
+    """A third member, for the cases where "more than half" is not "everyone"."""
+    from django.contrib.auth import get_user_model
+    from rest_framework.test import APIClient
+    from notebooks.models import NotebookMember
+    person = get_user_model().objects.create_user(username='supabase:third', email='third@example.com')
+    NotebookMember.objects.create(notebook=shared_notebook, user=person, role='member')
+    c = APIClient(HTTP_HOST='localhost')
+    c.force_authenticate(person)
+    return person, c
+
+
+def _age_reveal(room_id, seconds):
+    LiveSession.objects.filter(pk=room_id).update(revealed_at=timezone.now() - timedelta(seconds=seconds))
+
+
+def test_the_room_moves_on_once_everyone_has_voted(client, other_client, user, other_user, shared_notebook):
     _questions(user, shared_notebook)
     room = _started(client, other_client, shared_notebook)
     _answer(client, room, 'a')
     _answer(other_client, room, 'a')
 
-    assert other_client.post(f'{ROOMS}{room["id"]}/next/', {'index': 0}, format='json').status_code == 403
-    LiveSession.objects.filter(pk=room['id']).update(revealed_at=timezone.now() - timedelta(seconds=21))
-    moved = other_client.post(f'{ROOMS}{room["id"]}/next/', {'index': 0}, format='json').json()
+    half = _vote(other_client, room).json()
+    assert half['status'] == 'reveal' and half['next_votes'] == 1 and half['voters'] == [other_user.id]
+    moved = _vote(client, room).json()
+    assert moved['status'] == 'question' and moved['index'] == 1 and moved['next_votes'] == 0
+
+
+def test_voting_twice_counts_once(client, other_client, user, shared_notebook):
+    _questions(user, shared_notebook)
+    room = _started(client, other_client, shared_notebook)
+    _answer(client, room, 'a')
+    _answer(other_client, room, 'a')
+
+    _vote(client, room)
+    again = _vote(client, room).json()
+    assert again['status'] == 'reveal' and again['next_votes'] == 1
+
+
+def test_after_30_seconds_more_than_half_is_enough(client, other_client, user, shared_notebook):
+    _questions(user, shared_notebook)
+    _, third_client = _third(shared_notebook)
+    room = _room(client, shared_notebook)
+    other_client.post(f'{ROOMS}{room["id"]}/join/')
+    third_client.post(f'{ROOMS}{room["id"]}/join/')
+    room = client.post(f'{ROOMS}{room["id"]}/start/').json()
+    for c in (client, other_client, third_client):
+        _answer(c, room, 'a')
+
+    _vote(client, room)
+    early = _vote(other_client, room).json()
+    assert early['status'] == 'reveal' and early['next_votes'] == 2     # 2 of 3, but too soon
+    assert 0 < early['majority_in_ms'] <= 30_000
+
+    _age_reveal(room['id'], 31)
+    moved = _vote(client, room).json()          # a client asks again once the 30 s are up
     assert moved['status'] == 'question' and moved['index'] == 1
 
 
-def test_two_presses_of_next_move_on_once(client, other_client, user, shared_notebook):
+def test_half_is_not_more_than_half(client, other_client, user, shared_notebook):
     _questions(user, shared_notebook)
     room = _started(client, other_client, shared_notebook)
     _answer(client, room, 'a')
     _answer(other_client, room, 'a')
+    _age_reveal(room['id'], 60)
+    assert _vote(client, room).json()['status'] == 'reveal'           # 1 of 2
 
-    client.post(f'{ROOMS}{room["id"]}/next/', {'index': 0}, format='json')
-    again = client.post(f'{ROOMS}{room["id"]}/next/', {'index': 0}, format='json').json()
-    assert again['index'] == 1
+
+def test_someone_leaving_can_complete_the_vote(client, other_client, user, shared_notebook):
+    _questions(user, shared_notebook)
+    room = _started(client, other_client, shared_notebook)
+    _answer(client, room, 'a')
+    _answer(other_client, room, 'a')
+    _vote(client, room)
+
+    other_client.post(f'{ROOMS}{room["id"]}/leave/')
+
+    assert client.get(f'{ROOMS}{room["id"]}/').json()['index'] == 1
+
+
+def test_a_vote_for_a_question_already_past_does_nothing(client, other_client, user, shared_notebook):
+    _questions(user, shared_notebook)
+    room = _started(client, other_client, shared_notebook)
+    _answer(client, room, 'a')
+    _answer(other_client, room, 'a')
+    _vote(client, room)
+    _vote(other_client, room)
+
+    late = _vote(client, room, index=0).json()
+    assert late['index'] == 1 and late['status'] == 'question'
+
+
+def test_only_players_vote(client, other_client, user, shared_notebook):
+    _questions(user, shared_notebook)
+    room = _started(client, other_client, shared_notebook)
+    _answer(client, room, 'a')
+    _answer(other_client, room, 'a')
+    other_client.post(f'{ROOMS}{room["id"]}/leave/')
+    assert _vote(other_client, room, index=room['index']).status_code == 403
+    assert client.get(f'{ROOMS}{room["id"]}/').json()['next_votes'] == 0
 
 
 def test_the_end_ranks_by_score_then_time_and_lists_my_misses(client, other_client, user, other_user, shared_notebook):
@@ -246,7 +329,8 @@ def test_the_end_ranks_by_score_then_time_and_lists_my_misses(client, other_clie
     for i in range(2):
         _answer(client, room, 'a', index=i)                       # host: both right
         _answer(other_client, room, 'b' if i == 0 else 'a', index=i)
-        client.post(f'{ROOMS}{room["id"]}/next/', {'index': i}, format='json')
+        _vote(client, room, index=i)
+        _vote(other_client, room, index=i)
 
     end = other_client.get(f'{ROOMS}{room["id"]}/').json()
     assert end['status'] == 'finished'
@@ -263,7 +347,8 @@ def test_a_tie_goes_to_the_faster(client, other_client, user, other_user, shared
     _answer(other_client, room, 'a')
     LiveAnswer.objects.filter(user=user).update(ms=9000)
     LiveAnswer.objects.filter(user=other_user).update(ms=3000)
-    client.post(f'{ROOMS}{room["id"]}/next/', {'index': 0}, format='json')
+    _vote(client, room)
+    _vote(other_client, room)
 
     end = client.get(f'{ROOMS}{room["id"]}/').json()
     assert [r['user_id'] for r in end['results']] == [other_user.id, user.id]

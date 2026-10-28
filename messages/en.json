@@ -804,9 +804,6 @@
     "gotItRight": "Right: {names}",
     "nobodyRight": "Nobody got this one.",
     "fromSource": "From {title}",
-    "talkFirst": "Talk through why the answer is right, then move on.",
-    "hostMovesOn": "{host} moves on; if not, you can in {s} s.",
-    "anyoneMovesOn": "Anyone in the room can move on now.",
     "next": "Next question",
     "seeResults": "See results",
     "resultsTitle": "Results",
@@ -814,7 +811,7 @@
     "time": "{s} s",
     "missedTitle": "{count, plural, one {# question you missed} other {# questions you missed}}",
     "noneMissed": "You got every question right.",
-    "missedNote": "These are now in the notebook's mistake review.",
+    "missedNote": "Added to the notebook's mistake review.",
     "yourAnswer": "You chose",
     "rightAnswer": "Answer",
     "players": "In the room ({count})",
@@ -834,6 +831,11 @@
     "noQuestions": "This notebook has no multiple-choice or true/false questions yet. Make a quiz first.",
     "invite": "{host} opened a live study room · {notebook}",
     "enter": "Join",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "voteLead": "Done talking it through? Vote for the next question. Everyone votes and it moves on; after 30 s, more than half is enough.",
+    "votedWaiting": "You voted. Waiting for the room; after {s} s, more than half is enough.",
+    "votedMajority": "Waiting for everyone, or for more than half of the room.",
+    "why": "Why?",
+    "blank": "no answer"
   }
 }

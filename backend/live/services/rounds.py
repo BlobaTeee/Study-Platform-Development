@@ -2,8 +2,9 @@
 
 A round is a fixed list of the notebook's questions, shown to everyone at
 once. The server's clock decides what is late; nothing runs in the
-background: when the time is up a client asks for the reveal and the clock
-is checked then. Every step that has already happened is a no-op, so two
+background: when the time is up a client asks for the reveal (or, on a
+reveal, repeats its vote once the majority rule applies) and the clock is
+checked then. Every step that has already happened is a no-op, so two
 players pressing at the same moment move the round on once.
 """
 from __future__ import annotations
@@ -18,7 +19,7 @@ from notebooks.services.membership import is_member, members_of
 from quizzes.models import Question
 from quizzes.services.paper import _answer_matches
 
-from ..models import LiveAnswer, LiveParticipant, LiveSession
+from ..models import LiveAnswer, LiveParticipant, LiveSession, LiveVote
 
 OPEN = ('lobby', 'question', 'reveal')
 # Typed answers need the AI grader; a live round must work without quota.
@@ -29,8 +30,10 @@ DEFAULT_COUNT = 10
 MAX_COUNT = 20
 # For the network: an answer sent in the last second still counts.
 GRACE = timedelta(seconds=2)
-# How long the reveal belongs to the host before anyone may move on.
-HOST_HOLDS_REVEAL = timedelta(seconds=20)
+# The room moves on when everyone has voted for the next question, or, once
+# the reveal has been up this long, when more than half have: someone who
+# walked off does not hold the others.
+MAJORITY_AFTER = timedelta(seconds=30)
 # A room nobody has touched for this long was abandoned, not paused.
 IDLE_LIMIT = timedelta(hours=2)
 
@@ -164,6 +167,7 @@ def leave(session, user) -> None:
         session.host = remaining[0].user
         session.save(update_fields=['host', 'updated_at'])
     maybe_reveal(session)
+    maybe_move_on(session)
 
 
 # ---- the round -------------------------------------------------------------------
@@ -226,17 +230,40 @@ def maybe_reveal(session, now=None) -> bool:
     return bool(updated)
 
 
-def next_question(session, user, index) -> None:
-    """On from the reveal of question `index`: the host's call, or anyone's
-    once the reveal has sat for a while. A second press is a no-op."""
+def vote_next(session, user, index) -> None:
+    """A vote to leave the reveal of question `index`. A vote for a question
+    already past, or a second vote, changes nothing."""
+    if not players(session).filter(user=user).exists():
+        raise NotAllowed('join the room first')
     if session.status != 'reveal' or index != session.index:
         return
-    if session.host_id != user.id and timezone.now() < session.revealed_at + HOST_HOLDS_REVEAL:
-        raise NotAllowed('the host moves on first')
-    if index + 1 >= len(session.question_ids):
+    LiveVote.objects.get_or_create(session=session, user=user, index=index)
+    maybe_move_on(session)
+
+
+def votes_for_next(session) -> list[int]:
+    """Who in the room has voted to move on from this reveal."""
+    in_room = players(session).values_list('user_id', flat=True)
+    return sorted(LiveVote.objects.filter(session=session, index=session.index, user_id__in=in_room)
+                  .values_list('user_id', flat=True))
+
+
+def maybe_move_on(session, now=None) -> bool:
+    """Everyone has voted; or the reveal has been up long enough and more than half have."""
+    if session.status != 'reveal':
+        return False
+    now = now or timezone.now()
+    voted = len(votes_for_next(session))
+    in_room = players(session).count()
+    everyone = in_room > 0 and voted >= in_room
+    majority = voted * 2 > in_room and now >= session.revealed_at + MAJORITY_AFTER
+    if not (everyone or majority):
+        return False
+    if session.index + 1 >= len(session.question_ids):
         _finish(session)
     else:
-        _show(session, index + 1, expect=index)
+        _show(session, session.index + 1, expect=session.index)
+    return True
 
 
 def _show(session, index, expect=None) -> None:
@@ -300,7 +327,9 @@ def public_state(session, now=None) -> dict:
         'remaining_ms': 0,
         'answered_count': len(answered_ids),
         'reveal': None,
-        'next_open_ms': 0,
+        'voters': [],
+        'next_votes': 0,
+        'majority_in_ms': 0,
         'results': results(session) if session.status == 'finished' else [],
     }
     if question:
@@ -320,7 +349,9 @@ def public_state(session, now=None) -> dict:
             'source_title': question.source.title if question.source else '',
             'source_excerpt': question.source_excerpt or '',
         }
-        state['next_open_ms'] = max(0, int((session.revealed_at + HOST_HOLDS_REVEAL - now).total_seconds() * 1000))
+        state['voters'] = votes_for_next(session)
+        state['next_votes'] = len(state['voters'])
+        state['majority_in_ms'] = max(0, int((session.revealed_at + MAJORITY_AFTER - now).total_seconds() * 1000))
     return state
 
 
