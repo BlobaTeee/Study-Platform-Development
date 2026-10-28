@@ -3,7 +3,7 @@
 import { useAuth } from '@/lib/auth-context'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { analyticsAPI } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -17,8 +17,6 @@ import {
   Menu,
   NotebookText,
   PenLine,
-  PanelLeftClose,
-  PanelLeftOpen,
   X,
   type LucideIcon,
   UserRound,
@@ -82,12 +80,10 @@ function useDueToday(): number {
 function SidebarBody({
   collapsed,
   onNavigate,
-  footerSlot,
   rail = false,
 }: {
   collapsed: boolean
   onNavigate?: () => void
-  footerSlot?: React.ReactNode
   /** In the desktop rail the open page's item is a tab joined to the page. */
   rail?: boolean
 }) {
@@ -183,7 +179,6 @@ function SidebarBody({
             <LanguageSwitch compact />
           </div>
         )}
-        {footerSlot}
         <Link
           href="/dashboard/account"
           title={collapsed ? t('account') : undefined}
@@ -218,70 +213,46 @@ function SidebarBody({
   )
 }
 
-const COLLAPSE_KEY = 'sf-sidebar-collapsed'
+// Hover intent: a pointer passing over the rail on its way somewhere does not
+// open it, and one that slips off for a moment does not shut it.
+const OPEN_DELAY_MS = 120
+const CLOSE_DELAY_MS = 200
 
-/** Persistent left rail on desktop. Collapses to an icon-only rail; state is remembered. */
+/** Persistent left rail on desktop: icons only, opening over the page while
+ *  the pointer rests on it or the keyboard is inside it. The 68px it keeps in
+ *  the layout never changes, so the page does not jump as it opens. */
 export function AppSidebar() {
-  const [collapsed, setCollapsed] = useState(false)
-  const t = useTranslations('nav')
+  const [open, setOpen] = useState(false)
+  const timer = useRef<number | null>(null)
 
-  useEffect(() => {
-    try {
-      setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === '1')
-    } catch {
-      /* private mode / no storage — fall back to expanded */
-    }
+  const later = useCallback((next: boolean, ms: number) => {
+    if (timer.current) window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => setOpen(next), ms)
   }, [])
 
-  const toggle = useCallback(() => {
-    setCollapsed((prev) => {
-      const next = !prev
-      try {
-        window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0')
-      } catch {
-        /* ignore */
-      }
-      return next
-    })
+  useEffect(() => () => {
+    if (timer.current) window.clearTimeout(timer.current)
   }, [])
 
   return (
-    <aside
-      data-collapsed={collapsed}
-      className={cn(
-        'hidden md:flex shrink-0 flex-col border-r border-slate-200 bg-[#edf1f5] p-3',
-        'transition-[width] duration-200 ease-out motion-reduce:transition-none',
-        collapsed ? 'w-[68px]' : 'w-60',
-      )}
-    >
-      <SidebarBody
-        collapsed={collapsed}
-        rail
-        footerSlot={
-          <button
-            type="button"
-            onClick={toggle}
-            title={collapsed ? t('expandSidebar') : t('collapseSidebar')}
-            aria-label={collapsed ? t('expandSidebar') : t('collapseSidebar')}
-            className={cn(
-              'flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors',
-              'text-slate-700 hover:bg-slate-200/60 hover:text-slate-900',
-              'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-slate-300',
-              collapsed && 'justify-center px-0',
-            )}
-          >
-            {collapsed ? (
-              <PanelLeftOpen className="size-[18px] shrink-0" />
-            ) : (
-              <>
-                <PanelLeftClose className="size-[18px] shrink-0" />
-                {t('collapse')}
-              </>
-            )}
-          </button>
-        }
-      />
-    </aside>
+    <div className="relative hidden w-[68px] shrink-0 md:block">
+      <aside
+        data-collapsed={!open}
+        onMouseEnter={() => later(true, OPEN_DELAY_MS)}
+        onMouseLeave={() => later(false, CLOSE_DELAY_MS)}
+        onFocus={() => later(true, 0)}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) later(false, 0)
+        }}
+        className={cn(
+          'absolute inset-y-0 left-0 z-30 flex flex-col border-r border-slate-200 bg-[#edf1f5] p-3',
+          'transition-[width,box-shadow] duration-200 ease-out motion-reduce:transition-none',
+          open ? 'w-60 shadow-[8px_0_24px_-12px_rgb(15_23_42/0.25)]' : 'w-[68px]',
+        )}
+      >
+        <SidebarBody collapsed={!open} rail />
+      </aside>
+    </div>
   )
 }
 
