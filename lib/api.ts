@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { LiveRoomSummary, LiveState } from './live'
 import { readLocaleCookie } from '@/i18n/locale'
 import { supabase } from './supabase-client'
 
@@ -192,6 +193,22 @@ export const exercisesAPI = {
   hint: (id: number, steps: string[]) => api.post<ExerciseDetail>(`/exercises/${id}/hint/`, { steps }),
   reveal: (id: number) => api.post<ExerciseDetail>(`/exercises/${id}/reveal/`),
   mistakes: () => api.get<{ notebooks: PracticeMistakes[] }>('/exercises/mistakes/'),
+}
+
+// Live rounds in a shared notebook. Every step is a call; the room hears of
+// it over the socket (live:state), and a reconnecting tab just fetches.
+export const liveAPI = {
+  open: () => api.get<{ rooms: LiveRoomSummary[] }>('/live/rooms/'),
+  create: (notebook: number, options: { question_count?: number; seconds?: number } = {}) =>
+    api.post<LiveState>('/live/rooms/', { notebook, ...options }),
+  get: (id: number) => api.get<LiveState>(`/live/rooms/${id}/`),
+  join: (id: number) => api.post<LiveState>(`/live/rooms/${id}/join/`),
+  start: (id: number) => api.post<LiveState>(`/live/rooms/${id}/start/`),
+  answer: (id: number, index: number, choice: string) =>
+    api.post<LiveState>(`/live/rooms/${id}/answer/`, { index, choice }),
+  reveal: (id: number) => api.post<LiveState>(`/live/rooms/${id}/reveal/`),
+  next: (id: number, index: number) => api.post<LiveState>(`/live/rooms/${id}/next/`, { index }),
+  leave: (id: number) => api.post<LiveState>(`/live/rooms/${id}/leave/`),
 }
 
 export const quizzesAPI = {

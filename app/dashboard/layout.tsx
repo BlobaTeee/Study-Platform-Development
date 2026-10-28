@@ -1,6 +1,7 @@
 'use client'
 
 import { ChatLauncher } from '@/components/chat-launcher'
+import { LiveInvites } from '@/components/live-invites'
 import { useAuth } from '@/lib/auth-context'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
@@ -95,6 +96,7 @@ export default function DashboardLayout({
 
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
         <MobileNavBar />
+        <LiveInvites />
 
         <main className="paper-grid min-h-0 flex-1 overflow-auto">
           <div className={cn('h-full w-full', isNotebooks ? 'p-0' : 'mx-auto max-w-5xl px-4 py-6 md:px-10 md:py-10')}>
@@ -112,7 +114,7 @@ function modeFor(pathname: string): 'library' | 'flashcards' | 'quizzes' | 'anal
   // Explaining a concept starts from forgotten cards, so it wears their colour.
   if (pathname.startsWith('/dashboard/flashcards') || pathname.startsWith('/dashboard/explain')) return 'flashcards'
   if (pathname.startsWith('/dashboard/quizzes') || pathname.startsWith('/dashboard/tests') ||
-      pathname.startsWith('/dashboard/practice')) return 'quizzes'
+      pathname.startsWith('/dashboard/practice') || pathname.startsWith('/dashboard/live')) return 'quizzes'
   if (pathname.startsWith('/dashboard/analytics')) return 'analytics'
   return 'ink'
 }

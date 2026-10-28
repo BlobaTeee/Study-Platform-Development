@@ -293,8 +293,8 @@ def _source_accuracy(user, source_ids):
 def _owed_question_ids(user, notebook) -> set[int]:
     """The notebook's questions this student has missed and not yet cleared
     (see services.mistakes for the rule). Evidence is every graded answer in
-    a quiz attempt or a submitted mock test; a mock-test row is dated by the
-    sitting, since a skipped question has no answered_at of its own.
+    a quiz attempt, a submitted mock test or a live round; a mock-test row is
+    dated by the sitting, since a skipped question has no answered_at of its own.
     """
     from .services.mistakes import owed_question_ids
     in_notebook = {'question__quiz__sources__notebook': notebook}
@@ -305,7 +305,11 @@ def _owed_question_ids(user, notebook) -> set[int]:
                    .filter(mock_test__user=user, mock_test__completed_at__isnull=False,
                            question__isnull=False, **in_notebook)
                    .values_list('question_id', 'mock_test__completed_at', 'is_correct'))
-    return owed_question_ids([*quiz_events.distinct(), *test_events.distinct()])
+    from live.models import LiveAnswer
+    live_events = (LiveAnswer.objects
+                   .filter(user=user, question__isnull=False, **in_notebook)
+                   .values_list('question_id', 'answered_at', 'is_correct'))
+    return owed_question_ids([*quiz_events.distinct(), *test_events.distinct(), *live_events.distinct()])
 
 
 class MistakeBankView(APIView):
