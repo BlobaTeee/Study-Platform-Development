@@ -50,7 +50,7 @@ function useIsActive() {
 
 /** The name as the mark: "Study" upright, "Flow" in Fraunces italic in the
  *  library blue. The icon-only rail keeps just the italic S. */
-function Wordmark({ compact = false, className }: { compact?: boolean; className?: string }) {
+function Wordmark({ compact = false, className, style }: { compact?: boolean; className?: string; style?: React.CSSProperties }) {
   if (compact) {
     return (
       <span className={cn('font-display text-2xl font-semibold italic leading-none text-mode-library-ink', className)} aria-hidden>
@@ -59,7 +59,7 @@ function Wordmark({ compact = false, className }: { compact?: boolean; className
     )
   }
   return (
-    <span className={cn('font-display text-xl font-semibold leading-tight text-slate-900', className)}>
+    <span className={cn('font-display text-xl font-semibold leading-tight text-slate-900', className)} style={style}>
       Study<span className="font-medium italic text-mode-library-ink">Flow</span>
     </span>
   )
@@ -73,17 +73,25 @@ function useDueToday(): number {
   return due.today ?? (due.due ?? 0) + (due.new ?? 0)
 }
 
-// The rail opens on a soft decelerating curve; its words arrive just after
-// the width has made room for them, and leave first when it closes.
-const EASE = 'ease-[cubic-bezier(0.32,0.72,0,1)]'
+// Opening glides out and settles (ease-out-expo); closing tucks away quickly.
+const GLIDE_OUT = 'ease-[cubic-bezier(0.16,1,0.3,1)]'
+const GLIDE_IN = 'ease-[cubic-bezier(0.5,0,0.75,0)]'
 
-/** A label that is always there, so nothing reflows: shown or faded out. */
+/** A label that is always there, so nothing reflows: it glides in from the
+ *  icon's side when the rail opens, and is gone at once when it closes. */
 function fade(hidden: boolean) {
   return cn(
     'whitespace-nowrap transition-[opacity,transform] motion-reduce:transition-none',
-    EASE,
-    hidden ? 'pointer-events-none -translate-x-1 opacity-0 duration-100' : 'translate-x-0 opacity-100 delay-75 duration-200',
+    hidden
+      ? cn('pointer-events-none -translate-x-3 opacity-0 duration-100', GLIDE_IN)
+      : cn('translate-x-0 opacity-100 duration-500', GLIDE_OUT),
   )
+}
+
+/** Each row a beat after the one above, so the words arrive as a wave down
+ *  the rail rather than all at once. Leaving has no wave. */
+function stagger(hidden: boolean, row: number): React.CSSProperties {
+  return { transitionDelay: hidden ? '0ms' : `${70 + row * 28}ms` }
 }
 
 /**
@@ -129,18 +137,19 @@ function SidebarBody({
         {/* The italic S on the rail becomes the whole name as it opens. */}
         <span
           className={cn(
-            'absolute left-2 grid w-7 place-items-center transition-[opacity,transform] duration-200 motion-reduce:transition-none',
-            EASE,
-            collapsed ? 'scale-100 opacity-100' : 'scale-90 opacity-0',
+            'absolute left-2 grid w-7 place-items-center transition-[opacity,transform] motion-reduce:transition-none',
+            GLIDE_OUT,
+            // Back only once the name has faded, so the two never overlap.
+            collapsed ? 'scale-100 opacity-100 delay-150 duration-300' : 'scale-75 opacity-0 duration-100',
           )}
         >
           <Wordmark compact />
         </span>
-        <Wordmark className={cn('pl-1', fade(collapsed))} />
+        <Wordmark className={cn('inline-block pl-1', fade(collapsed))} style={stagger(collapsed, 0)} />
       </Link>
 
       <nav className="mt-4 flex-1 space-y-1">
-        {navItems.map((item) => {
+        {navItems.map((item, row) => {
           const active = isActive(item.href)
           const Icon = item.icon
           const due = item.label === 'home' && dueToday > 0 ? dueToday : 0
@@ -173,7 +182,7 @@ function SidebarBody({
               >
                 <Icon className="size-[18px]" strokeWidth={active ? 2.25 : 2} aria-hidden />
               </span>
-              <span className={cn('min-w-0 flex-1 truncate', fade(collapsed))}>{t(item.label)}</span>
+              <span className={cn('min-w-0 flex-1 truncate', fade(collapsed))} style={stagger(collapsed, row + 1)}>{t(item.label)}</span>
               {due > 0 && (
                 <>
                   {/* On the rail the count sits on the icon's corner; open, it moves to the end of the row. */}
@@ -181,13 +190,13 @@ function SidebarBody({
                     aria-hidden
                     className={cn(
                       'absolute left-[26px] top-0.5 rounded-[5px] bg-amber-100 px-1 font-mono text-[10px] font-medium tabular-nums text-amber-900',
-                      'transition-opacity duration-150 motion-reduce:transition-none',
-                      collapsed ? 'opacity-100' : 'opacity-0',
+                      'transition-opacity motion-reduce:transition-none',
+                      collapsed ? 'opacity-100 delay-150 duration-200' : 'opacity-0 duration-100',
                     )}
                   >
                     {count}
                   </span>
-                  <span className={cn('rounded-[5px] bg-amber-100 px-1.5 font-mono text-xs font-medium tabular-nums text-amber-900', fade(collapsed))}>
+                  <span className={cn('rounded-[5px] bg-amber-100 px-1.5 font-mono text-xs font-medium tabular-nums text-amber-900', fade(collapsed))} style={stagger(collapsed, row + 2)}>
                     {count}
                     <span className="sr-only"> {t('dueToday', { count: due })}</span>
                   </span>
@@ -206,11 +215,11 @@ function SidebarBody({
         <div className="relative h-11">
           <div
             inert={!collapsed}
-            className={cn('absolute left-0 top-0 transition-opacity duration-150 motion-reduce:transition-none', collapsed ? 'opacity-100' : 'opacity-0')}
+            className={cn('absolute left-0 top-0 transition-opacity motion-reduce:transition-none', collapsed ? 'opacity-100 delay-150 duration-200' : 'opacity-0 duration-100')}
           >
             <LanguageSwitch variant="toggle" />
           </div>
-          <div inert={collapsed} className={cn('absolute left-1 top-1.5', fade(collapsed))}>
+          <div inert={collapsed} className={cn('absolute left-1 top-1.5', fade(collapsed))} style={stagger(collapsed, 2)}>
             <LanguageSwitch compact />
           </div>
         </div>
@@ -228,7 +237,7 @@ function SidebarBody({
           <span className="grid size-7 shrink-0 place-items-center">
             <UserRound className="size-[18px]" aria-hidden />
           </span>
-          <span className={cn('truncate', fade(collapsed))}>{user?.username ?? t('account')}</span>
+          <span className={cn('truncate', fade(collapsed))} style={stagger(collapsed, 3)}>{user?.username ?? t('account')}</span>
         </Link>
         <button
           type="button"
@@ -243,7 +252,7 @@ function SidebarBody({
           <span className="grid size-7 shrink-0 place-items-center">
             <LogOut className="size-[18px]" aria-hidden />
           </span>
-          <span className={fade(collapsed)}>{t('signOut')}</span>
+          <span className={fade(collapsed)} style={stagger(collapsed, 4)}>{t('signOut')}</span>
         </button>
       </div>
     </div>
@@ -257,7 +266,15 @@ const CLOSE_DELAY_MS = 200
 
 /** Persistent left rail on desktop: icons only, opening over the page while
  *  the pointer rests on it or the keyboard is inside it. The 68px it keeps in
- *  the layout never changes, so the page does not jump as it opens. */
+ *  the layout never changes, so the page does not jump as it opens.
+ *
+ *  Nothing changes width. The 240px panel is uncovered by clips that grow
+ *  from the rail's edge: one for the content, one for the paper under it,
+ *  run on the same clock and curve so they cannot drift apart. Closed, the
+ *  content's clip stops 13px past the rail, so the open page's bookmark tab
+ *  still crosses into the page, while the paper stops at the rail's border.
+ *  A clip also keeps the hidden part from catching the pointer. The shadow
+ *  sits on a wrapper, so it follows the paper's clipped edge. */
 export function AppSidebar() {
   const [open, setOpen] = useState(false)
   const timer = useRef<number | null>(null)
@@ -271,27 +288,46 @@ export function AppSidebar() {
     if (timer.current) window.clearTimeout(timer.current)
   }, [])
 
+  const motion = cn('motion-reduce:transition-none', open ? cn('duration-500', GLIDE_OUT) : cn('duration-300', GLIDE_IN))
+
   return (
-    <div className="relative hidden w-[68px] shrink-0 md:block">
-      <aside
-        data-collapsed={!open}
-        onMouseEnter={() => later(true, OPEN_DELAY_MS)}
-        onMouseLeave={() => later(false, CLOSE_DELAY_MS)}
-        onFocus={() => later(true, 0)}
-        onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) later(false, 0)
-        }}
+    <aside
+      data-collapsed={!open}
+      onMouseEnter={() => later(true, OPEN_DELAY_MS)}
+      onMouseLeave={() => later(false, CLOSE_DELAY_MS)}
+      onFocus={() => later(true, 0)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) later(false, 0)
+      }}
+      className="relative z-30 hidden w-[68px] shrink-0 border-r border-slate-200 bg-[#edf1f5] md:block"
+    >
+      {/* The paper, and its shadow on a wrapper so the shadow follows the clipped edge. */}
+      <div
+        aria-hidden
         className={cn(
-          'absolute inset-y-0 left-0 z-30 flex flex-col border-r border-slate-200 bg-[#edf1f5] p-3',
-          'transition-[width,box-shadow] motion-reduce:transition-none',
-          EASE,
-          // Opens unhurried, closes quicker: leaving should never feel like waiting.
-          open ? 'w-60 shadow-[12px_0_32px_-16px_rgb(15_23_42/0.28)] duration-300' : 'w-[68px] shadow-none duration-200',
+          'pointer-events-none absolute inset-y-0 left-0 w-60 transition-[filter]',
+          motion,
+          open ? '[filter:drop-shadow(10px_0_18px_rgb(15_23_42/0.16))]' : '[filter:drop-shadow(0_0_0_rgb(15_23_42/0))]',
+        )}
+      >
+        <div
+          className={cn(
+            'absolute inset-0 border-r border-slate-200 bg-[#edf1f5] transition-[clip-path]',
+            motion,
+            open ? '[clip-path:inset(0_0_0_0)]' : '[clip-path:inset(0_173px_0_0)]',
+          )}
+        />
+      </div>
+      <div
+        className={cn(
+          'absolute inset-y-0 left-0 flex w-60 flex-col p-3 transition-[clip-path]',
+          motion,
+          open ? '[clip-path:inset(0_0_0_0)]' : '[clip-path:inset(0_159px_0_0)]',
         )}
       >
         <SidebarBody collapsed={!open} rail />
-      </aside>
-    </div>
+      </div>
+    </aside>
   )
 }
 
