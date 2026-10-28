@@ -16,6 +16,12 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-ew7^ibbhoh@ieel_%0c0(
 DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
 
+# Said out loud so nobody changes it by accident: the newer apps' tables use
+# 32-bit keys. The older apps (analytics, flashcards, materials, quizzes,
+# users) were made with 64-bit keys and say so in their AppConfig. Changing
+# this line would ask for migrations that rewrite primary keys.
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
