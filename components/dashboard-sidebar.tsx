@@ -73,9 +73,24 @@ function useDueToday(): number {
   return due.today ?? (due.due ?? 0) + (due.new ?? 0)
 }
 
+// The rail opens on a soft decelerating curve; its words arrive just after
+// the width has made room for them, and leave first when it closes.
+const EASE = 'ease-[cubic-bezier(0.32,0.72,0,1)]'
+
+/** A label that is always there, so nothing reflows: shown or faded out. */
+function fade(hidden: boolean) {
+  return cn(
+    'whitespace-nowrap transition-[opacity,transform] motion-reduce:transition-none',
+    EASE,
+    hidden ? 'pointer-events-none -translate-x-1 opacity-0 duration-100' : 'translate-x-0 opacity-100 delay-75 duration-200',
+  )
+}
+
 /**
  * The nav body shared by the desktop rail and the mobile drawer.
- * `collapsed` renders an icon-only rail; the mobile drawer is always expanded.
+ * `collapsed` shows the icon-only rail. Every icon keeps its place in both
+ * states (its centre sits on the rail's middle), so opening only adds words
+ * beside the icons; nothing jumps. The mobile drawer is always expanded.
  */
 function SidebarBody({
   collapsed,
@@ -106,13 +121,22 @@ function SidebarBody({
         onClick={onNavigate}
         aria-label="StudyFlow"
         className={cn(
-          'flex h-11 items-center rounded-lg px-3 transition-colors hover:bg-slate-200/50',
+          'relative flex h-11 items-center overflow-hidden rounded-lg px-2 transition-colors hover:bg-slate-200/50',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-mode-library/40',
-          collapsed && 'justify-center px-0',
         )}
         title={collapsed ? 'StudyFlow' : undefined}
       >
-        <Wordmark compact={collapsed} />
+        {/* The italic S on the rail becomes the whole name as it opens. */}
+        <span
+          className={cn(
+            'absolute left-2 grid w-7 place-items-center transition-[opacity,transform] duration-200 motion-reduce:transition-none',
+            EASE,
+            collapsed ? 'scale-100 opacity-100' : 'scale-90 opacity-0',
+          )}
+        >
+          <Wordmark compact />
+        </span>
+        <Wordmark className={cn('pl-1', fade(collapsed))} />
       </Link>
 
       <nav className="mt-4 flex-1 space-y-1">
@@ -120,6 +144,7 @@ function SidebarBody({
           const active = isActive(item.href)
           const Icon = item.icon
           const due = item.label === 'home' && dueToday > 0 ? dueToday : 0
+          const count = due > 99 ? '99+' : due
           return (
             <Link
               key={item.href}
@@ -128,7 +153,7 @@ function SidebarBody({
               title={collapsed ? t(item.label) : undefined}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'relative flex h-11 items-center gap-3 px-3 text-[15px] transition-[background-color,color,box-shadow] duration-200 ease-out motion-reduce:transition-none',
+                'relative flex h-11 items-center gap-3 overflow-hidden px-2 text-[15px] transition-[background-color,color,box-shadow] duration-200 ease-out motion-reduce:transition-none',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-mode-library/40',
                 active
                   ? cn('font-semibold', item.ink,
@@ -138,7 +163,6 @@ function SidebarBody({
                         ? 'z-10 -mr-[13px] rounded-l-lg bg-[#f8fafc] shadow-[0_1px_2px_rgb(15_23_42/0.06),-2px_2px_8px_-2px_rgb(15_23_42/0.10)]'
                         : 'rounded-lg bg-slate-100')
                   : 'rounded-lg font-medium text-slate-700 hover:bg-slate-200/60 hover:text-slate-900',
-                collapsed && 'justify-center px-0',
               )}
             >
               <span
@@ -149,17 +173,25 @@ function SidebarBody({
               >
                 <Icon className="size-[18px]" strokeWidth={active ? 2.25 : 2} aria-hidden />
               </span>
-              {!collapsed && <span className="truncate">{t(item.label)}</span>}
+              <span className={cn('min-w-0 flex-1 truncate', fade(collapsed))}>{t(item.label)}</span>
               {due > 0 && (
-                <span
-                  className={cn(
-                    'rounded-[5px] bg-amber-100 px-1.5 font-mono text-xs font-medium tabular-nums text-amber-900',
-                    collapsed ? 'absolute right-1 top-0.5 px-1 text-[10px]' : 'ml-auto',
-                  )}
-                >
-                  {due > 99 ? '99+' : due}
-                  <span className="sr-only"> {t('dueToday', { count: due })}</span>
-                </span>
+                <>
+                  {/* On the rail the count sits on the icon's corner; open, it moves to the end of the row. */}
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'absolute left-[26px] top-0.5 rounded-[5px] bg-amber-100 px-1 font-mono text-[10px] font-medium tabular-nums text-amber-900',
+                      'transition-opacity duration-150 motion-reduce:transition-none',
+                      collapsed ? 'opacity-100' : 'opacity-0',
+                    )}
+                  >
+                    {count}
+                  </span>
+                  <span className={cn('rounded-[5px] bg-amber-100 px-1.5 font-mono text-xs font-medium tabular-nums text-amber-900', fade(collapsed))}>
+                    {count}
+                    <span className="sr-only"> {t('dueToday', { count: due })}</span>
+                  </span>
+                </>
               )}
             </Link>
           )
@@ -169,44 +201,49 @@ function SidebarBody({
       <div className="space-y-1 pt-4">
         {/* Two segments when there is room; on the icon-only rail, one square
             button showing the current code that switches on press — a reader
-            who keeps the rail collapsed must still be able to find this. */}
-        {collapsed ? (
-          <div className="flex justify-center pb-1">
+            who keeps the rail collapsed must still be able to find this. The
+            one not in use is inert, so Tab never lands on something unseen. */}
+        <div className="relative h-11">
+          <div
+            inert={!collapsed}
+            className={cn('absolute left-0 top-0 transition-opacity duration-150 motion-reduce:transition-none', collapsed ? 'opacity-100' : 'opacity-0')}
+          >
             <LanguageSwitch variant="toggle" />
           </div>
-        ) : (
-          <div className="px-3 pb-2">
+          <div inert={collapsed} className={cn('absolute left-1 top-1.5', fade(collapsed))}>
             <LanguageSwitch compact />
           </div>
-        )}
+        </div>
         <Link
           href="/dashboard/account"
           title={collapsed ? t('account') : undefined}
           className={cn(
-            'flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors',
+            'flex h-10 w-full items-center gap-3 overflow-hidden rounded-lg px-2 text-[15px] font-medium transition-colors',
             isActive('/dashboard/account')
               ? 'bg-slate-100 text-slate-900'
               : 'text-slate-700 hover:bg-slate-200/60 hover:text-slate-900',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400/40',
-            collapsed && 'justify-center px-0',
           )}
         >
-          <UserRound className="size-[18px] shrink-0" />
-          {!collapsed && <span className="truncate">{user?.username ?? t('account')}</span>}
+          <span className="grid size-7 shrink-0 place-items-center">
+            <UserRound className="size-[18px]" aria-hidden />
+          </span>
+          <span className={cn('truncate', fade(collapsed))}>{user?.username ?? t('account')}</span>
         </Link>
         <button
           type="button"
           onClick={handleLogout}
           title={collapsed ? t('signOut') : undefined}
           className={cn(
-            'flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors',
+            'flex h-10 w-full items-center gap-3 overflow-hidden rounded-lg px-2 text-[15px] font-medium transition-colors',
             'text-slate-700 hover:bg-red-50 hover:text-mode-danger',
             'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-red-500/25',
-            collapsed && 'justify-center px-0',
           )}
         >
-          <LogOut className="size-[18px] shrink-0" />
-          {!collapsed && t('signOut')}
+          <span className="grid size-7 shrink-0 place-items-center">
+            <LogOut className="size-[18px]" aria-hidden />
+          </span>
+          <span className={fade(collapsed)}>{t('signOut')}</span>
         </button>
       </div>
     </div>
@@ -246,8 +283,10 @@ export function AppSidebar() {
         }}
         className={cn(
           'absolute inset-y-0 left-0 z-30 flex flex-col border-r border-slate-200 bg-[#edf1f5] p-3',
-          'transition-[width,box-shadow] duration-200 ease-out motion-reduce:transition-none',
-          open ? 'w-60 shadow-[8px_0_24px_-12px_rgb(15_23_42/0.25)]' : 'w-[68px]',
+          'transition-[width,box-shadow] motion-reduce:transition-none',
+          EASE,
+          // Opens unhurried, closes quicker: leaving should never feel like waiting.
+          open ? 'w-60 shadow-[12px_0_32px_-16px_rgb(15_23_42/0.28)] duration-300' : 'w-[68px] shadow-none duration-200',
         )}
       >
         <SidebarBody collapsed={!open} rail />
