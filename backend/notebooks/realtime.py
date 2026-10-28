@@ -1,4 +1,4 @@
-"""The Socket.IO server: the notebook chat, delivered as it happens.
+"""The Socket.IO server: the chat and live rounds, delivered as they happen.
 
 Runs inside the same ASGI process as Django (see studyplatform/asgi.py), so
 it shares the database, the Supabase token check and the membership rules
@@ -55,6 +55,31 @@ async def typing(sid, data):
         return
     await sio.emit('typing', {'group': notebook_id, 'name': session.get('name')},
                    room=room, skip_sid=sid)
+
+
+@sio.on('live:join')
+async def live_join(sid, data):
+    """Watch a live round. Only a member of its notebook is let in; the
+    round's state itself still comes from REST, this only delivers changes."""
+    session = await sio.get_session(sid)
+    room_id = (data or {}).get('room')
+    if not session or not room_id or not await _may_watch(session['user_id'], room_id):
+        return {'ok': False}
+    await sio.enter_room(sid, f'live-{room_id}')
+    return {'ok': True}
+
+
+@sio.on('live:leave')
+async def live_leave(sid, data):
+    room_id = (data or {}).get('room')
+    if room_id:
+        await sio.leave_room(sid, f'live-{room_id}')
+
+
+@sync_to_async
+def _may_watch(user_id, room_id):
+    from live.services.rounds import may_watch
+    return may_watch(user_id, room_id)
 
 
 @sync_to_async

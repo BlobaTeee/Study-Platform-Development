@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'notebooks',
     'study_sessions',
     'exercises',
+    'live',
 ]
 
 MIDDLEWARE = [

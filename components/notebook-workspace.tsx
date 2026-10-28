@@ -20,6 +20,7 @@ import { useConfirm } from '@/components/confirm-dialog'
 import { KeyPoints } from '@/components/key-points'
 import { StudyDesk } from '@/components/study-desk'
 import { NotebookMembers } from '@/components/notebook-members'
+import { LiveStart } from '@/components/live-start'
 import { KnowledgeMap } from '@/components/knowledge-map'
 import {
   AlertCircle,
@@ -34,6 +35,7 @@ import {
   Network,
   Pencil,
   Plus,
+  Radio,
   Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -149,7 +151,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const [renaming, setRenaming] = useState(false)
   const [exporting, setExporting] = useState<'flashcards' | 'questions' | null>(null)
   // Who is in this notebook; the chat itself lives in the corner launcher.
-  const [panel, setPanel] = useState<'members' | null>(null)
+  const [panel, setPanel] = useState<'members' | 'live' | null>(null)
   // Set when generation silently degraded to the extractive fallback, so a
   // lower-quality result is never mistaken for the real generator's output.
   const [warning, setWarning] = useState('')
@@ -572,6 +574,17 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
         </div>
         {/* Your data, as a file: opens in Excel, imports into Anki. */}
         <div className="flex basis-full flex-wrap items-center gap-1 text-sm text-slate-600 sm:basis-auto sm:flex-nowrap">
+          {/* Studying together, now: a round everyone in the notebook answers at once. */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-pressed={panel === 'live'}
+            onClick={() => setPanel((p) => (p === 'live' ? null : 'live'))}
+          >
+            <Radio aria-hidden />
+            {t('liveStudy')}
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -596,6 +609,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
       {panel === 'members' && (
         <NotebookMembers notebookId={notebook.id} onClose={() => setPanel(null)} />
+      )}
+      {panel === 'live' && (
+        <LiveStart notebookId={notebook.id} memberCount={notebook.member_count ?? 1} onClose={() => setPanel(null)} />
       )}
 
       {error && (
