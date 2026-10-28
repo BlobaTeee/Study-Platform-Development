@@ -78,7 +78,7 @@ class RoomView(APIView):
 
 
 class RoomActionView(APIView):
-    """POST join / start / answer {index, choice} / reveal / next {index} / leave."""
+    """POST join / start / answer {index, choice} / reveal / next {index} (a vote) / leave."""
     permission_classes = [IsAuthenticated]
     action = ''
 
@@ -95,7 +95,7 @@ class RoomActionView(APIView):
             elif self.action == 'reveal':
                 rounds.maybe_reveal(session)
             elif self.action == 'next':
-                rounds.next_question(session, request.user, _int(request.data.get('index')))
+                rounds.vote_next(session, request.user, _int(request.data.get('index')))
             elif self.action == 'leave':
                 rounds.leave(session, request.user)
         except (rounds.NotAllowed, rounds.Conflict, rounds.Invalid) as exc:

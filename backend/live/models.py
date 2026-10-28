@@ -50,3 +50,14 @@ class LiveAnswer(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['session', 'user', 'index'], name='one_answer_per_live_question')]
+
+
+class LiveVote(models.Model):
+    """One player's "next question" on the reveal of question `index`."""
+    session = models.ForeignKey(LiveSession, on_delete=models.CASCADE, related_name='votes')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='live_votes')
+    index = models.PositiveSmallIntegerField()
+    voted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['session', 'user', 'index'], name='one_vote_per_live_reveal')]

@@ -804,9 +804,6 @@
     "gotItRight": "Trả lời đúng: {names}",
     "nobodyRight": "Chưa ai trả lời đúng câu này.",
     "fromSource": "Trong tài liệu {title}",
-    "talkFirst": "Cùng nhau xem vì sao đáp án đúng, rồi chuyển câu.",
-    "hostMovesOn": "{host} sẽ chuyển câu. Nếu chưa, bạn chuyển được sau {s} giây.",
-    "anyoneMovesOn": "Ai trong phòng cũng chuyển câu được.",
     "next": "Câu tiếp",
     "seeResults": "Xem kết quả",
     "resultsTitle": "Kết quả",
@@ -814,7 +811,7 @@
     "time": "{s} giây",
     "missedTitle": "{count, plural, other {# câu bạn làm chưa đúng}}",
     "noneMissed": "Bạn trả lời đúng tất cả.",
-    "missedNote": "Những câu này đã được thêm vào mục Ôn lỗi sai của notebook.",
+    "missedNote": "Đã thêm vào Ôn lỗi sai của notebook.",
     "yourAnswer": "Bạn chọn",
     "rightAnswer": "Đáp án",
     "players": "{count, plural, other {Trong phòng (#)}}",
@@ -834,6 +831,11 @@
     "noQuestions": "Notebook này chưa có câu trắc nghiệm hay đúng/sai nào. Hãy tạo quiz trước.",
     "invite": "{host} đang mở phòng học trực tiếp · {notebook}",
     "enter": "Vào phòng",
-    "dismiss": "Ẩn thông báo"
+    "dismiss": "Ẩn thông báo",
+    "voteLead": "Bàn xong thì bấm Câu tiếp. Cả phòng bấm là chuyển; sau 30 giây, quá nửa là đủ.",
+    "votedWaiting": "Bạn đã chọn. Chờ cả phòng; sau {s} giây, quá nửa là đủ.",
+    "votedMajority": "Chờ cả phòng, hoặc quá nửa phòng là chuyển.",
+    "why": "Vì sao?",
+    "blank": "bỏ trống"
   }
 }

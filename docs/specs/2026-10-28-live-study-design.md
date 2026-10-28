@@ -29,11 +29,17 @@ many picked each option, not only who was fastest.
 2. **Lobby.** Who has joined. Only the host can start.
 3. **Question.** The question and its options, a countdown, and how many have
    answered. One answer each, no changing it. A late answer is refused.
-4. **Reveal**, when everyone has answered or the time is up: the right option,
-   how many picked each option, who got it right, the explanation, and the
-   passage it came from. Waits for the host to go on; if the host has not
-   pressed "next" 20 seconds after the reveal, anyone can, so a host who
-   walked off does not strand the room.
+4. **Reveal**, when everyone has answered or the time is up. It shows the
+   right option, how many picked each option, who got it right, the
+   explanation, and the passage it came from.
+   - The room moves on by vote. Each player presses "Câu tiếp" and the
+     button shows the count (1/3, 2/3…). When everyone has voted, the next
+     question comes.
+   - Once the reveal has been up 30 seconds, more than half of the room is
+     enough, so someone who walked off does not hold the others. Half is not
+     more than half: in a room of two, both must vote.
+   - Changed on 2026-10-29 at the user's request. Before, the host moved on,
+     or anyone could after 20 s.
 5. **End.** Scores (one point per right answer; ties go to less total time),
    and for each player the questions they missed.
 
@@ -45,7 +51,7 @@ many picked each option, not only who was fastest.
 | Questions | Multiple choice and true/false from the notebook's published quizzes | Typed answers need the AI grader, which needs quota. |
 | Which questions | The group's misses first: questions any member still owes (mistake bank), then random | The point of studying together is to fix what the group gets wrong. |
 | Scoring | 1 per right answer, tie broken by time | A speed bonus rewards guessing, which is the opposite of the lesson. |
-| Who moves on | The host; anyone after 20 s on a reveal | Time to discuss, without a stuck room. |
+| Who moves on | A vote: everyone, or more than half after 30 s | The group decides when the discussion is done, and an absent player cannot stall it. |
 | Mistakes | Live answers count as evidence in the mistake bank | A miss in a group round is as real as one in a quiz. |
 | Who can join | Members of the notebook only | Same rule as everything else in a shared notebook. |
 
@@ -60,6 +66,7 @@ App `live`, three tables:
 - `LiveParticipant`: session, user, joined at.
 - `LiveAnswer`: session, user, question, index, the choice, right or not,
   milliseconds taken. Unique per (session, user, index).
+- `LiveVote`: session, user, index — one "next question" vote per reveal.
 
 Rules live in `live/services/rounds.py`. Views are thin REST calls: create or
 join, start, answer, reveal, next, leave, get state. The clock is the
@@ -93,7 +100,7 @@ of the same tables.
   - late answers are refused;
   - the reveal comes early once everyone has answered, and not before the
     deadline otherwise;
-  - next is for the host, or anyone 20 s after the reveal;
+  - the room moves on when everyone votes, or more than half after 30 s, and a vote counts once;
   - the correct answer is hidden before the reveal;
   - the scores and tie-break;
   - live misses enter the mistake bank.

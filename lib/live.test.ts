@@ -1,13 +1,13 @@
 // Run with: pnpm test  (node --test; Node strips the types itself)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { applyBroadcast, optionShares, secondsLeft, type LiveState } from './live.ts'
+import { applyBroadcast, moreThanHalf, optionShares, secondsLeft, type LiveState } from './live.ts'
 
 const base = (over: Partial<LiveState> = {}): LiveState => ({
   id: 1, notebook: { id: 2, title: 'Bio' }, host: { user_id: 7, name: 'Lan' },
   status: 'question', index: 0, total: 5, seconds: 20,
   players: [], question: { id: 3, text: 'Q?', type: 'multiple_choice', options: ['a', 'b'] },
-  remaining_ms: 20000, answered_count: 0, reveal: null, next_open_ms: 0, results: [],
+  remaining_ms: 20000, answered_count: 0, reveal: null, voters: [], next_votes: 0, majority_in_ms: 0, results: [],
   you: { user_id: 9, is_host: false, joined: true, answer: 'a', missed: [] },
   ...over,
 })
@@ -50,4 +50,11 @@ test('a broadcast of the reveal keeps my answer to show against the right one', 
 test('a broadcast that hands me the room makes me the host', () => {
   const { you: _drop, ...shared } = base({ host: { user_id: 9, name: 'Me' } })
   assert.equal(applyBroadcast(base(), shared).you.is_host, true)
+})
+
+test('more than half means more than half, not half', () => {
+  assert.equal(moreThanHalf(2, 3), true)
+  assert.equal(moreThanHalf(1, 2), false)
+  assert.equal(moreThanHalf(2, 4), false)
+  assert.equal(moreThanHalf(0, 0), false)
 })
