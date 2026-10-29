@@ -94,6 +94,7 @@ def test_the_reader_is_told_what_not_to_copy(client, reader):
     assert 'variation table' in prompt and 'arrow' in prompt
     assert 'exactly as printed' in prompt          # n_2 stays n_2
     assert 'restart' in prompt                     # Part II's question 1 is not Part I's
+    assert 'same language as the problem' in prompt  # a Vietnamese problem gets Vietnamese [notes]
 
 
 def test_the_type_is_read_from_the_bytes_not_the_name(client, reader):
