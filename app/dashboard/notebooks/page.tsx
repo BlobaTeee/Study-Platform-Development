@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { loadFailure } from '@/lib/load-error'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -62,6 +63,7 @@ export default function NotebooksListPage() {
   // A failed fetch (backend down / network) must NOT look like an empty list —
   // otherwise a stopped server appears as "your notebooks vanished".
   const unreachable = !!loadError && !data
+  const failure = unreachable ? loadFailure(loadError) : null
   // Files dropped here are placed in the notebook for their subject; only the
   // student's own notebooks can receive one.
   const upload = useAutoUpload({
@@ -191,8 +193,17 @@ export default function NotebooksListPage() {
         </ul>
       ) : unreachable ? (
         <div className="sheet flex flex-col items-start gap-4 border-amber-200 p-8">
-          <p className="text-lg font-semibold text-slate-900">{t('unreachableTitle')}</p>
-          <p className="max-w-[55ch] text-slate-600">{t('unreachableBody')}</p>
+          {/* Say what actually failed: a stopped backend, a server error, or something else, with its code. */}
+          <p className="text-lg font-semibold text-slate-900">
+            {failure?.kind === 'server' ? t('serverErrorTitle') : failure?.kind === 'other' ? t('loadFailedTitle') : t('unreachableTitle')}
+          </p>
+          <p className="max-w-[55ch] text-slate-600">
+            {failure?.kind === 'server'
+              ? t('serverErrorBody', { status: failure.status })
+              : failure?.kind === 'other'
+                ? failure.status ? t('loadFailedBody', { status: failure.status }) : t('loadFailedNoStatus')
+                : t('unreachableBody')}
+          </p>
           <Button onClick={() => mutate(['/notebooks/'])} variant="outline">
             {t('retry')}
           </Button>

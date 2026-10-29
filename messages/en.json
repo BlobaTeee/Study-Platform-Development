@@ -316,7 +316,12 @@
     "readIdeasFailed": "The main ideas could not be read. Try again in a few minutes.",
     "moreIdeas": "Show {count} more",
     "fewerIdeas": "Show fewer",
-    "liveStudy": "Live study"
+    "liveStudy": "Live study",
+    "serverErrorTitle": "The server ran into an error",
+    "serverErrorBody": "Your notebooks are safe. The server answered with error {status}; try again in a few minutes, and check the backend log if it keeps happening.",
+    "loadFailedTitle": "Your notebooks did not load",
+    "loadFailedBody": "Your notebooks are safe. The server refused the request (code {status}). Try again, or sign out and back in.",
+    "loadFailedNoStatus": "Your notebooks are safe. The page hit an error reading them; reload and try again."
   },
   "flashcards": {
     "title": "Flashcards",

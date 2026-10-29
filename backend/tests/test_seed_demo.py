@@ -108,3 +108,27 @@ def test_the_wrong_answers_carry_a_real_mix_up(user, no_ai):
                if ('acid' in r.correct_answer.lower() and 'base' in r.user_answer.lower())
                or ('base' in r.correct_answer.lower() and 'acid' in r.user_answer.lower())]
     assert len({r.question_text for r in swapped}) >= 2
+
+
+def test_the_explanation_is_the_sentence_that_gives_the_answer():
+    """Not the passage's first sentence, which is often about something else."""
+    from notebooks.management.commands.seed_demo import _explanation
+    support = ('The warm-air vent is placed near the floor of the room. Warm air rises because '
+               'it has lower density than the cold air around it.')
+    assert _explanation(support, 'What property of warm air causes it to rise above cold air?',
+                        'lower density') == ('Warm air rises because it has lower density than the cold air '
+                                             'around it.')
+
+
+def test_the_explanation_prefers_the_sentence_that_also_matches_the_question():
+    from notebooks.management.commands.seed_demo import _explanation
+    support = ('Voltage appears in both equations shown above. The second equation is equivalent to the first. '
+               'Voltage is not the same as energy; it is the energy per unit charge.')
+    assert _explanation(support, 'What term is not the same as energy, but means the energy per unit charge?',
+                        'voltage').startswith('Voltage is not the same as energy')
+
+
+def test_no_explanation_beats_a_wrong_one():
+    from notebooks.management.commands.seed_demo import _explanation
+    assert _explanation('The second equation is equivalent to the first.',
+                        'What keeps the moon orbiting earth?', 'gravity') == ''
