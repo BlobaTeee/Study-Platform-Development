@@ -316,7 +316,12 @@
     "readIdeasFailed": "Chưa rút được ý chính. Thử lại sau vài phút.",
     "moreIdeas": "Xem thêm {count} ý",
     "fewerIdeas": "Thu gọn",
-    "liveStudy": "Học trực tiếp"
+    "liveStudy": "Học trực tiếp",
+    "serverErrorTitle": "Máy chủ đang gặp lỗi",
+    "serverErrorBody": "Sổ tay của bạn vẫn an toàn. Máy chủ trả về lỗi {status}; thử lại sau ít phút, nếu vẫn lỗi thì xem log của backend.",
+    "loadFailedTitle": "Chưa tải được sổ tay",
+    "loadFailedBody": "Sổ tay của bạn vẫn an toàn. Máy chủ từ chối yêu cầu (mã {status}). Thử lại, hoặc đăng xuất rồi đăng nhập lại.",
+    "loadFailedNoStatus": "Sổ tay của bạn vẫn an toàn. Trang gặp lỗi khi đọc dữ liệu; tải lại trang rồi thử lại."
   },
   "flashcards": {
     "title": "Thẻ",
