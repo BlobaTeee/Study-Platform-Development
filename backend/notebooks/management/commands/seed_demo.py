@@ -138,7 +138,7 @@ def _build_content(user, rows, rng) -> list[dict]:
                         question, kind = checked_cloze(blanked, answer), 'cloze'
                 card = Flashcard.objects.create(
                     user=user, notebook=notebook, question=question, answer=answer[:1].upper() + answer[1:],
-                    explanation=(_sentences(r['support']) or [''])[0][:300], kind=kind, is_public=False)
+                    explanation=_explanation(r['support'], r['question'], answer), kind=kind, is_public=False)
                 card.sources.set([source])
                 cards.append(card)
 
@@ -151,7 +151,7 @@ def _build_content(user, rows, rng) -> list[dict]:
                 rng.shuffle(options)
                 questions.append(Question.objects.create(
                     quiz=quiz, question_text=r['question'], question_type='multiple_choice', options=options,
-                    correct_answer=r['correct_answer'], explanation=(_sentences(r['support']) or [''])[0][:300],
+                    correct_answer=r['correct_answer'], explanation=_explanation(r['support'], r['question'], r['correct_answer']),
                     order=order, source=source, source_excerpt=r['support'][:2000]))
             documents.append({'notebook': notebook, 'title': doc_title, 'cards': cards, 'questions': questions,
                               'weak': doc_title == WEAK_DOCUMENT, 'confusion': CONFUSIONS.get(doc_title),
@@ -178,6 +178,36 @@ def _opposite(question, confusion) -> str | None:
 
 def _sentences(text: str) -> list[str]:
     return [s.strip() for s in re.split(r'(?<=[.!?])\s+', text or '') if len(s.strip()) > 20]
+
+
+_STOPWORDS = {'what', 'which', 'when', 'where', 'does', 'that', 'this', 'with', 'from', 'into', 'than',
+              'their', 'there', 'they', 'have', 'been', 'will', 'would', 'about', 'called', 'kind', 'type'}
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in re.findall(r'[a-z]+', text.lower()) if len(w) > 3 and w not in _STOPWORDS}
+
+
+def _explanation(support: str, question: str, answer: str) -> str:
+    """The passage's sentence that gives the answer, for a card or question.
+
+    SciQ passages often open with something else ("The warm-air vent is placed
+    near the floor..."), so the first sentence would explain nothing. Prefer a
+    sentence that names the answer, then the one sharing most words with the
+    question. A wrong explanation is worse than none, so with neither it is
+    left blank.
+    """
+    asked = _words(question)
+    pattern = re.compile(rf'\b{re.escape(answer.strip())}\b', re.I) if answer.strip() else None
+
+    def score(sentence: str) -> tuple[int, int]:
+        names_answer = bool(pattern and pattern.search(sentence))
+        return int(names_answer), len(asked & _words(sentence))
+
+    ranked = sorted(_sentences(support), key=score, reverse=True)
+    if not ranked or score(ranked[0]) == (0, 0):
+        return ''
+    return ranked[0][:300]
 
 
 def _simulate(user, documents, days, rng):
