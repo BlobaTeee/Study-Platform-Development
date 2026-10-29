@@ -37,6 +37,9 @@ written in. A page with several questions gives several; a photo of one problem 
 - Write all mathematics in LaTeX: inline as $...$, a formula on its own line as $$...$$
   (fractions \\frac{a}{b}, roots \\sqrt{x}, powers x^{2}, indices x_{1}, integrals, sums,
   matrices with \\begin{pmatrix}...\\end{pmatrix}). Chemical formulas likewise ($H_2SO_4$).
+- Everything you write, the square-bracket descriptions included, is in the
+  same language as the problem: a Vietnamese problem gets Vietnamese descriptions (the
+  examples below only show the form).
 - Describe any figure, graph or diagram in square brackets with the values it shows, e.g.
   [Right triangle ABC, right angle at C, AC = 3 cm, BC = 4 cm].
 - Copy a table row by row in square brackets. For a variation table (bảng biến thiên), give
