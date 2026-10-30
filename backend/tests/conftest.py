@@ -79,6 +79,7 @@ def _no_outside_generation(settings, monkeypatch):
                    'notebooks.services.key_points.get_ai_provider',
                    'quizzes.services.misconceptions.get_ai_provider',
                    'notebooks.services.knowledge_map.get_ai_provider',
+                   'notebooks.services.map_building.get_ai_provider',
                    'study_sessions.feynman.get_ai_provider'):
         monkeypatch.setattr(target, lambda: _NoProvider())
 

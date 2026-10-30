@@ -3,7 +3,7 @@
 Concepts are the documents' key points (merged across documents); each card,
 question and practice problem is attached to one (ml_pipeline.concept_map).
 Understanding is BKT over the student's answers and submits on a concept's
-questions and problems; memory is FSRS retrievability today of its cards.
+questions and problems, and the links they built by hand (map_building); memory is FSRS retrievability today of its cards.
 The colour is the weaker of the two. No model call here: links are found
 separately (find_links) and cached on the notebook.
 """
@@ -104,6 +104,8 @@ def build_map(user, notebook) -> dict:
     where = _attached(notebook, concepts, items)
     params, thresholds = bkt.load()
     events = _events(user, [q.id for q in questions], [e.id for e in exercises])
+    from .map_building import concept_events
+    built = concept_events(user, notebook)        # links the student made and had graded
     recall = retrievability_today(user, [c.id for c in cards])
     reviews = _review_counts(user, [c.id for c in cards])
     exercise_rank = {e.id: EXERCISE_ORDER.get(e.status, 1) for e in exercises}
@@ -118,8 +120,8 @@ def build_map(user, notebook) -> dict:
     out = []
     for c in concepts:
         m = members[c['key']]
-        evs = sorted((e for i in [f'q:{q}' for q in m['questions']] + [f'ex:{x}' for x in m['exercises']]
-                      for e in events.get(i, [])), key=lambda e: e[0])
+        evs = sorted([e for i in [f'q:{q}' for q in m['questions']] + [f'ex:{x}' for x in m['exercises']]
+                      for e in events.get(i, [])] + built.get(c['key'], []), key=lambda e: e[0])
         understanding = ({'p': round(bkt.trace([(ok, kind) for _, ok, kind in evs], params), 3),
                           'correct': sum(ok for _, ok, _ in evs), 'total': len(evs)} if evs else None)
         reviewed = [recall[i] for i in m['cards'] if i in recall]
