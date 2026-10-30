@@ -190,3 +190,23 @@ class Source(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class MapBuild(models.Model):
+    """One round of building a notebook's map by hand (services/map_building.py).
+
+    `links` are the student's: {from, to, why, verdict, feedback}, the verdict
+    one of correct / partial / wrong / unjudged once graded. `missed` are the
+    document's links among the round's concepts that the student did not
+    make, with the stored reason.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='map_builds')
+    notebook = models.ForeignKey(Notebook, on_delete=models.CASCADE, related_name='map_builds')
+    concept_keys = models.JSONField(default=list)
+    links = models.JSONField(default=list)
+    missed = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    graded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']

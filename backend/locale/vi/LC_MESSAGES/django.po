@@ -381,3 +381,35 @@ msgstr "Hãy chọn ảnh chụp đề bài."
 
 msgid "That photo is too large. Use one under 8 MB."
 msgstr "Ảnh quá lớn. Hãy dùng ảnh dưới 8 MB."
+
+msgid "The map needs at least three concepts. Read the key points of more documents first."
+msgstr "Bản đồ cần ít nhất ba khái niệm. Hãy rút ý chính cho thêm tài liệu trước."
+
+msgid "Link at least two concepts before sending."
+msgstr "Hãy nối ít nhất hai khái niệm trước khi nộp."
+
+#, python-format
+msgid "At most %(n)d links in one round."
+msgstr "Mỗi lượt nối tối đa %(n)d mối."
+
+msgid "A link is not readable."
+msgstr "Có một mối nối không đọc được."
+
+msgid "A link joins a concept that is not in this round."
+msgstr "Có mối nối tới khái niệm không thuộc lượt này."
+
+msgid "A concept cannot be linked to itself."
+msgstr "Không thể nối một khái niệm với chính nó."
+
+msgid "The same two concepts are linked twice."
+msgstr "Hai khái niệm này đã được nối rồi."
+
+#, python-format
+msgid "Every link needs a short reason (up to %(n)d characters)."
+msgstr "Mỗi mối nối cần một câu giải thích ngắn (tối đa %(n)d ký tự)."
+
+msgid "This round has been graded already. Start another one."
+msgstr "Lượt này đã được chấm. Hãy bắt đầu lượt mới."
+
+msgid "The links could not be graded just now. Try again in a minute; your links are kept."
+msgstr "Chưa chấm được các mối nối. Thử lại sau một phút; các mối nối của bạn vẫn được giữ."

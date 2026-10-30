@@ -27,6 +27,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Prefetch
+from django.shortcuts import get_object_or_404
 
 from .models import Notebook, NotebookMember, Source
 from .services.membership import can_manage, notebooks_for
@@ -314,6 +315,38 @@ class NotebookViewSet(viewsets.ModelViewSet):
         except LinksUnavailable as exc:
             return Response({'detail': str(exc)}, status=503)
         return Response({'edges': edges, 'edges_status': 'ready'})
+
+    @action(detail=True, methods=['post'], url_path='map/build', throttle_classes=[GenerationRateThrottle])
+    def map_build(self, request, pk=None):
+        """A round of building the map by hand: about six concepts, no links shown."""
+        from .services.knowledge_map import LinksUnavailable
+        from .services.map_building import TooFewConcepts, start_round
+        try:
+            build, concepts = start_round(request.user, self.get_object())
+        except TooFewConcepts as exc:
+            return Response({'detail': str(exc), 'too_few': True}, status=400)
+        except LinksUnavailable as exc:
+            return Response({'detail': str(exc)}, status=503)
+        return Response({'id': build.id, 'concepts': concepts}, status=201)
+
+    @action(detail=True, methods=['post'], url_path=r'map/build/(?P<build_id>\d+)/submit',
+            throttle_classes=[GenerationRateThrottle])
+    def map_build_submit(self, request, pk=None, build_id=None):
+        """Grade the round's links (one model request) and list the ones missed."""
+        from .models import MapBuild
+        from .services.map_building import AlreadyGraded, BadLinks, GradingUnavailable, grade, payload
+        notebook = self.get_object()
+        build = get_object_or_404(MapBuild, pk=build_id, notebook=notebook, user=request.user)
+        links = request.data.get('links') if isinstance(request.data, dict) else None
+        try:
+            build = grade(build, links)
+        except BadLinks as exc:
+            return Response({'detail': str(exc)}, status=400)
+        except AlreadyGraded as exc:
+            return Response({'detail': str(exc)}, status=409)
+        except GradingUnavailable as exc:
+            return Response({'detail': str(exc)}, status=503)
+        return Response(payload(build))
 
     @action(detail=True, methods=['post'], url_path='map/practice', throttle_classes=[GenerationRateThrottle])
     def map_practice(self, request, pk=None):

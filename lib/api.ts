@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type { LiveRoomSummary, LiveState } from './live'
+import type { BuildLink, GradedLink, MissedLink } from './map-build'
 import { readLocaleCookie } from '@/i18n/locale'
 import { supabase } from './supabase-client'
 
@@ -379,6 +380,12 @@ export const notebooksAPI = {
   // The knowledge map: concepts with the caller's own mastery, and the
   // prerequisite links between them (found once, then cached).
   getMap: (id: number) => api.get<KnowledgeMapData>(`/notebooks/notebooks/${id}/map/`),
+  // Build the map by hand: a round of about six concepts, then the links graded in one request.
+  mapBuildStart: (id: number) =>
+    api.post<{ id: number; concepts: { key: string; label: string; point: string }[] }>(`/notebooks/notebooks/${id}/map/build/`),
+  mapBuildSubmit: (id: number, buildId: number, links: BuildLink[]) =>
+    api.post<{ id: number; links: GradedLink[]; missed: MissedLink[] }>(
+      `/notebooks/notebooks/${id}/map/build/${buildId}/submit/`, { links }),
   findMapLinks: (id: number) =>
     api.post<{ edges: KnowledgeMapData['edges'] }>(`/notebooks/notebooks/${id}/map/links/`),
   practiseConcept: (id: number, concept: string) =>

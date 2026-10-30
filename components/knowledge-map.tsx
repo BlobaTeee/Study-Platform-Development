@@ -17,10 +17,11 @@ import {
   type Node,
   type NodeProps,
 } from '@xyflow/react'
-import { ArrowRight, ChevronDown, Filter, Loader2, LocateFixed, Minus, Network, Plus, X } from 'lucide-react'
+import { ArrowRight, ChevronDown, Filter, Loader2, LocateFixed, Minus, Network, Plus, Spline, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { MapBuilder } from '@/components/map-builder'
 import { notebooksAPI, type ConceptState, type KnowledgeMapData, type MapConcept } from '@/lib/api'
 import { CARD_H, CARD_W, layoutMap } from '@/lib/map-layout'
 import { formatSourceIdsForQuery } from '@/lib/source-utils'
@@ -215,6 +216,7 @@ export function KnowledgeMap({ notebookId }: { notebookId: number }) {
   }
   const linksFailed = failedFor !== null && failedFor === conceptSet && map?.edges_status === 'missing'
   const linksPending = map?.edges_status === 'missing' && !linksFailed
+  const [building, setBuilding] = useState(false)
 
   if (error && !map)
     return (
@@ -227,8 +229,32 @@ export function KnowledgeMap({ notebookId }: { notebookId: number }) {
     )
   if (!map) return <div className="sheet h-[70dvh] min-h-[420px] animate-pulse motion-reduce:animate-none" aria-busy />
   if (map.concepts.length === 0) return <EmptyMap missing={map.missing_key_points} onRead={() => mutate()} />
+  // Building by hand replaces the finished map while it lasts, so the links
+  // being guessed are not on screen; the map refetches after, with the new evidence.
+  if (building)
+    return (
+      <MapBuilder
+        notebookId={notebookId}
+        onClose={() => {
+          setBuilding(false)
+          void mutate()
+        }}
+      />
+    )
   return (
     <div className="space-y-3">
+      {map.concepts.length >= 3 && (
+        <div className="sheet flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-5">
+          <div className="min-w-0 max-w-prose">
+            <p className="text-base font-semibold text-slate-900">{t('buildCta')}</p>
+            <p className="text-sm leading-relaxed text-slate-700">{t('buildCtaLead')}</p>
+          </div>
+          <Button type="button" onClick={() => setBuilding(true)}>
+            <Spline aria-hidden />
+            {t('buildStart')}
+          </Button>
+        </div>
+      )}
       <p className="max-w-prose text-sm leading-relaxed text-slate-600">{t('lead')}</p>
       {map.missing_key_points.length > 0 && (
         <MissingNote missing={map.missing_key_points} onRead={() => mutate()} />
