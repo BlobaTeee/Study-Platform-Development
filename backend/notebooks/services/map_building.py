@@ -94,7 +94,10 @@ def grade(build: MapBuild, raw_links) -> MapBuild:
     listed = '\n'.join(f'- {names[k]}: {(concepts.get(k) or {}).get("point", "")}' for k in build.concept_keys)
     asked = '\n'.join(f'{i}. {names[link["from"]]} — {names[link["to"]]}: "{link["why"]}"'
                       for i, link in enumerate(links, 1))
-    lang = language_name(detect_language(listed + ' ' + asked))
+    # The feedback is for the student: their own words decide the language, the
+    # concepts (often in the documents' language) only when theirs do not tell.
+    said = detect_language(' '.join(link['why'] for link in links))
+    lang = language_name(said if said != 'other' else detect_language(listed))
     prompt = f"""A student is building a map of these concepts from their course:
 {listed}
 
