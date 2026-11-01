@@ -34,6 +34,7 @@ class Provider:
 
     def generate_json(self, prompt):
         self.calls += 1
+        self.prompt = prompt
         if self.fail:
             raise RuntimeError('model down')
         if 'cannot be understood without' in prompt:          # the document's own links
@@ -189,3 +190,17 @@ def test_graded_links_count_on_the_map_and_partial_does_not(client, biology, ai)
     assert by_label['Mitosis']['understanding']['correct'] == 1 and by_label['Mitosis']['understanding']['total'] == 2
     assert by_label['Photosynthesis']['understanding']['correct'] == 0
     assert by_label['Enzymes']['understanding'] is None              # only a partial link
+
+
+def test_feedback_is_in_the_language_the_student_wrote_in(client, biology, ai):
+    """English documents, a Vietnamese student: the feedback is for the student."""
+    nb, key = biology
+    src = nb.sources.get()
+    # Real key points are full English sentences, which outweigh one Vietnamese line.
+    src.key_points = [{**kp, 'point': kp['passage'] * 3} for kp in src.key_points]
+    src.save()
+    p = ai(verdicts=['correct'])
+    build = _start(client, nb).json()['id']
+    _submit(client, nb, build, [{'from': key['Mitosis'], 'to': key['Chromosomes'],
+                                 'why': 'Trong nguyên phân, nhiễm sắc thể nhân đôi rồi chia đều về hai tế bào con.'}])
+    assert 'in Vietnamese' in p.prompt
