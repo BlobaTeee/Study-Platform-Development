@@ -193,18 +193,22 @@ class Source(models.Model):
 
 
 class MapBuild(models.Model):
-    """One round of building a notebook's map by hand (services/map_building.py).
+    """One map a student built from memory for one document (services/map_building.py).
 
-    `links` are the student's: {from, to, why, verdict, feedback}, the verdict
-    one of correct / partial / wrong / unjudged once graded. `missed` are the
-    document's links among the round's concepts that the student did not
-    make, with the stored reason.
+    Stored only once graded. `cards` are the student's own: {id, label,
+    match_key, match_label}, the match being the key point (as a map concept
+    key) the card stands for, or None. `links` are {from, to, why, verdict,
+    feedback} between card ids. `missed` are the document's links between
+    recalled concepts the student did not join; `missed_points` the key
+    points no card matched.
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='map_builds')
     notebook = models.ForeignKey(Notebook, on_delete=models.CASCADE, related_name='map_builds')
-    concept_keys = models.JSONField(default=list)
+    source = models.ForeignKey('Source', on_delete=models.SET_NULL, null=True, blank=True, related_name='map_builds')
+    cards = models.JSONField(default=list)
     links = models.JSONField(default=list)
     missed = models.JSONField(default=list)
+    missed_points = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
     graded_at = models.DateTimeField(null=True, blank=True)
 
