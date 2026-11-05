@@ -65,3 +65,12 @@ test('the result is counted by verdict', () => {
   assert.deepEqual(tally([{ verdict: 'correct' }, { verdict: 'wrong' }, { verdict: 'correct' }, { verdict: 'partial' }]),
     { correct: 2, partial: 1, wrong: 1, unjudged: 0 })
 })
+
+test("a document's key points take the state of the concept that holds them", async () => {
+  const { keyPointStates } = await import('./map-build.ts')
+  const concepts = [
+    { members: ['7:0', '9:3'], state: 'weak' as const },
+    { members: ['7:2'], state: 'strong' as const },
+  ]
+  assert.deepEqual(keyPointStates(concepts, 7, 3), ['weak', null, 'strong'])
+})

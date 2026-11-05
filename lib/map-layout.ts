@@ -10,11 +10,17 @@ export const CARD_W = 240
 export const CARD_H = 136
 const GAP_X = 96
 const GAP_Y = 36
+
+export type CardSize = { w: number; h: number; gapX: number; gapY: number }
+export const FULL_CARD: CardSize = { w: CARD_W, h: CARD_H, gapX: GAP_X, gapY: GAP_Y }
+/** One document's map inside its page: a name and a state dot, no numbers. */
+export const SMALL_CARD: CardSize = { w: 176, h: 56, gapX: 56, gapY: 20 }
 const MAX_ROWS = 6
 
 export function layoutMap(
   allKeys: string[],
   edges: { from: string; to: string }[],
+  size: CardSize = FULL_CARD,
 ): Record<string, { x: number; y: number }> {
   const keys = [...new Set(allKeys)]
   const known = new Set(keys)
@@ -75,8 +81,8 @@ export function layoutMap(
     if (!ks) return
     for (let start = 0, end = firstChunk(ks.length); start < ks.length; start = end, end += MAX_ROWS) {
       const chunk = ks.slice(start, end)
-      const stagger = column % 2 ? (CARD_H + GAP_Y) / 2 : 0
-      chunk.forEach((k, i) => (pos[k] = { x: column * (CARD_W + GAP_X), y: stagger + i * (CARD_H + GAP_Y) }))
+      const stagger = column % 2 ? (size.h + size.gapY) / 2 : 0
+      chunk.forEach((k, i) => (pos[k] = { x: column * (size.w + size.gapX), y: stagger + i * (size.h + size.gapY) }))
       column += 1
     }
   })

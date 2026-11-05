@@ -24,6 +24,23 @@ The user then chose:
 | Where the reason is written | Next to the line it explains, not in a side column |
 | Layout | Cards can be dragged anywhere; picking a card or a line fades the others |
 
+## Revision, 2026-11-05: one document, in its own page
+
+The user still found the two maps hard to use. The notebook map (30 concepts
+for Biology) was too much to take in. The redraw step, which showed only a
+document's title, did not say where its content came from. Now:
+
+- The notebook-wide "Bản đồ" tab is gone.
+- Each document's "Ý chính" section has a List / Map switch:
+  - the list shows each key point's mastery state;
+  - the map shows only that document's concepts (8 to 15) and the links
+    between them. It is sized to fit the page width at a readable zoom.
+- **Tự vẽ lại từ trí nhớ** sits in that same section. It hides the key points
+  while the student draws, then compares against exactly those key points.
+  There is no step for choosing a topic: the topic is the document being read.
+
+The flow below is otherwise unchanged; step 1 now happens by opening a document.
+
 ## Flow
 
 1. **Topic.** The student picks one document of the notebook that has key

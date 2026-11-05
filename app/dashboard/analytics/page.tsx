@@ -52,7 +52,6 @@ export default function AnalyticsPage() {
   const nav = useTranslations('nav')
   const common = useTranslations('common')
   const home = useTranslations('home')
-  const mapT = useTranslations('map')
   const locale = useLocale()
   const { data: recsRes, isLoading: recsLoading } = useSWR(
     ['/analytics/recommendations'],
@@ -238,13 +237,6 @@ export default function AnalyticsPage() {
                         </span>
                       )}
                       <ArrowRight className="size-4 shrink-0 text-slate-400" aria-hidden />
-                    </Link>
-                    {/* Beside the row's link, never inside it: links do not nest. */}
-                    <Link
-                      href={`/dashboard/notebooks/${n.notebook_id}?view=map`}
-                      className="-mt-1 shrink-0 self-start rounded pb-3 text-sm font-medium text-mode-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30 sm:mt-0 sm:self-center sm:pb-0"
-                    >
-                      {mapT('viewMap')} →
                     </Link>
                     {/* Every row keeps the button's slot once any row has one, so
                         the mastery bars stay in one column. */}

@@ -135,6 +135,8 @@ def build_map(user, notebook) -> dict:
         # A strong concept needs only its scheduled reviews, so no button.
         action = None if state == 'strong' else choose_action(weaker(u, mem), weakest_cards, to_do, m['questions'])
         out.append({'key': c['key'], 'label': c['label'], 'point': c['point'], 'source_ids': c['source_ids'],
+                    # The key points it holds ('source:index'), so a document can show its own.
+                    'members': c.get('members', [c['key']]),
                     'importance': c['importance'], 'state': state,
                     'understanding': understanding, 'memory': memory,
                     'events': len(evs) + sum(reviews.get(i, 0) for i in m['cards']),

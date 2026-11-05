@@ -1,7 +1,7 @@
 """Building a map yourself: the concepts from memory, the links, and why.
 
-The student picks one document of the notebook (its title is all they see),
-writes the concepts they remember as cards, and links them with a reason.
+From the document they are reading (its key points hidden meanwhile), the
+student writes the concepts they remember as cards and links them with a reason.
 One model request compares that with the document's key points: which card
 stands for which point, and a verdict on each link. The document's own links
 between recalled concepts the student did not join come from the notebook's
@@ -31,13 +31,6 @@ class BadMap(Exception):
 
 class GradingUnavailable(Exception):
     pass
-
-
-def topics(notebook) -> list[dict]:
-    """The documents a map can be built for: ready, with enough key points. Titles only."""
-    return [{'source_id': s.id, 'title': s.title, 'key_points': len(s.key_points or [])}
-            for s in notebook.sources.filter(status='ready').order_by('created_at', 'id').only('id', 'title', 'key_points')
-            if len(s.key_points or []) >= MIN_POINTS]
 
 
 def _pair(a: str, b: str) -> frozenset:

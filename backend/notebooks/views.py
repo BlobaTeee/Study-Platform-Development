@@ -316,12 +316,6 @@ class NotebookViewSet(viewsets.ModelViewSet):
             return Response({'detail': str(exc)}, status=503)
         return Response({'edges': edges, 'edges_status': 'ready'})
 
-    @action(detail=True, methods=['get'], url_path='map/topics')
-    def map_topics(self, request, pk=None):
-        """The documents a map can be built for, by title only (no hints)."""
-        from .services.map_building import topics
-        return Response({'topics': topics(self.get_object())})
-
     @action(detail=True, methods=['post'], url_path='map/build', throttle_classes=[GenerationRateThrottle])
     def map_build(self, request, pk=None):
         """{source, cards, links}: compare the student's map with that document

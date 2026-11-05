@@ -20,6 +20,8 @@ export type BuildResult = {
 
 /** Must match the limits in backend/notebooks/services/map_building.py. */
 export const MIN_CARDS = 3
+/** A document needs this many key points to be redrawn (MIN_POINTS on the server). */
+export const MIN_POINTS = 3
 export const MAX_CARDS = 20
 export const MAX_LABEL = 80
 export const MIN_WHY = 3
@@ -87,4 +89,16 @@ export function tally(links: { verdict: Verdict }[]): Record<Verdict, number> {
   const out: Record<Verdict, number> = { correct: 0, partial: 0, wrong: 0, unjudged: 0 }
   for (const x of links) out[x.verdict] += 1
   return out
+}
+
+/** Each of a document's key points, in order, with the mastery state of the
+ *  map concept that holds it (null when no concept does). */
+export function keyPointStates<S extends string>(
+  concepts: { members: string[]; state: S }[],
+  sourceId: number,
+  count: number,
+): (S | null)[] {
+  const state = new Map<string, S>()
+  for (const c of concepts) for (const m of c.members) state.set(m, c.state)
+  return Array.from({ length: count }, (_, i) => state.get(`${sourceId}:${i}`) ?? null)
 }

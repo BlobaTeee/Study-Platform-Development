@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,7 +21,6 @@ import { KeyPoints } from '@/components/key-points'
 import { StudyDesk } from '@/components/study-desk'
 import { NotebookMembers } from '@/components/notebook-members'
 import { LiveStart } from '@/components/live-start'
-import { KnowledgeMap } from '@/components/knowledge-map'
 import {
   AlertCircle,
   ArrowLeft,
@@ -31,8 +30,6 @@ import {
   FileUp,
   Loader2,
   Download,
-  FileText,
-  Network,
   Pencil,
   Plus,
   Radio,
@@ -127,7 +124,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const router = useRouter()
   const t = useTranslations('notebooks')
   const common = useTranslations('common')
-  const mapT = useTranslations('map')
   // How long a document is, in the reader's language: pages for a PDF,
   // slides for a deck, nothing for formats without a page count.
   const lengthLabel = (fileType: string | undefined, count: number | undefined) =>
@@ -218,17 +214,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   // the student clicks another document the URL no longer decides.
   const searchParams = useSearchParams()
   const requestedSourceId = Number(searchParams.get('source')) || null
-  // `?view=map` shows the knowledge map in place of the documents; the
-  // switch keeps every other parameter (such as `source`) as it was.
-  const pathname = usePathname()
-  const view = searchParams.get('view') === 'map' ? 'map' : 'documents'
-  const showView = (next: 'documents' | 'map') => {
-    const params = new URLSearchParams(searchParams.toString())
-    if (next === 'map') params.set('view', 'map')
-    else params.delete('view')
-    const qs = params.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }
   // Otherwise the first document opens: a notebook with material should
   // never greet its owner with "add a document".
   useEffect(() => {
@@ -632,22 +617,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
           then its documents. Dropping a file anywhere on it still adds it. */}
       <SourceDropZone onFile={uploadFile} disabled={!canDrop} className="flex-col overflow-y-auto bg-slate-50/60">
         <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 md:px-8 md:py-8">
-          <ViewSwitch
-            view={view}
-            onChange={showView}
-            labels={{ documents: mapT('documents'), map: mapT('map'), list: mapT('viewSwitch') }}
-          />
-          {view === 'map' ? (
-            <div id="notebook-view" role="tabpanel" aria-labelledby="view-tab-map" className="-mt-4">
-              <KnowledgeMap notebookId={notebookId} />
-            </div>
-          ) : (
-          <section
-            id="notebook-view"
-            role="tabpanel"
-            aria-labelledby="view-tab-documents"
-            className="-mt-4 space-y-3"
-          >
+          <section aria-labelledby="documents-heading" className="space-y-3">
             <input
               ref={fileRef}
               type="file"
@@ -902,7 +872,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                     {sourceDetail && sourceDetail.status === 'ready' && (
                       <div className="border-t border-slate-200 pt-5">
                         {sourceDetail.key_points.length > 0 ? (
-                          <KeyPoints points={sourceDetail.key_points} />
+                          <KeyPoints points={sourceDetail.key_points} notebookId={notebookId} sourceId={activeSourceId!} title={sourceDetail.title} />
                         ) : (
                           <>
                             {sourceDetail.gemini_summary && (
@@ -969,65 +939,9 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
               </div>
             </div>
           </section>
-          )}
         </div>
       </SourceDropZone>
     </div>
   )
 }
 
-/** Tài liệu · Bản đồ: two views of one notebook, as a segmented control.
- *  Arrow keys move between the two, as a tab list should. */
-function ViewSwitch({
-  view,
-  onChange,
-  labels,
-}: {
-  view: 'documents' | 'map'
-  onChange: (view: 'documents' | 'map') => void
-  labels: { documents: string; map: string; list: string }
-}) {
-  const tabs = [
-    { key: 'documents' as const, icon: FileText },
-    { key: 'map' as const, icon: Network },
-  ]
-  return (
-    <div
-      role="tablist"
-      aria-label={labels.list}
-      className="inline-flex rounded-lg bg-slate-100 p-1"
-      onKeyDown={(e) => {
-        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-        e.preventDefault()
-        const next = view === 'map' ? 'documents' : 'map'
-        onChange(next)
-        document.getElementById(`view-tab-${next}`)?.focus()
-      }}
-    >
-      {tabs.map(({ key, icon: Icon }) => {
-        const active = view === key
-        return (
-          <button
-            key={key}
-            id={`view-tab-${key}`}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            aria-controls="notebook-view"
-            tabIndex={active ? 0 : -1}
-            onClick={() => onChange(key)}
-            className={cn(
-              'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium outline-none',
-              'transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none',
-              'focus-visible:ring-[3px] focus-visible:ring-mode/30',
-              active ? 'bg-white text-slate-900 shadow-sheet' : 'text-slate-600 hover:text-slate-900',
-            )}
-          >
-            <Icon className={cn('size-4', active ? 'text-mode' : 'text-slate-500')} aria-hidden />
-            {labels[key]}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
