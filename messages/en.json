@@ -757,7 +757,7 @@
     "buildScore": "{correct} of {total} links right",
     "buildPickSecond": "“{label}” chosen. Press the card to link it to (Esc to cancel).",
     "buildResultHint": "Green: right · Amber: partly · Red: wrong · Dashed: missing",
-    "buildWhyPlaceholder": "Why are these two related?",
+    "buildWhyPlaceholder": "Why are they related? The AI grades this sentence.",
     "buildSend": "Compare with the document",
     "buildSending": "Comparing…",
     "buildAgain": "Start again",

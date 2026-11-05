@@ -757,7 +757,7 @@
     "buildScore": "đúng {correct}/{total} mối nối",
     "buildPickSecond": "Đã chọn “{label}”. Bấm khung muốn nối với nó (Esc để huỷ).",
     "buildResultHint": "Xanh: đúng · Vàng: một phần · Đỏ: sai · Nét đứt: còn thiếu",
-    "buildWhyPlaceholder": "Vì sao hai khái niệm này liên quan?",
+    "buildWhyPlaceholder": "Vì sao chúng liên quan? AI sẽ chấm câu này.",
     "buildSend": "So sánh với tài liệu",
     "buildSending": "Đang so sánh…",
     "buildAgain": "Dựng lại từ đầu",
