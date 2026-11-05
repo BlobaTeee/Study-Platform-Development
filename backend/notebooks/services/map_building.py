@@ -11,7 +11,7 @@ A graded link is evidence on the map (concept_events) for the concepts its
 cards stand for: correct counts right, wrong counts wrong, partial neither.
 """
 from django.utils import timezone
-from django.utils.translation import gettext as _
+from django.utils.translation import get_language, gettext as _
 
 from ml_pipeline.language import detect_language, language_name
 from notebooks.models import MapBuild
@@ -92,6 +92,18 @@ def _reference(notebook, source) -> list[dict]:
             for i, kp in enumerate(source.key_points or [])]
 
 
+MIN_WORDS_TO_TELL = 4
+
+
+def _feedback_language(written: str) -> str:
+    """'vi' or 'en': the student's own language when their reasons say enough to
+    tell it, otherwise the page's (a few typed letters with accents are no answer)."""
+    said = detect_language(written) if len(written.split()) >= MIN_WORDS_TO_TELL else 'other'
+    if said in ('vi', 'en'):
+        return said
+    return 'vi' if (get_language() or '').startswith('vi') else 'en'
+
+
 def grade(user, notebook, source_id, raw_cards, raw_links) -> MapBuild:
     """Compare the student's map with the document in one request, and keep it."""
     source = notebook.sources.filter(pk=source_id, status='ready').first()
@@ -106,12 +118,9 @@ def grade(user, notebook, source_id, raw_cards, raw_links) -> MapBuild:
     listed_cards = '\n'.join(f'{i}. {c["label"]}' for i, c in enumerate(cards, 1))
     asked = '\n'.join(f'{i}. card {number[link["from"]]} — card {number[link["to"]]}: "{link["why"]}"'
                       for i, link in enumerate(links, 1))
-    # The feedback is for the student: their own words decide the language, the
-    # cards and then the document only when theirs do not tell.
-    said = detect_language(' '.join(link['why'] for link in links))
-    if said == 'other':
-        said = detect_language(listed_cards)
-    lang = language_name(said if said != 'other' else detect_language(listed_points))
+    # The feedback is for the student: what they wrote decides the language when
+    # there is enough of it to tell; otherwise the language the page is shown in.
+    lang = language_name(_feedback_language(' '.join(link['why'] for link in links)))
     prompt = f"""A student drew a concept map of a document from memory.
 
 The document's key points:
