@@ -88,3 +88,16 @@ test('prerequisites in another document are found, with that document named', as
     a: [{ key: 'b', label: 'Temperature', state: 'weak', sourceId: 9, title: 'Forces and motion' }],
   })
 })
+
+test('two link numbers never sit on top of each other', async () => {
+  const { spreadBadges } = await import('./map-build.ts')
+  // Two lines crossing at their middles: (0,0)-(100,100) and (0,100)-(100,0).
+  const at = spreadBadges([
+    { id: 'p', a: { x: 0, y: 0 }, b: { x: 100, y: 100 } },
+    { id: 'q', a: { x: 0, y: 100 }, b: { x: 100, y: 0 } },
+  ])
+  assert.deepEqual(at.p, { x: 50, y: 50 })
+  assert.ok(Math.hypot(at.q.x - at.p.x, at.q.y - at.p.y) >= 28, JSON.stringify(at))
+  // still on its own line: x + y = 100
+  assert.equal(Math.round(at.q.x + at.q.y), 100)
+})

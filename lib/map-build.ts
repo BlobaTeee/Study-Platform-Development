@@ -126,3 +126,21 @@ export function outsideNeeds<S extends string>(
   }
   return out
 }
+
+type Point = { x: number; y: number }
+
+/** Where each link's number sits: the middle of its line, unless another
+ *  number is already there (two lines crossing at their middles), in which
+ *  case it moves along its own line until it is clear of the others. */
+export function spreadBadges(segments: { id: string; a: Point; b: Point }[], gap = 28): Record<string, Point> {
+  const placed: Record<string, Point> = {}
+  const taken: Point[] = []
+  for (const { id, a, b } of segments) {
+    const along = (t: number) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
+    const clear = (p: Point) => taken.every((q) => Math.hypot(p.x - q.x, p.y - q.y) >= gap)
+    const spot = [0.5, 0.35, 0.65, 0.25, 0.75, 0.15, 0.85].map(along).find(clear) ?? along(0.5)
+    placed[id] = spot
+    taken.push(spot)
+  }
+  return placed
+}

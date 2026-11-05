@@ -6,7 +6,7 @@ import { ArrowLeft, Check, FileText, Loader2, Plus, RotateCcw, Trash2, X } from 
 import { Button } from '@/components/ui/button'
 import { notebooksAPI } from '@/lib/api'
 import {
-  MAX_CARDS, MAX_LABEL, addCard, addLink, blocker, freeSpot, pairId, removeCard, removeLink, tally,
+  MAX_CARDS, MAX_LABEL, addCard, addLink, blocker, freeSpot, pairId, removeCard, removeLink, spreadBadges, tally,
   type BuildLink, type BuildResult, type Card, type Verdict,
 } from '@/lib/map-build'
 import { cn } from '@/lib/utils'
@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 type Topic = { source_id: number; title: string }
 type Selected = { kind: 'card'; id: string } | { kind: 'link'; id: string } | null
 
-const CARD = { w: 150, h: 56, gapX: 72, gapY: 96 }
+const CARD = { w: 150, h: 56, gapX: 120, gapY: 120 }
 const DRAG_SLOP = 4
 
 // Verdict colours follow the map's mastery colours: emerald right, amber
@@ -231,6 +231,12 @@ function Builder({ notebookId, topic, onClose }: { notebookId: number; topic: To
   const stop = blocker(cards, links)
   const step = result ? 3 : cards.length < 3 ? 1 : 2
   const openLink = focusLink ? shown.find((x) => pairId(x.from, x.to) === focusLink) ?? null : null
+  // Each link's number on its line, moved along it when two would overlap.
+  const badgeAt = spreadBadges(shown.flatMap((x) => {
+    const a = centre(x.from)
+    const b = centre(x.to)
+    return a && b ? [{ id: pairId(x.from, x.to), a, b }] : []
+  }))
 
   return (
     <div>
@@ -345,7 +351,7 @@ function Builder({ notebookId, topic, onClose }: { notebookId: number; topic: To
                 x.verdict ? BADGE[x.verdict] : empty ? 'bg-amber-50 text-amber-900 ring-amber-500' : 'bg-white text-mode-ink ring-mode/60',
                 !lit(x) && 'opacity-30',
               )}
-              style={{ left: (a.x + b.x) / 2, top: (a.y + b.y) / 2 }}
+              style={{ left: badgeAt[id].x, top: badgeAt[id].y }}
             >
               {n}
             </button>
@@ -358,11 +364,7 @@ function Builder({ notebookId, topic, onClose }: { notebookId: number; topic: To
             n={number.get(focusLink!)!}
             a={labelOf(openLink.from)}
             b={labelOf(openLink.to)}
-            at={(() => {
-              const a = centre(openLink.from)!
-              const b = centre(openLink.to)!
-              return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
-            })()}
+            at={badgeAt[focusLink!]}
             width={extent}
             height={height}
             autoFocus={fresh === focusLink}
@@ -595,24 +597,29 @@ function Results({ result, labelOf, onPick }: {
   onPick: (id: string) => void
 }) {
   const t = useTranslations('map')
+  const [allPoints, setAllPoints] = useState(false)
+  const FIRST = 6
+  const points = allPoints ? result.missed_points : result.missed_points.slice(0, FIRST)
   return (
-    <div className="grid gap-6 border-t border-slate-200 p-4 md:grid-cols-2 md:p-5">
+    <div className="grid gap-6 border-t border-slate-200 p-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] md:p-5">
+      {/* Each link: what you wrote, then what the AI made of it. */}
       <section className="space-y-2">
         <h3 className="text-sm font-semibold text-slate-900">{t('buildYourLinks')}</h3>
-        <ol className="space-y-2">
+        <ol className="space-y-3">
           {result.links.map((x, i) => (
             <li key={pairId(x.from, x.to)}>
               <button
                 type="button"
                 onClick={() => onPick(pairId(x.from, x.to))}
-                className="w-full rounded-lg px-2 py-1.5 text-left hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
+                className="w-full space-y-1 rounded-lg px-2 py-1.5 text-left hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
               >
                 <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
                   <span className={cn('grid size-6 place-items-center rounded-full font-mono text-xs ring-2', BADGE[x.verdict])}>{i + 1}</span>
                   {labelOf(x.from)} — {labelOf(x.to)}
-                  <span className="font-normal text-slate-700">· {t(`verdict_${x.verdict}`)}</span>
+                  <span className={cn('rounded px-1.5 text-xs font-medium ring-1', BADGE[x.verdict])}>{t(`verdict_${x.verdict}`)}</span>
                 </span>
-                {x.feedback && <span className="mt-1 block pl-8 text-sm leading-relaxed text-slate-800">{x.feedback}</span>}
+                <span className="block pl-8 text-sm italic leading-relaxed text-slate-700">“{x.why}”</span>
+                {x.feedback && <span className="block pl-8 text-sm leading-relaxed text-slate-900">→ {x.feedback}</span>}
               </button>
             </li>
           ))}
@@ -622,30 +629,38 @@ function Results({ result, labelOf, onPick }: {
         {result.missed_points.length > 0 && (
           <div className="space-y-2">
             <h3 className="text-sm font-semibold text-slate-900">{t('buildMissedPoints', { count: result.missed_points.length })}</h3>
-            <ul className="space-y-1.5">
-              {result.missed_points.map((p) => (
-                <li key={p.label} className="text-sm leading-relaxed">
-                  <span className="font-medium text-slate-900">{p.label}</span>
-                  {p.point && p.point !== p.label && <span className="text-slate-700"> — {p.point}</span>}
+            <ul className="flex flex-wrap gap-1.5">
+              {points.map((p) => (
+                <li key={p.label} title={p.point !== p.label ? p.point : undefined}
+                  className="rounded-full border border-slate-300 bg-white px-2.5 py-0.5 text-sm text-slate-900">
+                  {p.label}
                 </li>
               ))}
+              {!allPoints && result.missed_points.length > FIRST && (
+                <li>
+                  <button type="button" onClick={() => setAllPoints(true)}
+                    className="rounded-full px-2.5 py-0.5 text-sm font-medium text-mode-ink hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30">
+                    +{result.missed_points.length - FIRST}
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
         )}
         {result.missed.length > 0 && (
           <div className="space-y-2">
             <h3 className="text-sm font-semibold text-slate-900">{t('buildMissed', { count: result.missed.length })}</h3>
-            <ul className="space-y-1.5">
+            <ul className="flex flex-wrap gap-1.5">
               {result.missed.map((m) => (
-                <li key={pairId(m.from, m.to)} className="text-sm leading-relaxed">
-                  <span className="font-medium text-slate-900">{labelOf(m.from)} — {labelOf(m.to)}</span>
-                  {m.why && <span className="text-slate-700">: {m.why}</span>}
+                <li key={pairId(m.from, m.to)} title={m.why || undefined}
+                  className="rounded-full border border-dashed border-slate-400 px-2.5 py-0.5 text-sm text-slate-900">
+                  {labelOf(m.from)} — {labelOf(m.to)}
                 </li>
               ))}
             </ul>
           </div>
         )}
-        <p className="text-xs leading-relaxed text-slate-600">{t('buildCounts')}</p>
+        <p className="text-xs text-slate-600">{t('buildCounts')}</p>
       </section>
     </div>
   )

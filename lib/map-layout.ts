@@ -14,7 +14,7 @@ const GAP_Y = 36
 export type CardSize = { w: number; h: number; gapX: number; gapY: number }
 export const FULL_CARD: CardSize = { w: CARD_W, h: CARD_H, gapX: GAP_X, gapY: GAP_Y }
 /** One document's map inside its page: a name and a state dot, no numbers. */
-export const SMALL_CARD: CardSize = { w: 176, h: 56, gapX: 120, gapY: 36 }
+export const SMALL_CARD: CardSize = { w: 176, h: 56, gapX: 120, gapY: 56 }
 const MAX_ROWS = 6
 
 export function layoutMap(
