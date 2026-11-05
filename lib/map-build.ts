@@ -102,3 +102,27 @@ export function keyPointStates<S extends string>(
   for (const c of concepts) for (const m of c.members) state.set(m, c.state)
   return Array.from({ length: count }, (_, i) => state.get(`${sourceId}:${i}`) ?? null)
 }
+
+export type OutsideNeed<S extends string> = { key: string; label: string; state: S; sourceId: number; title: string }
+
+/** For one document's map: each concept's prerequisites that live in another
+ *  document of the notebook, named with that document, so a concept with no
+ *  arrow on this map can still say what to understand first. */
+export function outsideNeeds<S extends string>(
+  concepts: { key: string; label: string; state: S; source_ids: number[] }[],
+  edges: { from: string; to: string }[],
+  sourceId: number,
+  titles: Map<number, string>,
+): Record<string, OutsideNeed<S>[]> {
+  const byKey = new Map(concepts.map((c) => [c.key, c]))
+  const here = (k: string) => byKey.get(k)?.source_ids.includes(sourceId) ?? false
+  const out: Record<string, OutsideNeed<S>[]> = {}
+  for (const e of edges) {
+    const from = byKey.get(e.from)
+    if (!from || !here(e.to) || here(e.from)) continue
+    const other = from.source_ids.find((s) => s !== sourceId)
+    if (other === undefined) continue
+    ;(out[e.to] ??= []).push({ key: from.key, label: from.label, state: from.state, sourceId: other, title: titles.get(other) ?? '' })
+  }
+  return out
+}
