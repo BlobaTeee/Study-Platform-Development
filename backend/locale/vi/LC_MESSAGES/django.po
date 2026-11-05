@@ -192,7 +192,7 @@ msgid "You can only message people you share a notebook with."
 msgstr "Bạn chỉ nhắn được cho người có chung sổ tay."
 
 msgid "Not your quiz."
-msgstr "Đây không phải quiz của bạn."
+msgstr "Đây không phải bài kiểm tra của bạn."
 
 msgid "The correct answer must be one of the options."
 msgstr "Đáp án đúng phải là một trong các phương án."
@@ -247,7 +247,7 @@ msgid "question_ids must be a non-empty list."
 msgstr "question_ids phải là danh sách không rỗng."
 
 msgid "Those questions are not in your mistake bank for this notebook."
-msgstr "Các câu đó không nằm trong ngân hàng lỗi sai của sổ tay này."
+msgstr "Các câu đó không nằm trong danh sách câu sai cần làm lại của sổ tay này."
 
 msgid "a weak concept"
 msgstr "một khái niệm còn yếu"
@@ -271,7 +271,7 @@ msgid "Duration: %(why)s"
 msgstr "Thời lượng: %(why)s"
 
 msgid "Nothing in the mistake bank for this notebook yet."
-msgstr "Ngân hàng lỗi sai của sổ tay này chưa có câu nào."
+msgstr "Sổ tay này chưa có câu sai nào cần làm lại."
 
 msgid ""
 "No questions could be generated for this notebook. Check its documents have "
