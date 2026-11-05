@@ -11,7 +11,7 @@ import {
 } from '@/lib/map-build'
 import { cn } from '@/lib/utils'
 
-type Topic = { source_id: number; title: string; key_points: number }
+type Topic = { source_id: number; title: string }
 type Selected = { kind: 'card'; id: string } | { kind: 'link'; id: string } | null
 
 const CARD = { w: 150, h: 56, gapX: 72, gapY: 96 }
@@ -44,86 +44,34 @@ function loadDraft(key: string): { cards: Card[]; links: BuildLink[] } {
   return { cards: [], links: [] }
 }
 
-/** Build a map of one document from memory: write the concepts you remember
- *  as cards, drag them where you like, press one card then another to link
- *  them and say why next to the line. One request then compares the map with
- *  the document: what was recalled, what was missed, and each link judged. */
-export function MapBuilder({ notebookId, onClose }: { notebookId: number; onClose: () => void }) {
+/** Redraw one document from memory, from the document's own page: its key
+ *  points are hidden meanwhile. Write the concepts you remember as cards, drag
+ *  them where you like, press one card then another to link them and say why
+ *  next to the line. One request then compares the map with the document:
+ *  what was recalled, what was missed, and each link judged. */
+export function MapBuilder({ notebookId, topic, onClose, onSeeMap }: {
+  notebookId: number
+  topic: Topic
+  onClose: () => void
+  onSeeMap: () => void
+}) {
   const t = useTranslations('map')
-  const [topics, setTopics] = useState<Topic[] | null>(null)
-  const [topic, setTopic] = useState<Topic | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    notebooksAPI
-      .mapTopics(notebookId)
-      .then((res) => {
-        if (!cancelled) setTopics(res.data.topics)
-      })
-      .catch(() => {
-        if (!cancelled) setError('')
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [notebookId])
-
   return (
-    <div className="sheet overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 md:px-5">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div className="min-w-0">
-          <h2 className="font-display text-lg font-semibold text-slate-900">{t('buildTitle')}</h2>
-          {topic && (
-            <p className="flex flex-wrap items-center gap-x-2 text-sm text-slate-700">
-              <FileText className="size-3.5 text-slate-500" aria-hidden />
-              <span className="truncate">{topic.title}</span>
-              <button
-                type="button"
-                onClick={() => setTopic(null)}
-                className="rounded text-mode-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
-              >
-                {t('buildChangeTopic')}
-              </button>
-            </p>
-          )}
+          <h3 className="font-display text-lg font-semibold text-slate-900">{t('redrawTitle')}</h3>
+          <p className="flex items-center gap-1.5 text-sm text-slate-700">
+            <FileText className="size-3.5 shrink-0 text-slate-500" aria-hidden />
+            <span className="truncate">{topic.title}</span>
+          </p>
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={onClose}>
           <ArrowLeft aria-hidden />
-          {t('buildBack')}
+          {t('redrawCancel')}
         </Button>
       </div>
-
-      {topic ? (
-        <Builder key={topic.source_id} notebookId={notebookId} topic={topic} onClose={onClose} />
-      ) : error !== null ? (
-        <p role="alert" className="px-5 py-6 text-base text-red-700">{t('failed')}</p>
-      ) : !topics ? (
-        <div className="flex h-48 items-center justify-center" aria-busy>
-          <Loader2 className="size-5 animate-spin text-mode motion-reduce:animate-none" aria-hidden />
-        </div>
-      ) : topics.length === 0 ? (
-        <p className="max-w-prose px-5 py-6 text-base leading-relaxed text-slate-700">{t('buildNoTopics')}</p>
-      ) : (
-        <div className="space-y-3 p-4 md:p-5">
-          <p className="max-w-prose text-base leading-relaxed text-slate-800">{t('buildPickTopic')}</p>
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {topics.map((tp) => (
-              <li key={tp.source_id}>
-                <button
-                  type="button"
-                  onClick={() => setTopic(tp)}
-                  className="flex w-full items-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-3 text-left hover:border-mode hover:bg-mode/5 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
-                >
-                  <FileText className="size-4 shrink-0 text-mode-ink" aria-hidden />
-                  <span className="min-w-0 flex-1 truncate text-base font-medium text-slate-900">{tp.title}</span>
-                  <span className="shrink-0 text-xs text-slate-600">{t('buildTopicPoints', { count: tp.key_points })}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <Builder notebookId={notebookId} topic={topic} onClose={onSeeMap} />
     </div>
   )
 }

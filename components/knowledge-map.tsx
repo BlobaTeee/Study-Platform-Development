@@ -1,7 +1,7 @@
 'use client'
 
 import '@xyflow/react/dist/style.css'
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import useSWR from 'swr'
 import {
@@ -17,13 +17,12 @@ import {
   type Node,
   type NodeProps,
 } from '@xyflow/react'
-import { ArrowRight, ChevronDown, Filter, Loader2, LocateFixed, Minus, Network, Plus, Spline, X } from 'lucide-react'
+import { ArrowRight, ChevronDown, Filter, Loader2, LocateFixed, Minus, Network, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { MapBuilder } from '@/components/map-builder'
 import { notebooksAPI, type ConceptState, type KnowledgeMapData, type MapConcept } from '@/lib/api'
-import { CARD_H, CARD_W, layoutMap } from '@/lib/map-layout'
+import { CARD_H, CARD_W, FULL_CARD, SMALL_CARD, layoutMap } from '@/lib/map-layout'
 import { formatSourceIdsForQuery } from '@/lib/source-utils'
 import { cn } from '@/lib/utils'
 
@@ -93,17 +92,19 @@ function StateDot({ state, className }: { state: ConceptState; className?: strin
 type MapView = {
   selected: string | null
   onlyWeak: boolean
+  /** In a document's page: small cards, a name and a dot. */
+  compact: boolean
   select: (key: string) => void
   /** Pan a card into view if it is outside the canvas. */
   reveal: (key: string) => void
 }
-const MapViewContext = createContext<MapView>({ selected: null, onlyWeak: false, select: () => {}, reveal: () => {} })
+const MapViewContext = createContext<MapView>({ selected: null, onlyWeak: false, compact: false, select: () => {}, reveal: () => {} })
 
 type ConceptNodeType = Node<{ concept: MapConcept }, 'concept'>
 
 function ConceptNode({ data }: NodeProps<ConceptNodeType>) {
   const t = useTranslations('map')
-  const { selected, onlyWeak, select, reveal } = useContext(MapViewContext)
+  const { selected, onlyWeak, compact, select, reveal } = useContext(MapViewContext)
   const c = data.concept
   const isSelected = selected === c.key
   const faded = onlyWeak && c.state === 'strong'
@@ -122,9 +123,10 @@ function ConceptNode({ data }: NodeProps<ConceptNodeType>) {
         }}
         aria-pressed={isSelected}
         aria-label={`${c.label}. ${t(`state_${c.state}`)}. ${numbersLine(c, t)}${once ? `, ${t('once')}` : ''}`}
-        style={{ width: CARD_W, height: CARD_H }}
+        style={compact ? { width: SMALL_CARD.w, height: SMALL_CARD.h } : { width: CARD_W, height: CARD_H }}
         className={cn(
-          'flex flex-col gap-2 overflow-hidden rounded-xl border bg-white px-3.5 py-3 text-left shadow-sheet outline-none',
+          'flex overflow-hidden rounded-xl border bg-white text-left shadow-sheet outline-none',
+          compact ? 'items-center gap-2 px-3 py-2' : 'flex-col gap-2 px-3.5 py-3',
           'transition-[opacity,box-shadow,border-color] duration-200 motion-reduce:transition-none',
           'hover:shadow-lift focus-visible:ring-[3px] focus-visible:ring-mode/30',
           c.state === 'weak' ? 'border-red-200' : 'border-slate-200',
@@ -133,10 +135,18 @@ function ConceptNode({ data }: NodeProps<ConceptNodeType>) {
           faded && 'opacity-40',
         )}
       >
+        {compact ? (
+          <>
+            <StateDot state={c.state} className="shrink-0" />
+            <span className="line-clamp-2 text-sm font-medium leading-[18px] text-slate-900">{c.label}</span>
+          </>
+        ) : (
         <span className="flex items-start gap-2">
           <StateDot state={c.state} className="mt-[6px]" />
           <span className="line-clamp-2 text-base font-medium leading-[21px] text-slate-900">{c.label}</span>
         </span>
+        )}
+        {!compact && (<>
         {/* The state in words as well as colour, beside its bar. */}
         <span className="mt-auto flex items-center gap-2.5" aria-hidden>
           <span className={cn('shrink-0 text-[13px] font-semibold leading-[18px]', WORD[c.state])}>
@@ -155,6 +165,7 @@ function ConceptNode({ data }: NodeProps<ConceptNodeType>) {
           {numbersLine(c, t)}
           {once && <span className="text-slate-700">{` · ${t('once')}`}</span>}
         </span>
+        </>)}
       </button>
       <Handle type="source" position={Position.Right} isConnectable={false} className="!opacity-0" />
     </>
@@ -179,7 +190,9 @@ function linksRequest(notebookId: number, set: string): Promise<unknown> {
  *  by the student's weaker side (understanding or memory), arrows say "learn
  *  this first". Links are found once by the server and cached; until then
  *  the cards show without arrows. */
-export function KnowledgeMap({ notebookId }: { notebookId: number }) {
+/** The notebook's map, or with `sourceId` only one document's concepts and the
+ *  links between them, sized to sit inside that document's page. */
+export function KnowledgeMap({ notebookId, sourceId }: { notebookId: number; sourceId?: number }) {
   const t = useTranslations('map')
   // Compare the payload, not the axios response (a new object every fetch):
   // a refetch that brings the same map keeps the same data, so nothing
@@ -187,14 +200,21 @@ export function KnowledgeMap({ notebookId }: { notebookId: number }) {
   const { data, error, mutate } = useSWR(['/map', notebookId], () => notebooksAPI.getMap(notebookId), {
     compare: (a, b) => JSON.stringify(a?.data) === JSON.stringify(b?.data),
   })
-  const map: KnowledgeMapData | undefined = data?.data
+  const whole: KnowledgeMapData | undefined = data?.data
+  // One document's part of the map: its concepts, and links with both ends among them.
+  const map = useMemo<KnowledgeMapData | undefined>(() => {
+    if (!whole || sourceId === undefined) return whole
+    const concepts = whole.concepts.filter((c) => c.source_ids.includes(sourceId))
+    const keys = new Set(concepts.map((c) => c.key))
+    return { ...whole, concepts, edges: whole.edges.filter((e) => keys.has(e.from) && keys.has(e.to)), missing_key_points: [] }
+  }, [whole, sourceId])
 
   // `missing` means the concepts changed since links were last found. Ask
   // once per set of concepts (reading a new document changes the set and
   // asks again); a failure leaves the cards up with a retry line. A failure
   // belongs to its set, so a new set starts clean.
   const asked = useRef<string | null>(null)
-  const conceptSet = map ? `${notebookId}:${map.concepts.map((c) => c.key).join('|')}` : null
+  const conceptSet = whole ? `${notebookId}:${whole.concepts.map((c) => c.key).join('|')}` : null
   const [failedFor, setFailedFor] = useState<string | null>(null)
   const findLinks = useCallback(
     (set: string) => {
@@ -216,7 +236,6 @@ export function KnowledgeMap({ notebookId }: { notebookId: number }) {
   }
   const linksFailed = failedFor !== null && failedFor === conceptSet && map?.edges_status === 'missing'
   const linksPending = map?.edges_status === 'missing' && !linksFailed
-  const [building, setBuilding] = useState(false)
 
   if (error && !map)
     return (
@@ -229,33 +248,10 @@ export function KnowledgeMap({ notebookId }: { notebookId: number }) {
     )
   if (!map) return <div className="sheet h-[70dvh] min-h-[420px] animate-pulse motion-reduce:animate-none" aria-busy />
   if (map.concepts.length === 0) return <EmptyMap missing={map.missing_key_points} onRead={() => mutate()} />
-  // Building by hand replaces the finished map while it lasts, so the links
-  // being guessed are not on screen; the map refetches after, with the new evidence.
-  if (building)
-    return (
-      <MapBuilder
-        notebookId={notebookId}
-        onClose={() => {
-          setBuilding(false)
-          void mutate()
-        }}
-      />
-    )
+  const inDocument = sourceId !== undefined
   return (
     <div className="space-y-3">
-      {map.concepts.length >= 3 && (
-        <div className="sheet flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-5">
-          <div className="min-w-0 max-w-prose">
-            <p className="text-base font-semibold text-slate-900">{t('buildCta')}</p>
-            <p className="text-sm leading-relaxed text-slate-700">{t('buildCtaLead')}</p>
-          </div>
-          <Button type="button" onClick={() => setBuilding(true)}>
-            <Spline aria-hidden />
-            {t('buildStart')}
-          </Button>
-        </div>
-      )}
-      <p className="max-w-prose text-sm leading-relaxed text-slate-600">{t('lead')}</p>
+      {!inDocument && <p className="max-w-prose text-sm leading-relaxed text-slate-600">{t('lead')}</p>}
       {map.missing_key_points.length > 0 && (
         <MissingNote missing={map.missing_key_points} onRead={() => mutate()} />
       )}
@@ -263,6 +259,7 @@ export function KnowledgeMap({ notebookId }: { notebookId: number }) {
         <MapCanvas
           notebookId={notebookId}
           map={map}
+          compact={inDocument}
           linksPending={linksPending}
           linksFailed={linksFailed}
           onRetryLinks={retryLinks}
@@ -362,19 +359,22 @@ const FIT_GUTTER = 24
 // the canvas starts at its left edge (where the prerequisites are) and is
 // panned, rather than shrunk to a postage stamp.
 const FIT_FLOOR = 0.85
+// In a document's page: small enough to fit its width, never too small to read.
+const COMPACT_FLOOR = 0.75
+const COMPACT_MAX_H = 960
 
 /** Where to place the map in a canvas of w × h. Computed from the layout's
  *  own positions, so it needs no measured nodes and is the same every time. */
-function fitViewport(points: { x: number; y: number }[], w: number, h: number) {
+function fitViewport(points: { x: number; y: number }[], w: number, h: number, floor = FIT_FLOOR, card = FULL_CARD) {
   if (!points.length || !w || !h) return null
   const xs = points.map((p) => p.x)
   const ys = points.map((p) => p.y)
   const minX = Math.min(...xs)
   const minY = Math.min(...ys)
-  const bw = Math.max(...xs) + CARD_W - minX
-  const bh = Math.max(...ys) + CARD_H - minY
+  const bw = Math.max(...xs) + card.w - minX
+  const bh = Math.max(...ys) + card.h - minY
   const fit = Math.min((w - 2 * FIT_GUTTER) / bw, (h - 2 * FIT_GUTTER) / bh)
-  const zoom = Math.min(1, Math.max(FIT_FLOOR, fit))
+  const zoom = Math.min(1, Math.max(floor, fit))
   const x = bw * zoom <= w - 2 * FIT_GUTTER ? (w - bw * zoom) / 2 - minX * zoom : FIT_GUTTER - minX * zoom
   const y = bh * zoom <= h - 2 * FIT_GUTTER ? (h - bh * zoom) / 2 - minY * zoom : FIT_GUTTER - minY * zoom
   return { x, y, zoom }
@@ -386,12 +386,15 @@ const EDGE_ACTIVE = 'var(--color-mode-library)'
 function MapCanvas({
   notebookId,
   map,
+  compact = false,
   linksPending,
   linksFailed,
   onRetryLinks,
 }: {
   notebookId: number
   map: KnowledgeMapData
+  /** Inside a document's page: the detail panel goes under the canvas, not beside it. */
+  compact?: boolean
   linksPending: boolean
   linksFailed: boolean
   onRetryLinks: () => void
@@ -425,13 +428,15 @@ function MapCanvas({
   // positions, and so the viewport the student panned to, alone.
   const keySig = JSON.stringify(concepts.map((c) => c.key))
   const linkSig = JSON.stringify(links.map((e) => [e.from, e.to]))
+  const card = compact ? SMALL_CARD : FULL_CARD
   const positions = useMemo(
     () =>
       layoutMap(
         JSON.parse(keySig) as string[],
         (JSON.parse(linkSig) as [string, string][]).map(([from, to]) => ({ from, to })),
+        compact ? SMALL_CARD : FULL_CARD,
       ),
-    [keySig, linkSig],
+    [keySig, linkSig, compact],
   )
 
   // Built from the data alone: selection and fading reach the cards through
@@ -473,15 +478,36 @@ function MapCanvas({
 
   // Fit on open (the canvas fades in once placed), and again only when the
   // layout itself changes, such as arrows arriving and moving cards into layers.
+  // Inside a document's page the canvas is as tall as the document's map
+  // needs at the zoom that fits its width, so nothing is cut off at the side.
+  const [canvasW, setCanvasW] = useState(0)
+  useLayoutEffect(() => {
+    const el = canvasRef.current
+    if (!compact || !el) return
+    const watch = new ResizeObserver(() => setCanvasW(el.clientWidth))
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [compact])
+  const compactHeight = useMemo(() => {
+    const pts = Object.values(positions)
+    if (!compact || !pts.length || !canvasW) return undefined
+    const bw = Math.max(...pts.map((p) => p.x)) + SMALL_CARD.w - Math.min(...pts.map((p) => p.x))
+    const bh = Math.max(...pts.map((p) => p.y)) + SMALL_CARD.h - Math.min(...pts.map((p) => p.y))
+    const zoom = Math.min(1, Math.max(COMPACT_FLOOR, (canvasW - 2 * FIT_GUTTER) / bw))
+    return Math.round(Math.min(COMPACT_MAX_H, Math.max(320, bh * zoom + 2 * FIT_GUTTER)))
+  }, [compact, positions, canvasW])
+
   const fit = useCallback(
     (duration: number) => {
       const el = canvasRef.current
-      const vp = el && fitViewport(Object.values(positions), el.clientWidth, el.clientHeight)
+      const vp = el && fitViewport(Object.values(positions), el.clientWidth, el.clientHeight, compact ? COMPACT_FLOOR : FIT_FLOOR, card)
       if (!vp) return Promise.resolve(false)
       return setViewport(vp, { duration })
     },
-    [positions, setViewport],
+    // compactHeight: a taller canvas is fitted again once it has grown.
+    [positions, setViewport, compact, compactHeight, card], // eslint-disable-line react-hooks/exhaustive-deps
   )
+
   const placedOnce = useRef(false)
   useEffect(() => {
     const first = !placedOnce.current
@@ -500,15 +526,15 @@ function MapCanvas({
       if (onlyIfHidden) {
         const left = p.x * zoom + x
         const top = p.y * zoom + y
-        const inside = left >= 0 && top >= 0 && left + CARD_W * zoom <= el.clientWidth && top + CARD_H * zoom <= el.clientHeight
+        const inside = left >= 0 && top >= 0 && left + card.w * zoom <= el.clientWidth && top + card.h * zoom <= el.clientHeight
         if (inside) return
       }
-      void setCenter(p.x + CARD_W / 2, p.y + CARD_H / 2, {
+      void setCenter(p.x + card.w / 2, p.y + card.h / 2, {
         zoom: onlyIfHidden ? zoom : Math.max(zoom, FIT_FLOOR),
         duration: motionMs(350),
       })
     },
-    [positions, getViewport, setCenter],
+    [positions, getViewport, setCenter, card],
   )
 
   // After selecting from the panel or the list, focus moves to the new
@@ -519,7 +545,7 @@ function MapCanvas({
     setSelected((k) => (k === key ? null : key))
   }, [])
   const reveal = useCallback((key: string) => centerOn(key, true), [centerOn])
-  const view = useMemo(() => ({ selected, onlyWeak, select, reveal }), [selected, onlyWeak, select, reveal])
+  const view = useMemo(() => ({ selected, onlyWeak, compact, select, reveal }), [selected, onlyWeak, compact, select, reveal])
   const current = selected ? byKey.get(selected) ?? null : null
 
   // From the panel or the list: select the card and bring it into view.
@@ -553,7 +579,7 @@ function MapCanvas({
 
   return (
     <MapViewContext.Provider value={view}>
-      <div className="sheet overflow-hidden md:grid md:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className={cn('sheet overflow-hidden', !compact && 'md:grid md:grid-cols-[minmax(0,1fr)_20rem]')}>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-slate-200 px-3 py-2 md:px-4">
             <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
@@ -631,8 +657,10 @@ function MapCanvas({
           </div>
           <div
             ref={canvasRef}
+            style={compact ? { height: compactHeight ?? 420 } : undefined}
             className={cn(
-              'relative h-[70dvh] min-h-[420px] bg-white',
+              'relative bg-white',
+              compact ? 'min-h-[320px]' : 'h-[70dvh] min-h-[420px]',
               '[&_.react-flow__viewport]:transition-opacity [&_.react-flow__viewport]:duration-300 motion-reduce:[&_.react-flow__viewport]:transition-none',
               !placed && '[&_.react-flow__viewport]:opacity-0',
               '[&_.react-flow__edge-path]:transition-[stroke,stroke-width,opacity] [&_.react-flow__edge-path]:duration-200',

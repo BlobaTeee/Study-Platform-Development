@@ -380,10 +380,8 @@ export const notebooksAPI = {
   // The knowledge map: concepts with the caller's own mastery, and the
   // prerequisite links between them (found once, then cached).
   getMap: (id: number) => api.get<KnowledgeMapData>(`/notebooks/notebooks/${id}/map/`),
-  // Build a map from memory: the documents it can be for (titles only), then
-  // the student's own cards and links compared with one of them in one request.
-  mapTopics: (id: number) =>
-    api.get<{ topics: { source_id: number; title: string; key_points: number }[] }>(`/notebooks/notebooks/${id}/map/topics/`),
+  // A map built from memory for one document: the student's own cards and
+  // links, compared with that document's key points in one request.
   mapBuild: (id: number, body: { source: number; cards: { id: string; label: string }[]; links: BuildLink[] }) =>
     api.post<BuildResult>(`/notebooks/notebooks/${id}/map/build/`, body),
   findMapLinks: (id: number) =>
@@ -473,6 +471,8 @@ export type MapConcept = {
   label: string
   point: string
   source_ids: number[]
+  /** The key points it holds, as 'sourceId:index'. */
+  members: string[]
   importance: 'core' | 'supporting'
   state: ConceptState
   understanding: { p: number; correct: number; total: number } | null

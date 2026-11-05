@@ -83,3 +83,11 @@ test('a key listed twice is placed once', () => {
   assert.deepEqual(Object.keys(pos).sort(), ['a', 'b'])
   assert.equal(pos.a.y, 0)
 })
+
+test('smaller cards are laid out on a smaller grid', async () => {
+  const { layoutMap, SMALL_CARD } = await import('./map-layout.ts')
+  const pos = layoutMap(['a', 'b', 'c'], [{ from: 'a', to: 'b' }], SMALL_CARD)
+  assert.equal(pos.b.x - pos.a.x, SMALL_CARD.w + SMALL_CARD.gapX)
+  const big = layoutMap(['a', 'b', 'c'], [{ from: 'a', to: 'b' }])
+  assert.ok(big.b.x - big.a.x > pos.b.x - pos.a.x)
+})

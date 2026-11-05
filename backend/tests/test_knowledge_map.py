@@ -235,3 +235,10 @@ def test_the_exercise_offered_is_one_not_yet_mastered(client, user, missed):
 
     assert enzymes['state'] != 'strong'
     assert enzymes['action'] == {'kind': 'exercise', 'exercise_id': todo.id} != {'exercise_id': done.id}
+
+
+def test_each_concept_says_which_key_points_it_holds(client, chem):
+    """So a document can show its own key points' states: 'source:index'."""
+    nb, src = chem
+    concepts = client.get(MAP.format(nb.id)).json()['concepts']
+    assert sorted(m for c in concepts for m in c['members']) == [f'{src.id}:0', f'{src.id}:1']

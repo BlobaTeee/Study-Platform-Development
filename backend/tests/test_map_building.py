@@ -1,6 +1,6 @@
 """Building a map yourself: write the concepts from memory, link them, say why.
 
-The student picks one document, writes the concepts they remember as cards
+From the document they are reading, the student writes the concepts they remember as cards
 and links them with a reason. One model request compares that with the
 document's key points: which card matches which point, and a verdict on
 each link. The document's own links between recalled concepts that the
@@ -15,7 +15,6 @@ from tests.conftest import make_source
 
 pytestmark = pytest.mark.django_db
 BUILD = '/api/notebooks/notebooks/{}/map/build/'
-TOPICS = '/api/notebooks/notebooks/{}/map/topics/'
 MAP = '/api/notebooks/notebooks/{}/map/'
 
 POINTS = [
@@ -79,20 +78,9 @@ def _send(client, nb, src, cards=CARDS, links=None):
     return client.post(BUILD.format(nb.id), {'source': src.id, 'cards': cards, 'links': links}, format='json')
 
 
-def test_the_topics_are_documents_with_enough_key_points(client, biology, user):
-    nb, src, _ = biology
-    thin = make_source(nb, 'Notes')
-    thin.key_points = [{'label': 'One', 'point': 'Only one idea', 'importance': 'core', 'passage': 'x'}]
-    thin.save()
-    topics = client.get(TOPICS.format(nb.id)).json()['topics']
-    assert topics == [{'source_id': src.id, 'title': 'Cells', 'key_points': 5}]
-    assert 'Mitosis' not in str(topics)                  # the title only: no hints
-
-
 def test_a_stranger_cannot_build_on_someone_elses_notebook(other_client, biology, ai):
     nb, src, _ = biology
     ai()
-    assert other_client.get(TOPICS.format(nb.id)).status_code == 404
     assert _send(other_client, nb, src).status_code == 404
 
 
