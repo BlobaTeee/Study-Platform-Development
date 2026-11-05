@@ -74,3 +74,17 @@ test("a document's key points take the state of the concept that holds them", as
   ]
   assert.deepEqual(keyPointStates(concepts, 7, 3), ['weak', null, 'strong'])
 })
+
+test('prerequisites in another document are found, with that document named', async () => {
+  const { outsideNeeds } = await import('./map-build.ts')
+  const concepts = [
+    { key: 'a', label: 'Phase change', state: 'strong', source_ids: [7] },
+    { key: 'b', label: 'Temperature', state: 'weak', source_ids: [9] },
+    { key: 'c', label: 'Convection', state: 'shaky', source_ids: [7] },
+  ]
+  const edges = [{ from: 'b', to: 'a' }, { from: 'c', to: 'a' }, { from: 'a', to: 'b' }]
+  const titles = new Map([[9, 'Forces and motion']])
+  assert.deepEqual(outsideNeeds(concepts, edges, 7, titles), {
+    a: [{ key: 'b', label: 'Temperature', state: 'weak', sourceId: 9, title: 'Forces and motion' }],
+  })
+})

@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { notebooksAPI, type ConceptState, type KnowledgeMapData, type MapConcept } from '@/lib/api'
 import { CARD_H, CARD_W, FULL_CARD, SMALL_CARD, layoutMap } from '@/lib/map-layout'
+import { outsideNeeds, type OutsideNeed } from '@/lib/map-build'
 import { formatSourceIdsForQuery } from '@/lib/source-utils'
 import { cn } from '@/lib/utils'
 
@@ -192,7 +193,12 @@ function linksRequest(notebookId: number, set: string): Promise<unknown> {
  *  the cards show without arrows. */
 /** The notebook's map, or with `sourceId` only one document's concepts and the
  *  links between them, sized to sit inside that document's page. */
-export function KnowledgeMap({ notebookId, sourceId }: { notebookId: number; sourceId?: number }) {
+export function KnowledgeMap({ notebookId, sourceId, onOpenSource }: {
+  notebookId: number
+  sourceId?: number
+  /** In a document's page: open another document of the notebook. */
+  onOpenSource?: (id: number) => void
+}) {
   const t = useTranslations('map')
   // Compare the payload, not the axios response (a new object every fetch):
   // a refetch that brings the same map keeps the same data, so nothing
@@ -208,6 +214,15 @@ export function KnowledgeMap({ notebookId, sourceId }: { notebookId: number; sou
     const keys = new Set(concepts.map((c) => c.key))
     return { ...whole, concepts, edges: whole.edges.filter((e) => keys.has(e.from) && keys.has(e.to)), missing_key_points: [] }
   }, [whole, sourceId])
+  // What to understand first that lives in another document: no arrow on this
+  // map, so it is named in the panel with its document. Same request as the page.
+  const { data: nbRes } = useSWR(sourceId !== undefined ? ['/notebooks/', notebookId] : null,
+    () => notebooksAPI.getNotebook(notebookId))
+  const outside = useMemo(() => {
+    if (!whole || sourceId === undefined) return {}
+    const sources: { id: number; title: string }[] = nbRes?.data?.sources ?? []
+    return outsideNeeds(whole.concepts, whole.edges, sourceId, new Map(sources.map((x) => [x.id, x.title])))
+  }, [whole, sourceId, nbRes])
 
   // `missing` means the concepts changed since links were last found. Ask
   // once per set of concepts (reading a new document changes the set and
@@ -260,6 +275,8 @@ export function KnowledgeMap({ notebookId, sourceId }: { notebookId: number; sou
           notebookId={notebookId}
           map={map}
           compact={inDocument}
+          outside={outside}
+          onOpenSource={onOpenSource}
           linksPending={linksPending}
           linksFailed={linksFailed}
           onRetryLinks={retryLinks}
@@ -387,6 +404,8 @@ function MapCanvas({
   notebookId,
   map,
   compact = false,
+  outside = {},
+  onOpenSource,
   linksPending,
   linksFailed,
   onRetryLinks,
@@ -395,6 +414,8 @@ function MapCanvas({
   map: KnowledgeMapData
   /** Inside a document's page: the detail panel goes under the canvas, not beside it. */
   compact?: boolean
+  outside?: Record<string, OutsideNeed<ConceptState>[]>
+  onOpenSource?: (id: number) => void
   linksPending: boolean
   linksFailed: boolean
   onRetryLinks: () => void
@@ -589,6 +610,10 @@ function MapCanvas({
                   {t(`state_${s}`)}
                 </li>
               ))}
+              <li className="inline-flex items-center gap-1.5">
+                <ArrowRight className="size-3.5 text-slate-500" aria-hidden />
+                {t('arrowMeans')}
+              </li>
             </ul>
             <div className="flex items-center gap-1">
               <Button
@@ -689,8 +714,8 @@ function MapCanvas({
         {/* Desktop: a column beside the canvas, always there so selecting a
             card never resizes the canvas under the pointer. Absolute inner so
             a long panel scrolls instead of stretching the map. */}
-        <aside className="relative hidden border-l border-slate-200 md:block">
-          <div className="absolute inset-0 overflow-y-auto">
+        <aside className={cn('hidden md:block', compact ? 'border-t border-slate-200' : 'relative border-l border-slate-200')}>
+          <div className={cn(!compact && 'absolute inset-0 overflow-y-auto')}>
             {current ? (
               <ConceptDetail
                 key={current.key}
@@ -700,8 +725,11 @@ function MapCanvas({
                 notebookId={notebookId}
                 onSelect={focusConcept}
                 focusRequestRef={focusHeadingRef}
+                compact={compact}
+                outside={outside[current.key] ?? []}
+                onOpenSource={onOpenSource}
               />
-            ) : (
+            ) : compact ? null : (
               <p className="p-5 text-sm text-slate-600">{t('pickHint')}</p>
             )}
           </div>
@@ -742,6 +770,9 @@ function MapCanvas({
             notebookId={notebookId}
             onSelect={focusConcept}
             focusRequestRef={focusHeadingRef}
+            compact={compact}
+            outside={outside[current.key] ?? []}
+            onOpenSource={onOpenSource}
             className="pt-0"
           />
         </div>
@@ -759,6 +790,9 @@ function ConceptDetail({
   notebookId,
   onSelect,
   focusRequestRef,
+  compact = false,
+  outside = [],
+  onOpenSource,
   className,
 }: {
   concept: MapConcept
@@ -769,6 +803,10 @@ function ConceptDetail({
   /** Set when this panel replaces another by a press inside the panel or the
    *  list: the visible copy (desktop column or phone sheet) takes focus. */
   focusRequestRef: React.RefObject<boolean>
+  /** In a document's page: the short form, no description, needs as chips. */
+  compact?: boolean
+  outside?: OutsideNeed<ConceptState>[]
+  onOpenSource?: (id: number) => void
   className?: string
 }) {
   const t = useTranslations('map')
@@ -833,6 +871,74 @@ function ConceptDetail({
   }
 
   const action = c.action
+  const actionButton = action && (
+    <div data-mode={action.kind === 'cards' ? 'flashcards' : 'quizzes'} className="space-y-2">
+      {action.kind === 'cards' ? (
+        <Button asChild className="w-full">
+          <Link href={`/dashboard/flashcards?cards=${action.card_ids.join(',')}`}>
+            {t('actionCards', { count: action.card_ids.length })}
+          </Link>
+        </Button>
+      ) : action.kind === 'exercise' ? (
+        <Button asChild className="w-full">
+          <Link href={`/dashboard/practice/${action.exercise_id}`}>{t('actionExercise')}</Link>
+        </Button>
+      ) : (
+        <Button type="button" className="w-full" disabled={practising} onClick={() => void practise()}>
+          {practising && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />}
+          {practising ? t('practising') : t('actionPractice')}
+        </Button>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-red-700">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+
+  // In a document's page: name, state, one line of numbers, one line of advice,
+  // what to understand first as chips, and the button. Nothing else.
+  if (compact) {
+    const chips = [
+      ...needs.map((e) => byKey.get(e.from)).filter((x): x is MapConcept => !!x)
+        .map((x) => ({ key: x.key, label: x.label, state: x.state, why: needs.find((e) => e.from === x.key)?.why ?? '', onPress: () => onSelect(x.key), doc: '' })),
+      ...outside.map((o) => ({ key: o.key, label: o.label, state: o.state, why: '', onPress: () => onOpenSource?.(o.sourceId), doc: o.title })),
+    ]
+    return (
+      <div className={cn('grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_14rem] md:items-start', className)}>
+        <div className="min-w-0 space-y-2">
+          <h3 ref={headingRef} tabIndex={-1} className="flex items-center gap-2 text-base font-semibold text-slate-900 outline-none">
+            <StateDot state={c.state} />
+            {c.label}
+            <span className={cn('text-sm font-normal', WORD[c.state])}>· {t(`state_${c.state}`)}</span>
+          </h3>
+          <p className="font-mono text-xs text-slate-600 tabular-nums">{numbersLine(c, t)}</p>
+          {advice && <p className="text-sm text-slate-700">{advice}</p>}
+          {chips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-sm text-slate-700">{t('needs')}:</span>
+              {chips.map((x) => (
+                <button
+                  key={x.key}
+                  type="button"
+                  onClick={x.onPress}
+                  title={x.why || undefined}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-2.5 py-0.5 text-sm text-slate-900 hover:border-mode hover:bg-mode/5 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
+                >
+                  <StateDot state={x.state} />
+                  {x.label}
+                  {x.doc && <span className="text-xs text-slate-600">· {x.doc} ↗</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {actionButton}
+      </div>
+    )
+  }
+
   return (
     <div className={cn('space-y-5 p-5', className)}>
       <div className="space-y-1.5">
@@ -870,31 +976,7 @@ function ConceptDetail({
         </div>
       )}
 
-      {action && (
-        <div data-mode={action.kind === 'cards' ? 'flashcards' : 'quizzes'} className="space-y-2">
-          {action.kind === 'cards' ? (
-            <Button asChild className="w-full">
-              <Link href={`/dashboard/flashcards?cards=${action.card_ids.join(',')}`}>
-                {t('actionCards', { count: action.card_ids.length })}
-              </Link>
-            </Button>
-          ) : action.kind === 'exercise' ? (
-            <Button asChild className="w-full">
-              <Link href={`/dashboard/practice/${action.exercise_id}`}>{t('actionExercise')}</Link>
-            </Button>
-          ) : (
-            <Button type="button" className="w-full" disabled={practising} onClick={() => void practise()}>
-              {practising && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />}
-              {practising ? t('practising') : t('actionPractice')}
-            </Button>
-          )}
-          {error && (
-            <p role="alert" className="text-sm text-red-700">
-              {error}
-            </p>
-          )}
-        </div>
-      )}
+      {actionButton}
 
       {needs.length > 0 && (
         <div className="space-y-3 border-t border-slate-100 pt-4">

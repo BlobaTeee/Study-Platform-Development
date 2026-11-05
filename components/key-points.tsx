@@ -34,11 +34,13 @@ type View = 'list' | 'map' | 'redraw'
 /** A document's main ideas, all in the document's own page: as a short list
  *  with how well each is known, as a small map of just this document, or
  *  hidden while the student redraws them from memory and compares. */
-export function KeyPoints({ points, notebookId, sourceId, title }: {
+export function KeyPoints({ points, notebookId, sourceId, title, onOpenSource }: {
   points: KeyPoint[]
   notebookId: number
   sourceId: number
   title: string
+  /** Open another document of the notebook (a prerequisite that lives there). */
+  onOpenSource: (id: number) => void
 }) {
   const t = useTranslations('notebooks')
   const m = useTranslations('map')
@@ -74,12 +76,12 @@ export function KeyPoints({ points, notebookId, sourceId, title }: {
       {view === 'list' ? (
         <PointList points={points} states={states} />
       ) : (
-        <KnowledgeMap notebookId={notebookId} sourceId={sourceId} />
+        <KnowledgeMap notebookId={notebookId} sourceId={sourceId} onOpenSource={onOpenSource} />
       )}
 
       {points.length >= MIN_POINTS && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 px-4 py-3">
-          <p className="max-w-[56ch] text-sm leading-relaxed text-slate-700">{m('redrawLead', { count: points.length })}</p>
+          <p className="text-sm text-slate-700">{m('redrawLead')}</p>
           <Button type="button" variant="tinted" onClick={() => setView('redraw')}>
             <PenLine aria-hidden />
             {m('redrawStart')}
@@ -124,8 +126,7 @@ function PointList({ points, states }: { points: KeyPoint[]; states: (ConceptSta
 
   return (
     <div>
-      <p className="text-xs text-slate-500">{t('keyPointsLead')}</p>
-      <ul className="mt-2 divide-y divide-slate-100">
+      <ul className="divide-y divide-slate-100">
         {shown.map((p) => {
           const i = points.indexOf(p)
           const isOpen = open === i
