@@ -168,3 +168,12 @@ def test_links_count_on_the_map_for_the_concepts_their_cards_match(client, biolo
     assert (by_label['Mitosis']['understanding']['correct'], by_label['Mitosis']['understanding']['total']) == (1, 2)
     assert by_label['Cell cycle']['understanding'] is None          # only a partial link
     assert by_label['Enzymes']['understanding'] is None
+
+
+def test_too_few_words_to_tell_answers_in_the_language_of_the_page(client, biology, ai):
+    """'ádsad' looks Vietnamese but says nothing: the page's language decides."""
+    nb, src, _ = biology
+    p = ai(matches={1: 1, 2: 2}, verdicts=['wrong'])
+    client.post(BUILD.format(nb.id), {'source': src.id, 'cards': CARDS, 'links': [{'from': 'a', 'to': 'b', 'why': 'ádsad'}]},
+                format='json', HTTP_ACCEPT_LANGUAGE='en')
+    assert 'in English' in p.prompt
