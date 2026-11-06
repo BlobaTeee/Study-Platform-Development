@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     ChatGroupMembersView, ChatGroupMessagesView, ChatGroupsView, ChatMessageView,
-    ChatOverviewView, DirectThreadView, InviteAcceptView, NotebookViewSet, SourceViewSet,
+    ChatOverviewView, DirectThreadView, InviteAcceptView, NotebookViewSet, SourceViewSet, TranslateView,
 )
 
 router = DefaultRouter()
@@ -18,5 +18,6 @@ urlpatterns = [
     path('chat/groups/<int:group_id>/members/<int:user_id>/', ChatGroupMembersView.as_view(), name='chat-group-member'),
     path('chat/overview/', ChatOverviewView.as_view(), name='chat-overview'),
     path('chat/direct/<int:user_id>/', DirectThreadView.as_view(), name='chat-direct'),
+    path('translate/', TranslateView.as_view(), name='translate'),
     path('', include(router.urls)),
 ]

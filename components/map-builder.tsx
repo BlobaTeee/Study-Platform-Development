@@ -4,11 +4,13 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { ArrowLeft, Check, FileText, Loader2, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useInPageLanguage } from '@/components/in-page-language'
 import { notebooksAPI } from '@/lib/api'
 import {
   MAX_CARDS, MAX_LABEL, addCard, addLink, blocker, freeSpot, pairId, removeCard, removeLink, spreadBadges, tally,
   type BuildLink, type BuildResult, type Card, type Verdict,
 } from '@/lib/map-build'
+import { shownAs } from '@/lib/translate'
 import { cn } from '@/lib/utils'
 
 type Topic = { source_id: number; title: string }
@@ -227,7 +229,9 @@ function Builder({ notebookId, topic, onClose }: { notebookId: number; topic: To
   const focusLink = selected?.kind === 'link' ? selected.id : null
   const lit = (x: { from: string; to: string }) =>
     focusLink ? pairId(x.from, x.to) === focusLink : focusOn ? x.from === focusOn || x.to === focusOn : true
-  const matchOf = new Map(result?.cards.map((c) => [c.id, c.match_label]) ?? [])
+  // The document's key point a card matched, in the page language.
+  const matched = useInPageLanguage(result?.cards.map((c) => c.match_label) ?? [])
+  const matchOf = new Map(result?.cards.map((c) => [c.id, c.match_label && (shownAs(matched, c.match_label) ?? c.match_label)]) ?? [])
   const stop = blocker(cards, links)
   const step = result ? 3 : cards.length < 3 ? 1 : 2
   const openLink = focusLink ? shown.find((x) => pairId(x.from, x.to) === focusLink) ?? null : null
@@ -600,6 +604,9 @@ function Results({ result, labelOf, onPick }: {
   const [allPoints, setAllPoints] = useState(false)
   const FIRST = 6
   const points = allPoints ? result.missed_points : result.missed_points.slice(0, FIRST)
+  // The document's words (missed points, its reasons) in the page language; the student's stay as written.
+  const found = useInPageLanguage([...result.missed_points.flatMap((p) => [p.label, p.point]), ...result.missed.map((m) => m.why)])
+  const tr = (text: string) => shownAs(found, text) ?? text
   return (
     <div className="grid gap-6 border-t border-slate-200 p-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] md:p-5">
       {/* Each link: what you wrote, then what the AI made of it. */}
@@ -631,9 +638,9 @@ function Results({ result, labelOf, onPick }: {
             <h3 className="text-sm font-semibold text-slate-900">{t('buildMissedPoints', { count: result.missed_points.length })}</h3>
             <ul className="flex flex-wrap gap-1.5">
               {points.map((p) => (
-                <li key={p.label} title={p.point !== p.label ? p.point : undefined}
+                <li key={p.label} title={p.point !== p.label ? tr(p.point) : undefined}
                   className="rounded-full border border-slate-300 bg-white px-2.5 py-0.5 text-sm text-slate-900">
-                  {p.label}
+                  {tr(p.label)}
                 </li>
               ))}
               {!allPoints && result.missed_points.length > FIRST && (
@@ -652,7 +659,7 @@ function Results({ result, labelOf, onPick }: {
             <h3 className="text-sm font-semibold text-slate-900">{t('buildMissed', { count: result.missed.length })}</h3>
             <ul className="flex flex-wrap gap-1.5">
               {result.missed.map((m) => (
-                <li key={pairId(m.from, m.to)} title={m.why || undefined}
+                <li key={pairId(m.from, m.to)} title={m.why ? tr(m.why) : undefined}
                   className="rounded-full border border-dashed border-slate-400 px-2.5 py-0.5 text-sm text-slate-900">
                   {labelOf(m.from)} — {labelOf(m.to)}
                 </li>

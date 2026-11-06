@@ -214,3 +214,19 @@ class MapBuild(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class Translation(models.Model):
+    """A document text in the page's other language (services/translate.py).
+
+    Keyed by a hash of the text, not by user or document: the same key
+    point read by two students, or kept after a document is regenerated,
+    is translated once.
+    """
+    text_hash = models.CharField(max_length=64)
+    target = models.CharField(max_length=2)
+    translated = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['text_hash', 'target'], name='one_translation_per_text')]

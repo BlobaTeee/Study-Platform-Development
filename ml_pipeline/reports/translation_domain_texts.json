@@ -1,0 +1,122 @@
+[
+ {
+  "kind": "label",
+  "en": "Virus Structure"
+ },
+ {
+  "kind": "label",
+  "en": "Dalton's law"
+ },
+ {
+  "kind": "label",
+  "en": "Polarity and Dissolution"
+ },
+ {
+  "kind": "label",
+  "en": "Cell division for growth"
+ },
+ {
+  "kind": "label",
+  "en": "Convection Heat Transfer"
+ },
+ {
+  "kind": "label",
+  "en": "Glucose for Energy"
+ },
+ {
+  "kind": "label",
+  "en": "Overpopulation and Extinction"
+ },
+ {
+  "kind": "label",
+  "en": "FM Radio Noise Rejection"
+ },
+ {
+  "kind": "label",
+  "en": "Ionic Bonding"
+ },
+ {
+  "kind": "label",
+  "en": "Genetics and DNA inheritance"
+ },
+ {
+  "kind": "label",
+  "en": "Light Refraction and Speed"
+ },
+ {
+  "kind": "label",
+  "en": "Nutrient Cycles"
+ },
+ {
+  "kind": "point",
+  "en": "Mass wasting is a form of erosion where gravity pulls soil and rocks directly down slopes."
+ },
+ {
+  "kind": "point",
+  "en": "The Sun is Earth's primary energy source, producing immense energy through nuclear fusion of hydrogen into helium. This energy reaches Earth primarily as visible light through radiation."
+ },
+ {
+  "kind": "point",
+  "en": "Air is a poor conductor of heat and acts as a good insulator, especially when trapped in small spaces that prevent convection. This principle is used in wall insulation and double-paned windows."
+ },
+ {
+  "kind": "point",
+  "en": "Biological systems contain macromolecules, which are extremely large molecules composed of many atoms that can fold back on themselves, leading to intramolecular interactions."
+ },
+ {
+  "kind": "point",
+  "en": "Carbon forms various carbides, including ionic with electropositive metals, interstitial with transition metals, and covalent with elements of similar electronegativity, each resulting in distinct material properties."
+ },
+ {
+  "kind": "point",
+  "en": "Voltage represents energy per unit charge, not the total energy stored. Two batteries can have the same voltage but different energy storage capacities if one can move more charge than the other."
+ },
+ {
+  "kind": "point",
+  "en": "Enzymes speed up the biochemical reactions in living organisms so cellular processes happen quickly enough to sustain life."
+ },
+ {
+  "kind": "point",
+  "en": "Ecological succession describes the gradual process where one community of species is replaced by others over time, starting with pioneer species and progressing through stages like grasses, shrubs, and eventually larger trees, driven by changing abiotic factors."
+ },
+ {
+  "kind": "point",
+  "en": "In metallic solids, valence electrons are delocalized throughout the crystal, creating a strong cohesive force that gives metals properties like luster, high conductivity, and malleability."
+ },
+ {
+  "kind": "point",
+  "en": "Light bends, or refracts, when it enters a different medium, and the degree of bending depends on how much its speed changes. A greater change in speed leads to a greater angle of refraction."
+ },
+ {
+  "kind": "why",
+  "en": "Eukaryotic organelles are located inside the plasma membrane and require it to maintain their internal environment."
+ },
+ {
+  "kind": "why",
+  "en": "Nuclear fusion in the sun represents an energy transformation governed by thermodynamic laws."
+ },
+ {
+  "kind": "why",
+  "en": "Ionic bonding is a specific mechanism for forming compounds."
+ },
+ {
+  "kind": "why",
+  "en": "Ribosomes use the genetic code to translate mRNA sequences into protein chains."
+ },
+ {
+  "kind": "why",
+  "en": "Evidence like the fossil record tracks the history of changes in traits over time."
+ },
+ {
+  "kind": "why",
+  "en": "Mitosis requires the pre-existence of condensed chromosomes to distribute them into daughter nuclei."
+ },
+ {
+  "kind": "summary",
+  "en": "Energy and waves: Summary Changes of state are examples of phase changes, or phase transitions. All phase changes are accompanied by changes in the energy of a system."
+ },
+ {
+  "kind": "summary",
+  "en": "Evolution and ecosystems: Ring species Ring species demonstrate a version of allopatric speciation. Imagine populations of the species A."
+ }
+]

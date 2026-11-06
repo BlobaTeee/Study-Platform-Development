@@ -53,6 +53,10 @@ class _NoProvider:
         raise RuntimeError('no provider in tests')
 
 
+def _no_translation(texts, source, target):
+    raise RuntimeError('no translation model in tests')
+
+
 @pytest.fixture(autouse=True)
 def _no_outside_generation(settings, monkeypatch):
     """No test may reach a real provider or the spaCy pipeline.
@@ -82,6 +86,8 @@ def _no_outside_generation(settings, monkeypatch):
                    'notebooks.services.map_building.get_ai_provider',
                    'study_sessions.feynman.get_ai_provider'):
         monkeypatch.setattr(target, lambda: _NoProvider())
+    # Nor load the local translation model.
+    monkeypatch.setattr('notebooks.services.translate.machine_translate', _no_translation)
 
 
 @pytest.fixture

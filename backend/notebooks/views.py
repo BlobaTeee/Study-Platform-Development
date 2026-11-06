@@ -503,6 +503,23 @@ class InviteAcceptView(APIView):
         return Response({'notebook': {'id': nb.id, 'title': nb.title}})
 
 
+class TranslateView(APIView):
+    """A document's texts in the page language (services/translate.py)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from .services.translate import LANGUAGES, MAX_CHARS, MAX_TEXTS, translate_texts
+
+        texts, target = request.data.get('texts'), request.data.get('to')
+        if (target not in LANGUAGES or not isinstance(texts, list) or len(texts) > MAX_TEXTS
+                or not all(isinstance(t, str) and len(t) <= MAX_CHARS for t in texts)):
+            return Response({'detail': _('Send up to %(count)s texts of up to %(chars)s characters each, '
+                                         'and the language to translate to (vi or en).')
+                             % {'count': MAX_TEXTS, 'chars': MAX_CHARS}}, status=400)
+        translations, translated = translate_texts(texts, target)
+        return Response({'translations': translations, 'translated': translated})
+
+
 class ChatMessageView(APIView):
     """Deleting one line of a group thread: its author only."""
     permission_classes = [permissions.IsAuthenticated]
