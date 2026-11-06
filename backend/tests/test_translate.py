@@ -117,6 +117,11 @@ def test_bad_requests_are_refused_before_any_translation(client, machine, body):
     assert m.calls == 0
 
 
+def test_a_bad_request_is_explained_in_the_page_language(client, machine):
+    res = client.post(URL, {'texts': EN, 'to': 'fr'}, format='json', HTTP_ACCEPT_LANGUAGE='vi')
+    assert res.json()['detail'].startswith('Gửi tối đa 100')
+
+
 def test_only_signed_in_students(machine):
     from rest_framework.test import APIClient
     assert APIClient(HTTP_HOST='localhost').post(URL, {'texts': EN, 'to': 'vi'}, format='json').status_code in (401, 403)
