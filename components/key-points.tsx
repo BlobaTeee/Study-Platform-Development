@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import useSWR from 'swr'
 import { ChevronDown, List, Network, PenLine } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { KnowledgeMap } from '@/components/knowledge-map'
 import { MapBuilder } from '@/components/map-builder'
 import { notebooksAPI, type ConceptState, type KeyPoint } from '@/lib/api'
@@ -118,6 +119,8 @@ function PointList({ points, states }: { points: KeyPoint[]; states: (ConceptSta
   const m = useTranslations('map')
   const [open, setOpen] = useState<number | null>(null)
   const [all, setAll] = useState(false)
+  // In the page language; the passage stays in the document's own words.
+  const found = useInPageLanguage(points.flatMap((p) => [p.label, p.point]))
 
   const core = points.filter((p) => p.importance === 'core')
   const first = (core.length ? core : points).slice(0, FIRST_SHOWN)
@@ -147,7 +150,7 @@ function PointList({ points, states }: { points: KeyPoint[]; states: (ConceptSta
                   aria-hidden
                 />
                 <span className={cn('min-w-0 flex-1 text-sm text-slate-900', !isOpen && 'truncate')}>
-                  {p.label || p.point}
+                  <InPageLanguage text={p.label || p.point} found={found} />
                 </span>
                 {state && (
                   <span className={cn('flex shrink-0 items-center gap-1.5 text-xs', WORD[state])}>
@@ -162,7 +165,7 @@ function PointList({ points, states }: { points: KeyPoint[]; states: (ConceptSta
               </button>
               {isOpen && (
                 <div className="mb-2 ml-[1.125rem] max-w-[70ch] space-y-2 text-sm leading-relaxed">
-                  {p.label && <p className="text-slate-800">{p.point}</p>}
+                  {p.label && <p className="text-slate-800"><InPageLanguage text={p.point} found={found} /></p>}
                   {/* The passage is the document's own words, kept to show the idea is
                       really there; labelled so it does not read as the summary twice. */}
                   <figure className="rounded-md bg-slate-50 px-3 py-2">

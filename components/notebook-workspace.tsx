@@ -18,6 +18,7 @@ import {
 import { SourceDropZone } from '@/components/source-drop-zone'
 import { useConfirm } from '@/components/confirm-dialog'
 import { KeyPoints } from '@/components/key-points'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { StudyDesk } from '@/components/study-desk'
 import { NotebookMembers } from '@/components/notebook-members'
 import { LiveStart } from '@/components/live-start'
@@ -107,6 +108,11 @@ function ActionMenu({ label, icon, items, align = 'right' }: {
 /** What an exact set of documents already has: its card count and a quiz.
  *  Counted server-side on the same set a generate press replaces, so the
  *  number shown is the number that press retires. */
+/** A document's overview, in the page language. */
+function Overview({ text }: { text: string }) {
+  return <InPageLanguage text={text} found={useInPageLanguage([text])} />
+}
+
 function useMaterialCounts(notebookId: number, ids: number[]) {
   const query = formatSourceIdsForQuery(ids)
   const { data } = useSWR(
@@ -879,7 +885,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                               <>
                                 <h3 className="text-sm font-semibold text-slate-900">{t('overview')}</h3>
                                 <p className="mt-2 max-w-[75ch] text-base leading-relaxed text-slate-700 hyphens-auto md:text-justify">
-                                  {sourceDetail.gemini_summary}
+                                  <Overview text={sourceDetail.gemini_summary} />
                                 </p>
                               </>
                             )}

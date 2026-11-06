@@ -54,3 +54,5 @@ datasets/raw/MMLU/
 
 # Django file cache (concept names, forgotten-card groups)
 backend/.cache/
+# IWSLT'15 en-vi (TED talks, research use, cite Luong & Manning 2015): fetched on demand, see datasets/README.md
+datasets/raw/IWSLT/

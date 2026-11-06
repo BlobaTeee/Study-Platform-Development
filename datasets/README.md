@@ -183,6 +183,24 @@ loader raises a clear error telling you to fetch it (below); SciQ raw is committ
 - **Used by:** `ml_pipeline/notebooks/11_answer_scorer_domains.ipynb` (evaluation) and
   `python -m ml_pipeline.train_models` (the train half joins SciQ in the scorer's training rows).
 
+### IWSLT'15 English–Vietnamese  (reading a document in the other language)
+
+- **Source:** Luong, M.-T. & Manning, C. D. (2015). *Stanford Neural Machine Translation Systems for
+  Spoken Language Domains.* IWSLT. TED talk subtitles; Hugging Face parquet copy of
+  `IWSLT/mt_eng_vietnamese` (config `iwslt2015-en-vi`; the Stanford host was unreachable).
+- **Licence:** not stated by the publisher; research use with citation of the paper above.
+- **Committed:** ⛔ no (gitignored). Download into `datasets/raw/IWSLT/`:
+
+  ```bash
+  for s in train test; do
+    curl -L -o datasets/raw/IWSLT/$s.parquet \
+      "https://huggingface.co/datasets/IWSLT/mt_eng_vietnamese/resolve/refs%2Fconvert%2Fparquet/iwslt2015-en-vi/$s/0000.parquet"
+  done
+  ```
+- **Size:** 133,318 training pairs, 1,268 test pairs (tst2013).
+- **Used by:** `ml_pipeline/notebooks/12_translation.ipynb`: the test pairs score the candidate models;
+  the training pairs show that TED vocabulary cannot choose the interface's own words.
+
 ## Integrity check
 
 Verify a raw file has not drifted/corrupted:

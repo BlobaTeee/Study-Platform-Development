@@ -319,6 +319,9 @@ export const notebooksAPI = {
     api.patch(`/notebooks/notebooks/${id}/`, data),
   deleteNotebook: (id: number) => api.delete(`/notebooks/notebooks/${id}/`),
   getSource: (id: number) => api.get(`/notebooks/sources/${id}/`),
+  /** A document's texts in the page language; the originals when the model is not available. */
+  translate: (texts: string[], to: string) =>
+    api.post<{ translations: string[]; translated: boolean }>('/notebooks/translate/', { texts, to }),
   // Read an older document's main ideas now; kept once read.
   readSource: (id: number) => api.post(`/notebooks/sources/${id}/read/`),
   deleteSource: (id: number) => api.delete(`/notebooks/sources/${id}/`),
@@ -481,6 +484,8 @@ export type MapConcept = {
   events: number
   action: ConceptAction | null
   first: string | null
+  /** The name as the document wrote it, when `label` is a translation (lib/translate.ts). */
+  original?: string
 }
 export type KnowledgeMapData = {
   concepts: MapConcept[]

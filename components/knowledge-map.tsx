@@ -21,10 +21,12 @@ import { ArrowRight, ChevronDown, Filter, Loader2, LocateFixed, Minus, Network, 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { useInPageLanguage } from '@/components/in-page-language'
 import { notebooksAPI, type ConceptState, type KnowledgeMapData, type MapConcept } from '@/lib/api'
 import { CARD_H, CARD_W, FULL_CARD, SMALL_CARD, layoutMap } from '@/lib/map-layout'
 import { outsideNeeds, type OutsideNeed } from '@/lib/map-build'
 import { formatSourceIdsForQuery } from '@/lib/source-utils'
+import { inPageLanguage, mapTexts } from '@/lib/translate'
 import { cn } from '@/lib/utils'
 
 type MapT = ReturnType<typeof useTranslations<'map'>>
@@ -139,12 +141,12 @@ function ConceptNode({ data }: NodeProps<ConceptNodeType>) {
         {compact ? (
           <>
             <StateDot state={c.state} className="shrink-0" />
-            <span className="line-clamp-2 text-sm font-medium leading-[18px] text-slate-900">{c.label}</span>
+            <span title={c.original} className="line-clamp-2 text-sm font-medium leading-[18px] text-slate-900">{c.label}</span>
           </>
         ) : (
         <span className="flex items-start gap-2">
           <StateDot state={c.state} className="mt-[6px]" />
-          <span className="line-clamp-2 text-base font-medium leading-[21px] text-slate-900">{c.label}</span>
+          <span title={c.original} className="line-clamp-2 text-base font-medium leading-[21px] text-slate-900">{c.label}</span>
         </span>
         )}
         {!compact && (<>
@@ -206,7 +208,11 @@ export function KnowledgeMap({ notebookId, sourceId, onOpenSource }: {
   const { data, error, mutate } = useSWR(['/map', notebookId], () => notebooksAPI.getMap(notebookId), {
     compare: (a, b) => JSON.stringify(a?.data) === JSON.stringify(b?.data),
   })
-  const whole: KnowledgeMapData | undefined = data?.data
+  const raw: KnowledgeMapData | undefined = data?.data
+  // Names, points and reasons in the page language once translated; the
+  // document's own words until then (and on hover).
+  const found = useInPageLanguage(raw ? mapTexts(raw, sourceId) : [])
+  const whole = useMemo(() => raw && inPageLanguage(raw, found), [raw, found])
   // One document's part of the map: its concepts, and links with both ends among them.
   const map = useMemo<KnowledgeMapData | undefined>(() => {
     if (!whole || sourceId === undefined) return whole
@@ -910,7 +916,7 @@ function ConceptDetail({
         <div className="min-w-0 space-y-2">
           <h3 ref={headingRef} tabIndex={-1} className="flex items-center gap-2 text-base font-semibold text-slate-900 outline-none">
             <StateDot state={c.state} />
-            {c.label}
+            <span title={c.original}>{c.label}</span>
             <span className={cn('text-sm font-normal', WORD[c.state])}>· {t(`state_${c.state}`)}</span>
           </h3>
           <p className="font-mono text-xs text-slate-600 tabular-nums">{numbersLine(c, t)}</p>
@@ -945,6 +951,7 @@ function ConceptDetail({
         <h3
           ref={headingRef}
           tabIndex={-1}
+          title={c.original}
           className="font-display text-lg font-semibold leading-snug text-slate-900 outline-none"
         >
           {c.label}

@@ -21,6 +21,13 @@ textstat>=0.7.3
 # pinned above). Makes `import ml_pipeline` work from any cwd, e.g. manage.py
 # commands. Remember to run `python -m spacy download en_core_web_sm` too.
 -e ..
+# Reading a document in the page's other language: a local English <-> Vietnamese
+# model (ml_pipeline/translator.py, VietAI/envit5-translation, ~1 GB, downloaded
+# on first use). Without these the page shows the document's own words.
+torch>=2.4
+transformers>=4.44,<5
+sentencepiece>=0.2
+protobuf>=4.25
 # Optional: needed for PostgreSQL/Supabase connections.
 psycopg[binary]>=3.2
 # Backend API tests (backend/tests, run with ./venv/bin/pytest).
