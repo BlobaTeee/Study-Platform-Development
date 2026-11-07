@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl'
 import { ArrowRight } from 'lucide-react'
 import { OwnProblemForm } from '@/components/own-problem-form'
 import { PageHeader } from '@/components/page-header'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { exercisesAPI, type ExerciseSummary } from '@/lib/api'
 import { filtered, filtersFor, inPracticeOrder, parseFilter, type PracticeFilter } from '@/lib/practice'
 import { cn } from '@/lib/utils'
@@ -25,6 +26,7 @@ function PracticeList() {
   const all: ExerciseSummary[] = data?.data?.results ?? []
   const filters = filtersFor(all)
   const shown = inPracticeOrder(filtered(all, filter))
+  const found = useInPageLanguage(shown.map((p) => p.prompt))
   const [writing, setWriting] = useState(filter === 'own')
 
   const pick = (next: PracticeFilter) => {
@@ -70,7 +72,7 @@ function PracticeList() {
                   className="-mx-2 flex items-center gap-3 rounded-md px-2 py-3 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-base text-slate-900">{p.prompt}</span>
+                    <span className="block truncate text-base text-slate-900"><InPageLanguage text={p.prompt} found={found} /></span>
                     <span className="block truncate text-sm text-slate-600">
                       {t(`difficulty_${p.difficulty}`)}
                       {' · '}

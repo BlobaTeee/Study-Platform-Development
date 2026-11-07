@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { reviewsAPI, type MisconceptionNotebook } from '@/lib/api'
+import { type Ask, withOriginal } from '@/lib/translate'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 
 /** What the student keeps confusing, named from the wrong options they chose
  *  in two or more questions. Fixed by setting the two ideas side by side:
@@ -15,6 +17,13 @@ export function Misconceptions({ notebooks }: { notebooks: MisconceptionNotebook
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
+  // The two ideas are words from the questions' language; the difference, when
+  // there is one, is the sentence that gives them their sense.
+  const items = notebooks.flatMap((nb) => nb.items)
+  const found = useInPageLanguage(items.flatMap((item): Ask[] => [
+    ...[item.confused, item.with].map((w) => (item.difference ? { text: w, context: item.difference } : w)),
+    item.difference,
+  ]))
 
   const practise = async (notebookId: number, key: string) => {
     setBusy(key)
@@ -37,12 +46,16 @@ export function Misconceptions({ notebooks }: { notebooks: MisconceptionNotebook
               <div className="min-w-0 flex-1">
                 <p className="text-base text-slate-900">
                   {t.rich('mixUp', {
-                    a: item.confused,
-                    b: item.with,
+                    a: withOriginal(found, item.confused, item.difference || undefined),
+                    b: withOriginal(found, item.with, item.difference || undefined),
                     strong: (chunk) => <span className="font-semibold">{chunk}</span>,
                   })}
                 </p>
-                {item.difference && <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-slate-700">{item.difference}</p>}
+                {item.difference && (
+                  <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-slate-700">
+                    <InPageLanguage text={item.difference} found={found} />
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-slate-500">
                   {t('mixUpEvidence', { count: item.evidence })}
                   {nb.title ? ` · ${nb.title}` : ''}

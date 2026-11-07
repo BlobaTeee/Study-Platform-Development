@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl'
 import { BookOpen, Check, ChevronLeft, CircleAlert, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { explainAPI, type FeynmanFeedback } from '@/lib/api'
 import { parseSourceIdsParam } from '@/lib/source-utils'
 import { cn } from '@/lib/utils'
@@ -26,6 +27,8 @@ function ExplainConcept() {
   const cardsParam = searchParams.get('cards')
   const cardIds = useMemo(() => parseSourceIdsParam(cardsParam), [cardsParam])
   const concept = searchParams.get('concept')?.trim() || t('thisIdea')
+  // The concept is named in its document's language; the feedback follows what the student writes.
+  const found = useInPageLanguage([concept])
 
   const { data: latestRes, isLoading, mutate } = useSWR(
     cardIds.length ? ['/study/explain', cardsParam] : null,
@@ -84,7 +87,7 @@ function ExplainConcept() {
       <section className="sheet p-6 md:p-8" aria-labelledby="concept-title">
         <p className="text-sm font-medium text-mode-ink">{t('concept')}</p>
         <h2 id="concept-title" className="mt-1 font-display text-2xl text-slate-900 text-balance md:text-3xl">
-          {concept}
+          <InPageLanguage text={concept} found={found} />
         </h2>
 
         {isLoading ? (

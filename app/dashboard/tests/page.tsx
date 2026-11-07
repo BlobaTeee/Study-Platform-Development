@@ -15,6 +15,8 @@ import { useLocale, useTranslations } from 'next-intl'
 import { WeakConcepts } from '@/components/weak-concepts'
 import { PageHeader } from '@/components/page-header'
 import { WhyWrong } from '@/components/why-wrong'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
+import { isShort, quizTexts } from '@/lib/translate'
 import {
   AlertCircle,
   ArrowLeft,
@@ -295,6 +297,14 @@ function MockTestsInner() {
   const paper = useMemo(
     () => [...(test?.paper ?? [])].sort((a, b) => a.order - b.order),
     [test]
+  )
+
+  // The paper is in the documents' language; shown in the page's. Sitting:
+  // this question and the next. Review: the whole paper.
+  const found = useInPageLanguage(
+    result
+      ? result.paper.flatMap(quizTexts)
+      : [paper[qIndex], paper[qIndex + 1]].flatMap((q) => (q ? quizTexts(q) : []))
   )
 
   const handleSubmit = useCallback(async () => {
@@ -618,7 +628,9 @@ function MockTestsInner() {
                 ) : (
                   <XCircle className="size-5 text-red-600 shrink-0 mt-0.5" aria-hidden />
                 )}
-                <p className="text-lg text-slate-900 leading-relaxed">{q.question_text}</p>
+                <p className="text-lg text-slate-900 leading-relaxed">
+                  <InPageLanguage text={q.question_text} found={found} />
+                </p>
               </div>
 
               <div className="space-y-2 mb-4">
@@ -628,7 +640,7 @@ function MockTestsInner() {
                   else if (opt === q.user_answer) style = 'border-red-300 bg-red-50 text-red-900'
                   return (
                     <div key={opt} className={`rounded-lg border-2 px-4 py-2.5 text-base ${style}`}>
-                      {opt}
+                      <InPageLanguage text={opt} found={found} context={isShort(opt) ? q.question_text : undefined} />
                       {opt === q.correct_answer && (
                         <span className="ml-2 text-sm font-medium text-emerald-700">{t('correctAnswer')}</span>
                       )}
@@ -644,7 +656,9 @@ function MockTestsInner() {
               </div>
 
               {q.explanation && (
-                <p className="text-base text-slate-500 leading-relaxed">{q.explanation}</p>
+                <p className="text-base text-slate-500 leading-relaxed">
+                  <InPageLanguage text={q.explanation} found={found} />
+                </p>
               )}
               {!q.is_correct && (
                 <WhyWrong testId={result.id} paperQuestionId={q.id} initial={q.ai_explanation} />
@@ -746,7 +760,7 @@ function MockTestsInner() {
               <span className="h-px flex-1 bg-slate-100" aria-hidden />
             </div>
             <p className="text-2xl md:text-3xl text-slate-900 leading-relaxed mb-8">
-              {question.question_text}
+              <InPageLanguage text={question.question_text} found={found} />
             </p>
 
             <div className="space-y-3" role="radiogroup" aria-label="Answer options">
@@ -763,7 +777,7 @@ function MockTestsInner() {
                       isSelected ? 'border-mode bg-mode/10' : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
-                    {opt}
+                    <InPageLanguage text={opt} found={found} context={isShort(opt) ? question.question_text : undefined} />
                   </button>
                 )
               })}

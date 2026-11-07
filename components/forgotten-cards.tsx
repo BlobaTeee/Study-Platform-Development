@@ -7,6 +7,8 @@ import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { ForgottenNotebook } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { shownAs } from '@/lib/translate'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 
 /** Cards last answered wrong: one short line per notebook, most forgotten
  *  first, opening onto that notebook's concept groups. Listed flat, every
@@ -16,6 +18,8 @@ export function ForgottenCards({ notebooks }: { notebooks: ForgottenNotebook[] }
   const t = useTranslations('analytics')
   const common = useTranslations('common')
   const [open, setOpen] = useState<Set<number | null>>(new Set())
+  // Concept names and sample questions are in their documents' language.
+  const found = useInPageLanguage(notebooks.flatMap((nb) => nb.groups.flatMap((g) => [g.label, g.sample])))
 
   const toggle = (id: number | null) =>
     setOpen((current) => {
@@ -72,11 +76,11 @@ export function ForgottenCards({ notebooks }: { notebooks: ForgottenNotebook[] }
                   <li key={g.key} className="flex flex-col items-start gap-2 py-3 sm:flex-row sm:items-center sm:gap-4 sm:pl-6">
                     <div className="min-w-0 w-full flex-1">
                       <p className="text-base text-slate-900">
-                        {g.label}
+                        <InPageLanguage text={g.label} found={found} />
                         <span className="ml-2 text-sm text-slate-600">{common('cards', { count: g.count })}</span>
                       </p>
                       <p className="line-clamp-2 text-sm text-slate-600 sm:line-clamp-1">
-                        {t('forgottenSample', { question: g.sample })}
+                        {t('forgottenSample', { question: shownAs(found, g.sample) ?? g.sample })}
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center gap-1 sm:gap-2">

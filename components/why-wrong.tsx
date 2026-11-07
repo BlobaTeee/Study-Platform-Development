@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Loader2, Sparkles } from 'lucide-react'
 import { mockTestsAPI } from '@/lib/api'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 
 /** "Why?" under a wrong answer: a short explanation written from the
  *  passage the question came from. Asked for on demand — most reviews never
@@ -17,6 +18,8 @@ export function WhyWrong({ testId, paperQuestionId, initial }: {
   const [text, setText] = useState(initial ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Written in the passage's language; shown in the page's.
+  const found = useInPageLanguage([text])
 
   const ask = async () => {
     setLoading(true)
@@ -39,7 +42,9 @@ export function WhyWrong({ testId, paperQuestionId, initial }: {
           <Sparkles className="size-3.5" aria-hidden />
           {t('whyTitle')}
         </p>
-        <p className="text-base text-slate-800 leading-relaxed">{text}</p>
+        <p className="text-base text-slate-800 leading-relaxed">
+          <InPageLanguage text={text} found={found} />
+        </p>
       </div>
     )
   }

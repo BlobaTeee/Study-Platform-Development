@@ -117,3 +117,10 @@ def test_the_answer_is_read_after_the_last_answer_word():
 def test_no_answer_word_means_no_answer():
     assert answer_from('Quá trình nhân phân chia được gọi là epistasis.', 'vi') is None
     assert answer_from('Đáp án:', 'vi') is None
+
+
+def test_a_formula_travels_whole():
+    # $…$ is typeset on the page (components/math-text.tsx): the model must not touch a letter of it.
+    assert shield('Solve $x^2 = 4$ for x.', KNOWN.__contains__) == ('Solve <0> for x.', ['$x^2 = 4$'])
+    assert shield('Then $$E = mc^2$$ holds.', KNOWN.__contains__) == ('Then <0> holds.', ['$$E = mc^2$$'])
+    assert shield('It costs $5 and $6.', KNOWN.__contains__) == ('It costs <0>5 and <1>6.', ['$', '$'])
