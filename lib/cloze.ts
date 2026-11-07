@@ -25,6 +25,16 @@ export function checkTyped(typed: string, answer: string): ClozeVerdict {
   return 'wrong'
 }
 
+const RANK: ClozeVerdict[] = ['empty', 'wrong', 'close', 'correct']
+
+/** The best check of `typed` against any of `answers`: the document's word,
+ *  or its translation when the page is in the other language. */
+export function checkTypedAny(typed: string, answers: string[]): ClozeVerdict {
+  return answers
+    .map((a) => checkTyped(typed, a))
+    .reduce((best, v) => (RANK.indexOf(v) > RANK.indexOf(best) ? v : best), 'empty' as ClozeVerdict)
+}
+
 export function suggestedGrade(verdict: ClozeVerdict): 'hard' | 'good' | null {
   if (verdict === 'empty') return null
   return verdict === 'wrong' ? 'hard' : 'good'

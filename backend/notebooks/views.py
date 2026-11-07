@@ -511,12 +511,16 @@ class TranslateView(APIView):
         from .services.translate import LANGUAGES, MAX_CHARS, MAX_TEXTS, translate_texts
 
         texts, target = request.data.get('texts'), request.data.get('to')
+        # The question each text answers, for short answers; None for the rest.
+        contexts = request.data.get('contexts')
         if (target not in LANGUAGES or not isinstance(texts, list) or len(texts) > MAX_TEXTS
-                or not all(isinstance(t, str) and len(t) <= MAX_CHARS for t in texts)):
+                or not all(isinstance(t, str) and len(t) <= MAX_CHARS for t in texts)
+                or (contexts is not None and (not isinstance(contexts, list) or len(contexts) != len(texts)
+                    or not all(c is None or (isinstance(c, str) and len(c) <= MAX_CHARS) for c in contexts)))):
             return Response({'detail': _('Send up to %(count)s texts of up to %(chars)s characters each, '
                                          'and the language to translate to (vi or en).')
                              % {'count': MAX_TEXTS, 'chars': MAX_CHARS}}, status=400)
-        translations, translated = translate_texts(texts, target)
+        translations, translated = translate_texts(texts, target, contexts)
         return Response({'translations': translations, 'translated': translated})
 
 

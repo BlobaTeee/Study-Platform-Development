@@ -390,6 +390,8 @@
   },
   "quizzes": {
     "title": "Bài kiểm tra",
+    "titleFrom": "Bài kiểm tra: {name}",
+    "titleFromMany": "Bài kiểm tra từ {count} tài liệu",
     "loading": "Đang tải bài kiểm tra…",
     "noneForSource": "Chưa có bài kiểm tra cho tài liệu này.",
     "generateFromNotebooks": "Tạo từ Sổ tay",

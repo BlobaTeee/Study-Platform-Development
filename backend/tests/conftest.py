@@ -88,6 +88,7 @@ def _no_outside_generation(settings, monkeypatch):
         monkeypatch.setattr(target, lambda: _NoProvider())
     # Nor load the local translation model.
     monkeypatch.setattr('notebooks.services.translate.machine_translate', _no_translation)
+    monkeypatch.setattr('notebooks.services.translate.machine_translate_in_context', _no_translation)
 
 
 @pytest.fixture

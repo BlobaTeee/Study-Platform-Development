@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button'
 import useSWR from 'swr'
 import { analyticsAPI, flashcardsAPI, notebooksAPI, type ReviewGrade } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { BLANK, type ClozeVerdict, checkTyped, splitAtBlank, suggestedGrade } from '@/lib/cloze'
+import { BLANK, type ClozeVerdict, checkTypedAny, splitAtBlank, suggestedGrade } from '@/lib/cloze'
+import { cardTexts, isShort, shownAs } from '@/lib/translate'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { useTranslations } from 'next-intl'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { useConfirm } from '@/components/confirm-dialog'
@@ -257,6 +259,13 @@ function FlashcardsStudy() {
     }
   }
 
+  // The cards are in the document's language; shown in the page's. The next
+  // card is asked for too, so it is ready when it comes.
+  const current: Flashcard | undefined = flashcards[index] ?? flashcards[0]
+  const found = useInPageLanguage(current ? cardTexts(current) : [])
+  const upcoming: Flashcard | undefined = flashcards[index + 1]
+  useInPageLanguage(upcoming ? cardTexts(upcoming) : [])
+
   // Studying the due queue needs no document chosen — the schedule already knows.
   if (!queue && (!sourceParam || sourceIds.length === 0)) {
     return <SourceRequired type="flashcards" />
@@ -326,7 +335,10 @@ function FlashcardsStudy() {
   const isCloze = card.kind === 'cloze'
   const typed = attempt.id === card.id ? attempt.text : ''
   // Checked once the card is turned, whichever way it was turned.
-  const verdict: ClozeVerdict | null = isCloze && flipped ? checkTyped(typed, card.answer) : null
+  // The missing word typed in either language counts.
+  const answerShown = shownAs(found, card.answer, answerContext(card))
+  const verdict: ClozeVerdict | null =
+    isCloze && flipped ? checkTypedAny(typed, answerShown ? [card.answer, answerShown] : [card.answer]) : null
   const suggestion = verdict ? suggestedGrade(verdict) : null
 
   return (
@@ -419,8 +431,8 @@ function FlashcardsStudy() {
               flipped && 'is-flipped'
             )}
           >
-            <IndexFace side="front" card={card} typed={typed} />
-            <IndexFace side="back" card={card} typed={typed} verdict={verdict} />
+            <IndexFace side="front" card={card} typed={typed} found={found} />
+            <IndexFace side="back" card={card} typed={typed} verdict={verdict} found={found} />
           </div>
         </button>
       </div>
@@ -435,7 +447,9 @@ function FlashcardsStudy() {
             <ChevronDown className="size-4 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
             {t('moreExplanation')}
           </summary>
-          <p className="mt-2 max-w-[65ch] text-base leading-relaxed text-slate-700 text-pretty">{card.explanation}</p>
+          <p className="mt-2 max-w-[65ch] text-base leading-relaxed text-slate-700 text-pretty">
+            <InPageLanguage text={card.explanation} found={found} />
+          </p>
         </details>
       )}
 
@@ -570,11 +584,12 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 /** One face of the index card. The tabbed top edge and ruled baseline are
  *  the physical cues; front is amber (prompt), back is ink (recall). */
-function IndexFace({ side, card, typed = '', verdict = null }: {
+function IndexFace({ side, card, typed = '', verdict = null, found }: {
   side: 'front' | 'back'
   card: Flashcard
   typed?: string
   verdict?: ClozeVerdict | null
+  found: Map<string, string> | undefined
 }) {
   const t = useTranslations('flashcards')
   const isFront = side === 'front'
@@ -603,7 +618,13 @@ function IndexFace({ side, card, typed = '', verdict = null }: {
         {isFront ? t(isCloze ? 'fillBlank' : 'question') : t('answer')}
       </p>
       <p className="text-2xl leading-relaxed text-slate-900 md:text-[1.75rem] text-pretty">
-        {isCloze ? <ClozeSentence card={card} fill={isFront ? typed : null} /> : isFront ? card.question : card.answer}
+        {isCloze ? (
+          <ClozeSentence card={card} fill={isFront ? typed : null} found={found} />
+        ) : isFront ? (
+          <InPageLanguage text={card.question} found={found} />
+        ) : (
+          <InPageLanguage text={card.answer} found={found} context={answerContext(card)} />
+        )}
       </p>
       {!isFront && verdict && verdict !== 'empty' && (
         <p className={cn('mt-5 text-base', verdict === 'wrong' ? 'text-red-800' : verdict === 'close' ? 'text-amber-800' : 'text-emerald-800')}>
@@ -618,8 +639,11 @@ function IndexFace({ side, card, typed = '', verdict = null }: {
 
 /** The cloze sentence. On the front the blank shows what is being typed;
  *  on the back it holds the answer, marked so the eye lands on it. */
-function ClozeSentence({ card, fill }: { card: Flashcard; fill: string | null }) {
-  const [before, after] = splitAtBlank(card.question)
+function ClozeSentence({ card, fill, found }: { card: Flashcard; fill: string | null; found: Map<string, string> | undefined }) {
+  // A translation that lost its blank has nothing to fill in: the card's own words then.
+  const translated = shownAs(found, card.question)
+  const sentence = translated && translated.split(BLANK).length === 2 ? translated : card.question
+  const [before, after] = splitAtBlank(sentence)
   // Punctuation right after the blank stays on its line; otherwise a comma
   // can wrap away from the word it belongs to and open the next line.
   const [, glued, rest] = after.match(/^([^\s\p{L}\p{N}]*)([\s\S]*)$/u) ?? [, '', after]
@@ -628,7 +652,9 @@ function ClozeSentence({ card, fill }: { card: Flashcard; fill: string | null })
       {before}
       <span className="whitespace-nowrap">
         {fill === null ? (
-          <mark className="rounded bg-mode/15 px-1 font-semibold text-slate-900">{card.answer}</mark>
+          <mark className="rounded bg-mode/15 px-1 font-semibold text-slate-900">
+            <InPageLanguage text={card.answer} found={found} context={answerContext(card)} />
+          </mark>
         ) : (
           <span className="inline-block min-w-[5ch] border-b-2 border-mode px-1 text-center text-mode-ink">
             {fill.trim() || '\u00a0'}
@@ -647,6 +673,11 @@ export default function FlashcardsPage() {
       <FlashcardsStudy />
     </Suspense>
   )
+}
+
+/** The question a short answer is translated with (lib/translate.ts cardTexts). */
+function answerContext(card: Flashcard): string | undefined {
+  return isShort(card.answer) ? card.question : undefined
 }
 
 function difficultyLabel(difficulty: string, t: (key: string) => string): string {

@@ -27,12 +27,20 @@ class Machine:
             raise RuntimeError('model missing')
         return [f'[{source}>{target}] {t}' for t in texts]
 
+    def in_context(self, pairs, source, target):
+        self.calls += 1
+        self.seen += [t for t, _ in pairs]
+        if self.fail:
+            raise RuntimeError('model missing')
+        return [f'[{source}>{target} as the answer to: {c}] {t}' for t, c in pairs]
+
 
 @pytest.fixture
 def machine(monkeypatch):
     def use(**kw):
         m = Machine(**kw)
         monkeypatch.setattr('notebooks.services.translate.machine_translate', m)
+        monkeypatch.setattr('notebooks.services.translate.machine_translate_in_context', m.in_context)
         return m
     return use
 
@@ -110,6 +118,66 @@ def test_blank_texts_and_other_languages_pass_through(client, machine):
     res = client.post(URL, {'texts': ['', '  ', '能量守恒', '= 42'], 'to': 'vi'}, format='json')
     assert res.data['translations'] == ['', '  ', '能量守恒', '= 42']
     assert m.calls == 0
+
+
+# A short answer alone is a word without a sense ("Force" → "Buộc"); with its
+# question the model reads it as the question means it.
+Q = 'What is required to change the angular velocity of an object?'
+
+
+def test_a_short_answer_is_translated_as_the_answer_to_its_question(client, machine):
+    machine()
+    res = client.post(URL, {'texts': [Q, 'Force'], 'contexts': [None, Q], 'to': 'vi'}, format='json')
+    assert res.data['translations'] == [f'[en>vi] {Q}', f'[en>vi as the answer to: {Q}] Force']
+
+
+def test_the_question_decides_the_language_of_a_short_answer(client, machine):
+    machine()
+    vi_q = 'Quá trình phân chia nhân được gọi là gì?'
+    res = client.post(URL, {'texts': ['epistasis', 'DNA'], 'contexts': [vi_q, vi_q], 'to': 'en'}, format='json')
+    assert res.data['translations'] == [f'[vi>en as the answer to: {vi_q}] epistasis', f'[vi>en as the answer to: {vi_q}] DNA']
+
+
+def test_an_answer_without_letters_is_left_alone(client, machine):
+    m = machine()
+    res = client.post(URL, {'texts': ['3.5', '= 42'], 'contexts': [Q, Q], 'to': 'vi'}, format='json')
+    assert res.data['translations'] == ['3.5', '= 42']
+    assert m.calls == 0
+
+
+def test_the_same_word_under_two_questions_is_kept_twice(client, machine):
+    m = machine()
+    other = 'What is the rate of doing work called?'
+    client.post(URL, {'texts': ['Force', 'Force'], 'contexts': [Q, other], 'to': 'vi'}, format='json')
+    client.post(URL, {'texts': ['Force'], 'contexts': [Q], 'to': 'vi'}, format='json')
+    assert m.seen == ['Force', 'Force']
+    assert Translation.objects.count() == 2
+
+
+@pytest.mark.parametrize('body', [
+    {'texts': ['Force'], 'contexts': [Q, Q], 'to': 'vi'},
+    {'texts': ['Force'], 'contexts': [7], 'to': 'vi'},
+    {'texts': ['Force'], 'contexts': 'not a list', 'to': 'vi'},
+    {'texts': ['Force'], 'contexts': ['x' * 3001], 'to': 'vi'},
+])
+def test_bad_contexts_are_refused(client, machine, body):
+    m = machine()
+    assert client.post(URL, body, format='json').status_code == 400
+    assert m.calls == 0
+
+
+def test_a_typed_answer_is_put_in_the_language_of_its_question(machine):
+    from notebooks.services.translate import into_language_of
+    machine()
+    # Asked with the question in the answer's own language: a prompt in two languages confuses the model.
+    assert into_language_of('lực', Q) == f'[vi>en as the answer to: [en>vi] {Q}] lực'
+    assert into_language_of('force', Q) is None
+
+
+def test_without_the_model_a_typed_answer_stays_as_typed(machine):
+    from notebooks.services.translate import into_language_of
+    machine(fail=True)
+    assert into_language_of('lực', Q) is None
 
 
 @pytest.mark.parametrize('body', [

@@ -13,6 +13,8 @@ import { SourceRequired } from '@/components/source-required'
 import { useConfirm } from '@/components/confirm-dialog'
 import { QuestionEditor, type EditableQuestion } from '@/components/question-editor'
 import { PageHeader } from '@/components/page-header'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
+import { isShort, quizTexts, quizTitle } from '@/lib/translate'
 import { useTranslations } from 'next-intl'
 import { ArrowRight, CheckCircle2, CircleDashed, Keyboard, Pencil, Trash2, XCircle } from 'lucide-react'
 
@@ -159,6 +161,11 @@ function QuizzesStudy() {
     question?.question_type === 'true_false' && (!question.options?.length)
       ? ['True', 'False'] // stored values; shown through optionLabel()
       : question?.options ?? []
+  // The questions are in the document's language; shown in the page's. The
+  // next one is asked for too, so it is ready when it comes.
+  const found = useInPageLanguage(question ? quizTexts(question) : [])
+  const nextQuestion = questions[qIndex + 1]
+  useInPageLanguage(nextQuestion ? quizTexts(nextQuestion) : [])
 
   const handleSubmit = async () => {
     if (!selected || !attemptId || !question) return
@@ -358,7 +365,7 @@ function QuizzesStudy() {
       </Suspense>
 
       <PageHeader
-        title={quiz.title}
+        title={shownTitle(quiz.title, t)}
         meta={t('questionOf', { n: qIndex + 1, total: questions.length })}
         action={
           !typedUnavailable ? (
@@ -397,7 +404,7 @@ function QuizzesStudy() {
       <Card className="relative p-8 md:p-10">
         <span className="absolute left-8 -top-px h-[3px] w-12 rounded-b-full bg-mode md:left-10" aria-hidden />
         <p className="mb-8 text-2xl leading-relaxed text-slate-900 md:text-[1.75rem] text-pretty">
-          {question.question_text}
+          <InPageLanguage text={question.question_text} found={found} />
         </p>
 
         {typedMode ? (
@@ -418,7 +425,7 @@ function QuizzesStudy() {
                 className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-lg text-slate-900 outline-none focus-visible:border-mode focus-visible:ring-[3px] focus-visible:ring-mode/25"
               />
             ) : graded ? (
-              <TypedVerdict typed={typed} graded={graded} onOverride={handleOverride} />
+              <TypedVerdict typed={typed} graded={graded} onOverride={handleOverride} question={question.question_text} found={found} />
             ) : null}
             {typedError && <p className="text-base text-red-700">{typedError}</p>}
           </form>
@@ -440,7 +447,9 @@ function QuizzesStudy() {
                   onClick={() => setSelected(opt)}
                   className={`w-full rounded-lg border px-4 py-3 text-left text-lg text-slate-900 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30 ${style}`}
                 >
-                  {optionLabel(opt, t)}
+                  {opt === 'True' || opt === 'False' ? optionLabel(opt, t) : (
+                    <InPageLanguage text={opt} found={found} context={isShort(opt) ? question.question_text : undefined} />
+                  )}
                 </button>
               )
             })}
@@ -448,7 +457,9 @@ function QuizzesStudy() {
         )}
 
         {submitted && !typedMode && question.explanation && (
-          <p className="mt-6 text-lg text-slate-500 leading-relaxed">{question.explanation}</p>
+          <p className="mt-6 text-lg text-slate-500 leading-relaxed">
+            <InPageLanguage text={question.explanation} found={found} />
+          </p>
         )}
       </Card>
       )}
@@ -518,10 +529,14 @@ function TypedVerdict({
   typed,
   graded,
   onOverride,
+  question,
+  found,
 }: {
   typed: string
   graded: Graded
   onOverride: () => void
+  question: string
+  found: Map<string, string> | undefined
 }) {
   const t = useTranslations('quizzes')
   const state = graded.is_correct
@@ -543,12 +558,19 @@ function TypedVerdict({
         <p className="text-lg text-slate-900">
           {t.rich('theAnswerIs', {
             answer: graded.reference_answer,
-            b: (chunks) => <span className="font-semibold">{chunks}</span>,
+            b: () => (
+              <span className="font-semibold">
+                <InPageLanguage text={graded.reference_answer} found={found}
+                  context={isShort(graded.reference_answer) ? question : undefined} />
+              </span>
+            ),
           })}
         </p>
       )}
       {graded.explanation && (
-        <p className="text-lg text-slate-500 leading-relaxed">{graded.explanation}</p>
+        <p className="text-lg text-slate-500 leading-relaxed">
+          <InPageLanguage text={graded.explanation} found={found} />
+        </p>
       )}
       {!graded.is_correct && (
         <button
@@ -561,6 +583,13 @@ function TypedVerdict({
       )}
     </div>
   )
+}
+
+/** The quiz's name in the page's words; a name the student gave stays as written. */
+function shownTitle(title: string, t: (key: string, values?: Record<string, string | number>) => string): string {
+  const from = quizTitle(title)
+  if (!from) return title
+  return 'count' in from ? t('titleFromMany', { count: from.count }) : t('titleFrom', { name: from.name })
 }
 
 /** True/false options are stored as the English words the grader compares

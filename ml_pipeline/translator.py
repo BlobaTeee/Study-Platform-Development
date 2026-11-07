@@ -27,6 +27,14 @@ _loaded: list = []
 _lock = threading.Lock()
 # A sentence ends at . ! ? followed by a space and a capital or a digit.
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-ZÀ-Ỹ0-9\"'(])")
+_BLANK = re.compile(r"_{2,}")
+#: How a short answer is asked with its question, and the words the model
+#: writes before the answer in each language (notebook 12, section 6).
+_ANSWER_LEAD = {"en": "Answer:", "vi": "Đáp án:"}
+_ANSWER_WORDS = {
+    "en": re.compile(r"(?:the answer is|answer:)", re.I),
+    "vi": re.compile(r"(?:đáp án:|câu trả lời là|câu trả lời:|trả lời:|đáp:)", re.I),
+}
 
 
 def _model():
@@ -83,6 +91,8 @@ def shield(sentence: str, known) -> tuple[str, list[str]]:
     goes whole ("Brønsted-Lowry", "Δv"): with only the letter replaced the
     model garbles the rest. `known(c)` says whether the model has `c`."""
     odd = [not c.isspace() and (not known(c) or unicodedata.normalize("NFKC", c) != c) for c in sentence]
+    for blank in _BLANK.finditer(sentence):       # the model drops a fill-in blank
+        odd[blank.start():blank.end()] = [True] * (blank.end() - blank.start())
     for i, c in enumerate(sentence):
         if odd[i] and c.isalpha():
             for step in (-1, 1):
@@ -113,27 +123,59 @@ def unshield(translated: str, spans: list[str]) -> str | None:
     return translated
 
 
-def translate(texts: list[str], source: str, target: str) -> list[str]:
-    """Each of `texts` from `source` to `target` ('en' or 'vi'), in order."""
+def answer_prompt(text: str, context: str, source: str) -> str:
+    """`text`, a short answer, asked as the answer to `context`, its question:
+    alone it is a word without a sense ("Force" → "Buộc")."""
+    return f"{context} {_ANSWER_LEAD[source]} {text}."
+
+
+def answer_from(translated: str, target: str) -> str | None:
+    """The answer in a translated `answer_prompt`, or None when the model did
+    not write it after an answer word."""
+    found = list(_ANSWER_WORDS[target].finditer(translated))
+    if not found:
+        return None
+    answer = translated[found[-1].end():].strip().rstrip(".").strip()
+    return answer or None
+
+
+def _generate(sentences: list[str], source: str, target: str) -> list[str]:
+    """Each of `sentences`, prepared for the model, translated and put back."""
     import torch
 
-    pieces = [split_sentences(t) for t in texts]
-    flat = [s for p in pieces for s in p]
     out: list[str] = []
     with _lock:                                  # one generate at a time on the device
         tokenizer, model, device, known = _model()
-        shielded = [shield(as_sentence_case(s), known) for s in flat]
-        for i in range(0, len(flat), BATCH):
+        shielded = [shield(as_sentence_case(s), known) for s in sentences]
+        for i in range(0, len(sentences), BATCH):
             batch = tokenizer([f"{source}: {t}" for t, _ in shielded[i:i + BATCH]], return_tensors="pt",
                               padding=True, truncation=True, max_length=256).to(device)
             with torch.no_grad():
                 generated = model.generate(**batch, num_beams=BEAMS, max_new_tokens=256)
             out += [o.removeprefix(f"{target}:").strip() for o in tokenizer.batch_decode(generated, skip_special_tokens=True)]
-    for i, (s, (_, spans)) in enumerate(zip(flat, shielded)):
+    for i, (s, (_, spans)) in enumerate(zip(sentences, shielded)):
         restored = unshield(out[i], spans)
         out[i] = s if restored is None else first_letter_as_in(s, restored)
+    return out
+
+
+def translate(texts: list[str], source: str, target: str) -> list[str]:
+    """Each of `texts` from `source` to `target` ('en' or 'vi'), in order."""
+    pieces = [split_sentences(t) for t in texts]
+    out = _generate([s for p in pieces for s in p], source, target)
     joined, at = [], 0
     for p in pieces:
         joined.append(" ".join(out[at:at + len(p)]))
         at += len(p)
     return joined
+
+
+def translate_in_context(pairs: list[tuple[str, str]], source: str, target: str) -> list[str]:
+    """Each short answer of `pairs` (answer, its question) translated as the
+    answer to its question; one the model does not mark as the answer is
+    translated alone."""
+    done = _generate([answer_prompt(text, context, source) for text, context in pairs], source, target)
+    answers = [answer_from(d, target) for d in done]
+    alone = [text for (text, _), a in zip(pairs, answers) if a is None]
+    alone_done = iter(translate(alone, source, target) if alone else [])
+    return [first_letter_as_in(text, a) if a is not None else next(alone_done) for (text, _), a in zip(pairs, answers)]

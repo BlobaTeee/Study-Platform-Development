@@ -390,6 +390,8 @@
   },
   "quizzes": {
     "title": "Quiz",
+    "titleFrom": "Quiz: {name}",
+    "titleFromMany": "Quiz on {count} documents",
     "loading": "Loading quiz…",
     "noneForSource": "No quiz for this document yet.",
     "generateFromNotebooks": "Generate from Notebooks",
