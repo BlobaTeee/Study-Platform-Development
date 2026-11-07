@@ -75,6 +75,37 @@ def test_a_missing_scorer_artifact_is_a_503_not_a_crash(client, attempt, monkeyp
     assert Answer.objects.count() == 0
 
 
+# ---- an answer typed in the page's language ---------------------------------------
+
+def _translator(monkeypatch, said):
+    seen = []
+    def in_context(pairs, source, target):
+        seen.extend(pairs)
+        return [said for _ in pairs]
+    monkeypatch.setattr('notebooks.services.translate.machine_translate_in_context', in_context)
+    return seen
+
+
+def test_an_answer_typed_in_vietnamese_counts_when_it_means_the_answer(client, attempt, monkeypatch):
+    seen = _translator(monkeypatch, 'carbon dioxide')
+    body = _grade(client, attempt, 'khí cacbonic').json()
+    assert (body['verdict'], body['is_correct']) == ('correct', True)
+    assert seen == [('khí cacbonic', 'What gas do plants absorb during photosynthesis?')]
+    assert Answer.objects.get(id=body['id']).user_answer == 'khí cacbonic'
+
+
+def test_a_vietnamese_answer_that_means_a_wrong_one_stays_wrong(client, attempt, monkeypatch):
+    _translator(monkeypatch, 'oxygen')
+    body = _grade(client, attempt, 'khí ôxi').json()
+    assert (body['verdict'], body['is_correct']) == ('wrong', False)
+
+
+def test_without_the_translator_a_vietnamese_answer_is_graded_as_typed(client, attempt):
+    res = _grade(client, attempt, 'khí cacbonic')     # conftest: the model is not there
+    assert res.status_code == 200
+    assert res.json()['is_correct'] is False
+
+
 # ---- the LLM tier ----------------------------------------------------------------
 
 class _Provider:

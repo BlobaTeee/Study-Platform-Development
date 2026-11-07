@@ -4,7 +4,8 @@ until a text is translated."""
 import subprocess
 import sys
 
-from ml_pipeline.translator import as_sentence_case, first_letter_as_in, shield, split_sentences, unshield
+from ml_pipeline.translator import (answer_from, answer_prompt, as_sentence_case, first_letter_as_in, shield,
+                                    split_sentences, unshield)
 
 
 def test_a_paragraph_is_cut_into_its_sentences():
@@ -92,3 +93,27 @@ def test_placeholders_are_put_back():
 def test_a_lost_or_repeated_placeholder_gives_nothing():
     assert unshield('pH 7 và <1> = v/f', ['≤', 'λ']) is None
     assert unshield('<0> pH <0> 7', ['≤']) is None
+
+
+def test_a_blank_to_fill_travels_as_a_placeholder():
+    # The model drops "___" from a fill-in-the-blank sentence; as <0> it keeps its place.
+    assert shield('or ___, a system contains.', KNOWN.__contains__) == ('or <0>, a system contains.', ['___'])
+
+
+# A short answer alone is a word without a sense ("Force" → "Buộc", "nguyên phân" →
+# "integral"); asked as the answer to its question, the model picks the sense the question means.
+def test_a_short_answer_is_asked_with_its_question():
+    assert answer_prompt('Force', 'What changes angular velocity?', 'en') == 'What changes angular velocity? Answer: Force.'
+    assert answer_prompt('nguyên phân', 'Nhân phân chia gọi là gì?', 'vi') == 'Nhân phân chia gọi là gì? Đáp án: nguyên phân.'
+
+
+def test_the_answer_is_read_after_the_last_answer_word():
+    assert answer_from('Cần gì để thay đổi vận tốc góc? Đáp án: Lực.', 'vi') == 'Lực'
+    assert answer_from('Đại lượng nào đo bằng kilôgam? Câu trả lời là khối lượng.', 'vi') == 'khối lượng'
+    assert answer_from('Tính chất nào? Trả lời: Điện tích.', 'vi') == 'Điện tích'
+    assert answer_from('What is measured in kilograms? Answer: mass.', 'en') == 'mass'
+
+
+def test_no_answer_word_means_no_answer():
+    assert answer_from('Quá trình nhân phân chia được gọi là epistasis.', 'vi') is None
+    assert answer_from('Đáp án:', 'vi') is None

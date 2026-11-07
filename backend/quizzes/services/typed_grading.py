@@ -5,6 +5,10 @@ milliseconds with no network. Only a `near` verdict is put to the configured
 provider — Ollama on a laptop, Gemini in production, same code — and any
 failure there leaves `near` in place: the student sees "Close" and the
 override, never an error.
+
+An answer typed in the other language (the page in Vietnamese, the document
+in English) is graded as its translation: compared word by word with the
+reference it could only ever be wrong.
 """
 import json
 import logging
@@ -27,6 +31,9 @@ def grade_typed(question, typed: str) -> dict:
     Raises whatever the scorer raises when its artifact is missing — the
     view turns that into a 503; it is a deployment fault, not a bad answer.
     """
+    from notebooks.services.translate import into_language_of
+
+    typed = into_language_of(typed, question.question_text) or typed
     distractors = [o for o in (question.options or []) if o != question.correct_answer]
     verdict = rules_grade(typed, question.correct_answer, question.question_text,
                           distractors, question.explanation or '', get_answer_scorer())
