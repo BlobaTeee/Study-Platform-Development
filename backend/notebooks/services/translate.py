@@ -2,13 +2,14 @@
 
 The model (ml_pipeline/translator.py) runs locally, so reading in the other
 language costs no AI requests. Each text is translated once and kept by
-the hash of its words.
+the hash of its words and the translator's version.
 """
 import hashlib
 import logging
 import unicodedata
 
 from ml_pipeline.language import detect_language
+from ml_pipeline.translator import VERSION as TRANSLATOR_VERSION
 from ml_pipeline.translator import translate as machine_translate
 
 from ..models import Translation
@@ -23,7 +24,7 @@ _VI_MARKS = set('đĐ\u0306\u0302\u031b\u0300\u0301\u0303\u0309\u0323')
 
 
 def _hash(text: str) -> str:
-    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+    return hashlib.sha256(f'{TRANSLATOR_VERSION}\n{text}'.encode('utf-8')).hexdigest()
 
 
 def _language(text: str) -> str:

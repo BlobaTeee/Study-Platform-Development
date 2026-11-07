@@ -82,6 +82,14 @@ def test_each_text_is_translated_once_then_kept(client, machine):
     assert Translation.objects.count() == 2
 
 
+def test_a_better_translator_translates_kept_texts_again(client, machine, monkeypatch):
+    m = machine()
+    client.post(URL, {'texts': EN, 'to': 'vi'}, format='json')
+    monkeypatch.setattr('notebooks.services.translate.TRANSLATOR_VERSION', 99)
+    client.post(URL, {'texts': EN, 'to': 'vi'}, format='json')
+    assert m.calls == 2
+
+
 def test_repeated_texts_are_translated_once(client, machine):
     m = machine()
     res = client.post(URL, {'texts': [EN[0], EN[0]], 'to': 'vi'}, format='json')
