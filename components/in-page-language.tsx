@@ -3,6 +3,7 @@
 import useSWR from 'swr'
 import { useLocale } from 'next-intl'
 import { notebooksAPI } from '@/lib/api'
+import { MathText } from '@/components/math-text'
 import { type Ask, askKey, batches, MAX_TEXTS, shownAs, toAsk } from '@/lib/translate'
 
 /** A document's texts translated into the page language, keyed by askKey.
@@ -32,18 +33,21 @@ export function useInPageLanguage(texts: (Ask | undefined | null)[]): Map<string
 
 /** `text` in the page language when there is a translation, the document's
  *  own words on hover. A short answer (asked with its `context`) keeps its
- *  own words beside it instead: a one-word translation can miss the sense. */
-export function InPageLanguage({ text, found, context }: {
+ *  own words beside it instead: a one-word translation can miss the sense.
+ *  `math`: the text may hold $…$ formulas, typeset as MathText does. */
+export function InPageLanguage({ text, found, context, math = false }: {
   text: string
   found: Map<string, string> | undefined
   context?: string
+  math?: boolean
 }) {
   const shown = shownAs(found, text, context)
-  if (!shown) return <>{text}</>
-  if (context === undefined) return <span title={text}>{shown}</span>
+  const show = (t: string) => (math ? <MathText text={t} /> : t)
+  if (!shown) return <>{show(text)}</>
+  if (context === undefined) return <span title={text}>{show(shown)}</span>
   return (
     <>
-      {shown} <span className="text-[0.8em] font-normal text-slate-500">{text}</span>
+      {show(shown)} <span className="text-[0.8em] font-normal text-slate-500">{show(text)}</span>
     </>
   )
 }

@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Check, ChevronLeft, ChevronRight, Loader2, LogOut, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { MathText } from '@/components/math-text'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
+import { isShort, quizTexts } from '@/lib/translate'
 import { PageHeader } from '@/components/page-header'
 import { liveAPI } from '@/lib/api'
 import { applyBroadcast, moreThanHalf, optionShares, secondsLeft, type LiveBroadcast, type LiveState } from '@/lib/live'
@@ -240,6 +241,7 @@ function Question({ room, secondsLeft: left, share, busy, onAnswer }: {
 }) {
   const t = useTranslations('live')
   const q = room.question
+  const found = useInPageLanguage(q ? quizTexts({ question_text: q.text, options: q.options }) : [])
   if (!q) return null
   const mine = room.you.answer
   const waitingFor = room.players.length - room.answered_count
@@ -260,7 +262,7 @@ function Question({ room, secondsLeft: left, share, busy, onAnswer }: {
           </span>
         </div>
         <p id="live-question" className="mt-3 max-w-[65ch] text-xl leading-relaxed text-slate-900 text-pretty">
-          <MathText text={q.text} />
+          <InPageLanguage text={q.text} found={found} math />
         </p>
         <ul className="mt-6 grid gap-3 sm:grid-cols-2">
           {q.options.map((option, i) => {
@@ -282,7 +284,7 @@ function Question({ room, secondsLeft: left, share, busy, onAnswer }: {
                   <span className={cn('mt-0.5 grid size-6 shrink-0 place-items-center rounded font-mono text-sm', chosen ? 'bg-mode-strong text-mode-on' : 'bg-slate-100 text-slate-700')}>
                     {LETTERS[i]}
                   </span>
-                  <span className="min-w-0"><MathText text={option} /></span>
+                  <span className="min-w-0"><InPageLanguage text={option} found={found} context={isShort(option) ? q.text : undefined} math /></span>
                 </button>
               </li>
             )
@@ -306,6 +308,7 @@ function Reveal({ room, voted, majorityIn, busy, onNext }: {
   const t = useTranslations('live')
   const q = room.question
   const r = room.reveal
+  const found = useInPageLanguage(q ? quizTexts({ question_text: q.text, options: q.options, explanation: r?.explanation }) : [])
   if (!q || !r) return null
   const mine = room.you.answer
   const names = new Map(room.players.map((p) => [p.user_id, p.name]))
@@ -316,7 +319,7 @@ function Reveal({ room, voted, majorityIn, busy, onNext }: {
       <div className="p-6 md:p-8">
         <p className="text-sm font-medium text-mode-ink">{t('question', { n: room.index + 1 })}</p>
         <p id="live-reveal" className="mt-3 max-w-[65ch] text-xl leading-relaxed text-slate-900 text-pretty">
-          <MathText text={q.text} />
+          <InPageLanguage text={q.text} found={found} math />
         </p>
         <p className={cn('mt-4 flex items-center gap-2 text-base font-medium', mine === r.correct ? 'text-emerald-800' : 'text-red-800')}>
           {mine === r.correct ? <Check className="size-5" aria-hidden /> : <X className="size-5" aria-hidden />}
@@ -332,7 +335,7 @@ function Reveal({ room, voted, majorityIn, busy, onNext }: {
                   <span className={cn('mt-0.5 grid size-6 shrink-0 place-items-center rounded font-mono text-sm', correct ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-700')}>
                     {LETTERS[i]}
                   </span>
-                  <span className="min-w-0 flex-1 text-slate-900"><MathText text={option} /></span>
+                  <span className="min-w-0 flex-1 text-slate-900"><InPageLanguage text={option} found={found} context={isShort(option) ? q.text : undefined} math /></span>
                   <span className={cn('shrink-0 font-mono text-sm tabular-nums', correct ? 'text-emerald-900' : 'text-slate-700')}>
                     {t('picked', { count: n })}
                     {option === mine && <span className={cn('ml-1', correct ? 'text-emerald-950' : 'text-slate-900')}>· {t('you')}</span>}
@@ -353,7 +356,7 @@ function Reveal({ room, voted, majorityIn, busy, onNext }: {
       {(r.explanation || r.source_excerpt) && (
         <div className="space-y-3 p-6 md:p-8">
           {r.explanation && (
-            <p className="max-w-[65ch] text-base leading-relaxed text-slate-800"><MathText text={r.explanation} /></p>
+            <p className="max-w-[65ch] text-base leading-relaxed text-slate-800"><InPageLanguage text={r.explanation} found={found} math /></p>
           )}
           {r.source_excerpt && (
             <figure className="max-w-[65ch] rounded-lg bg-slate-50 px-4 py-3">
@@ -389,6 +392,8 @@ function Reveal({ room, voted, majorityIn, busy, onNext }: {
 function Finished({ room }: { room: LiveState }) {
   const t = useTranslations('live')
   const missed = room.you.missed
+  const found = useInPageLanguage(missed.flatMap((m) =>
+    quizTexts({ question_text: m.text, options: [m.your_answer, m.correct].filter((a): a is string => !!a), explanation: m.explanation })))
   return (
     <>
       <section className="sheet p-6 md:p-8" aria-labelledby="live-results">
@@ -420,19 +425,19 @@ function Finished({ room }: { room: LiveState }) {
                 <li key={m.question_id} className="flex gap-3 py-4">
                   <span className="w-5 shrink-0 pt-0.5 font-mono text-sm tabular-nums text-slate-600">{i + 1}</span>
                   <div className="min-w-0 max-w-[65ch] flex-1 space-y-2">
-                    <p className="text-base leading-snug text-slate-900"><MathText text={m.text} /></p>
+                    <p className="text-base leading-snug text-slate-900"><InPageLanguage text={m.text} found={found} math /></p>
                     {/* What you picked against the answer, as one line to compare. */}
                     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                       <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-red-800">
                         <X className="size-3.5" aria-hidden />
                         <span className="sr-only">{t('yourAnswer')}: </span>
-                        {m.your_answer ? <MathText text={m.your_answer} /> : t('blank')}
+                        {m.your_answer ? <InPageLanguage text={m.your_answer} found={found} context={isShort(m.your_answer) ? m.text : undefined} math /> : t('blank')}
                       </span>
                       <ChevronRight className="size-3.5 text-slate-500" aria-hidden />
                       <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 font-medium text-emerald-900">
                         <Check className="size-3.5" aria-hidden />
                         <span className="sr-only">{t('rightAnswer')}: </span>
-                        <MathText text={m.correct} />
+                        <InPageLanguage text={m.correct} found={found} context={isShort(m.correct) ? m.text : undefined} math />
                       </span>
                     </p>
                     {m.explanation && (
@@ -441,7 +446,7 @@ function Finished({ room }: { room: LiveState }) {
                           <ChevronRight className="mr-0.5 inline size-3.5 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none" aria-hidden />
                           {t('why')}
                         </summary>
-                        <p className="mt-1.5 leading-relaxed text-slate-700"><MathText text={m.explanation} /></p>
+                        <p className="mt-1.5 leading-relaxed text-slate-700"><InPageLanguage text={m.explanation} found={found} math /></p>
                       </details>
                     )}
                   </div>

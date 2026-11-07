@@ -33,6 +33,13 @@ function answerTo(answer: string | undefined, question: string): Ask | undefined
   return isShort(answer) ? { text: answer, context: question } : answer
 }
 
+/** A short answer inside a sentence of the page: "Lực (Force)", the
+ *  document's word kept beside its translation; as written when there is none. */
+export function withOriginal(found: Map<string, string> | undefined, text: string, context?: string): string {
+  const shown = shownAs(found, text, context)
+  return shown ? `${shown} (${text})` : text
+}
+
 /** A flashcard's texts: its question, its answer, its explanation. */
 export function cardTexts(card: { question: string; answer: string; explanation?: string }): Ask[] {
   return toAsk([card.question, answerTo(card.answer, card.question), card.explanation])

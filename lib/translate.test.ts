@@ -1,7 +1,7 @@
 // Run with: pnpm test  (node --test; Node strips the types itself)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { askKey, batches, cardTexts, inPageLanguage, isShort, mapTexts, quizTexts, quizTitle, shownAs, toAsk } from './translate.ts'
+import { askKey, batches, cardTexts, inPageLanguage, isShort, mapTexts, quizTexts, quizTitle, shownAs, toAsk, withOriginal } from './translate.ts'
 
 test('each text is asked once, blanks never', () => {
   assert.deepEqual(toAsk(['Mitosis', '', '  ', 'Mitosis', 'Enzymes', undefined]), ['Mitosis', 'Enzymes'])
@@ -103,4 +103,10 @@ test("a quiz's stored name is read into what it is from", () => {
   assert.deepEqual(quizTitle('Quiz: Energy and waves'), { name: 'Energy and waves' })
   assert.deepEqual(quizTitle('Quiz: 3 sources'), { count: 3 })
   assert.deepEqual(quizTitle('My own practice set'), null)
+})
+
+test('inside a sentence a short answer reads as its translation with the original after it', () => {
+  const found = new Map([[askKey({ text: 'Force', context: Q }), 'Lực']])
+  assert.equal(withOriginal(found, 'Force', Q), 'Lực (Force)')
+  assert.equal(withOriginal(found, 'Mass', Q), 'Mass')
 })

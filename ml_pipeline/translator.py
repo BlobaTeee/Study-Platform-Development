@@ -28,6 +28,9 @@ _lock = threading.Lock()
 # A sentence ends at . ! ? followed by a space and a capital or a digit.
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-ZÀ-Ỹ0-9\"'(])")
 _BLANK = re.compile(r"_{2,}")
+# A formula as lib/math-text.ts typesets it (Pandoc's rule, so "$5" is a price):
+# $$…$$, or $…$ opening before a non-space and closing after one, not before a digit.
+_FORMULA = re.compile(r"\$\$[\s\S]+?\$\$|(?<!\\)\$(?=\S)[^\n]+?(?<![\s\\])\$(?!\d)")
 #: How a short answer is asked with its question, and the words the model
 #: writes before the answer in each language (notebook 12, section 6).
 _ANSWER_LEAD = {"en": "Answer:", "vi": "Đáp án:"}
@@ -86,13 +89,14 @@ def first_letter_as_in(source: str, translated: str) -> str:
 
 def shield(sentence: str, known) -> tuple[str, list[str]]:
     """`sentence` with each run of characters the model cannot read (λ ≤ → °
-    ø …, and super- and subscripts, which it reads as plain digits) replaced
-    by <0>, <1>, …, and those runs in order. A word holding such a letter
+    ø …, and super- and subscripts, which it reads as plain digits; a fill-in
+    blank; a formula) replaced by <0>, <1>, …, and those runs in order. A word holding such a letter
     goes whole ("Brønsted-Lowry", "Δv"): with only the letter replaced the
     model garbles the rest. `known(c)` says whether the model has `c`."""
     odd = [not c.isspace() and (not known(c) or unicodedata.normalize("NFKC", c) != c) for c in sentence]
-    for blank in _BLANK.finditer(sentence):       # the model drops a fill-in blank
-        odd[blank.start():blank.end()] = [True] * (blank.end() - blank.start())
+    # A fill-in blank (the model drops it) and a formula (it would translate it) go whole.
+    for whole in [*_BLANK.finditer(sentence), *_FORMULA.finditer(sentence)]:
+        odd[whole.start():whole.end()] = [True] * (whole.end() - whole.start())
     for i, c in enumerate(sentence):
         if odd[i] and c.isalpha():
             for step in (-1, 1):

@@ -6,7 +6,7 @@ import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
 import { Check, ChevronLeft, CircleAlert, Lightbulb, Loader2, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { MathText } from '@/components/math-text'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { PageHeader } from '@/components/page-header'
 import { exercisesAPI, type ExerciseDetail } from '@/lib/api'
 import { draftSteps, lastGrade, lastHint } from '@/lib/practice'
@@ -67,6 +67,7 @@ export default function PracticePage({ params }: { params: Promise<{ exerciseId:
 
 function Problem({ exercise }: { exercise: ExerciseDetail }) {
   const t = useTranslations('practice')
+  const found = useInPageLanguage([exercise.prompt])
   return (
     <section className="sheet p-6 md:p-8" aria-labelledby="problem-title">
       <p className="flex flex-wrap items-center gap-x-2 text-sm text-slate-600">
@@ -77,7 +78,7 @@ function Problem({ exercise }: { exercise: ExerciseDetail }) {
         <span>{exercise.origin === 'own' ? t('ownProblem') : t('fromDocument', { title: exercise.source_title })}</span>
       </p>
       <p className="mt-3 max-w-[65ch] text-lg leading-relaxed text-slate-900 text-pretty">
-        <MathText text={exercise.prompt} />
+        <InPageLanguage text={exercise.prompt} found={found} math />
       </p>
       {exercise.origin === 'own' && <p className="mt-3 text-sm text-slate-600">{t('ownGeneralNote')}</p>}
     </section>
@@ -94,6 +95,8 @@ function Attempt({ exercise, onChange }: { exercise: ExerciseDetail; onChange: (
   const grade = lastGrade(exercise.attempts)
   const hint = lastHint(exercise.attempts)
   const wrongAt = grade?.verdict === 'needs_work' ? grade.first_wrong_step ?? null : null
+  // Feedback is written in the problem's language; shown in the page's.
+  const found = useInPageLanguage([grade?.detail, grade?.hint, hint, ...exercise.met_checkpoints.map((c) => c.text)])
   const written = steps.filter((s) => s.trim()).length
 
   const run = async (kind: 'hint' | 'submit' | 'reveal') => {
@@ -130,11 +133,11 @@ function Attempt({ exercise, onChange }: { exercise: ExerciseDetail; onChange: (
                   {wrongAt && wrongAt <= steps.length ? t('wrongAt', { n: wrongAt }) : t('wrongAfterLast')}
                   {grade.error_type ? ` · ${t(`error_${grade.error_type}`)}` : ''}
                 </p>
-                {grade.detail && <p className="mt-1 text-slate-800"><MathText text={grade.detail} /></p>}
+                {grade.detail && <p className="mt-1 text-slate-800"><InPageLanguage text={grade.detail} found={found} math /></p>}
                 {grade.hint && (
                   <p className="mt-2 flex gap-2 text-slate-700">
                     <Lightbulb className="mt-1 size-4 shrink-0 text-mode-ink" aria-hidden />
-                    <MathText text={grade.hint} />
+                    <InPageLanguage text={grade.hint} found={found} math />
                   </p>
                 )}
               </div>
@@ -147,7 +150,7 @@ function Attempt({ exercise, onChange }: { exercise: ExerciseDetail; onChange: (
                 {exercise.met_checkpoints.map((c) => (
                   <li key={c.id} className="flex max-w-[65ch] gap-2 text-base text-slate-800">
                     <Check className="mt-1 size-4 shrink-0 text-emerald-700" aria-hidden />
-                    <MathText text={c.text} />
+                    <InPageLanguage text={c.text} found={found} math />
                   </li>
                 ))}
               </ul>
@@ -217,7 +220,7 @@ function Attempt({ exercise, onChange }: { exercise: ExerciseDetail; onChange: (
               <Lightbulb className="mt-1 size-4 shrink-0 text-mode-ink" aria-hidden />
               <span>
                 <span className="sr-only">{t('hint')}: </span>
-                <MathText text={hint} />
+                <InPageLanguage text={hint} found={found} math />
               </span>
             </p>
           )}
@@ -254,6 +257,11 @@ function Solved({ exercise }: { exercise: ExerciseDetail }) {
   const grade = lastGrade(exercise.attempts)
   const passed = grade?.verdict === 'passed'
   const mine = draftSteps(exercise.attempts).filter(Boolean)
+  const found = useInPageLanguage([
+    ...(exercise.solution ?? []),
+    ...exercise.met_checkpoints.map((c) => c.text),
+    ...(exercise.mistakes ?? []).map((m) => m.text),
+  ])
   return (
     <section className="sheet divide-y divide-slate-200" aria-live="polite">
       {passed && (
@@ -271,7 +279,7 @@ function Solved({ exercise }: { exercise: ExerciseDetail }) {
       {mine.length > 0 && (
         <Steps title={t('yourSteps')} steps={mine} />
       )}
-      <Steps title={t('solution')} steps={exercise.solution ?? []} />
+      <Steps title={t('solution')} steps={exercise.solution ?? []} found={found} />
 
       <div className="p-6 md:p-8">
         <h3 className="text-base font-semibold text-slate-900">{t('checkpoints')}</h3>
@@ -279,7 +287,7 @@ function Solved({ exercise }: { exercise: ExerciseDetail }) {
           {exercise.met_checkpoints.map((c) => (
             <li key={c.id} className="flex max-w-[65ch] gap-2 text-base text-slate-800">
               <Check className="mt-1 size-4 shrink-0 text-emerald-700" aria-hidden />
-              <MathText text={c.text} />
+              <InPageLanguage text={c.text} found={found} math />
             </li>
           ))}
         </ul>
@@ -292,7 +300,7 @@ function Solved({ exercise }: { exercise: ExerciseDetail }) {
             {exercise.mistakes.map((m, i) => (
               <li key={i} className="max-w-[65ch] text-base text-slate-800">
                 <span className="text-sm font-medium text-slate-600">{t(`error_${m.type}`)}: </span>
-                <MathText text={m.text} />
+                <InPageLanguage text={m.text} found={found} math />
               </li>
             ))}
           </ul>
@@ -302,7 +310,8 @@ function Solved({ exercise }: { exercise: ExerciseDetail }) {
   )
 }
 
-function Steps({ title, steps }: { title: string; steps: string[] }) {
+/** Numbered steps. `found`: the solution's translation; the student's own steps have none. */
+function Steps({ title, steps, found }: { title: string; steps: string[]; found?: Map<string, string> }) {
   const t = useTranslations('practice')
   return (
     <div className="p-6 md:p-8">
@@ -311,7 +320,7 @@ function Steps({ title, steps }: { title: string; steps: string[] }) {
         {steps.map((s, i) => (
           <li key={i} className="flex max-w-[65ch] gap-3 text-base leading-relaxed text-slate-800">
             <span className="mt-0.5 shrink-0 font-mono text-xs tabular-nums text-slate-500">{t('step', { n: i + 1 })}</span>
-            <MathText text={s} />
+            <InPageLanguage text={s} found={found} math />
           </li>
         ))}
       </ol>

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { Loader2, Target } from 'lucide-react'
 import { mockTestsAPI, type WeakConcept } from '@/lib/api'
 import { Button } from '@/components/ui/button'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 
 /** What the student keeps missing in one notebook, named, with a way to
  *  practise each concept: a fresh quiz written from the passages the missed
@@ -37,6 +38,7 @@ export function WeakConcepts({ notebook, refreshKey }: { notebook: number; refre
   }, [notebook, refreshKey])
 
   const concepts = state && state.notebook === notebook ? state.concepts : null
+  const found = useInPageLanguage((concepts ?? []).flatMap((c) => [c.label, c.sample[0]]))
   if (!concepts || concepts.length === 0) return null
   const shown = showAll ? concepts : concepts.slice(0, SHOWN)
   const hidden = concepts.length - shown.length
@@ -70,12 +72,12 @@ export function WeakConcepts({ notebook, refreshKey }: { notebook: number; refre
           <li key={c.key} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
             <div className="min-w-0 flex-1 basis-64">
               <p className="text-base text-slate-900">
-                {c.label}
+                <InPageLanguage text={c.label} found={found} />
                 <span className="ml-2 font-mono text-xs text-slate-500 tabular-nums">
                   {t('conceptMissed', { count: c.count })}
                 </span>
               </p>
-              <p className="text-sm text-slate-500 line-clamp-1">{c.sample[0]}</p>
+              <p className="text-sm text-slate-500 line-clamp-1">{c.sample[0] && <InPageLanguage text={c.sample[0]} found={found} />}</p>
             </div>
             <Button
               type="button"

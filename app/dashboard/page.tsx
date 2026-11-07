@@ -4,6 +4,7 @@ import Link from 'next/link'
 import useSWR from 'swr'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
+import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { analyticsAPI, flashcardsAPI, notebooksAPI, reviewsAPI, streaksAPI } from '@/lib/api'
 import { type Due, MASTERY_LABEL, caughtUpMessage, examGroups, masteryBarClass, masteryLevel } from '@/lib/study-format'
 import { cn } from '@/lib/utils'
@@ -45,6 +46,7 @@ export default function HomePage() {
   const exams = due.exams_first ?? []
   const dueCards: DueCard[] = dueRes?.data?.results ?? dueRes?.data ?? []
   const firstDue = dueCards[0]
+  const found = useInPageLanguage([firstDue?.question])
   const weak: WeakNotebook[] = recsRes?.data?.weak_notebooks ?? []
   const accuracyOf = new Map(weak.map((w) => [w.notebook_id, w.accuracy]))
   const reviewsThisWeek: number = weekRes?.data?.reviews_this_week ?? 0
@@ -129,7 +131,7 @@ export default function HomePage() {
                     on fetch); until then a placeholder line, not the heading again. */}
                 {firstDue || dueRes ? (
                   <p className="mt-3 text-xl leading-snug text-slate-900 md:text-2xl text-pretty">
-                    {firstDue?.question ?? t('cardsDueToday', { count: ready })}
+                    {firstDue ? <InPageLanguage text={firstDue.question} found={found} /> : t('cardsDueToday', { count: ready })}
                   </p>
                 ) : (
                   <div className="mt-3 space-y-2" aria-busy>
