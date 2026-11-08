@@ -26,6 +26,9 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.conf import settings
 from django.db import transaction
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from asgiref.sync import sync_to_async
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 
@@ -504,11 +507,13 @@ class InviteAcceptView(APIView):
 
 
 class TranslateView(APIView):
-    """A document's texts in the page language (services/translate.py)."""
+    """Checks a request for a document's texts in the page language and plans
+    it (services/translate.py): what is kept already, what the model has to
+    do. The plan rides on the response; translate_view carries it out."""
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        from .services.translate import LANGUAGES, MAX_CHARS, MAX_TEXTS, translate_texts
+        from .services.translate import LANGUAGES, MAX_CHARS, MAX_TEXTS, plan_texts
 
         texts, target = request.data.get('texts'), request.data.get('to')
         # The question each text answers, for short answers; None for the rest.
@@ -520,8 +525,33 @@ class TranslateView(APIView):
             return Response({'detail': _('Send up to %(count)s texts of up to %(chars)s characters each, '
                                          'and the language to translate to (vi or en).')
                              % {'count': MAX_TEXTS, 'chars': MAX_CHARS}}, status=400)
-        translations, translated = translate_texts(texts, target, contexts)
-        return Response({'translations': translations, 'translated': translated})
+        response = Response()
+        response.plan = plan_texts(texts, target, contexts)
+        return response
+
+
+@csrf_exempt  # token-authenticated, like every DRF view here
+async def translate_view(request):
+    """POST /notebooks/translate/. Under ASGI Django runs every synchronous
+    view on one shared thread, one request at a time, and a translation takes
+    seconds: the rest of the API (generating cards, a quiz) queued behind it.
+    So only the checks and the database run on that thread; the model runs
+    on a thread of its own."""
+    from .services.translate import finish, run
+
+    checked = await sync_to_async(_checked)(request)
+    plan = getattr(checked, 'plan', None)
+    if plan is None:
+        return checked                           # refused: not signed in, or a bad request
+    done = await sync_to_async(run, thread_sensitive=False)(plan)
+    translations, translated = await sync_to_async(finish)(plan, done)
+    return JsonResponse({'translations': translations, 'translated': translated})
+
+
+def _checked(request):
+    response = TranslateView.as_view()(request)
+    response.render()
+    return response
 
 
 class ChatMessageView(APIView):

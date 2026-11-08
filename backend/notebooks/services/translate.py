@@ -8,6 +8,7 @@ with its question (its context): alone it is a word without a sense.
 import hashlib
 import logging
 import unicodedata
+from dataclasses import dataclass, field
 
 from ml_pipeline.language import detect_language
 from ml_pipeline.translator import VERSION as TRANSLATOR_VERSION
@@ -47,45 +48,78 @@ def _source(text: str, context: str | None) -> str:
     return _language(context) if any(c.isalpha() for c in text) else 'other'
 
 
-def _translated(items: list[tuple[str, str | None]], source: str, target: str) -> list[str] | None:
-    """Each (text, question or None) of `items` from `source` to `target`, from
-    the kept translations or the model; None when the model is not available."""
-    key = [_hash(t, c) for t, c in items]
-    kept = dict(Translation.objects.filter(target=target, text_hash__in=set(key))
-                .values_list('text_hash', 'translated'))
-    for asked in (False, True):
-        missing = list(dict.fromkeys(item for item, k in zip(items, key) if k not in kept and (item[1] is not None) == asked))
-        if not missing:
-            continue
+@dataclass
+class Plan:
+    """What a set of texts needs: the translations kept already, and what the
+    model has to do, by (source language, asked with a question). Made and
+    finished on the request's thread (they touch the database); the model's
+    part, `run`, touches nothing else, so it can run on a thread of its own."""
+    target: str
+    texts: list[str]
+    contexts: list[str | None]
+    todo: dict[str, list[int]]                    # source language → indexes to translate
+    kept: dict[str, str] = field(default_factory=dict)
+    missing: dict[tuple[str, bool], list[tuple[str, str | None]]] = field(default_factory=dict)
+
+
+def _plan(target: str, texts: list[str], contexts: list[str | None], todo: dict[str, list[int]]) -> Plan:
+    plan = Plan(target, texts, contexts, todo)
+    keys = {_hash(texts[i], contexts[i]) for idx in todo.values() for i in idx}
+    plan.kept = dict(Translation.objects.filter(target=target, text_hash__in=keys)
+                     .values_list('text_hash', 'translated'))
+    for source, idx in todo.items():
+        for item in dict.fromkeys((texts[i], contexts[i]) for i in idx):
+            if _hash(*item) not in plan.kept:
+                plan.missing.setdefault((source, item[1] is not None), []).append(item)
+    return plan
+
+
+def plan_texts(texts: list[str], target: str, contexts: list[str | None] | None = None) -> Plan:
+    """The plan for `texts` in `target`; `contexts[i]`, when given, is the
+    question `texts[i]` answers."""
+    contexts = contexts or [None] * len(texts)
+    todo: dict[str, list[int]] = {}
+    for i, (text, context) in enumerate(zip(texts, contexts)):
+        if text.strip() and (lang := _source(text, context)) in LANGUAGES and lang != target:
+            todo.setdefault(lang, []).append(i)
+    return _plan(target, texts, contexts, todo)
+
+
+def run(plan: Plan) -> dict | None:
+    """The model's translations of what `plan` is missing, or None when the
+    model is not available. No database here."""
+    done = {}
+    for (source, asked), items in plan.missing.items():
         try:
-            done = (machine_translate_in_context(missing, source, target) if asked
-                    else machine_translate([t for t, _ in missing], source, target))
+            done[(source, asked)] = (machine_translate_in_context(items, source, plan.target) if asked
+                                     else machine_translate([t for t, _ in items], source, plan.target))
         except Exception as exc:  # noqa: BLE001 — model not installed or failed to load
             logger.info('Translation unavailable: %s', exc)
             return None
-        rows = [Translation(text_hash=_hash(t, c), target=target, translated=d) for (t, c), d in zip(missing, done)]
-        Translation.objects.bulk_create(rows, ignore_conflicts=True)
-        kept.update((r.text_hash, r.translated) for r in rows)
-    return [kept[k] for k in key]
+    return done
+
+
+def finish(plan: Plan, done: dict | None) -> tuple[list[str], bool]:
+    """`plan`'s texts in its language, keeping what the model did; the
+    originals, and False, when it could not."""
+    if done is None:
+        return list(plan.texts), False
+    rows = [Translation(text_hash=_hash(t, c), target=plan.target, translated=d)
+            for key, items in plan.missing.items() for (t, c), d in zip(items, done[key])]
+    Translation.objects.bulk_create(rows, ignore_conflicts=True)
+    plan.kept.update((r.text_hash, r.translated) for r in rows)
+    out = list(plan.texts)
+    for idx in plan.todo.values():
+        for i in idx:
+            out[i] = plan.kept[_hash(plan.texts[i], plan.contexts[i])]
+    return out, True
 
 
 def translate_texts(texts: list[str], target: str, contexts: list[str | None] | None = None) -> tuple[list[str], bool]:
     """`texts` in `target`, in order, and whether the model was available.
-    `contexts[i]`, when given, is the question `texts[i]` answers. Without
-    the model the originals come back, so the page still reads."""
-    contexts = contexts or [None] * len(texts)
-    out = list(texts)
-    todo: dict[str, list[int]] = {}             # source language → indexes to translate
-    for i, (text, context) in enumerate(zip(texts, contexts)):
-        if text.strip() and (lang := _source(text, context)) in LANGUAGES and lang != target:
-            todo.setdefault(lang, []).append(i)
-    for source, idx in todo.items():
-        done = _translated([(texts[i], contexts[i]) for i in idx], source, target)
-        if done is None:
-            return list(texts), False
-        for i, d in zip(idx, done):
-            out[i] = d
-    return out, True
+    Without the model the originals come back, so the page still reads."""
+    plan = plan_texts(texts, target, contexts)
+    return finish(plan, run(plan))
 
 
 def into_language_of(text: str, context: str) -> str | None:
@@ -97,5 +131,6 @@ def into_language_of(text: str, context: str) -> str | None:
     # The question in the answer's language: a prompt in two languages confuses
     # the model. The page has usually asked for it already, so it is kept.
     (question,), _ = translate_texts([context], source)
-    done = _translated([(text, question)], source, target)
-    return done[0] if done else None
+    plan = _plan(target, [text], [question], {source: [0]})
+    (done,), translated = finish(plan, run(plan))
+    return done if translated else None
