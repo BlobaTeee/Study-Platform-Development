@@ -1,22 +1,18 @@
-"""The knowledge map of one notebook for one student.
+"""How well one student knows each concept of one notebook, shown beside
+each document's key points.
 
 Concepts are the documents' key points (merged across documents); each card,
 question and practice problem is attached to one (ml_pipeline.concept_map).
 Understanding is BKT over the student's answers and submits on a concept's
-questions and problems, and the links they built by hand (map_building); memory is FSRS retrievability today of its cards.
-The colour is the weaker of the two. No model call here: links are found
-separately (find_links) and cached on the notebook.
+questions and problems; memory is FSRS retrievability today of its cards.
+The state is the weaker of the two. No model call here.
 """
 import hashlib
 
 from django.core.cache import cache
-from django.utils.translation import gettext as _
 
 from ml_pipeline import bkt
-from ml_pipeline.concept_map import attach, choose_action, clean_links, concept_state, merge_concepts, weaker
-from ml_pipeline.language import detect_language, language_name
-from notebooks.services.ai_provider import get_ai_provider
-from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
+from ml_pipeline.concept_map import attach, concept_state, merge_concepts
 
 ATTACH_TTL = 60 * 60
 
@@ -54,10 +50,6 @@ def _items(user, notebook):
              + [{'id': f'ex:{e.id}', 'text': ' '.join(cp.get('basis', '') for cp in e.reference.get('checkpoints', []))
                  or e.prompt, 'source_ids': [e.source_id] if e.source_id else []} for e in exercises])
     return cards, questions, exercises, items
-
-
-# A problem still to do comes before one already mastered.
-EXERCISE_ORDER = {'revisit': 0, 'new': 1, 'mastered': 2}
 
 
 def _review_counts(user, card_ids) -> dict[int, int]:
@@ -104,11 +96,8 @@ def build_map(user, notebook) -> dict:
     where = _attached(notebook, concepts, items)
     params, thresholds = bkt.load()
     events = _events(user, [q.id for q in questions], [e.id for e in exercises])
-    from .map_building import concept_events
-    built = concept_events(user, notebook)        # links the student made and had graded
     recall = retrievability_today(user, [c.id for c in cards])
     reviews = _review_counts(user, [c.id for c in cards])
-    exercise_rank = {e.id: EXERCISE_ORDER.get(e.status, 1) for e in exercises}
 
     members: dict[str, dict] = {c['key']: {'cards': [], 'questions': [], 'exercises': []} for c in concepts}
     for item_id, concept in where.items():
@@ -121,7 +110,7 @@ def build_map(user, notebook) -> dict:
     for c in concepts:
         m = members[c['key']]
         evs = sorted([e for i in [f'q:{q}' for q in m['questions']] + [f'ex:{x}' for x in m['exercises']]
-                      for e in events.get(i, [])] + built.get(c['key'], []), key=lambda e: e[0])
+                      for e in events.get(i, [])], key=lambda e: e[0])
         understanding = ({'p': round(bkt.trace([(ok, kind) for _, ok, kind in evs], params), 3),
                           'correct': sum(ok for _, ok, _ in evs), 'total': len(evs)} if evs else None)
         reviewed = [recall[i] for i in m['cards'] if i in recall]
@@ -130,72 +119,16 @@ def build_map(user, notebook) -> dict:
                    'total': len(reviewed), 'unseen': len(m['cards']) - len(reviewed)} if reviewed else None)
         u, mem = (understanding or {}).get('p'), (memory or {}).get('p')
         state = concept_state(u, mem, thresholds)
-        weakest_cards = sorted(m['cards'], key=lambda i: recall.get(i, 0.0))
-        to_do = sorted(m['exercises'], key=lambda i: exercise_rank.get(i, 1))
-        # A strong concept needs only its scheduled reviews, so no button.
-        action = None if state == 'strong' else choose_action(weaker(u, mem), weakest_cards, to_do, m['questions'])
         out.append({'key': c['key'], 'label': c['label'], 'point': c['point'], 'source_ids': c['source_ids'],
                     # The key points it holds ('source:index'), so a document can show its own.
                     'members': c.get('members', [c['key']]),
                     'importance': c['importance'], 'state': state,
                     'understanding': understanding, 'memory': memory,
-                    'events': len(evs) + sum(reviews.get(i, 0) for i in m['cards']),
-                    'action': action, 'first': None})
-
-    edges, status = [], 'none' if len(concepts) < 2 else 'missing'
-    links = notebook.concept_links or {}
-    if len(concepts) >= 2 and links.get('hash') == concepts_hash(concepts):
-        status, edges = 'ready', links.get('edges', [])
-    rank = {'weak': 0, 'shaky': 1}
-    by_key = {c['key']: c for c in out}
-    for c in out:
-        prereqs = [by_key[e['from']] for e in edges if e['to'] == c['key'] and e['from'] in by_key]
-        shaky = sorted((p for p in prereqs if p['state'] in rank), key=lambda p: rank[p['state']])
-        c['first'] = shaky[0]['key'] if shaky and c['state'] != 'strong' else None
+                    'events': len(evs) + sum(reviews.get(i, 0) for i in m['cards'])})
 
     missing = [{'source_id': s.id, 'title': s.title}
                for s in notebook.sources.filter(status='ready').order_by('created_at', 'id').only('id', 'title',
                                                                                                   'key_points')
                if not s.key_points]
-    return {'concepts': out, 'edges': edges, 'edges_status': status, 'missing_key_points': missing,
+    return {'concepts': out, 'missing_key_points': missing,
             'unattached': sum(1 for v in where.values() if v is None)}
-
-
-class LinksUnavailable(Exception):
-    pass
-
-
-def find_links(notebook) -> list[dict]:
-    """One request: which concepts must be understood before which."""
-    concepts = concepts_of(notebook)
-    if len(concepts) < 2:
-        return []
-    cached = notebook.concept_links or {}
-    if cached.get('hash') == concepts_hash(concepts):
-        return cached.get('edges', [])
-    listed = '\n'.join(f'{c["index"]}. {c["label"]}: {c["point"]}' for c in concepts)
-    lang = language_name(detect_language(listed))
-    prompt = f"""These are the concepts of one subject a student is studying. Say which must be
-understood before which: a pair means the second concept cannot be understood without the
-first. Only clear, direct dependencies; at most 3 per concept; none for unrelated concepts.
-For each pair give one short reason in {lang}.
-
-Concepts:
-{listed}
-
-{WRITING_STYLE}
-
-Return ONLY valid JSON: {{"links": [{{"before": 1, "after": 2, "why": "..."}}]}}"""
-    unavailable = _('The links between concepts could not be found just now. Try again later.')
-    try:
-        data = get_ai_provider().generate_json(prompt)
-    except Exception as exc:  # noqa: BLE001
-        raise LinksUnavailable(unavailable) from exc
-    raw = data.get('links') if isinstance(data, dict) else None
-    if not isinstance(raw, list):
-        raise LinksUnavailable(unavailable)
-    edges = [{'from': concepts[a]['key'], 'to': concepts[b]['key'], 'why': tidy_prose(why)}
-             for a, b, why in clean_links(raw, len(concepts))]
-    notebook.concept_links = {'hash': concepts_hash(concepts), 'edges': edges}
-    notebook.save(update_fields=['concept_links'])
-    return edges

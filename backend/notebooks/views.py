@@ -302,64 +302,10 @@ class NotebookViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='map')
     def knowledge_map(self, request, pk=None):
-        """Concepts, links and the caller's own mastery for this notebook."""
+        """The caller's own mastery of this notebook's concepts, for each
+        document's key points list."""
         from .services.knowledge_map import build_map
         return Response(build_map(request.user, self.get_object()))
-
-    @action(detail=True, methods=['post'], url_path='map/links', throttle_classes=[GenerationRateThrottle])
-    def map_links(self, request, pk=None):
-        """Find the links between this notebook's concepts (one model request)."""
-        from .services.knowledge_map import LinksUnavailable, concepts_of, find_links
-        notebook = self.get_object()
-        if len(concepts_of(notebook)) < 2:
-            return Response({'edges': [], 'edges_status': 'none'})
-        try:
-            edges = find_links(notebook)
-        except LinksUnavailable as exc:
-            return Response({'detail': str(exc)}, status=503)
-        return Response({'edges': edges, 'edges_status': 'ready'})
-
-    @action(detail=True, methods=['post'], url_path='map/build', throttle_classes=[GenerationRateThrottle])
-    def map_build(self, request, pk=None):
-        """{source, cards, links}: compare the student's map with that document
-        (one model request) and keep it. Nothing is kept if it cannot be graded."""
-        from .services.map_building import BadMap, GradingUnavailable, grade, payload
-        notebook = self.get_object()
-        body = request.data if isinstance(request.data, dict) else {}
-        try:
-            build = grade(request.user, notebook, body.get('source'), body.get('cards'), body.get('links'))
-        except BadMap as exc:
-            return Response({'detail': str(exc)}, status=400)
-        except GradingUnavailable as exc:
-            return Response({'detail': str(exc)}, status=503)
-        return Response(payload(build), status=201)
-
-    @action(detail=True, methods=['post'], url_path='map/practice', throttle_classes=[GenerationRateThrottle])
-    def map_practice(self, request, pk=None):
-        """Five fresh questions on one concept, from its questions' passages."""
-        import hashlib
-        from quizzes.models import Question, QuizAttempt
-        from quizzes.services.practice import PracticeUnavailable, generate_practice_quiz
-        from .services.knowledge_map import build_map
-        notebook = self.get_object()
-        wanted = request.data.get('concept') if isinstance(request.data, dict) else None
-        concept = next((c for c in build_map(request.user, notebook)['concepts'] if c['key'] == wanted), None)
-        action_ = (concept or {}).get('action') or {}
-        if concept is None or action_.get('kind') != 'practice':
-            return Response({'detail': _('This concept has no questions to practise from yet.')}, status=400)
-        questions = list(Question.objects.filter(id__in=action_['question_ids']).select_related('source'))
-        key = hashlib.sha1(f'map:{notebook.id}:{concept["key"]}'.encode()).hexdigest()[:12]
-        existing = Quiz.objects.filter(user=request.user, is_published=True, practice_key=key).first()
-        if existing and QuizAttempt.objects.filter(quiz=existing, user=request.user, is_completed=True).exists():
-            existing.practice_key = ''     # finished: the next practice is a fresh set
-            existing.save(update_fields=['practice_key'])
-            existing = None
-        try:
-            quiz = existing or generate_practice_quiz(request.user, notebook, concept['label'], questions, key=key)
-        except PracticeUnavailable as exc:
-            return Response({'detail': str(exc)}, status=503)
-        return Response({'quiz_id': quiz.id, 'source_ids': sorted(quiz.sources.values_list('id', flat=True))},
-                        status=200 if existing else 201)
 
     @action(detail=True, methods=['delete'], url_path=r'members/(?P<member_id>\d+)')
     def remove_member(self, request, pk=None, member_id=None):

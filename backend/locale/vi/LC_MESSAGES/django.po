@@ -361,12 +361,6 @@ msgstr "Hãy viết ít nhất một bước trước đã."
 msgid "Keep trying a little longer before looking at the solution."
 msgstr "Thử thêm chút nữa rồi hãy xem lời giải."
 
-msgid "The links between concepts could not be found just now. Try again later."
-msgstr "Chưa tìm được mối liên hệ giữa các khái niệm lúc này. Thử lại sau."
-
-msgid "This concept has no questions to practise from yet."
-msgstr "Khái niệm này chưa có câu hỏi để luyện."
-
 msgid "Reading a photo needs the Gemini provider, which is not the one in use."
 msgstr "Đọc ảnh cần dùng Gemini, mà app đang không dùng Gemini."
 
@@ -381,59 +375,6 @@ msgstr "Hãy chọn ảnh chụp đề bài."
 
 msgid "That photo is too large. Use one under 8 MB."
 msgstr "Ảnh quá lớn. Hãy dùng ảnh dưới 8 MB."
-
-
-msgid "Link at least two concepts before sending."
-msgstr "Hãy nối ít nhất hai khái niệm trước khi nộp."
-
-
-msgid "A link is not readable."
-msgstr "Có một mối nối không đọc được."
-
-
-msgid "A concept cannot be linked to itself."
-msgstr "Không thể nối một khái niệm với chính nó."
-
-msgid "The same two concepts are linked twice."
-msgstr "Hai khái niệm này đã được nối rồi."
-
-#, python-format
-msgid "Every link needs a short reason (up to %(n)d characters)."
-msgstr "Mỗi mối nối cần một câu giải thích ngắn (tối đa %(n)d ký tự)."
-
-
-
-#, python-format
-msgid "Write at least %(n)d concepts you remember."
-msgstr "Hãy viết ít nhất %(n)d khái niệm bạn nhớ được."
-
-#, python-format
-msgid "At most %(n)d concepts in one map."
-msgstr "Mỗi bản đồ tối đa %(n)d khái niệm."
-
-msgid "A concept is not readable."
-msgstr "Có một khái niệm không đọc được."
-
-#, python-format
-msgid "Every concept needs a name (up to %(n)d characters)."
-msgstr "Mỗi khái niệm cần có tên (tối đa %(n)d ký tự)."
-
-#, python-format
-msgid "The concept “%(label)s” is written twice."
-msgstr "Khái niệm “%(label)s” bị viết hai lần."
-
-#, python-format
-msgid "At most %(n)d links in one map."
-msgstr "Mỗi bản đồ tối đa %(n)d mối nối."
-
-msgid "A link joins a concept that is not on the map."
-msgstr "Có mối nối tới khái niệm không có trên bản đồ."
-
-msgid "Choose a document whose key points have been read."
-msgstr "Hãy chọn một tài liệu đã được rút ý chính."
-
-msgid "The map could not be compared just now. Try again in a minute; your map is kept."
-msgstr "Chưa so sánh được bản đồ. Thử lại sau một phút; bản đồ của bạn vẫn được giữ."
 
 #, python-format
 msgid ""

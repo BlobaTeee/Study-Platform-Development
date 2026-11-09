@@ -1,6 +1,5 @@
 import axios from 'axios'
 import type { LiveRoomSummary, LiveState } from './live'
-import type { BuildLink, BuildResult } from './map-build'
 import { readLocaleCookie } from '@/i18n/locale'
 import { supabase } from './supabase-client'
 
@@ -381,17 +380,8 @@ export const notebooksAPI = {
     api.post(`/notebooks/sources/${sourceId}/generate_quiz/`, {
       question_count: questionCount,
     }),
-  // The knowledge map: concepts with the caller's own mastery, and the
-  // prerequisite links between them (found once, then cached).
+  // The caller's own mastery of the notebook's concepts, for the key points list.
   getMap: (id: number) => api.get<KnowledgeMapData>(`/notebooks/notebooks/${id}/map/`),
-  // A map built from memory for one document: the student's own cards and
-  // links, compared with that document's key points in one request.
-  mapBuild: (id: number, body: { source: number; cards: { id: string; label: string }[]; links: BuildLink[] }) =>
-    api.post<BuildResult>(`/notebooks/notebooks/${id}/map/build/`, body),
-  findMapLinks: (id: number) =>
-    api.post<{ edges: KnowledgeMapData['edges'] }>(`/notebooks/notebooks/${id}/map/links/`),
-  practiseConcept: (id: number, concept: string) =>
-    api.post<{ quiz_id: number; source_ids: number[] }>(`/notebooks/notebooks/${id}/map/practice/`, { concept }),
 }
 
 export type WeakConcept = {
@@ -466,10 +456,6 @@ export const analyticsAPI = {
 }
 
 export type ConceptState = 'strong' | 'shaky' | 'weak' | 'not_studied'
-export type ConceptAction =
-  | { kind: 'cards'; card_ids: number[] }
-  | { kind: 'exercise'; exercise_id: number }
-  | { kind: 'practice'; question_ids: number[] }
 export type MapConcept = {
   key: string
   label: string
@@ -483,15 +469,9 @@ export type MapConcept = {
   /** Over the cards reviewed; `unseen` cards of the concept were never reviewed. */
   memory: { p: number; remembered: number; total: number; unseen: number } | null
   events: number
-  action: ConceptAction | null
-  first: string | null
-  /** The name as the document wrote it, when `label` is a translation (lib/translate.ts). */
-  original?: string
 }
 export type KnowledgeMapData = {
   concepts: MapConcept[]
-  edges: { from: string; to: string; why: string }[]
-  edges_status: 'ready' | 'missing' | 'none'
   missing_key_points: { source_id: number; title: string }[]
   unattached: number
 }

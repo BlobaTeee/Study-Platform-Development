@@ -193,7 +193,8 @@ class Source(models.Model):
 
 
 class MapBuild(models.Model):
-    """One map a student built from memory for one document (services/map_building.py).
+    """One map a student built from memory for one document. The feature is gone
+    (2026-11-09); the table stays so the maps already drawn are kept.
 
     Stored only once graded. `cards` are the student's own: {id, label,
     match_key, match_label}, the match being the key point (as a map concept

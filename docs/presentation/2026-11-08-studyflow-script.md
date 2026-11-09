@@ -15,8 +15,8 @@ một câu đời thường đi kèm (bảng giải thích ở cuối script).
 - Tab notebook `ml_pipeline/notebooks/06_question_quality.ipynb` và `12_translation.ipynb` mở sẵn.
 - Có sẵn một ảnh chụp đề thi (đề Toán THPT) để demo phần chụp ảnh.
 
-**Số liệu** (lấy từ repo ngày 2026-11-08): 1.354 test tự động đang chạy đạt (76 giao diện, 677 phần ML,
-601 API); khoảng 31.000 dòng code (giao diện ~14.800, backend ~13.500, ML ~2.800) và ~13.000 dòng test;
+**Số liệu** (lấy từ repo ngày 2026-11-09): 1.314 test tự động đang chạy đạt (53 giao diện, 677 phần ML,
+584 API); khoảng 28.000 dòng code (giao diện ~12.200, backend ~13.200, ML ~2.800) và ~13.000 dòng test;
 12 notebook đo đạc; 7 bộ dữ liệu công khai.
 
 ---
@@ -59,8 +59,8 @@ Nói bằng hình ảnh một nhà hàng; chỉ đọc tên công nghệ, không
 > Một trang web giống một nhà hàng.
 >
 > **Phòng ăn — phần bạn nhìn thấy** (frontend): viết bằng **Next.js** và **React**, ngôn ngữ
-> **TypeScript**, giao diện bằng **Tailwind**. Có hai ngôn ngữ Anh–Việt. Bản đồ kiến thức vẽ bằng
-> **React Flow**, công thức toán hiển thị bằng **KaTeX**.
+> **TypeScript**, giao diện bằng **Tailwind**. Có hai ngôn ngữ Anh–Việt; công thức toán hiển thị
+> bằng **KaTeX**.
 >
 > **Nhà bếp — phần xử lý phía sau** (backend): **Django**, một framework của Python. Cùng một chương trình
 > đó còn chạy **Socket.IO** để nhắn tin và học nhóm theo thời gian thực — tin nhắn đến ngay, không cần tải
@@ -168,17 +168,15 @@ Mỗi tính năng nói ba ý: **nó làm gì**, **bên trong hoạt động th�
 > một **đáp án ẩn** gồm lời giải mẫu, các mốc phải đạt và các lỗi hay gặp, rồi chỉ ra **bước sai đầu
 > tiên** và loại lỗi. Có nút **Gợi ý** khi bí, và lời giải mẫu chỉ mở khi bạn đã làm được hoặc chủ động xem.
 
-### 4.6 Bản đồ kiến thức
+### 4.6 Mức nắm chắc của từng ý chính
 
-> [Trong một tài liệu, chuyển "Danh sách | Bản đồ".] Mỗi ý chính là một ô, mũi tên nghĩa là **"cần hiểu ý
-> này trước"**. Màu của ô cho biết bạn đang ở mức **Nắm chắc / Chưa vững / Yếu / Chưa học**.
+> [Quay lại danh sách ý chính của một tài liệu.] Bên cạnh mỗi ý chính có một chấm màu: **Nắm chắc / Chưa
+> vững / Yếu / Chưa học**.
 >
-> Màu đó tính từ hai thứ: **hiểu** — dựa trên các câu bạn làm đúng/sai của ý đó — và **nhớ** — bạn còn nhớ
+> Mức đó tính từ hai thứ: **hiểu** — dựa trên các câu bạn làm đúng/sai về ý đó — và **nhớ** — bạn còn nhớ
 > được bao lâu nữa. Lấy cái yếu hơn, vì hiểu mà không nhớ thì đến ngày thi vẫn mất điểm.
 >
-> [Bấm "Tự vẽ lại từ trí nhớ".] Phần tôi thích nhất: bạn **tự vẽ lại bản đồ từ trí nhớ** — viết các ý bạn
-> còn nhớ, nối chúng lại và ghi lý do. Ý chính bị ẩn đi trong lúc vẽ. AI so bản vẽ của bạn với ý chính của
-> tài liệu: "Đã nhớ ra 6/9 ý", mối nối nào hợp lý, ý nào còn sót.
+> Để làm được việc này, mỗi thẻ, câu hỏi và bài vận dụng được tự động **gắn vào ý chính** mà nó hỏi tới.
 
 ### 4.7 Giải thích lại (Feynman)
 
@@ -247,7 +245,7 @@ Mỗi tính năng nói ba ý: **nó làm gì**, **bên trong hoạt động th�
 | Cùng mô hình đó, câu hỏi đại học (MMLU, notebook 11) | Như trên | Gần như đoán bừa | Nên khi không chắc, nó **nhường cho Gemini** quyết định |
 | Chấm bài vận dụng từng bước (notebook 09) | Tìm bước sai đầu tiên, so với chuyên gia đánh dấu | 0,85 trên 22 bài toán (ProcessBench); 0,90 trên 72 bài làm tự soạn ở 4 môn (thang 0–1) | Bắt lỗi tốt; nhưng **bài đúng mà đi đường tắt** đôi khi bị chấm thiếu bước (luật hợp đồng: chỉ ~62% bài đúng được nhận ra) |
 | Gắn thẻ/câu hỏi vào ý chính (notebook 10) | 81 mục có nhãn tay | **85%** gắn đúng ý | Đủ dùng; sai thường do hai ý dùng chung vài từ |
-| Mức "hiểu" trên bản đồ (notebook 10, ASSISTments) | Dự đoán câu tiếp theo làm đúng hay sai | 0,690, so với 0,695 của cách đơn giản | **Chưa hơn** cách đơn giản "tỉ lệ làm đúng từ trước tới giờ" — tôi ghi rõ điều này |
+| Mức "hiểu" của từng ý chính (notebook 10, ASSISTments) | Dự đoán câu tiếp theo làm đúng hay sai | 0,690, so với 0,695 của cách đơn giản | **Chưa hơn** cách đơn giản "tỉ lệ làm đúng từ trước tới giờ" — tôi ghi rõ điều này |
 | Dự báo trí nhớ (notebook 08, Duolingo) | Thử mô hình của Duolingo trên 12,9 triệu lượt học | Cách "đoán là nhớ hết" lại có sai số thấp nhất | Mô hình đó không hợp; tôi chọn **FSRS**, công thức đã kiểm chứng của Anki |
 | Đọc ảnh đề thi | Đề Toán THPT 2025 thật, 4 trang | 24 câu, khoảng **1 lỗi đổi nghĩa** mỗi lần đọc | Luôn bắt người học đối chiếu với ảnh trước khi làm |
 | Dịch (notebook 12, IWSLT) | So với bản dịch của người trên 100 câu | 35 điểm, so với 30 của mô hình còn lại; mô hình kia còn lặp chữ vô nghĩa ("cấu cấu cấu…") ở 11/30 đoạn của app | Chọn mô hình tốt hơn; vẫn còn dịch sai thuật ngữ |
@@ -302,7 +300,7 @@ Chia ba mốc, nói rõ mốc nào đã có cơ sở.
 > **Giữa kỳ:**
 > đưa lên server thật — email qua nhà cung cấp chuyên dụng, nhắc lịch bằng tác vụ của server thay vì máy cá
 > nhân; nhờ giáo viên gắn nhãn bộ bài vận dụng ngoài môn Toán; và dùng chính dữ liệu học của người dùng để
-> cải thiện mức "hiểu" trên bản đồ.
+> cải thiện mức "hiểu" của từng ý chính.
 >
 > **Xa hơn:**
 > đọc PDF scan, nhập bộ thẻ Anki/Quizlet làm điểm bắt đầu cho các tính năng AI, và bản dùng được trên điện
