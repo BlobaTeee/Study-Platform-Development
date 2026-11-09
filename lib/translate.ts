@@ -63,38 +63,6 @@ export function shownAs(found: Map<string, string> | undefined, text: string, co
   return t && t.toLowerCase() !== text.toLowerCase() ? t : undefined
 }
 
-type MapLike = {
-  concepts: { key: string; label: string; point: string; source_ids: number[] }[]
-  edges: { from: string; to: string; why: string }[]
-}
-
-/** The map's texts worth translating. In a document's page: every name (a
- *  prerequisite from another document is named too), but only this
- *  document's points and the reasons for links into it. */
-export function mapTexts(map: MapLike, sourceId?: number): Ask[] {
-  const here = (c: MapLike['concepts'][number]) => sourceId === undefined || c.source_ids.includes(sourceId)
-  const inDoc = new Set(map.concepts.filter(here).map((c) => c.key))
-  return toAsk([
-    ...map.concepts.map((c) => c.label),
-    ...map.concepts.filter(here).map((c) => c.point),
-    ...map.edges.filter((e) => inDoc.has(e.to)).map((e) => e.why),
-  ])
-}
-
-/** The map with its texts in the page language; each translated name keeps
- *  its original in `original`, for hover. The same map while nothing is found. */
-export function inPageLanguage<M extends MapLike>(map: M, found: Map<string, string> | undefined): M {
-  if (!found?.size) return map
-  return {
-    ...map,
-    concepts: map.concepts.map((c) => {
-      const label = shownAs(found, c.label)
-      return { ...c, label: label ?? c.label, point: shownAs(found, c.point) ?? c.point, original: label ? c.label : undefined }
-    }),
-    edges: map.edges.map((e) => ({ ...e, why: shownAs(found, e.why) ?? e.why })),
-  }
-}
-
 /** What a quiz's stored name says it is from: the server writes it in English
  *  ("Quiz: Energy and waves", "Quiz: 3 sources"). Null for any other name. */
 export function quizTitle(title: string): { name: string } | { count: number } | null {

@@ -878,7 +878,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                     {sourceDetail && sourceDetail.status === 'ready' && (
                       <div className="border-t border-slate-200 pt-5">
                         {sourceDetail.key_points.length > 0 ? (
-                          <KeyPoints points={sourceDetail.key_points} notebookId={notebookId} sourceId={activeSourceId!} title={sourceDetail.title} onOpenSource={setActiveSourceId} />
+                          <KeyPoints points={sourceDetail.key_points} notebookId={notebookId} sourceId={activeSourceId!} />
                         ) : (
                           <>
                             {sourceDetail.gemini_summary && (

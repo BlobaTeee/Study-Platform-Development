@@ -3,13 +3,10 @@
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import useSWR from 'swr'
-import { ChevronDown, List, Network, PenLine } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ChevronDown } from 'lucide-react'
 import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
-import { KnowledgeMap } from '@/components/knowledge-map'
-import { MapBuilder } from '@/components/map-builder'
 import { notebooksAPI, type ConceptState, type KeyPoint } from '@/lib/api'
-import { keyPointStates, MIN_POINTS } from '@/lib/map-build'
+import { keyPointStates } from '@/lib/key-points'
 import { cn } from '@/lib/utils'
 
 /** How many ideas show before "show more": the core ones, up to this many. */
@@ -30,84 +27,21 @@ const WORD: Record<ConceptState, string> = {
   not_studied: 'text-slate-600',
 }
 
-type View = 'list' | 'map' | 'redraw'
-
-/** A document's main ideas, all in the document's own page: as a short list
- *  with how well each is known, as a small map of just this document, or
- *  hidden while the student redraws them from memory and compares. */
-export function KeyPoints({ points, notebookId, sourceId, title, onOpenSource }: {
+/** A document's main ideas, as a short list with how well each is known. */
+export function KeyPoints({ points, notebookId, sourceId }: {
   points: KeyPoint[]
   notebookId: number
   sourceId: number
-  title: string
-  /** Open another document of the notebook (a prerequisite that lives there). */
-  onOpenSource: (id: number) => void
 }) {
   const t = useTranslations('notebooks')
-  const m = useTranslations('map')
-  const [view, setView] = useState<View>('list')
-  // The same request the map makes, so the two never disagree.
-  const { data, mutate } = useSWR(['/map', notebookId], () => notebooksAPI.getMap(notebookId))
+  const { data } = useSWR(['/map', notebookId], () => notebooksAPI.getMap(notebookId))
   const states = keyPointStates(data?.data.concepts ?? [], sourceId, points.length)
-
-  if (view === 'redraw')
-    return (
-      <MapBuilder
-        key={sourceId}
-        notebookId={notebookId}
-        topic={{ source_id: sourceId, title }}
-        onClose={() => setView('list')}
-        onSeeMap={() => {
-          void mutate()
-          setView('map')
-        }}
-      />
-    )
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h3 className="text-sm font-semibold text-slate-900">{t('keyPoints')}</h3>
-        <div role="tablist" aria-label={m('pointsView')} className="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
-          <Tab active={view === 'list'} onClick={() => setView('list')} icon={<List className="size-3.5" aria-hidden />} label={m('asList')} />
-          <Tab active={view === 'map'} onClick={() => setView('map')} icon={<Network className="size-3.5" aria-hidden />} label={m('asMap')} />
-        </div>
-      </div>
-
-      {view === 'list' ? (
-        <PointList points={points} states={states} />
-      ) : (
-        <KnowledgeMap notebookId={notebookId} sourceId={sourceId} onOpenSource={onOpenSource} />
-      )}
-
-      {points.length >= MIN_POINTS && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 px-4 py-3">
-          <p className="text-sm text-slate-700">{m('redrawLead')}</p>
-          <Button type="button" variant="tinted" onClick={() => setView('redraw')}>
-            <PenLine aria-hidden />
-            {m('redrawStart')}
-          </Button>
-        </div>
-      )}
+      <h3 className="text-sm font-semibold text-slate-900">{t('keyPoints')}</h3>
+      <PointList points={points} states={states} />
     </div>
-  )
-}
-
-function Tab({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={cn(
-        'inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30',
-        active ? 'bg-white font-medium text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900',
-      )}
-    >
-      {icon}
-      {label}
-    </button>
   )
 }
 
@@ -116,7 +50,6 @@ function Tab({ active, onClick, icon, label }: { active: boolean; onClick: () =>
  *  was read from open on a click. */
 function PointList({ points, states }: { points: KeyPoint[]; states: (ConceptState | null)[] }) {
   const t = useTranslations('notebooks')
-  const m = useTranslations('map')
   const [open, setOpen] = useState<number | null>(null)
   const [all, setAll] = useState(false)
   // In the page language; the passage stays in the document's own words.
@@ -155,7 +88,7 @@ function PointList({ points, states }: { points: KeyPoint[]; states: (ConceptSta
                 {state && (
                   <span className={cn('flex shrink-0 items-center gap-1.5 text-xs', WORD[state])}>
                     <span className={cn('size-2 rounded-full', DOT[state])} aria-hidden />
-                    {m(`state_${state}`)}
+                    {t(`state_${state}`)}
                   </span>
                 )}
                 <ChevronDown
