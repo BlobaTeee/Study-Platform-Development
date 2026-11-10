@@ -41,9 +41,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // From the `lang` cookie (or Accept-Language) — see i18n/request.ts. The
-  // server renders the chosen language from the first byte, so there is no
-  // flash of English for a Vietnamese reader.
+  // From the `lang` cookie, Vietnamese without one — see i18n/request.ts.
+  // The server renders the chosen language from the first byte.
   const locale = await getLocale()
   return (
     <html

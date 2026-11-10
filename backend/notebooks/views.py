@@ -183,7 +183,7 @@ class NotebookViewSet(viewsets.ModelViewSet):
             )
         try:
             source, notebook, created = place_upload(
-                request.user, uploaded, file_type, getattr(request, 'LANGUAGE_CODE', 'en') or 'en')
+                request.user, uploaded, file_type, getattr(request, 'LANGUAGE_CODE', 'vi') or 'vi')
         except NothingToRead:
             return Response({'detail': _('No text could be extracted from this file.')}, status=400)
         return Response({
@@ -772,6 +772,6 @@ def _profile_language(user) -> str:
     """The invitee gets the inviter's language: it is the only clue we have
     about which language the pair studies in."""
     profile = getattr(user, 'profile', None)
-    return getattr(profile, 'preferred_language', 'en') or 'en'
+    return getattr(profile, 'preferred_language', 'vi') or 'vi'
 
 

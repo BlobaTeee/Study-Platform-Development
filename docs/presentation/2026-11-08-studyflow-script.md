@@ -59,7 +59,7 @@ Nói bằng hình ảnh một nhà hàng; chỉ đọc tên công nghệ, không
 > Một trang web giống một nhà hàng.
 >
 > **Phòng ăn — phần bạn nhìn thấy** (frontend): viết bằng **Next.js** và **React**, ngôn ngữ
-> **TypeScript**, giao diện bằng **Tailwind**. Có hai ngôn ngữ Anh–Việt; công thức toán hiển thị
+> **TypeScript**, giao diện bằng **Tailwind**. Tiếng Việt là ngôn ngữ chính, tiếng Anh là lựa chọn thêm; công thức toán hiển thị
 > bằng **KaTeX**.
 >
 > **Nhà bếp — phần xử lý phía sau** (backend): **Django**, một framework của Python. Cùng một chương trình
@@ -209,7 +209,7 @@ Mỗi tính năng nói ba ý: **nó làm gì**, **bên trong hoạt động th�
 
 ### 4.10 Hai ngôn ngữ và đọc tài liệu bằng ngôn ngữ của trang — tính năng mới nhất
 
-> [Chuyển trang sang tiếng Việt, mở một tài liệu tiếng Anh.] Giao diện có tiếng Anh và tiếng Việt. Câu chữ
+> [Mở một tài liệu tiếng Anh.] Web mặc định tiếng Việt, ai cần thì bấm chuyển sang tiếng Anh. Câu chữ
 > giao diện viết tay theo một **bảng thuật ngữ cố định** — mỗi ý chỉ một tên gọi — và có test chặn những từ
 > dịch sát nghĩa kiểu "Shaky" cho "chưa vững".
 >

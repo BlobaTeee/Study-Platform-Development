@@ -1,20 +1,11 @@
-export const LOCALES = ['en', 'vi'] as const
+// Vietnamese first: it is the main language, English the alternative.
+export const LOCALES = ['vi', 'en'] as const
 export type Locale = (typeof LOCALES)[number]
-export const DEFAULT_LOCALE: Locale = 'en'
+export const DEFAULT_LOCALE: Locale = 'vi'
 export const LANG_COOKIE = 'lang'
 
 export function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (LOCALES as readonly string[]).includes(value)
-}
-
-/** Best match for an Accept-Language header, or the default. */
-export function localeFromAcceptLanguage(header: string | null | undefined): Locale {
-  for (const part of (header ?? '').split(',')) {
-    const tag = part.trim().split(';')[0].toLowerCase()
-    if (tag.startsWith('vi')) return 'vi'
-    if (tag.startsWith('en')) return 'en'
-  }
-  return DEFAULT_LOCALE
 }
 
 // Client-side cookie access. The cookie is the one thing the server reads
