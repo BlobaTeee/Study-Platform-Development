@@ -12,7 +12,7 @@ class UserProfile(models.Model):
     supabase_uid = models.UUIDField(unique=True, null=True, blank=True)
     bio = models.TextField(blank=True, null=True)
     avatar = models.URLField(blank=True, null=True)
-    preferred_language = models.CharField(max_length=10, default='en')
+    preferred_language = models.CharField(max_length=10, default='vi')
     theme = models.CharField(max_length=20, default='light', choices=[('light', 'Light'), ('dark', 'Dark')])
     # IANA zone name, reported by the browser on sign-in. Reminder emails
     # state the test time in this zone; without it every student would read

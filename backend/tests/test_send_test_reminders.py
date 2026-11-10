@@ -49,7 +49,7 @@ def test_a_due_reminder_is_sent_to_the_users_email_and_stamped(settings, sent, u
     assert 'Sent 1 reminder(s).' in out
     (subject, body, sender, recipients), = sent
     assert recipients == ['student@example.com']
-    assert 'Biology' in subject and 'Sit it here' in body
+    assert 'Biology' in subject and 'Làm bài tại' in body   # Vietnamese by default
     plan.refresh_from_db()
     assert plan.reminder_sent_at is not None
 
@@ -159,7 +159,8 @@ def test_the_reminder_states_the_time_in_the_users_own_timezone(settings, sent, 
     settings.EMAIL_BACKEND = SMTP
     settings.TIME_ZONE = 'Asia/Ho_Chi_Minh'
     user.profile.timezone = 'Europe/London'
-    user.profile.save(update_fields=['timezone'])
+    user.profile.preferred_language = 'en'
+    user.profile.save(update_fields=['timezone', 'preferred_language'])
     from datetime import datetime, timezone as tz
     plan = _plan(user, notebook, hours_ahead=0.5)
     # Pin the booked instant so the expected wall-clock time is exact:
@@ -211,14 +212,14 @@ def test_every_line_is_stamped_with_the_run_time(settings, sent, user, notebook)
     assert all(re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ', l) for l in lines), lines
 
 
-def test_a_vietnamese_profile_gets_the_vietnamese_reminder(settings, sent, user, notebook):
+def test_an_english_profile_gets_the_english_reminder(settings, sent, user, notebook):
     settings.EMAIL_BACKEND = SMTP
-    user.profile.preferred_language = 'vi'
+    user.profile.preferred_language = 'en'
     user.profile.save(update_fields=['preferred_language'])
     _plan(user, notebook, hours_ahead=0.5)
 
     _run()
 
     (subject, body, _, _), = sent
-    assert subject.startswith('Bài thi thử')
-    assert 'Làm bài tại' in body
+    assert 'Bài thi thử' not in subject
+    assert 'Sit it here' in body

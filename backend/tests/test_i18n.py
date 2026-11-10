@@ -31,9 +31,18 @@ def test_the_same_request_in_english(user):
     assert res.json()['detail'] == 'Type an answer first.'
 
 
-def test_no_header_means_english(client, user):
+def test_no_header_means_vietnamese(client, user, settings):
+    from studyplatform import settings as real_settings
+    settings.LANGUAGE_CODE = real_settings.LANGUAGE_CODE   # undo conftest's English
     res = _blank_typed_answer(client, user)
-    assert res.json()['detail'] == 'Type an answer first.'
+    assert res.json()['detail'] == 'Hãy gõ câu trả lời trước.'
+
+
+def test_a_new_account_starts_in_vietnamese(db):
+    from django.contrib.auth.models import User
+    from users.models import UserProfile
+    u = User.objects.create_user(username='new-student')
+    assert UserProfile.objects.create(user=u).preferred_language == 'vi'
 
 
 def test_profile_language_accepts_only_the_supported_ones(client, user):

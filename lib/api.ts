@@ -1,6 +1,6 @@
 import axios from 'axios'
 import type { LiveRoomSummary, LiveState } from './live'
-import { readLocaleCookie } from '@/i18n/locale'
+import { DEFAULT_LOCALE, readLocaleCookie } from '@/i18n/locale'
 import { supabase } from './supabase-client'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
@@ -20,11 +20,9 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
     // The API translates its own messages (Django LocaleMiddleware); tell it
-    // which language this browser is showing.
-    const lang = readLocaleCookie()
-    if (lang) {
-      config.headers['Accept-Language'] = lang
-    }
+    // which language this browser is showing. Always sent, or the browser's
+    // own (often English) header would win over the Vietnamese default.
+    config.headers['Accept-Language'] = readLocaleCookie() ?? DEFAULT_LOCALE
     return config
   },
   (error) => {

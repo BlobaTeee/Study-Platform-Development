@@ -82,7 +82,8 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-LANGUAGE_CODE = 'en-us'
+# Vietnamese is the main language; English is the alternative a user picks.
+LANGUAGE_CODE = 'vi'
 # Spaced repetition turns on where the day boundary falls: a card due "today"
 # must mean the learner's today, not UTC's. Timestamps are still stored in UTC
 # (USE_TZ), so this only decides how a date is read back.

@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
 import { LOCALES, writeLocaleCookie, type Locale } from '@/i18n/locale'
 
-/** EN · VI. Each segment names itself in its own language, so a reader who
+/** VI · EN. Each segment names itself in its own language, so a reader who
  *  cannot read the current one can still find theirs. The cookie is written
  *  first — it is what the server renders from — then the profile, when
  *  signed in, so the choice follows the account.

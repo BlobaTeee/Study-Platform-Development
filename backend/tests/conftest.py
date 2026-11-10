@@ -22,6 +22,14 @@ SOURCE_TEXT = ' '.join(
 
 
 @pytest.fixture(autouse=True)
+def _english_unless_asked(settings):
+    """The app defaults to Vietnamese; most tests check the English wording,
+    so they run with English as the fallback. test_i18n checks the real
+    default."""
+    settings.LANGUAGE_CODE = 'en'
+
+
+@pytest.fixture(autouse=True)
 def _isolated_cache():
     """Throttle counters live in the (per-process) cache; never let one test's
     requests count against the next."""
