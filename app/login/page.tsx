@@ -121,11 +121,6 @@ function LoginForm() {
             </Link>
           </div>
 
-          <div className="text-center text-xs text-slate-400 mt-4">
-            <Link href="/developer" className="hover:text-slate-600 underline underline-offset-4">
-              {t('adminLinks')}
-            </Link>
-          </div>
         </div>
       </section>
     </main>
