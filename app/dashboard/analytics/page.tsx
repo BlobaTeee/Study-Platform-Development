@@ -4,10 +4,9 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
 import useSWR from 'swr'
-import { analyticsAPI, exercisesAPI, reviewsAPI, type ForgottenNotebook, type MisconceptionNotebook, type NotebookForecast, type PracticeMistakes } from '@/lib/api'
-import { ForgottenCards } from '@/components/forgotten-cards'
-import { Misconceptions } from '@/components/misconceptions'
-import { PracticeMistakesList } from '@/components/practice-mistakes'
+import { analyticsAPI, exercisesAPI, mockTestsAPI, reviewsAPI, type ForgottenNotebook, type MisconceptionNotebook, type NotebookForecast, type PracticeMistakes } from '@/lib/api'
+import { ReviewList } from '@/components/review-list'
+import { reviewNotebooks } from '@/lib/review-list'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
 import { type Due, caughtUpMessage, MASTERY_LABEL, masteryBarClass, masteryLevel } from '@/lib/study-format'
@@ -91,7 +90,14 @@ export default function AnalyticsPage() {
   const mixUpsPending = !!mixUpsRes?.data?.pending
   const { data: practiceRes } = useSWR(['/exercises/mistakes'], () => exercisesAPI.mistakes())
   const practiceMistakes: PracticeMistakes[] = practiceRes?.data?.notebooks ?? []
-  const practice = useTranslations('practice')
+  const { data: owedRes, isLoading: owedLoading } = useSWR(['/quizzes/mistakes/summary'], () => mockTestsAPI.mistakeSummary())
+  const toReview = reviewNotebooks({
+    owed: owedRes?.data?.notebooks ?? [],
+    forgotten,
+    mixUps,
+    practice: practiceMistakes,
+  })
+  const reviewLoading = forgottenLoading || mixUpsLoading || owedLoading
   const { data: forecastRes } = useSWR(['/study/forecast'], () => reviewsAPI.getForecast())
   const forecast: NotebookForecast[] = forecastRes?.data?.notebooks ?? []
   const forecastOf = new Map(forecast.map((f) => [f.notebook_id, f]))
@@ -145,49 +151,19 @@ export default function AnalyticsPage() {
           )}
         </section>
 
-        {/* Cards last answered wrong, by notebook and then by idea.
-            Relearning a group together works better than meeting the same
-            idea scattered through a mixed queue. */}
-        <section data-mode="flashcards" aria-labelledby="forgotten-title" className="border-t border-slate-200 p-6 md:p-8">
-          <h2 id="forgotten-title" className="text-base font-semibold text-slate-900">{t('forgottenTitle')}</h2>
-          <p className="mt-1 max-w-[65ch] text-sm text-slate-600">{t('forgottenLead')}</p>
-
-          {forgottenLoading ? (
+        {/* Everything to go back to, from the mistake bank, weak concepts,
+            forgotten cards, mix-ups and practice errors: one list, by notebook. */}
+        <section aria-labelledby="review-title" className="border-t border-slate-200 p-6 md:p-8">
+          <h2 id="review-title" className="text-base font-semibold text-slate-900">{t('reviewTitle')}</h2>
+          {reviewLoading && toReview.length === 0 ? (
             <div className="mt-4 h-24 animate-pulse rounded-lg bg-slate-100 motion-reduce:animate-none" aria-busy />
-          ) : forgotten.length === 0 ? (
-            <p className="max-w-[65ch] py-6 text-slate-600">{t('forgottenEmpty')}</p>
+          ) : toReview.length === 0 ? (
+            <p className="max-w-[65ch] py-6 text-slate-600">{t('reviewEmpty')}</p>
           ) : (
-            <ForgottenCards notebooks={forgotten} />
+            <ReviewList notebooks={toReview} />
           )}
+          {mixUpsPending && <p className="mt-2 text-sm text-slate-500">{t('mixUpsPendingMore')}</p>}
         </section>
-
-        {/* What the student keeps confusing, read from the wrong options
-            they chose in more than one question. */}
-        <section data-mode="quizzes" aria-labelledby="mixups-title" className="border-t border-slate-200 p-6 md:p-8">
-          <h2 id="mixups-title" className="text-base font-semibold text-slate-900">{t('mixUpsTitle')}</h2>
-          <p className="mt-1 max-w-[65ch] text-sm text-slate-600">{t('mixUpsLead')}</p>
-          {mixUpsLoading ? (
-            <div className="mt-4 h-20 animate-pulse rounded-lg bg-slate-100 motion-reduce:animate-none" aria-busy />
-          ) : mixUps.length === 0 ? (
-            <p className="max-w-[65ch] py-6 text-slate-600">{t(mixUpsPending ? 'mixUpsPending' : 'mixUpsEmpty')}</p>
-          ) : (
-            <>
-              <Misconceptions notebooks={mixUps} />
-              {mixUpsPending && <p className="mt-2 text-sm text-slate-500">{t('mixUpsPendingMore')}</p>}
-            </>
-          )}
-        </section>
-
-        {/* Errors made in practice problems, by the same five kinds for every
-            subject, so a law notebook and a chemistry one read alike. Hidden
-            until a practice problem has been handed in wrong. */}
-        {practiceMistakes.length > 0 && (
-          <section data-mode="quizzes" aria-labelledby="practice-mistakes-title" className="border-t border-slate-200 p-6 md:p-8">
-            <h2 id="practice-mistakes-title" className="text-base font-semibold text-slate-900">{practice('mistakesTitle')}</h2>
-            <p className="mt-1 max-w-[65ch] text-sm text-slate-600">{practice('mistakesLead')}</p>
-            <PracticeMistakesList notebooks={practiceMistakes} />
-          </section>
-        )}
 
         {/* Weakest notebooks. Each row links to its notebook: that is where
             the sources live and where the next set of cards gets generated. */}

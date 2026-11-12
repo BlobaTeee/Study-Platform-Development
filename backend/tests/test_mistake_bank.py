@@ -98,3 +98,15 @@ def test_the_bank_is_scoped_to_the_notebook_and_the_user(client, user, other_use
     assert _bank(client, other_nb)['count'] == 0
     theirs = Notebook.objects.create(user=other_user, title='Theirs')
     assert client.get(f'/api/quizzes/mistakes/?notebook={theirs.id}').status_code == 404
+
+
+def test_the_summary_counts_what_is_owed_in_every_notebook(client, user, other_user, notebook):
+    from notebooks.models import Notebook
+    qs = _questions(user, notebook)
+    _sit(user, notebook, {qs[0]: False, qs[1]: False, qs[2]: True})
+    Notebook.objects.create(user=user, title='Nothing missed here')
+    _sit(other_user, notebook, {qs[3]: False})            # someone else's miss
+
+    body = client.get('/api/quizzes/mistakes/summary/').json()
+
+    assert body == {'notebooks': [{'notebook_id': notebook.id, 'title': notebook.title, 'count': 2}]}

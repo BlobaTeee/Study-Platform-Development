@@ -332,6 +332,20 @@ class MistakeBankView(APIView):
             for r in rows]})
 
 
+class MistakeSummaryView(APIView):
+    """How many questions each notebook still owes, for the review list on
+    the Progress page. Notebooks with nothing owed are left out."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        rows = []
+        for notebook in notebooks_for(request.user).order_by('title'):
+            count = len(_owed_question_ids(request.user, notebook))
+            if count:
+                rows.append({'notebook_id': notebook.id, 'title': notebook.title, 'count': count})
+        return Response({'notebooks': rows})
+
+
 class WeakConceptsView(APIView):
     """The mistake bank grouped into named concepts, biggest first."""
     permission_classes = [permissions.IsAuthenticated]

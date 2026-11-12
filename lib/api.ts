@@ -410,6 +410,9 @@ export const mockTestsAPI = {
     api.get<{ count: number; questions: { id: number; question_text: string }[] }>(
       `/quizzes/mistakes/?notebook=${notebook}`
     ),
+  // How many questions each notebook still owes; notebooks owing none are left out.
+  mistakeSummary: () =>
+    api.get<{ notebooks: { notebook_id: number; title: string; count: number }[] }>('/quizzes/mistakes/summary/'),
   // The mistake bank grouped into named concepts, biggest first.
   weakConcepts: (notebook: number) =>
     api.get<{ concepts: WeakConcept[] }>(`/quizzes/weak-concepts/?notebook=${notebook}`),

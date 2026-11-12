@@ -12,7 +12,6 @@ import { mockTestsAPI, notebooksAPI, plannedTestsAPI } from '@/lib/api'
 import { useConfirm } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
-import { WeakConcepts } from '@/components/weak-concepts'
 import { PageHeader } from '@/components/page-header'
 import { WhyWrong } from '@/components/why-wrong'
 import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
@@ -932,28 +931,14 @@ function MockTestsInner() {
               </p>
             )}
 
-            {mistakeCount !== null && (
-              <div className="border-t border-slate-200 pt-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-base text-slate-700">{t('mistakeBank', { count: mistakeCount })}</p>
-                  <p className="text-sm text-slate-500">{t('mistakeBankHint')}</p>
-                </div>
-                {mistakeCount > 0 && (
-                  <Button
-                    type="button"
-                    variant="tinted"
-                    disabled={retaking || starting || durationMinutes === ''}
-                    onClick={() => void handleRetakeMistakes(Number(notebookId), Number(durationMinutes))}
-                  >
-                    {retaking ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
-                    {t('retakeMistakes')}
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {mistakeCount !== null && mistakeCount > 0 && notebookId && (
-              <WeakConcepts notebook={Number(notebookId)} refreshKey={result} />
+            {/* What is owed lives in "Cần ôn" on the Progress page; here, only a pointer to it. */}
+            {mistakeCount !== null && mistakeCount > 0 && (
+              <p className="border-t border-slate-200 pt-4 text-sm text-slate-600">
+                {t('mistakesWaiting', { count: mistakeCount })}{' · '}
+                <Link href="/dashboard/analytics#review-title" className="font-medium text-slate-900 underline underline-offset-4 hover:text-mode">
+                  {t('seeReviewList')}
+                </Link>
+              </p>
             )}
           </form>
         </Card>
