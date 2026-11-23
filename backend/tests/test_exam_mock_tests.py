@@ -222,6 +222,39 @@ def test_a_written_answer_the_model_cannot_mark_earns_nothing_but_the_paper_is_s
     assert res['paper'][-1]['grade'] == {'not_graded': True} and res['paper'][-1]['earned'] == 0.0
 
 
+
+def test_a_written_answer_is_marked_on_the_normal_lane_and_tried_twice(client, user, notebook, monkeypatch):
+    """Marked once, at submit: a slow or failed first reply must not cost the part's points."""
+    from notebooks.services.model_lane import is_quick
+
+    _bank(user, notebook)
+    _tf_items(notebook, n=2)
+    Exercise.objects.create(user=user, notebook=notebook, prompt='Explain why cells divide in two stages.',
+                            reference={'solution': ['x'], 'language': 'en',
+                                       'checkpoints': [{'id': 1, 'text': 'A', 'basis': ''},
+                                                       {'id': 2, 'text': 'B', 'basis': ''}], 'mistakes': []})
+    lanes = []
+
+    class SlowThenFine:
+        def generate_json(self, prompt):
+            lanes.append(is_quick())
+            if len(lanes) == 1:
+                raise RuntimeError('429 RESOURCE_EXHAUSTED quota')
+            return {'met': [1, 2], 'first_wrong_step': None, 'wrong_step_quote': '', 'error_type': '',
+                    'detail': '', 'hint': ''}
+
+    monkeypatch.setattr('notebooks.services.ai_provider.get_ai_provider', lambda: SlowThenFine())
+    body = client.post(URL, {'notebook': notebook.id, 'template': 'test45'}, format='json').json()
+    written = body['paper'][-1]
+    client.post(f"{URL}{body['id']}/answer/", {'paper_question_id': written['id'],
+                                               'answer': 'Cells copy their DNA. Then they split twice.'},
+                format='json')
+
+    res = client.post(f"{URL}{body['id']}/submit/").json()
+
+    assert lanes == [False, False]
+    assert res['paper'][-1]['earned'] == 5.0 and 'not_graded' not in res['paper'][-1]['grade']
+
 # ---- what stays as it was ------------------------------------------------------------------
 
 def test_a_paper_without_a_template_is_still_the_classic_one(client, user, notebook, no_model):

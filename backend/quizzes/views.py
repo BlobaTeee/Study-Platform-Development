@@ -482,9 +482,17 @@ def _mark_exam_row(row) -> None:
         if not sentences:
             row.grade, row.earned, row.is_correct = {'verdict': 'needs_work', 'met': []}, 0.0, False
             return
-        try:
-            result = grading.grade(Exercise(prompt=row.question_text, reference=row.reference), sentences)
-        except PracticeUnavailable:
+        # Marked once and never again, so it waits for an answer: the normal
+        # lane, and one more try. A failure here would cost the part's points.
+        exercise = Exercise(prompt=row.question_text, reference=row.reference)
+        result = None
+        for _ in range(2):
+            try:
+                result = grading.grade(exercise, sentences, quick=False)
+                break
+            except PracticeUnavailable:
+                continue
+        if result is None:
             row.grade, row.earned, row.is_correct = {'not_graded': True}, 0.0, False
             return
         row.grade = {**result, 'sentences': sentences}

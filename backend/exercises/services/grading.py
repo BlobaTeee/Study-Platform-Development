@@ -90,9 +90,13 @@ def submit(exercise: Exercise, steps: list[str], text: str = '') -> ExerciseAtte
     return attempt
 
 
-def grade(exercise: Exercise, steps: list[str]) -> dict:
+def grade(exercise: Exercise, steps: list[str], quick: bool = True) -> dict:
     """The grade alone, with nothing saved: `exercise` may be unsaved, which
-    is how the grader is measured on ProcessBench."""
+    is how the grader is measured on ProcessBench.
+
+    `quick` puts it on the fast lane, for a student waiting on one answer. A
+    mock test's written answer passes False: it is marked once, at submit,
+    and a lane that gives up after a few seconds would cost its points."""
     checkpoints, solution = _rubric(exercise)
     lang = problem_language(exercise)
     prompt = f"""Grade a student's attempt at a practice problem. Write in {language_name(lang)}.
@@ -141,7 +145,7 @@ Student's attempt:
 Return ONLY valid JSON:
 {{"met": [1], "first_wrong_step": 2, "wrong_step_quote": "...", "error_type": "concept", "detail": "...", "hint": "..."}}"""
 
-    return clean_grade(ask(prompt, quick=True), exercise, steps)
+    return clean_grade(ask(prompt, quick=quick), exercise, steps)
 
 
 def clean_grade(data: dict, exercise: Exercise, steps: list[str]) -> dict:
