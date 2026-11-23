@@ -18,6 +18,7 @@ from django.core.cache import cache
 
 from ml_pipeline.weak_concepts import cluster_questions, top_terms
 from notebooks.services.ai_provider import get_ai_provider
+from notebooks.services.model_lane import quick
 from quizzes.services.concepts import LABEL_TTL, _label
 
 from notebooks.models import Notebook
@@ -130,7 +131,8 @@ a noun phrase, no quotes, no trailing period. Use every card number exactly once
 
 Return ONLY valid JSON: {{"groups": [{{"label": "...", "cards": [1, 2]}}]}}"""
     try:
-        data = get_ai_provider().generate_json(prompt)
+        with quick():
+            data = get_ai_provider().generate_json(prompt)
     except Exception as exc:  # noqa: BLE001 — no provider, quota, bad JSON: each card stands alone
         logger.info('Grouping forgotten cards fell back to one per card: %s', exc)
         return None

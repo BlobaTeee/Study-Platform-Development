@@ -4,6 +4,8 @@ import threading
 import time
 from django.conf import settings
 
+from .model_lane import is_long, is_quick, thinks_less
+
 
 class GeminiNotConfiguredError(Exception):
     pass
@@ -154,13 +156,19 @@ def _worth_trying(models: list[str]) -> list[str]:
     return live or models[:1]
 
 
-def _model_list() -> list[str]:
+def _model_list(quick: bool = False) -> list[str]:
+    """The models to try, in order. The quick lane puts the fast model first
+    and keeps the main one as its fallback (see model_lane)."""
     primary = getattr(settings, 'GEMINI_MODEL', 'gemini-3.8-flash')
     fallbacks = getattr(settings, 'GEMINI_MODEL_FALLBACKS', '')
     extra = [m.strip() for m in fallbacks.split(',') if m.strip()]
+    order = [primary, *extra]
+    if quick:
+        fast = getattr(settings, 'GEMINI_FAST_MODEL', '') or ''
+        order = [fast, primary] if fast else order
     seen = set()
     models = []
-    for name in [primary, *extra]:
+    for name in order:
         if name and name not in seen:
             seen.add(name)
             models.append(name)
@@ -212,8 +220,15 @@ def _request_config(thinking: str | None = None):
     )
 
 
-def _wait_seconds() -> float:
-    return float(max(MIN_TIMEOUT_SECONDS, int(getattr(settings, 'GEMINI_TIMEOUT_SECONDS', 30))))
+def _wait_seconds(quick: bool = False) -> float:
+    """How long one model may take. A short judgement gives up sooner, since
+    the student is waiting on it and the other model is fast."""
+    if is_long():
+        setting, default = 'GEMINI_READ_TIMEOUT_SECONDS', 90
+    else:
+        setting = 'GEMINI_FAST_TIMEOUT_SECONDS' if quick else 'GEMINI_TIMEOUT_SECONDS'
+        default = 12 if quick else 30
+    return float(max(MIN_TIMEOUT_SECONDS, int(getattr(settings, setting, default))))
 
 
 def _call_with_deadline(call, seconds: float):
@@ -257,20 +272,30 @@ def _contents(prompt: str, images):
 
 def generate_json(prompt: str, images: list[tuple[bytes, str]] | None = None) -> dict:
     """JSON from the first model that answers. `images` are (bytes, mime
-    type) pairs sent with the prompt, e.g. a photographed problem."""
+    type) pairs sent with the prompt, e.g. a photographed problem.
+
+    Inside `model_lane.quick()` the fast model goes first, with its own
+    thinking level and a shorter wait."""
     client = _get_client()
     contents = _contents(prompt, images)
-    models = _worth_trying(_model_list())
+    quick = is_quick()
+    models = _worth_trying(_model_list(quick))
+    # Read here, not in the worker thread: the lane lives in this context.
+    # Copying a photo or file out is transcription, not reasoning: thinking
+    # only makes a long read longer.
+    thinking = (getattr(settings, 'GEMINI_FAST_THINKING', 'low') if quick
+                else getattr(settings, 'GEMINI_READ_THINKING', 'low') if thinks_less() else None)
+    config = _request_config(thinking)
     last_quota_error = None
     last_transient_error = None
     last_format_error = None
 
     for model in models:
         try:
-            wait = _wait_seconds()
+            wait = _wait_seconds(quick)
             try:
                 response = _call_with_deadline(lambda: client.models.generate_content(
-                    model=model, contents=contents, config=_request_config()), wait)
+                    model=model, contents=contents, config=config), wait)
             except Exception as exc:
                 if not _is_thinking_rejected(exc):
                     raise

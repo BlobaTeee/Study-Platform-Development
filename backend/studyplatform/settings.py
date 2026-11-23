@@ -54,6 +54,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'studyplatform.throttling.RefundFailedGeneration',
 ]
 
 ROOT_URLCONF = 'studyplatform.urls'
@@ -108,12 +109,23 @@ GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
 # Measured on the question-quality scorecard (ml_pipeline/reports/question_quality.json):
 # 3.8-flash scored 10/10 and ran fastest, 2.5-flash 14/15, 3.1-flash-lite 13/15.
 # Pinned rather than 'gemini-flash-latest' so a measurement keeps meaning what it
-# said; the alias sits next in line, then a lite model, then the proven 2.5.
+# said. Two models only (2026-11-15): flash-latest and 2.5-flash timed out at
+# 28 s on the same afternoon 3.8-flash did, so a longer chain only made the
+# student wait longer. Each model has its own free daily quota (about 20).
 GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-3.8-flash')
-GEMINI_MODEL_FALLBACKS = config(
-    'GEMINI_MODEL_FALLBACKS',
-    default='gemini-flash-latest,gemini-3.1-flash-lite,gemini-2.5-flash',
-)
+GEMINI_MODEL_FALLBACKS = config('GEMINI_MODEL_FALLBACKS', default='gemini-3.1-flash-lite,gemini-3.5-flash,gemini-2.5-flash')
+# The quick lane (notebooks/services/model_lane.py): short judgements the
+# student waits on go to this model first, with the main one as fallback.
+# Measured on one grading prompt: flash-lite answered in 3.1 s with no thinking
+# but marked a right sentence wrong; with 'low' it took 6.2 s and was right.
+GEMINI_FAST_MODEL = config('GEMINI_FAST_MODEL', default='gemini-3.1-flash-lite')
+GEMINI_FAST_THINKING = config('GEMINI_FAST_THINKING', default='low')
+# A quick-lane model gets this long before the other one is asked.
+GEMINI_FAST_TIMEOUT_SECONDS = config('GEMINI_FAST_TIMEOUT_SECONDS', default=12, cast=int)
+# Reading a photo or a many-page file is one long answer: it gets this long.
+# An 18-page exam with its figure boxes took 84 s on 2026-11-23, so 90 was too close.
+GEMINI_READ_TIMEOUT_SECONDS = config('GEMINI_READ_TIMEOUT_SECONDS', default=150, cast=int)
+GEMINI_READ_THINKING = config('GEMINI_READ_THINKING', default='low')
 # How many excerpts may be generated at once. Each excerpt is one provider call
 # of several seconds and they are independent, so running them together is the
 # single biggest latency win; the cap exists because firing all of them at once
@@ -163,12 +175,16 @@ GEMINI_THINKING = config('GEMINI_THINKING', default='default')
 # không trả lời tốn trọn một deadline trước khi nhường, nên nhớ lại trong ít phút
 # giúp những lượt sinh sau không phải trả lại cái giá đó. Nếu cả chuỗi đang bị bỏ
 # qua thì model đầu vẫn được thử, vì thà chờ còn hơn báo lỗi khi nó có thể đã hồi.
-GEMINI_COOLDOWN_SECONDS = config('GEMINI_COOLDOWN_SECONDS', default=300, cast=int)
+# 15 phút: một model quá tải thường quá tải cả buổi, như chiều 2026-11-15.
+GEMINI_COOLDOWN_SECONDS = config('GEMINI_COOLDOWN_SECONDS', default=900, cast=int)
 
 USE_LOCAL_FALLBACK_ON_QUOTA = config('USE_LOCAL_FALLBACK_ON_QUOTA', default=True, cast=bool)
 # When True, use local spaCy/scikit-learn pipeline first (fully offline capable).
 USE_ML_PRIMARY = config('USE_ML_PRIMARY', default=False, cast=bool)
 MAX_PDF_UPLOAD_MB = config('MAX_PDF_UPLOAD_MB', default=10, cast=int)
+# LibreOffice draws a Word file into a PDF before the AI reads it (exercises/services/photo.py);
+# empty finds `soffice` on PATH, and without it the file is read as text.
+SOFFICE_PATH = config('SOFFICE_PATH', default='')
 
 # AI provider for generation: 'gemini' (cloud), 'ollama' (local generative LLM),
 # or 'custom'. For a fully local generative setup: AI_PROVIDER=ollama and
@@ -207,6 +223,11 @@ EMAIL_BACKEND = config(
 # Where a reminder tells the student to go to sit their test.
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000').rstrip('/')
 
+def _rate_or_none(rate: str):
+    """A DRF rate, or None (no limit) for 'off'."""
+    return None if rate.strip().lower() in ('', 'off', 'none') else rate.strip()
+
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'users.authentication.SupabaseJWTAuthentication',
@@ -223,8 +244,10 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'user': config('THROTTLE_USER', default='60/min'),
-        'generate': config('THROTTLE_GENERATE', default='10/hour'),
+        # 'off' lifts it (a demo should not run out mid-way); 30/hour once deployed.
+        'generate': _rate_or_none(config('THROTTLE_GENERATE', default='30/hour')),
     },
+    'EXCEPTION_HANDLER': 'studyplatform.throttling.exception_handler',
 }
 
 # Comma-separated list of allowed frontend origins. Defaults to local dev;

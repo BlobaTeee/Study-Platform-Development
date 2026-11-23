@@ -11,6 +11,7 @@ from django.utils.translation import gettext as _
 
 from ml_pipeline.language import detect_language, language_name
 from notebooks.services.ai_provider import get_ai_provider
+from notebooks.services.model_lane import quick
 from notebooks.services.gemini_client import GeminiNotConfiguredError
 from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
 
@@ -75,7 +76,8 @@ Flashcard back: {card.answer}
 Return ONLY valid JSON: {{"answer": "..."}}"""
 
     try:
-        data = get_ai_provider().generate_json(prompt)
+        with quick():
+            data = get_ai_provider().generate_json(prompt)
     except GeminiNotConfiguredError as exc:
         raise TutorUnavailable(_('The tutor needs the AI provider, which is not available right now.')) from exc
     except Exception as exc:  # noqa: BLE001
