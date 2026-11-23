@@ -266,7 +266,8 @@ def test_activity_covers_every_day_of_the_window_oldest_first():
 def test_a_day_with_no_study_is_present_with_zeros_and_no_accuracy():
     out = ins.daily_activity([], [], today=_date(2026, 9, 16), days=3)
     assert out["days"][0] == {"date": _date(2026, 9, 14), "reviews": 0, "correct": 0,
-                              "accuracy": None, "mock_scores": []}
+                              "accuracy": None, "mock_scores": [], "quiz_scores": [],
+                              "problems": 0, "solved": 0, "explained": 0, "live": 0}
 
 
 def test_reviews_are_counted_and_graded_per_day():
@@ -296,12 +297,14 @@ def test_summary_totals_the_window():
     reviews = [_rev(10, "good"), _rev(12, "hard"), _rev(16, "good"), _rev(16, "good")]
     tests = [{"date": _date(2026, 9, 12), "score": 50.0}]
     out = ins.daily_activity(reviews, tests, today=_date(2026, 9, 16), days=14)
-    assert out["summary"] == {"reviews": 4, "correct": 3, "accuracy": 75.0, "mock_tests": 1}
+    assert out["summary"] == {"days": 3, "reviews": 4, "correct": 3, "accuracy": 75.0, "mock_tests": 1,
+                              "quizzes": 0, "problems": 0, "explained": 0, "live": 0}
 
 
 def test_summary_accuracy_is_none_when_nothing_was_reviewed():
     out = ins.daily_activity([], [], today=_date(2026, 9, 16), days=14)
-    assert out["summary"] == {"reviews": 0, "correct": 0, "accuracy": None, "mock_tests": 0}
+    assert out["summary"] == {"days": 0, "reviews": 0, "correct": 0, "accuracy": None, "mock_tests": 0,
+                              "quizzes": 0, "problems": 0, "explained": 0, "live": 0}
 
 
 def test_unknown_grades_are_not_counted():
