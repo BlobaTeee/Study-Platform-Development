@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import re
 
+from .units import unit_symbols
+
 MAX_OPTIONS = 4  # correct answer + up to 3 distractors
 
 # "C) …", "(c) …", "B. …", "D: …" — a single letter A–D (the only letters a
@@ -31,7 +33,9 @@ def shape_quiz_question(raw: dict, rng) -> dict | None:
     with ``correct_answer in options`` and 2..MAX_OPTIONS options.
     """
     question = (raw.get("question_text") or raw.get("question") or "").strip()
-    correct = strip_option_prefix(raw.get("correct_answer") or raw.get("answer") or "")
+    # Units become symbols in the options and the answer alike, so the
+    # option the student picks still equals the stored answer.
+    correct = unit_symbols(strip_option_prefix(raw.get("correct_answer") or raw.get("answer") or ""))
     if not question or not correct:
         return None
 
@@ -39,7 +43,7 @@ def shape_quiz_question(raw: dict, rng) -> dict | None:
     candidates = raw.get("distractors")
     if not candidates:
         candidates = raw.get("options") or []
-    distractors = [strip_option_prefix(str(d)) for d in candidates if str(d).strip()]
+    distractors = [unit_symbols(strip_option_prefix(str(d))) for d in candidates if str(d).strip()]
     distractors = [d for d in distractors if d]
 
     # Drop anything equal to the correct answer or duplicated (case-insensitive).

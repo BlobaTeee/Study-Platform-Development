@@ -8,6 +8,7 @@ from ml_pipeline.language import detect_language, language_name
 from flashcards.models import Flashcard
 from flashcards.services.card_format import ANSWER_RULES, CLOZE_RULES, checked_cloze, spread_cloze
 from .writing_style import WRITING_STYLE, tidy_prose, tidy_question
+from .units import unit_symbols
 from quizzes.models import Quiz, Question
 from .gemini_client import (
     GeminiNotConfiguredError,
@@ -291,7 +292,7 @@ def _save_flashcards_from_json(
     valid = []
     for item in fresh:
         question = tidy_question(item.get('question'))
-        answer = (item.get('answer') or '').strip()
+        answer = unit_symbols((item.get('answer') or '').strip())
         explanation = tidy_prose(str(item.get('explanation') or ''), source_title=title)
         difficulty = (item.get('difficulty') or 'medium').lower()
         if difficulty not in ('easy', 'medium', 'hard'):

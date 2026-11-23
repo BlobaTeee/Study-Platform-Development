@@ -11,6 +11,8 @@ greeting or sign-off wrapped around the content.
 """
 import re
 
+from .units import unit_symbols, unit_symbols_in_math
+
 WRITING_STYLE = """Write plainly, like a good teacher explaining to one student:
 - Write about the subject itself. Never mention "the excerpt", "the text", "the passage", "the
   document", "the author says" or "đoạn trích": the student never sees an excerpt.
@@ -23,6 +25,8 @@ WRITING_STYLE = """Write plainly, like a good teacher explaining to one student:
 - Avoid stock words: crucial, pivotal, key (adjective), delve, underscore, highlight (verb), showcase,
   robust, vibrant, landscape, seamless, testament, enhance, additionally, "quan trọng" for emphasis.
 - No greeting, praise or sign-off. No markdown, bold or emojis. Say nothing the material does not support.
+- Write a unit after a number as its symbol: 500 J, 2 Pa, 10 N, 3 m/s, 220 V, 5 kg, 25 °C, 2 h. Never spell
+  it out ("500 joule", "2 pascal", "10 niutơn", "3 mét trên giây").
 Instead of: "Adopting standard conventions ensures that the experience feels ordinary, inclusive, and
 accessible, as the text explains."
 Write: "Most apps use a bottom bar and a map, so an app that looks the same doesn't mark its users
@@ -126,7 +130,8 @@ def tidy_prose(text: str | None, source_title: str = '') -> str:
     def put_math_back(t: str) -> str:
         return re.sub(r'\x01(\d+)\x01', lambda m: maths[int(m.group(1))], t)
 
-    text = _MATH.sub(hold_math, text)
+    text = unit_symbols(_MATH.sub(hold_math, text))
+    maths[:] = [unit_symbols_in_math(m) for m in maths]
     kept: list[str] = []
 
     def hold(m):
