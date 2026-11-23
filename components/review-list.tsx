@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
@@ -25,8 +25,10 @@ type Entry = ReviewNotebook<ForgottenNotebook, Misconception, PracticeMistakes>
 // A sitting of the mistake bank started from here gets the setup form's default.
 const RETAKE_MINUTES = 30
 
-/** "Cần ôn": one line per notebook, closed until pressed. Opened, every item
- *  says where it comes from and has one way to work on it. */
+/** "Cần ôn": one line per notebook, closed until pressed. Opened, it is split
+ *  by kind (wrong questions, forgotten cards, mix-ups, practice errors), each
+ *  kind with its own heading and one action for all of it; a row opens to
+ *  show an example and what to do about that one thing. */
 export function ReviewList({ notebooks }: { notebooks: Entry[] }) {
   const [open, setOpen] = useState<Set<string>>(new Set())
   const toggle = (key: string) =>
@@ -83,31 +85,85 @@ function ReviewNotebookRow({ nb, isOpen, onToggle }: { nb: Entry; isOpen: boolea
       </button>
       {isOpen && (
         <ul id={panelId} className="divide-y divide-slate-100 border-t border-slate-100 bg-slate-50/60 px-3 sm:px-4">
-          {nb.owed > 0 && nb.notebookId != null && <OwedItems notebookId={nb.notebookId} owed={nb.owed} />}
-          {nb.forgotten && <ForgottenItems forgotten={nb.forgotten} />}
-          {nb.mixUps.length > 0 && nb.notebookId != null && <MixUpItems notebookId={nb.notebookId} items={nb.mixUps} />}
-          {nb.practice && <PracticeItems practice={nb.practice} />}
+          {nb.owed > 0 && nb.notebookId != null && <OwedGroup notebookId={nb.notebookId} owed={nb.owed} />}
+          {nb.forgotten && <ForgottenGroup forgotten={nb.forgotten} />}
+          {nb.mixUps.length > 0 && nb.notebookId != null && <MixUpGroup notebookId={nb.notebookId} items={nb.mixUps} />}
+          {nb.practice && <PracticeGroup practice={nb.practice} />}
         </ul>
       )}
     </li>
   )
 }
 
-/** One item: where it comes from, what it is, and what to do about it. */
-function Item({ tag, children, actions }: { tag: string; children: React.ReactNode; actions: React.ReactNode }) {
+/** One kind of thing to review: a heading with how many, the one action that
+ *  covers all of it (when there is one), and its rows underneath. */
+function Group({ title, count, note, action, children }: {
+  title: string
+  count: number
+  /** Where the items come from, when the title alone does not say. */
+  note?: string
+  action?: React.ReactNode
+  children?: React.ReactNode
+}) {
   return (
-    <li className="flex flex-col items-start gap-2 py-3 sm:flex-row sm:items-center sm:gap-4">
-      <span className="w-20 shrink-0 text-xs font-medium uppercase tracking-wide text-slate-500">{tag}</span>
-      <div className="min-w-0 w-full flex-1">{children}</div>
-      <div className="flex shrink-0 flex-wrap items-center gap-1 sm:gap-2">{actions}</div>
+    <li className="py-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-slate-900">
+            {title}{' '}
+            <span className="ml-1 font-mono text-xs font-normal tabular-nums text-slate-500">{count}</span>
+          </h3>
+          {note && <p className="text-xs text-slate-500">{note}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
     </li>
   )
 }
 
-/** The mistake bank: one line to sit it again, then the concepts it groups
+function Rows({ children }: { children: React.ReactNode }) {
+  return <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">{children}</ul>
+}
+
+/** One row of a group: a name and a count, closed until pressed. Opened, it
+ *  shows an example and what can be done about it. */
+function Row({ label, meta, children }: { label: React.ReactNode; meta?: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const id = useId()
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={id}
+        className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
+      >
+        <ChevronDown
+          className={cn('size-3.5 shrink-0 text-slate-400 transition-transform duration-200 motion-reduce:transition-none', !open && '-rotate-90')}
+          aria-hidden
+        />
+        <span className="min-w-0 flex-1 truncate text-base text-slate-900">{label}</span>
+        {meta && <span className="shrink-0 text-sm text-slate-600">{meta}</span>}
+      </button>
+      {open && (
+        <div id={id} className="space-y-2 px-3 pb-3 pl-8">
+          {children}
+        </div>
+      )}
+    </li>
+  )
+}
+
+function Actions({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-wrap items-center gap-2">{children}</div>
+}
+
+/** The mistake bank: one button to sit it again, then the concepts it groups
  *  into. Naming those concepts can take an AI request, so they are only
  *  fetched once the notebook is opened. */
-function OwedItems({ notebookId, owed }: { notebookId: number; owed: number }) {
+function OwedGroup({ notebookId, owed }: { notebookId: number; owed: number }) {
   const t = useTranslations('analytics')
   const tests = useTranslations('tests')
   const router = useRouter()
@@ -143,90 +199,106 @@ function OwedItems({ notebookId, owed }: { notebookId: number; owed: number }) {
   }
 
   return (
-    <>
-      <Item
-        tag={t('tagOwed')}
-        actions={
-          <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void retake()}>
-            {busy === 'retake' ? <Loader2 className="animate-spin" aria-hidden /> : null}
-            {t('retakeOwed')}
-          </Button>
-        }
-      >
-        <p className="text-base text-slate-900">{t('owedLine', { count: owed })}</p>
-        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      </Item>
-      {isLoading && (
-        <li className="py-3">
-          <div className="h-5 w-56 animate-pulse rounded bg-slate-200/70 motion-reduce:animate-none" aria-busy />
-        </li>
+    <Group
+      title={t('groupOwed')}
+      count={owed}
+      note={t('groupOwedFrom')}
+      action={
+        <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void retake()}>
+          {busy === 'retake' ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {t('retakeOwed')}
+        </Button>
+      }
+    >
+      {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
+      {isLoading && <div className="mt-2 h-10 animate-pulse rounded-lg bg-slate-200/70 motion-reduce:animate-none" aria-busy />}
+      {concepts.length > 0 && (
+        <Rows>
+          {concepts.map((c) => (
+            <Row key={c.key} label={<InPageLanguage text={c.label} found={found} />} meta={t('weakMissed', { count: c.count })}>
+              {c.sample[0] && (
+                <p className="text-sm text-slate-600">
+                  {t('forgottenSample', { question: shownAs(found, c.sample[0]) ?? c.sample[0] })}
+                </p>
+              )}
+              <Actions>
+                <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void practise(c)}>
+                  {busy === c.key ? <Loader2 className="animate-spin" aria-hidden /> : null}
+                  {busy === c.key ? tests('writingPractice') : c.practice_quiz_id ? tests('continuePractice') : tests('practise')}
+                </Button>
+              </Actions>
+            </Row>
+          ))}
+        </Rows>
       )}
-      {concepts.map((c) => (
-        <Item
-          key={c.key}
-          tag={t('tagWeak')}
-          actions={
-            <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void practise(c)}>
-              {busy === c.key ? <Loader2 className="animate-spin" aria-hidden /> : null}
-              {busy === c.key ? tests('writingPractice') : c.practice_quiz_id ? tests('continuePractice') : tests('practise')}
-            </Button>
-          }
-        >
-          <p className="text-base text-slate-900">
-            <InPageLanguage text={c.label} found={found} />
-            <span className="ml-2 text-sm text-slate-600">{t('weakMissed', { count: c.count })}</span>
-          </p>
-          {c.sample[0] && (
-            <p className="line-clamp-1 text-sm text-slate-600">
-              <InPageLanguage text={c.sample[0]} found={found} />
-            </p>
-          )}
-        </Item>
-      ))}
-    </>
+    </Group>
   )
 }
 
-function ForgottenItems({ forgotten }: { forgotten: ForgottenNotebook }) {
+// Enough groups to see what kind of thing is being forgotten; the rest wait
+// behind a button so one notebook does not fill the page.
+const FORGOTTEN_SHOWN = 3
+
+function ForgottenGroup({ forgotten }: { forgotten: ForgottenNotebook }) {
   const t = useTranslations('analytics')
   const common = useTranslations('common')
+  const [all, setAll] = useState(false)
   // Concept names and sample questions are in their documents' language.
   const found = useInPageLanguage(forgotten.groups.flatMap((g) => [g.label, g.sample]))
+  const cardIds = [...new Set(forgotten.groups.flatMap((g) => g.card_ids))]
+  const shown = all ? forgotten.groups : forgotten.groups.slice(0, FORGOTTEN_SHOWN)
+  const extra = forgotten.groups.length - FORGOTTEN_SHOWN
+
   return (
-    <>
-      {forgotten.groups.map((g) => (
-        <Item
-          key={g.key}
-          tag={t('tagForgotten')}
-          actions={
-            <>
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/dashboard/flashcards?cards=${g.card_ids.join(',')}`}>{t('relearnGroup')}</Link>
-              </Button>
-              <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3">
-                <Link href={`/dashboard/explain?cards=${g.card_ids.join(',')}&concept=${encodeURIComponent(g.label)}`}>
-                  {t('explainGroup')}
-                </Link>
-              </Button>
-            </>
-          }
+    <Group
+      title={t('groupForgotten')}
+      count={forgotten.count}
+      action={
+        cardIds.length > 0 && (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/dashboard/flashcards?cards=${cardIds.join(',')}`}>{t('relearnAll', { count: cardIds.length })}</Link>
+          </Button>
+        )
+      }
+    >
+      {shown.length > 0 && (
+        <Rows>
+          {shown.map((g) => (
+            <Row key={g.key} label={<InPageLanguage text={g.label} found={found} />} meta={common('cards', { count: g.count })}>
+              <p className="text-sm text-slate-600">
+                {t('forgottenSample', { question: shownAs(found, g.sample) ?? g.sample })}
+              </p>
+              <Actions>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/dashboard/flashcards?cards=${g.card_ids.join(',')}`}>{t('relearnGroup')}</Link>
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`/dashboard/explain?cards=${g.card_ids.join(',')}&concept=${encodeURIComponent(g.label)}`}>
+                    {t('explainGroup')}
+                  </Link>
+                </Button>
+              </Actions>
+            </Row>
+          ))}
+        </Rows>
+      )}
+      {extra > 0 && (
+        <button
+          type="button"
+          onClick={() => setAll((v) => !v)}
+          aria-expanded={all}
+          className="mt-2 text-sm font-medium text-mode-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
         >
-          <p className="text-base text-slate-900">
-            <InPageLanguage text={g.label} found={found} />
-            <span className="ml-2 text-sm text-slate-600">{common('cards', { count: g.count })}</span>
-          </p>
-          <p className="line-clamp-1 text-sm text-slate-600">
-            {t('forgottenSample', { question: shownAs(found, g.sample) ?? g.sample })}
-          </p>
-        </Item>
-      ))}
-    </>
+          {all ? t('fewerGroups') : t('moreGroups', { count: extra })}
+        </button>
+      )}
+    </Group>
   )
 }
 
 /** Two ideas the student keeps confusing; the button makes contrast cards
  *  for them once and opens them. */
-function MixUpItems({ notebookId, items }: { notebookId: number; items: Misconception[] }) {
+function MixUpGroup({ notebookId, items }: { notebookId: number; items: Misconception[] }) {
   const t = useTranslations('analytics')
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
@@ -249,59 +321,53 @@ function MixUpItems({ notebookId, items }: { notebookId: number; items: Misconce
   }
 
   return (
-    <>
-      {items.map((item) => (
-        <Item
-          key={item.key}
-          tag={t('tagMixUp')}
-          actions={
-            <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void practise(item.key)}>
-              {busy === item.key ? <Loader2 className="animate-spin" aria-hidden /> : null}
-              {t('contrastCards')}
-            </Button>
-          }
-        >
-          <p className="text-base text-slate-900">
-            {t.rich('mixUp', {
+    <Group title={t('groupMixUp')} count={items.length}>
+      {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
+      <Rows>
+        {items.map((item) => (
+          <Row
+            key={item.key}
+            label={t.rich('mixUpPair', {
               a: withOriginal(found, item.confused, item.difference || undefined),
               b: withOriginal(found, item.with, item.difference || undefined),
               strong: (chunk) => <span className="font-semibold">{chunk}</span>,
             })}
-          </p>
-          {item.difference && (
-            <p className="line-clamp-2 text-sm text-slate-600">
-              <InPageLanguage text={item.difference} found={found} />
-            </p>
-          )}
-          {error && busy === null && <p role="alert" className="text-sm text-red-700">{error}</p>}
-        </Item>
-      ))}
-    </>
+          >
+            {item.difference && (
+              <p className="text-sm text-slate-600">
+                <InPageLanguage text={item.difference} found={found} />
+              </p>
+            )}
+            <Actions>
+              <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void practise(item.key)}>
+                {busy === item.key ? <Loader2 className="animate-spin" aria-hidden /> : null}
+                {t('contrastCards')}
+              </Button>
+            </Actions>
+          </Row>
+        ))}
+      </Rows>
+    </Group>
   )
 }
 
 /** Errors in practice problems, by kind; each opens the latest problem it was made in. */
-function PracticeItems({ practice: p }: { practice: PracticeMistakes }) {
+function PracticeGroup({ practice: p }: { practice: PracticeMistakes }) {
   const t = useTranslations('analytics')
   const practice = useTranslations('practice')
   return (
-    <>
-      {p.types.map((k) => (
-        <Item
-          key={k.type}
-          tag={t('tagPractice')}
-          actions={
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/dashboard/practice/${k.exercise_ids[k.exercise_ids.length - 1]}`}>{t('openProblem')}</Link>
-            </Button>
-          }
-        >
-          <p className="text-base text-slate-900">
-            {practice(`error_${k.type}`)}
-            <span className="ml-2 text-sm text-slate-600">{practice('mistakeCount', { count: k.count })}</span>
-          </p>
-        </Item>
-      ))}
-    </>
+    <Group title={t('groupPractice')} count={p.total}>
+      <Rows>
+        {p.types.map((k) => (
+          <Row key={k.type} label={practice(`error_${k.type}`)} meta={practice('mistakeCount', { count: k.count })}>
+            <Actions>
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/dashboard/practice/${k.exercise_ids[k.exercise_ids.length - 1]}`}>{t('openProblem')}</Link>
+              </Button>
+            </Actions>
+          </Row>
+        ))}
+      </Rows>
+    </Group>
   )
 }

@@ -164,24 +164,35 @@ def per_notebook_mastery(events: list[dict], source_to_notebook: dict[int, int],
     return _mastery(events, notebooks_of, notebook_titles, "notebook_id")
 
 
-def daily_activity(reviews: list[dict], mock_tests: list[dict], today, days: int) -> dict:
+def daily_activity(reviews: list[dict], mock_tests: list[dict], today, days: int,
+                   quizzes: list[dict] = (), problems: list[dict] = (),
+                   explanations: list[dict] = (), live: list[dict] = ()) -> dict:
     """The last `days` days of study, one entry per day, oldest first.
 
-    `reviews` are ``{"date": date, "result": str}`` — already in the student's
-    own zone, which is the caller's job; a review at 00:30 belongs to the day
-    the student was awake for, not the server's. `mock_tests` are
-    ``{"date": date, "score": float}``.
+    Every dated input is already in the student's own zone, which is the
+    caller's job; a review at 00:30 belongs to the day the student was awake
+    for, not the server's.
 
-    Every day of the window is present even with nothing in it: the Analytics
-    strip shows a gap for a skipped day, and it can only do that if the day is
-    there to be empty. Grades outside the known set (seed rows, retired
-    grades) are not counted, same as everywhere else in this module.
+    - `reviews`: ``{"date", "result"}``, one per flashcard grade.
+    - `mock_tests`, `quizzes`: ``{"date", "score"}``, one per finished sitting.
+    - `problems`: ``{"date", "exercise_id", "passed"}``, one per attempt; a
+      day counts each problem once, and it is solved if any attempt passed.
+    - `explanations`: ``{"date"}``, one per "explain it in your own words".
+    - `live`: ``{"date", "session_id"}``, one per answer in a live round; a
+      day counts each round once.
+
+    A day is studied when any of these happened on it. Every day of the
+    window is present even with nothing in it: the calendar shows a gap for a
+    skipped day, and it can only do that if the day is there to be empty.
+    Grades outside the known set (seed rows, retired grades) are not counted,
+    same as everywhere else in this module.
     """
     from datetime import timedelta
 
     start = today - timedelta(days=days - 1)
     buckets = {
-        start + timedelta(days=i): {"reviews": 0, "correct": 0, "mock_scores": []}
+        start + timedelta(days=i): {"reviews": 0, "correct": 0, "mock_scores": [], "quiz_scores": [],
+                                    "worked": set(), "solved": set(), "explained": 0, "rounds": set()}
         for i in range(days)
     }
     for review in reviews:
@@ -192,17 +203,34 @@ def daily_activity(reviews: list[dict], mock_tests: list[dict], today, days: int
         bucket["reviews"] += 1
         if result in CORRECT_RESULTS:
             bucket["correct"] += 1
-    for test in mock_tests:
-        bucket = buckets.get(test["date"])
+    for key, rows in (("mock_scores", mock_tests), ("quiz_scores", quizzes)):
+        for row in rows:
+            bucket = buckets.get(row["date"])
+            if bucket is not None and row.get("score") is not None:
+                bucket[key].append(row["score"])
+    for attempt in problems:
+        bucket = buckets.get(attempt["date"])
         if bucket is not None:
-            bucket["mock_scores"].append(test["score"])
+            bucket["worked"].add(attempt["exercise_id"])
+            if attempt.get("passed"):
+                bucket["solved"].add(attempt["exercise_id"])
+    for row in explanations:
+        bucket = buckets.get(row["date"])
+        if bucket is not None:
+            bucket["explained"] += 1
+    for answer in live:
+        bucket = buckets.get(answer["date"])
+        if bucket is not None:
+            bucket["rounds"].add(answer["session_id"])
 
     def accuracy(correct, reviews):
         return round(correct / reviews * 100, 1) if reviews else None
 
     out_days = [
         {"date": day, "reviews": b["reviews"], "correct": b["correct"],
-         "accuracy": accuracy(b["correct"], b["reviews"]), "mock_scores": b["mock_scores"]}
+         "accuracy": accuracy(b["correct"], b["reviews"]), "mock_scores": b["mock_scores"],
+         "quiz_scores": b["quiz_scores"], "problems": len(b["worked"]), "solved": len(b["solved"]),
+         "explained": b["explained"], "live": len(b["rounds"])}
         for day, b in buckets.items()
     ]
     total_reviews = sum(d["reviews"] for d in out_days)
@@ -210,9 +238,20 @@ def daily_activity(reviews: list[dict], mock_tests: list[dict], today, days: int
     return {
         "days": out_days,
         "summary": {
+            "days": sum(1 for d in out_days if studied(d)),
             "reviews": total_reviews,
             "correct": total_correct,
             "accuracy": accuracy(total_correct, total_reviews),
             "mock_tests": sum(len(d["mock_scores"]) for d in out_days),
+            "quizzes": sum(len(d["quiz_scores"]) for d in out_days),
+            "problems": sum(d["problems"] for d in out_days),
+            "explained": sum(d["explained"] for d in out_days),
+            "live": sum(d["live"] for d in out_days),
         },
     }
+
+
+def studied(day: dict) -> bool:
+    """Whether anything at all was done on a day of `daily_activity`."""
+    return bool(day["reviews"] or day["mock_scores"] or day["quiz_scores"]
+                or day["problems"] or day["explained"] or day["live"])
