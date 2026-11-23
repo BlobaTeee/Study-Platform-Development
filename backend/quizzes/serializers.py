@@ -96,10 +96,21 @@ class MockTestQuestionSerializer(CleanGeneratedText, serializers.ModelSerializer
     keep listing only these four fields: `correct_answer` now lives on this
     same row too, and must stay off this serializer regardless.
     """
+    options = serializers.SerializerMethodField()
+    statements = serializers.SerializerMethodField()
+
     class Meta:
         model = MockTestQuestion
-        fields = ['id', 'order', 'question_text', 'options', 'user_answer']
+        fields = ['id', 'order', 'question_text', 'options', 'user_answer', 'section', 'statements', 'points']
         read_only_fields = fields
+
+    def get_options(self, obj):
+        # A Part III question is typed: its options would give the answer away.
+        return [] if obj.section == 'short' else obj.options
+
+    def get_statements(self, obj):
+        # The statements to mark, never whether each is true.
+        return [{'label': st['label'], 'text': st['text']} for st in obj.statements or []]
 
 
 class MockTestQuestionReviewSerializer(CleanGeneratedText, serializers.ModelSerializer):
@@ -114,13 +125,22 @@ class MockTestQuestionReviewSerializer(CleanGeneratedText, serializers.ModelSeri
     sitting), and the review must stay complete regardless.
     """
     source = serializers.SerializerMethodField()
+    solution = serializers.SerializerMethodField()
+    statements = serializers.SerializerMethodField()
 
     class Meta:
         model = MockTestQuestion
         fields = ['id', 'order', 'question_text', 'options', 'user_answer',
                   'correct_answer', 'explanation', 'is_correct', 'source', 'source_excerpt',
-                  'ai_explanation']
+                  'ai_explanation', 'section', 'statements', 'points', 'earned', 'grade', 'solution']
         read_only_fields = fields
+
+    def get_statements(self, obj):
+        return [{'label': st['label'], 'text': st['text'], 'answer': st['answer']} for st in obj.statements or []]
+
+    def get_solution(self, obj):
+        """A written problem's model answer, shown with its marking."""
+        return (obj.reference or {}).get('solution', []) if obj.section == 'written' else []
 
     def get_source(self, obj):
         """Where to reread: null once the source is gone (the passage stays)."""
@@ -139,7 +159,7 @@ class MockTestSerializer(serializers.ModelSerializer):
         model = MockTest
         fields = ['id', 'notebook', 'notebook_title', 'question_count',
                   'duration_minutes', 'started_at', 'deadline', 'completed_at',
-                  'score', 'paper']
+                  'score', 'paper', 'template']
         read_only_fields = ['started_at', 'completed_at', 'score', 'paper']
 
 

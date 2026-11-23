@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/page-header'
 import { WhyWrong } from '@/components/why-wrong'
 import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { isShort, quizTexts } from '@/lib/translate'
+import { scoreOutOfTen } from '@/lib/study-format'
 import {
   AlertCircle,
   ArrowLeft,
@@ -49,7 +50,21 @@ type PaperQuestion = {
   source?: { id: number; title: string; notebook: number } | null
   source_excerpt?: string
   ai_explanation?: string
+  // An exam-shaped paper's part, what the question is worth and (after
+  // submit) what it earned; a true/false question's statements, with their
+  // answers only after submit; a written answer's grade and model answer.
+  section?: ExamSection
+  statements?: { label: string; text: string; answer?: boolean }[]
+  points?: number
+  earned?: number | null
+  grade?: { verdict?: string; met?: number[]; detail?: string; not_graded?: boolean }
+  solution?: string[]
 }
+
+type ExamSection = 'choice' | 'true_false' | 'short' | 'written'
+/** Every sitting is "mixed": its parts are drawn afresh each time
+ *  (backend/quizzes/services/exam.py mixed_parts), always out of 10. */
+type ExamTemplate = 'mixed'
 
 type MockTest = {
   id: number
@@ -58,7 +73,9 @@ type MockTest = {
   question_count: number
   notebook_title: string
   paper: PaperQuestion[]
+  template?: string
   short_paper?: boolean
+  missing_parts?: ExamSection[]
   // Present on GET but not on the start response's shape we rely on; used
   // only to detect "this test is already finished" on resume.
   completed_at?: string | null
@@ -75,6 +92,8 @@ type SubmitResult = {
   // Size of the notebook's mistake bank after this sitting was marked.
   mistake_count: number
   paper: PaperQuestion[]
+  template?: string
+  parts?: { section: ExamSection; count: number; points: number; earned: number }[]
 }
 
 type PlannedTest = {
@@ -158,8 +177,6 @@ function MockTestsInner() {
   const notebooks: NotebookItem[] = nbData?.data?.results ?? nbData?.data ?? []
 
   const [notebookId, setNotebookId] = useState<number | ''>('')
-  const [questionCount, setQuestionCount] = useState<number | ''>(20)
-  const [durationMinutes, setDurationMinutes] = useState<number | ''>(30)
   const [starting, setStarting] = useState(false)
   const [confirm, confirmDialog] = useConfirm()
   const [setupError, setSetupError] = useState('')
@@ -302,8 +319,8 @@ function MockTestsInner() {
   // this question and the next. Review: the whole paper.
   const found = useInPageLanguage(
     result
-      ? result.paper.flatMap(quizTexts)
-      : [paper[qIndex], paper[qIndex + 1]].flatMap((q) => (q ? quizTexts(q) : []))
+      ? result.paper.flatMap(examTexts)
+      : [paper[qIndex], paper[qIndex + 1]].flatMap((q) => (q ? examTexts(q) : []))
   )
 
   const handleSubmit = useCallback(async () => {
@@ -386,9 +403,10 @@ function MockTestsInner() {
     async (params: {
       notebook: number
       question_count?: number
-      duration_minutes: number
+      duration_minutes?: number
       planned_test?: number
       mistakes_only?: boolean
+      template?: ExamTemplate
     }) => {
       const res = await mockTestsAPI.start(params)
       setAnswers({})
@@ -406,18 +424,10 @@ function MockTestsInner() {
       setSetupError(t('chooseNotebook'))
       return
     }
-    if (questionCount === '' || durationMinutes === '') {
-      setSetupError(t('enterCountAndDuration'))
-      return
-    }
     setStarting(true)
     setSetupError('')
     try {
-      await beginTest({
-        notebook: Number(notebookId),
-        question_count: questionCount,
-        duration_minutes: durationMinutes,
-      })
+      await beginTest({ notebook: Number(notebookId), template: 'mixed' })
     } catch (err) {
       setSetupError(apiErrorMessage(err, t('startFailed')))
     } finally {
@@ -536,6 +546,12 @@ function MockTestsInner() {
     [test, handleSubmit]
   )
 
+  // Typing changes the answer here; it is saved when the box loses focus,
+  // so a written answer is not sent to the server on every keystroke.
+  const typeAnswer = useCallback((question: PaperQuestion, text: string) => {
+    setAnswers((prev) => ({ ...prev, [question.id]: text }))
+  }, [])
+
   const goPrev = useCallback(() => setQIndex((i) => Math.max(0, i - 1)), [])
   const goNext = useCallback(
     () => setQIndex((i) => Math.min(paper.length - 1, i + 1)),
@@ -547,6 +563,9 @@ function MockTestsInner() {
   useEffect(() => {
     if (!test || result || paper.length === 0) return
     const onKey = (e: KeyboardEvent) => {
+      // Arrows and digits belong to the box while an answer is being typed.
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return
       if (e.key === 'ArrowRight') {
         goNext()
       } else if (e.key === 'ArrowLeft') {
@@ -599,7 +618,9 @@ function MockTestsInner() {
             question cleared today drops out, one missed last week and again
             today is still one. */}
         <div className="sheet flex flex-wrap items-center gap-x-8 gap-y-4 p-6 md:p-8">
-          <p className="font-display text-5xl font-semibold tabular-nums text-slate-900">{pct}%</p>
+          <p className="font-display text-5xl font-semibold tabular-nums text-slate-900">
+            {result.template ? t('scoreOutOf10', { score: scoreOutOfTen(result.score, locale) }) : `${pct}%`}
+          </p>
           <p className="min-w-0 flex-1 basis-64 text-base text-slate-700">
             {result.mistake_count > 0
               ? t('mistakesAfterTest', { count: result.mistake_count })
@@ -612,6 +633,19 @@ function MockTestsInner() {
             </Button>
           )}
           {setupError && <p className="basis-full text-sm text-red-700">{setupError}</p>}
+          {/* Where the points went, part by part, as the exam would report them. */}
+          {(result.parts ?? []).length > 0 && (
+            <ul className="basis-full grid gap-2 sm:grid-cols-3">
+              {(result.parts ?? []).map((part) => (
+                <li key={part.section} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-sm text-slate-600">{t(`part_${part.section}`)}</p>
+                  <p className="font-mono text-lg tabular-nums text-slate-900">
+                    {formatPoints(part.earned, locale)}<span className="text-slate-500">/{formatPoints(part.points, locale)}</span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="space-y-5">
@@ -621,17 +655,23 @@ function MockTestsInner() {
               className="p-6 md:p-8"
             >
               <div className="mb-4 flex items-start gap-3">
-                <span className="shrink-0 font-mono text-sm text-slate-500 tabular-nums">{q.order}</span>
+                <span className="shrink-0 font-mono text-sm text-slate-500 tabular-nums">{i + 1}</span>
                 {q.is_correct ? (
                   <CheckCircle2 className="size-5 text-emerald-600 shrink-0 mt-0.5" aria-hidden />
                 ) : (
                   <XCircle className="size-5 text-red-600 shrink-0 mt-0.5" aria-hidden />
                 )}
                 <p className="text-lg text-slate-900 leading-relaxed">
-                  <InPageLanguage text={q.question_text} found={found} />
+                  {result.template && q.section && (
+                    <span className="mr-2 text-sm font-medium text-mode-ink">{t(`part_${q.section}`)}</span>
+                  )}
+                  <InPageLanguage text={q.question_text} found={found} math={!!result.template} />
                 </p>
               </div>
 
+              {q.section && q.section !== 'choice' ? (
+                <ExamReview question={q} found={found} />
+              ) : (
               <div className="space-y-2 mb-4">
                 {(q.options ?? []).map((opt) => {
                   let style = 'border-slate-200 bg-white text-slate-700'
@@ -653,13 +693,14 @@ function MockTestsInner() {
                   <p className="text-sm text-slate-500 italic">{t('leftUnanswered')}</p>
                 )}
               </div>
+              )}
 
               {q.explanation && (
                 <p className="text-base text-slate-500 leading-relaxed">
                   <InPageLanguage text={q.explanation} found={found} />
                 </p>
               )}
-              {!q.is_correct && (
+              {!q.is_correct && q.section !== 'true_false' && q.section !== 'written' && (
                 <WhyWrong testId={result.id} paperQuestionId={q.id} initial={q.ai_explanation} />
               )}
               {(q.source || q.source_excerpt) && (
@@ -756,11 +797,26 @@ function MockTestsInner() {
               <span className="font-mono text-sm text-slate-500 tabular-nums">
                 Q{String(qIndex + 1).padStart(2, '0')}
               </span>
+              {test.template && question.section && (
+                <span className="text-sm font-medium text-mode-ink">
+                  {t(`part_${question.section}`)} · {t('pointsWorth', { points: formatPoints(question.points ?? 0, locale), n: question.points ?? 0 })}
+                </span>
+              )}
               <span className="h-px flex-1 bg-slate-100" aria-hidden />
             </div>
             <p className="text-2xl md:text-3xl text-slate-900 leading-relaxed mb-8">
-              <InPageLanguage text={question.question_text} found={found} />
+              <InPageLanguage text={question.question_text} found={found} math={!!test.template} />
             </p>
+
+            {question.section && question.section !== 'choice' && (
+              <ExamAnswer
+                question={question}
+                value={answers[question.id] ?? ''}
+                onType={(text) => typeAnswer(question, text)}
+                onSave={(text) => void selectAnswer(question, text)}
+                found={found}
+              />
+            )}
 
             <div className="space-y-3" role="radiogroup" aria-label="Answer options">
               {(question.options ?? []).map((opt) => {
@@ -867,38 +923,9 @@ function MockTestsInner() {
               </select>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-5">
-              <div className="space-y-2">
-                <Label htmlFor="test-count">{t('questions')}</Label>
-                <Input
-                  id="test-count"
-                  type="number"
-                  min={5}
-                  max={50}
-                  value={questionCount}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    setQuestionCount(v === '' ? '' : Number(v))
-                  }}
-                />
-                <p className="text-sm text-slate-600">{t('countRange')}</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="test-duration">{t('duration')}</Label>
-                <Input
-                  id="test-duration"
-                  type="number"
-                  min={5}
-                  max={180}
-                  value={durationMinutes}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    setDurationMinutes(v === '' ? '' : Number(v))
-                  }}
-                />
-                <p className="text-sm text-slate-600">{t('durationRange')}</p>
-              </div>
-            </div>
+            {/* No format to pick: each sitting draws its own mix of parts, so
+                two papers are never the same shape. */}
+            <p className="text-base text-slate-700">{t('mixedLead')}</p>
 
             {setupError && (
               <div className="flex gap-3 rounded-lg bg-red-50 p-4 border border-red-200">
@@ -1195,6 +1222,186 @@ function Provenance({
             {open ? t('hidePassage') : t('showPassage')}
           </button>
         </>
+      )}
+    </div>
+  )
+}
+
+/** What to translate for one question: the quiz texts, and an exam part's statements, model answer and feedback. */
+function examTexts(q: PaperQuestion) {
+  return [...quizTexts(q), ...(q.statements ?? []).map((st) => st.text), ...(q.solution ?? []), q.grade?.detail]
+}
+
+/** Points the way the exam writes them: "0,25" in Vietnamese, "0.25" in English. */
+function formatPoints(points: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(points)
+}
+
+/** A true/false mark kept as JSON {label: bool}; anything else is no marks. */
+function readMarks(value: string): Record<string, boolean> {
+  try {
+    const data = JSON.parse(value || '{}')
+    return data && typeof data === 'object' ? data : {}
+  } catch {
+    return {}
+  }
+}
+
+/** The answer box of an exam part that is not multiple choice: True/False
+ *  per statement (saved on each press), or a typed answer (saved when the
+ *  box loses focus). */
+function ExamAnswer({ question, value, onType, onSave, found }: {
+  question: PaperQuestion
+  value: string
+  onType: (text: string) => void
+  onSave: (text: string) => void
+  found: Map<string, string> | undefined
+}) {
+  const t = useTranslations('tests')
+  if (question.section === 'true_false') {
+    const marks = readMarks(value)
+    return (
+      <ul className="divide-y divide-slate-200 rounded-xl border-2 border-slate-200">
+        {(question.statements ?? []).map((st) => (
+          <li key={st.label} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-4">
+            <p className="min-w-0 flex-1 text-lg leading-relaxed text-slate-900">
+              <span className="mr-2 font-medium text-slate-600">{st.label})</span>
+              <InPageLanguage text={st.text} found={found} math />
+            </p>
+            <div role="group" aria-label={`${st.label})`} className="flex shrink-0 gap-2">
+              {[true, false].map((mark) => (
+                <button
+                  key={String(mark)}
+                  type="button"
+                  aria-pressed={marks[st.label] === mark}
+                  onClick={() => onSave(JSON.stringify({ ...marks, [st.label]: mark }))}
+                  className={`h-10 min-w-20 rounded-lg border-2 px-3 text-base font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30 ${
+                    marks[st.label] === mark ? 'border-mode bg-mode text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {mark ? t('markTrue') : t('markFalse')}
+                </button>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  if (question.section === 'short') {
+    return (
+      <div className="max-w-md space-y-2">
+        <label htmlFor={`exam-${question.id}`} className="text-sm font-medium text-slate-700">{t('shortLabel')}</label>
+        <input
+          id={`exam-${question.id}`}
+          value={value}
+          autoComplete="off"
+          maxLength={200}
+          onChange={(e) => onType(e.target.value)}
+          onBlur={(e) => onSave(e.target.value)}
+          className="h-12 w-full rounded-xl border-2 border-slate-200 bg-white px-4 text-lg text-slate-900 outline-none focus-visible:border-mode focus-visible:ring-[3px] focus-visible:ring-mode/30"
+        />
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-2">
+      <label htmlFor={`exam-${question.id}`} className="text-sm font-medium text-slate-700">{t('writtenLabel')}</label>
+      <textarea
+        id={`exam-${question.id}`}
+        value={value}
+        rows={10}
+        maxLength={4000}
+        onChange={(e) => onType(e.target.value)}
+        onBlur={(e) => onSave(e.target.value)}
+        placeholder={t('writtenPlaceholder')}
+        className="block w-full resize-y rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-base leading-relaxed text-slate-900 outline-none placeholder:text-slate-500 focus-visible:border-mode focus-visible:ring-[3px] focus-visible:ring-mode/30"
+      />
+    </div>
+  )
+}
+
+/** The review of an exam part that is not multiple choice: each statement
+ *  with its answer and the student's mark, the typed answer beside the
+ *  expected one, or the written answer with its feedback and model answer. */
+function ExamReview({ question, found }: { question: PaperQuestion; found: Map<string, string> | undefined }) {
+  const t = useTranslations('tests')
+  const locale = useLocale()
+  const worth = (
+    <p className="text-sm text-slate-600">
+      {t('partScore', { earned: formatPoints(question.earned ?? 0, locale), points: formatPoints(question.points ?? 0, locale) })}
+    </p>
+  )
+  if (question.section === 'true_false') {
+    const marks = readMarks(question.user_answer ?? '')
+    return (
+      <div className="mb-4 space-y-3">
+        <ul className="space-y-2">
+          {(question.statements ?? []).map((st) => {
+            const mine = marks[st.label]
+            const right = mine === st.answer
+            return (
+              <li key={st.label} className={`flex gap-3 rounded-lg border-2 px-4 py-2.5 text-base ${
+                right ? 'border-emerald-300 bg-emerald-50' : 'border-red-300 bg-red-50'
+              }`}>
+                <span className="w-12 shrink-0 font-medium text-slate-900">{st.answer ? t('markTrue') : t('markFalse')}</span>
+                <span className="min-w-0 flex-1 text-slate-800">
+                  {st.label}) <InPageLanguage text={st.text} found={found} math />
+                  {!right && (
+                    <span className="ml-2 text-sm text-red-700">
+                      · {typeof mine === 'boolean' ? `${t('yourAnswer')}: ${mine ? t('markTrue') : t('markFalse')}` : t('leftUnanswered')}
+                    </span>
+                  )}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+        {worth}
+      </div>
+    )
+  }
+  if (question.section === 'short') {
+    return (
+      <div className="mb-4 space-y-1.5 text-base">
+        <p className="text-slate-800">
+          <span className="text-slate-600">{t('yourAnswer')}: </span>
+          {question.user_answer ? question.user_answer : <span className="italic text-slate-500">{t('leftUnanswered')}</span>}
+        </p>
+        <p className="text-emerald-800">
+          <span className="text-slate-600">{t('correctAnswer')}: </span>
+          <InPageLanguage text={question.correct_answer ?? ''} found={found} math />
+        </p>
+        {worth}
+      </div>
+    )
+  }
+  const grade = question.grade ?? {}
+  return (
+    <div className="mb-4 space-y-4">
+      <div>
+        <p className="text-sm font-medium text-slate-600">{t('yourAnswer')}</p>
+        {question.user_answer ? (
+          <p className="mt-1 whitespace-pre-wrap text-base leading-relaxed text-slate-800">{question.user_answer}</p>
+        ) : (
+          <p className="mt-1 text-sm italic text-slate-500">{t('leftUnanswered')}</p>
+        )}
+      </div>
+      {grade.not_graded ? (
+        <p className="text-sm text-amber-800">{t('notGraded')}</p>
+      ) : grade.detail ? (
+        <p className="text-base text-slate-800"><InPageLanguage text={grade.detail} found={found} math /></p>
+      ) : null}
+      {worth}
+      {(question.solution ?? []).length > 0 && (
+        <div>
+          <p className="text-sm font-medium text-slate-600">{t('modelAnswer')}</p>
+          <ol className="mt-1 list-decimal space-y-1 pl-5 text-base leading-relaxed text-slate-800">
+            {(question.solution ?? []).map((step, i) => (
+              <li key={i}><InPageLanguage text={step} found={found} math /></li>
+            ))}
+          </ol>
+        </div>
       )}
     </div>
   )

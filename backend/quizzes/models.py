@@ -130,6 +130,11 @@ class MockTest(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     score = models.FloatField(null=True, blank=True)
+    # The exam shape it follows (services/exam.py TEMPLATES): parts of
+    # different answer kinds, each marked by the real exam's rules. Empty for
+    # the classic paper of multiple-choice questions, still used for the
+    # mistakes-only retake and planned tests.
+    template = models.CharField(max_length=10, blank=True, default='')
 
     class Meta:
         ordering = ['-started_at']
@@ -205,6 +210,20 @@ class MockTestQuestion(models.Model):
     # free and the wording does not change under the student.
     ai_explanation = models.TextField(blank=True, default='')
 
+    # Which part of an exam-shaped paper this is: "choice", "true_false",
+    # "short" or "written". Classic papers are all "choice".
+    section = models.CharField(max_length=12, default='choice')
+    # A true/false question's statements, [{"label", "text", "answer"}]; the
+    # answers are only sent once the paper is submitted.
+    statements = models.JSONField(default=list, blank=True)
+    # What the question is worth on an exam-shaped paper and what it earned
+    # (null until submission). Zero on classic papers, which count questions.
+    points = models.FloatField(default=0)
+    earned = models.FloatField(null=True, blank=True)
+    # A written problem's frozen rubric (Exercise.reference) and its grade.
+    reference = models.JSONField(default=dict, blank=True)
+    grade = models.JSONField(default=dict, blank=True)
+
     class Meta:
         ordering = ['order']
         unique_together = [('mock_test', 'order'), ('mock_test', 'question')]
@@ -212,6 +231,27 @@ class MockTestQuestion(models.Model):
 
     def __str__(self):
         return f'{self.mock_test_id} #{self.order}'
+
+
+class TrueFalseItem(models.Model):
+    """A true/false question in the exam's shape: a stem and four statements,
+    each with its answer and the passage that settles it. Written for
+    Part II of exam-shaped mock tests and kept for later sittings."""
+    id = models.BigAutoField(primary_key=True)
+    notebook = models.ForeignKey('notebooks.Notebook', on_delete=models.CASCADE,
+                                 related_name='true_false_items')
+    source = models.ForeignKey('notebooks.Source', on_delete=models.SET_NULL, null=True,
+                               blank=True, related_name='+')
+    stem = models.TextField()
+    # [{"label": "a", "text": "...", "answer": true, "basis": "exact quote"}]
+    statements = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return self.stem[:60]
 
 
 class PlannedTest(models.Model):
