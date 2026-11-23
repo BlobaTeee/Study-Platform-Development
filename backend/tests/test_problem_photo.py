@@ -80,6 +80,8 @@ def test_the_paper_comes_back_with_a_short_name_for_its_set(client, reader):
     r = reader({**_one('Tính $u_5$.'), 'title': '  Đề ôn tập cuối kỳ 1\n Hoá học 12 '})
     res = _post(client, JPEG)
     assert res.json()['title'] == 'Đề ôn tập cuối kỳ 1 Hoá học 12'
+    reader({**_one('Tính $u_5$.'), 'title': 'ĐỀ KIỂM TRA CUỐI KỲ I MÔN HÓA HỌC 12'})   # a heading in capitals
+    assert _post(client, JPEG).json()['title'] == 'Đề kiểm tra cuối kỳ I môn hóa học 12'
     assert '"title"' in r.prompt
     reader(_one('Tính $u_5$.'))                      # none given: the file's name is used
     assert _post(client, JPEG).json()['title'] == ''
@@ -92,7 +94,8 @@ def test_every_question_carries_its_part_when_the_paper_has_several(client, read
         {'label': 'Câu 11', 'part': 'PHẦN I', 'text': 'Đồ thị dưới đây là của hàm số nào?'},
         {'label': 'Câu 12', 'text': 'Cho hàm số $y = x$. Mệnh đề nào đúng?'},          # no part: Part I's
         {'label': 'PHẦN II · Câu 1', 'part': 'PHẦN II.', 'text': 'Cho hàm số $f(x) = x^3$.'},
-        {'label': 'Câu 1', 'part': 'Phần III', 'text': 'Có 9 người cùng lên 3 toa tàu.'},
+        # The whole heading, as the model gave it on 2026-11-23: the name and number are kept.
+        {'label': 'Câu 1', 'part': 'Phần Iii. Câu trắc nghiệm trả lời ngắn', 'text': 'Có 9 người cùng lên 3 toa tàu.'},
     ]})
     labels = [q['label'] for q in _post(client, JPEG).json()['questions']]
     assert labels == ['Phần I · Câu 11', 'Phần I · Câu 12', 'Phần II · Câu 1', 'Phần III · Câu 1']

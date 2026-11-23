@@ -745,6 +745,19 @@ def test_a_set_can_be_renamed_only_by_its_owner(client, user, model):
     assert client.patch('/api/exercises/sets/k2/', {'title': 'x'}, format='json').status_code == 404
 
 
+def test_a_students_problem_keeps_its_dashes_and_table_rows(client, model):
+    """The style filter for the model's prose once turned "oxi hóa – khử" and
+    "pin Zn – Cu" into "oxi hóa, khử" and "Zn, Cu"."""
+    text = ('Cặp oxi hóa – khử nào mạnh nhất trong pin Zn – Cu? Công 500 joule.\n'
+            '| Cặp | Zn/Zn2+ |\n| --- | --- |\n| E (V) | -0,762 |')
+    one = {'complete': True, **RUBRIC, 'kind': 'written', 'prompt': text}
+    model({'problems': [one, one]})
+    body = client.post('/api/exercises/own-set/', {'texts': [text, text]}, format='json').json()
+    prompt = Exercise.objects.get(id=body['results'][0]['id']).prompt
+    assert 'oxi hóa – khử' in prompt and 'Zn – Cu' in prompt and '500 J' in prompt
+    assert '\n| --- | --- |\n' in prompt
+
+
 def test_a_set_reply_sent_as_a_bare_list_still_makes_the_set(client, model):
     one = {'complete': True, **RUBRIC, 'kind': 'written', 'prompt': 'Giải thích vì sao mùa mưa ở Huế lệch với TP.HCM.'}
     model([one, one])

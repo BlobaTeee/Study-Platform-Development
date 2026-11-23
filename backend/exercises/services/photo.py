@@ -69,22 +69,25 @@ written in. A page with several questions gives several; a photo of one problem 
   order, give in the question's "figures" where it is: {"page": its page in the document (1 for
   a photo), "box": [ymin, xmin, ymax, xmax]}, in thousandths of the page's height and width,
   around the whole figure and its labels but not the question's text.
-- Copy a table row by row in square brackets; a table is text, never a figure, so it gets no
-  [Figure n] tag and no box. For a variation table (bảng biến thiên), give
+- Copy a table as a Markdown table, one row per line (| Cặp | Zn²⁺/Zn | ... |, then | --- | ... |,
+  then each row); a table is text, never a figure, so it gets no [Figure n] tag and no box.
+  For a variation table (bảng biến thiên), give
   for each interval between the x values the sign of y' and the direction of the arrow of y,
   with the values at its ends, e.g. [On (-\\infty; -2): y' -, y decreases from 1 to -\\infty].
   Read each sign and each arrow from the photo; do not infer them.
 - If part of a question cannot be read, write [unreadable] there rather than guessing. A
   question cut off at the edge of the photo is copied as far as it goes.
 
-Also give the paper a short name, as "title", in its language and at most 60 characters: from its
+Also give the paper a short name, as "title", in its language, in sentence case (not capitals) and
+at most 60 characters: from its
 heading when it has one (the kind of test, the subject, the grade), e.g. "Đề ôn tập cuối kỳ 1 Hoá
 học 12"; otherwise what its problems are about, e.g. "Bài tập rơi tự do".
 
 If there is no problem in the photo (a selfie, a blank page, notes with no question), return
 {"found": false, "questions": []}. Otherwise return
 {"found": true, "title": "...", "questions": [{"label": "how the page numbers it, e.g. Câu 3 or Bài 2a, without
-the part", "part": "the part it is in, as printed, e.g. Phần I or Part B, given on every question of
+the part", "part": "the part it is in, its name and number only, e.g. Phần I or Part B (not its
+title), given on every question of
 that part, the first part's included; \"\" when the paper has no parts",
 "instruction": "the section's instruction, or \"\"", "text": "...",
 "figures": [{"page": 1, "box": [ymin, xmin, ymax, xmax]}]}]}
@@ -171,7 +174,7 @@ def read_problems(data: bytes) -> tuple[list[dict], str]:
         question['figures'] = [url if n in tagged else None for n, url in enumerate(cut, 1)]
         while question['figures'] and question['figures'][-1] is None:
             question['figures'].pop()
-    title = ' '.join(str(reply.get('title') or '').split())[:MAX_TITLE_CHARS]
+    title = _title(reply.get('title'))
     return questions, title
 
 
@@ -188,17 +191,33 @@ def _statement_letters(text: str) -> str:
     return _STATEMENT.sub(lambda m: m.group(1) + m.group(2).lower() + ')', text)
 
 
-_ROMAN = re.compile(r'[IVXLC]+')
+_ROMAN = re.compile(r'[IVXLC]+', re.I)
+# The part's name and number alone: "PHẦN II. Câu trắc nghiệm đúng sai" is "PHẦN II".
+_PART_HEAD = re.compile(r'^((?:phần|part|section|mục|chương)\s+(?:[IVXLC]+|\d+|[A-Z])\b)', re.I)
 # A part the model wrote into the label anyway: "PHẦN II · Câu 1", "Part B: Q3".
 _PART_IN_LABEL = re.compile(r'^(?:phần|part|section|mục)\s+\S+\s*[·:.,\-–—]?\s*', re.I)
 
 
 def _part_name(value) -> str:
-    """A part as printed, with a heading in capitals written as a name:
-    "PHẦN II" is "Phần II"; Roman numerals stay."""
-    words = ' '.join(str(value or '').split()).rstrip('.:·-–— ').split(' ')
-    out = [w.capitalize() if w.isupper() and len(w) > 1 and not _ROMAN.fullmatch(w) else w for w in words]
-    return ' '.join(out)[:MAX_LABEL_CHARS]
+    """A part's name and number, as a name: "PHẦN II. Câu trắc nghiệm đúng
+    sai" is "Phần II" (the model gave the whole heading on 2026-11-23)."""
+    text = ' '.join(str(value or '').split())
+    head = _PART_HEAD.match(text)
+    if not head:
+        return text.rstrip('.:·-–— ')[:MAX_LABEL_CHARS]
+    word, number = head.group(1).split(' ', 1)
+    return f'{word.capitalize()} {number.upper() if _ROMAN.fullmatch(number) else number}'
+
+
+def _title(value) -> str:
+    """The paper's name on one line; a name in capitals is written as a
+    sentence, Roman numerals kept ("Đề kiểm tra cuối kỳ I ...")."""
+    title = ' '.join(str(value or '').split())[:MAX_TITLE_CHARS]
+    if not title.isupper():
+        return title
+    words = title.lower().split(' ')
+    words = [w.upper() if _ROMAN.fullmatch(w) and len(w) <= 4 and i else w for i, w in enumerate(words)]
+    return words[0][:1].upper() + ' '.join(words)[1:]
 
 
 def _label_parts(questions: list[dict], parts: list[str]) -> None:

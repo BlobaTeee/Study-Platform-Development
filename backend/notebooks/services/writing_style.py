@@ -112,12 +112,16 @@ def tidy_question(text: str | None) -> str:
     return tidy_prose(_capitalise_sentences(body)) or text
 
 
-def tidy_prose(text: str | None, source_title: str = '') -> str:
+def tidy_prose(text: str | None, source_title: str = '', units_only: bool = False) -> str:
     """`text` without dash-as-connector, a chatbot wrapper, or talk about
     "the excerpt". Code spans and URLs are left as written. A text that is
     nothing but a wrapper is kept: blanking it would hide that the model sent
     nothing useful. `source_title` names the document a sentence like "The
-    text lists X" is about, so it can say "CityHelp lists X" instead."""
+    text lists X" is about, so it can say "CityHelp lists X" instead.
+
+    `units_only` is for words that are not the model's: a problem the student
+    brought. Only its units become symbols; a dash in "cặp oxi hóa – khử" or
+    "pin Zn – Cu" is chemistry, not a chatbot's connector."""
     text = (text or '').strip()
     if not text:
         return ''
@@ -132,6 +136,8 @@ def tidy_prose(text: str | None, source_title: str = '') -> str:
 
     text = unit_symbols(_MATH.sub(hold_math, text))
     maths[:] = [unit_symbols_in_math(m) for m in maths]
+    if units_only:
+        return put_math_back(text)
     kept: list[str] = []
 
     def hold(m):

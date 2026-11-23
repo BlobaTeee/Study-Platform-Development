@@ -155,7 +155,8 @@ def own_rubric(text: str) -> dict:
 First decide whether it can be solved as written. If a needed fact, number or condition is
 missing, or it is not a problem at all, return {{"complete": false, "missing": "what is missing, one sentence"}}.
 
-Otherwise return the problem tidied (fix typos only, keep its meaning and every given),
+Otherwise return the problem tidied (fix typos only, keep its meaning, every given and its line
+breaks; a table stays a Markdown table, one row per line),
 its difficulty, how it is answered, and its rubric.
 
 {KIND_RULES}
@@ -281,7 +282,8 @@ written, where it stands, in the "prompt" you give back.
 {pictures}For each, first decide whether it can be solved as written. If a needed
 fact, number or condition is missing, or it is not a problem at all, give {{"complete": false, "missing":
 "what is missing, one sentence"}} for it. Otherwise give the problem tidied (fix typos only, keep its
-meaning and every given), its difficulty, how it is answered, and its rubric.
+meaning, every given and its line breaks; a table stays a Markdown table, one row per line), its
+difficulty, how it is answered, and its rubric.
 
 {KIND_RULES}
 {RUBRIC_RULES}
@@ -310,7 +312,8 @@ def _problem(item, text: str | None, title: str, lang: str, original: str = '') 
     if key is None:
         key = {'kind': 'written'}
         item = {**item, 'prompt': original}
-    prompt = tidy_prose(str(item.get('prompt') or ''), source_title=title)
+    # The student's own problem is their words: only its units are tidied.
+    prompt = tidy_prose(str(item.get('prompt') or ''), source_title=title, units_only=text is None)
     if len(prompt) < (5 if key['kind'] in KEYED_KINDS else 20):
         return None
     difficulty = str(item.get('difficulty') or '').lower()
