@@ -98,6 +98,43 @@ export function inPracticeOrder<T extends Listed>(problems: T[]): T[] {
   return [...problems].sort((a, b) => rank(a) - rank(b) || b.id - a.id)
 }
 
+type InSet = Listed & { set_key?: string; set_title?: string }
+export type PracticeRow<T> =
+  | { kind: 'one'; problem: T }
+  | { kind: 'set'; key: string; title: string; problems: T[]; next: T; done: number; due: boolean; started: boolean }
+
+/** The list as rows: problems picked together from one file are one row,
+ *  where the first of them in the list would stand. `ordered` is the list
+ *  already in practice order. A set's problems are in page order; `next` is
+ *  the first one to do now (not mastered, not waiting to come back). */
+export function practiceRows<T extends InSet>(ordered: T[]): PracticeRow<T>[] {
+  const members = new Map<string, T[]>()
+  for (const p of ordered) {
+    if (p.set_key) members.set(p.set_key, [...(members.get(p.set_key) ?? []), p])
+  }
+  const rows: PracticeRow<T>[] = []
+  const placed = new Set<string>()
+  for (const p of ordered) {
+    const set = p.set_key ? members.get(p.set_key)! : []
+    if (set.length < 2) {
+      rows.push({ kind: 'one', problem: p })
+      continue
+    }
+    if (placed.has(p.set_key!)) continue
+    placed.add(p.set_key!)
+    const problems = [...set].sort((a, b) => a.id - b.id)
+    const open = (q: T) => q.status === 'new' || (q.status === 'revisit' && q.due)
+    const done = problems.filter((q) => q.status === 'mastered').length
+    rows.push({
+      kind: 'set', key: p.set_key!, title: p.set_title ?? '', problems,
+      next: problems.find(open) ?? problems[0], done,
+      due: problems.some((q) => q.status === 'revisit' && q.due),
+      started: done > 0 || problems.some((q) => q.attempted || q.status === 'revisit'),
+    })
+  }
+  return rows
+}
+
 export function filtered<T extends Listed>(problems: T[], filter: PracticeFilter): T[] {
   if (filter === 'all') return problems
   if (filter === 'own') return problems.filter((p) => p.origin === 'own')

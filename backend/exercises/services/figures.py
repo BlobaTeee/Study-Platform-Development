@@ -12,6 +12,12 @@ picture in its place (components/math-text.tsx).
 A photo is cut directly. A PDF (a Word file arrives as one, see
 photo.docx_to_pdf) is drawn page by page by LibreOffice; without it there
 are no pictures and the descriptions show instead.
+
+The model's box is rough: on 2026-11-23 one took in the question's line and
+two of its options and cut off the formula's right end. In a PDF a figure
+is usually a picture placed on the page, and where it sits is written in the
+page itself, so the box is moved onto the pictures it covers (`_snap`). A
+figure drawn with lines, or a scanned page, keeps the model's box.
 """
 from __future__ import annotations
 
@@ -19,6 +25,7 @@ import base64
 import io
 import json
 import logging
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -34,11 +41,29 @@ RENDER_SECONDS = 90
 #: group), and a line of the question's own text in the margin costs less
 #: than a figure missing a piece.
 PAD_X, PAD_Y = 0.02, 0.025
+#: Margin around a box moved onto the page's own pictures. They are exact,
+#: and the question's lines sit close above and below them.
+SNAP_PAD_X, SNAP_PAD_Y = 0.004, 0.0015
+#: A picture belongs to a figure when this share of it lies in the model's box.
+SNAP_INSIDE = 0.5
+#: ...and the pictures together must fill this share of the box, or the box
+#: was around something else (a drawing with a small picture in it).
+SNAP_FILLS = 0.25
+#: A picture this large is a scanned page, not a figure.
+SNAP_MAX_AREA = 0.6
 #: A box smaller than this share of the page is a mistake, not a figure.
 MIN_AREA = 0.0015
 MAX_SIDE = 1200
 MAX_DATA_URL_CHARS = 800_000
 PREFIX = 'data:image/png;base64,'
+
+
+_TAG = re.compile(r'\[Figure\s*(\d+)\s*:')
+
+
+def tags_in(text: str) -> set[int]:
+    """The figure numbers a text has a [Figure n: ...] tag for."""
+    return {int(n) for n in _TAG.findall(text or '')}
 
 
 def boxes_of(item: dict) -> list[tuple[int, tuple[float, float, float, float]]]:
@@ -75,7 +100,97 @@ def cut(data: bytes, mime: str, wanted: list[list]) -> list[list[str | None]]:
     except Exception:  # noqa: BLE001 - no pictures is the fallback, never an error
         logger.warning('Drawing the pages for figures failed', exc_info=True)
         drawn = {}
-    return [[_crop(drawn.get(b[0]), b[1]) if b else None for b in boxes] for boxes in wanted]
+    placed = {}
+    if mime == 'application/pdf' and drawn:
+        try:
+            placed = placed_pictures(data, set(drawn))
+        except Exception:  # noqa: BLE001 - the model's box is the fallback
+            logger.warning('Reading where the pictures sit failed', exc_info=True)
+    out = []
+    for boxes in wanted:
+        row = []
+        for b in boxes:
+            if not b:
+                row.append(None)
+                continue
+            snapped = _snap(b[1], placed.get(b[0], []))
+            row.append(_crop(drawn.get(b[0]), snapped, SNAP_PAD_X, SNAP_PAD_Y) if snapped
+                       else _crop(drawn.get(b[0]), b[1]))
+        out.append(row)
+    return out
+
+
+def _snap(box, pictures):
+    """The model's box moved onto the page's pictures it covers, or None
+    to keep it. Boxes are (ymin, xmin, ymax, xmax), shares of the page."""
+    ymin, xmin, ymax, xmax = box
+    area = (ymax - ymin) * (xmax - xmin)
+    inside = []
+    for p in pictures:
+        own = (p[2] - p[0]) * (p[3] - p[1])
+        if own <= 0 or own > SNAP_MAX_AREA:
+            continue
+        overlap = max(0.0, min(ymax, p[2]) - max(ymin, p[0])) * max(0.0, min(xmax, p[3]) - max(xmin, p[1]))
+        if overlap >= SNAP_INSIDE * own:
+            inside.append(p)
+    if not inside or area <= 0:
+        return None
+    union = (min(p[0] for p in inside), min(p[1] for p in inside),
+             max(p[2] for p in inside), max(p[3] for p in inside))
+    if sum((p[2] - p[0]) * (p[3] - p[1]) for p in inside) < SNAP_FILLS * area:
+        return None
+    return union
+
+
+def placed_pictures(pdf: bytes, pages: set[int]) -> dict[int, list[tuple]]:
+    """Where each picture is drawn on the asked pages, as (ymin, xmin, ymax,
+    xmax) shares of the page from its top left. Only pictures drawn straight
+    on the page are found; a rotated page gives none."""
+    from pypdf import PdfReader
+    from pypdf.generic import ContentStream
+
+    reader = PdfReader(io.BytesIO(pdf))
+    out = {}
+    for number in pages:
+        if not 1 <= number <= len(reader.pages):
+            continue
+        page = reader.pages[number - 1]
+        if page.get('/Rotate', 0) % 360:
+            continue
+        resources = page.get('/Resources')
+        xobjects = resources.get_object().get('/XObject', {}) if resources else {}
+        xobjects = xobjects.get_object() if xobjects else {}
+        box = page.mediabox
+        left, bottom = float(box.left), float(box.bottom)
+        width, height = float(box.width), float(box.height)
+        if width <= 0 or height <= 0:
+            continue
+        ctm, saved, found = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0), [], []
+        for operands, op in ContentStream(page.get_contents(), reader).operations:
+            if op == b'q':
+                saved.append(ctm)
+            elif op == b'Q':
+                ctm = saved.pop() if saved else ctm
+            elif op == b'cm' and len(operands) == 6:
+                ctm = _times(tuple(float(v) for v in operands), ctm)
+            elif op == b'Do' and operands:
+                xobject = xobjects.get(operands[0])
+                if xobject is None or xobject.get_object().get('/Subtype') != '/Image':
+                    continue
+                a, b, c, d, e, f = ctm
+                corners = [(a * u + c * v + e, b * u + d * v + f) for u, v in ((0, 0), (1, 0), (0, 1), (1, 1))]
+                xs, ys = [x for x, _ in corners], [y for _, y in corners]
+                found.append(((bottom + height - max(ys)) / height, (min(xs) - left) / width,
+                              (bottom + height - min(ys)) / height, (max(xs) - left) / width))
+        out[number] = found
+    return out
+
+
+def _times(m, n):
+    """PDF matrix product m x n (m applied first)."""
+    return (m[0] * n[0] + m[1] * n[2], m[0] * n[1] + m[1] * n[3],
+            m[2] * n[0] + m[3] * n[2], m[2] * n[1] + m[3] * n[3],
+            m[4] * n[0] + m[5] * n[2] + n[4], m[4] * n[1] + m[5] * n[3] + n[5])
 
 
 def _pages(data: bytes, mime: str, pages: set[int]) -> dict:
@@ -136,15 +251,15 @@ def _draw_pdf(pdf: bytes, pages: set[int]) -> dict:
     return drawn
 
 
-def _crop(image, box) -> str | None:
+def _crop(image, box, pad_x=PAD_X, pad_y=PAD_Y) -> str | None:
     if image is None:
         return None
     ymin, xmin, ymax, xmax = box
     if (ymax - ymin) * (xmax - xmin) < MIN_AREA:
         return None
     w, h = image.size
-    left, top = max(0, int((xmin - PAD_X) * w)), max(0, int((ymin - PAD_Y) * h))
-    right, bottom = min(w, int((xmax + PAD_X) * w)), min(h, int((ymax + PAD_Y) * h))
+    left, top = max(0, int((xmin - pad_x) * w)), max(0, int((ymin - pad_y) * h))
+    right, bottom = min(w, int((xmax + pad_x) * w)), min(h, int((ymax + pad_y) * h))
     return _data_url(image.crop((left, top, right, bottom)))
 
 
@@ -155,6 +270,16 @@ def _data_url(image) -> str | None:
     image.save(out, 'PNG', optimize=True)
     url = PREFIX + base64.b64encode(out.getvalue()).decode('ascii')
     return url if len(url) <= MAX_DATA_URL_CHARS else None
+
+
+def image_of(value) -> tuple[bytes, str] | None:
+    """A stored figure as (bytes, mime) to send to the model, or None."""
+    if not isinstance(value, str) or not value.startswith(PREFIX):
+        return None
+    try:
+        return base64.b64decode(value[len(PREFIX):], validate=True), 'image/png'
+    except ValueError:
+        return None
 
 
 def clean(value) -> str | None:

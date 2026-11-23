@@ -28,13 +28,13 @@ export function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: ()
   const [partial, setPartial] = useState<{ firstId: number; made: number; skipped: string[] } | null>(null)
 
   // Problems picked from a photo or file, made together as one set.
-  const createSet = async (texts: string[], labels: string[], figures: (string | null)[][]) => {
+  const createSet = async (texts: string[], labels: string[], figures: (string | null)[][], title: string) => {
     if (busy || texts.length === 0) return
     setBusy(true)
     setError(null)
     setPartial(null)
     try {
-      const { results, skipped } = (await exercisesAPI.ownSet(texts, figures)).data
+      const { results, skipped } = (await exercisesAPI.ownSet(texts, figures, title)).data
       if (skipped.length === 0) return router.push(`/dashboard/practice/${results[0].id}`)
       setPartial({ firstId: results[0].id, made: results.length, skipped: skipped.map((s) => `${labels[s.index] ?? s.index + 1}: ${s.reason}`) })
       setBusy(false)
@@ -63,7 +63,7 @@ export function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: ()
       </button>
       {open && (
         <div id="own-problem-form" className="space-y-6 border-t border-slate-200 p-6 md:p-8">
-          <PhotoFlow busy={busy} onCreate={(texts, labels, figures) => void createSet(texts, labels, figures)} onError={setError} />
+          <PhotoFlow busy={busy} onCreate={(texts, labels, figures, title) => void createSet(texts, labels, figures, title)} onError={setError} />
 
           {error && <p role="alert" className="max-w-[65ch] text-sm text-red-700">{error}</p>}
           {partial && (
@@ -85,13 +85,17 @@ export function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: ()
 
 function PhotoFlow({ busy, onCreate, onError }: {
   busy: boolean
-  onCreate: (texts: string[], labels: string[], figures: (string | null)[][]) => void
+  // title: the set's name in the practice list, the file's name without its extension.
+  onCreate: (texts: string[], labels: string[], figures: (string | null)[][], title: string) => void
   onError: (message: string | null) => void
 }) {
   const t = useTranslations('practice')
   const [reading, setReading] = useState(false)
   const [photo, setPhoto] = useState<string | null>(null)
   const [fileName, setFileName] = useState('')
+  // The set's name in the practice list: the AI's name for the paper, or
+  // the file's name when it gave none; the student can change it.
+  const [setName, setSetName] = useState('')
   const [questions, setQuestions] = useState<PhotoQuestion[]>([])
   const [picked, setPicked] = useState<number[]>([])
   const [drafts, setDrafts] = useState<Record<number, string>>({})
@@ -121,12 +125,15 @@ function PhotoFlow({ busy, onCreate, onError }: {
     if (file.size > MAX_FILE_BYTES) return onError(t('photoTooLarge'))
     setPhoto(kind === 'image' ? URL.createObjectURL(file) : null)
     setFileName(file.name)
+    setSetName(file.name.replace(/\.[^.]+$/, ''))
     setQuestions([])
     setPicked([])
     setDrafts({})
     setReading(true)
     try {
-      const found = (await exercisesAPI.readPhoto(file)).data.questions
+      const read = (await exercisesAPI.readPhoto(file)).data
+      const found = read.questions
+      if (read.title) setSetName(read.title)
       setQuestions(found)
       if (found.length === 1) check([0])
       else setPicking(true)
@@ -269,6 +276,20 @@ function PhotoFlow({ busy, onCreate, onError }: {
             fileName && <p className="inline-flex items-center gap-2 rounded-md bg-slate-100 px-3 py-1.5 text-sm text-slate-700"><FileText className="size-4" aria-hidden />{fileName}</p>
           )}
 
+          {texts.length > 1 && (
+            <div className="max-w-md space-y-1">
+              <label htmlFor="own-set-name" className="block text-sm font-medium text-slate-900">{t('setName')}</label>
+              <input
+                id="own-set-name"
+                value={setName}
+                maxLength={200}
+                onChange={(e) => setSetName(e.target.value)}
+                placeholder={t('setNamePlaceholder')}
+                className="block h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-base text-slate-900 focus-visible:border-mode focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
+              />
+            </div>
+          )}
+
           <ol className="space-y-3">
             {picked.map((i) => {
               const text = drafts[i] ?? asProblem(questions[i])
@@ -313,7 +334,7 @@ function PhotoFlow({ busy, onCreate, onError }: {
                 {t('retake')}
               </Button>
             )}
-            <Button type="button" onClick={() => onCreate(texts, picked.map((i) => questions[i].label), picked.map((i) => questions[i].figures ?? []))} disabled={busy || !ready}>
+            <Button type="button" onClick={() => onCreate(texts, picked.map((i) => questions[i].label), picked.map((i) => questions[i].figures ?? []), setName.trim())} disabled={busy || !ready}>
               {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Check aria-hidden />}
               {busy ? t('creatingSet') : texts.length > 1 ? t('createSet', { count: texts.length }) : t('createChecked')}
             </Button>

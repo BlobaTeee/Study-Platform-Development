@@ -30,7 +30,7 @@ test('ticking keeps page order and stops at the limit', () => {
 
 test('select all takes the first ten', () => {
   assert.deepEqual(pickAll(3), [0, 1, 2])
-  assert.equal(pickAll(25).length, 10)
+  assert.equal(pickAll(25).length, 20)
 })
 
 test('a file is told apart by type, or by name when the type is missing', () => {

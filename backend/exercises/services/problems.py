@@ -186,12 +186,15 @@ class IncompleteProblem(Exception):
 
 #: Most problems picked together from one photo or file, and how many go in
 #: one request: five answer keys in one reply ran past 30 s on 2026-11-23, so three
-#: go together, each request with the long deadline.
-MAX_SET = 10
+#: go together, each request with the long deadline. Twenty is seven requests
+#: side by side; a whole 30-question exam would be ten, which the free tier's
+#: per-minute limit turns away.
+MAX_SET = 20
 SET_PER_REQUEST = 3
 
 
-def own_set(user, texts: list[str], figures: list[list] | None = None) -> tuple[list[Exercise], list[dict]]:
+def own_set(user, texts: list[str], figures: list[list] | None = None,
+            title: str = '') -> tuple[list[Exercise], list[dict]]:
     """Several problems from one photo or file, made in as few requests as
     possible and kept together under one set key, in the order given.
 
@@ -203,11 +206,13 @@ def own_set(user, texts: list[str], figures: list[list] | None = None) -> tuple[
     from concurrent.futures import ThreadPoolExecutor
 
     texts = [t.strip()[:MAX_OWN_CHARS] for t in texts][:MAX_SET]
+    figures = figures or []
     chunks = [list(range(i, min(i + SET_PER_REQUEST, len(texts)))) for i in range(0, len(texts), SET_PER_REQUEST)]
 
     def rubrics(indexes):
         try:
-            return indexes, _set_rubrics([texts[i] for i in indexes]), ''
+            return indexes, _set_rubrics([texts[i] for i in indexes],
+                                         [figures[i] if i < len(figures) else [] for i in indexes]), ''
         except PracticeUnavailable as exc:
             return indexes, [], str(exc)
 
@@ -239,22 +244,41 @@ def own_set(user, texts: list[str], figures: list[list] | None = None) -> tuple[
         # Every problem was looked at and none can be solved as written: say why.
         raise IncompleteProblem(skipped[0]['reason'] if skipped else _('Something the problem needs is missing.'))
     key = uuid.uuid4().hex
-    figures = figures or []
+    title = (title or '').strip()[:200]
     exercises = [Exercise.objects.create(user=user, notebook=None, source=None, origin='own', set_key=key,
+                                         set_title=title,
                                          figures=figures[i] if i < len(figures) else [], **made[i])
                  for i in sorted(made)]
     return exercises, sorted(skipped, key=lambda s: s['index'])
 
 
-def _set_rubrics(texts: list[str]) -> list:
-    """One request for several problems; the reply's list is in their order."""
+def _set_rubrics(texts: list[str], figures: list[list] | None = None) -> list:
+    """One request for several problems; the reply's list is in their order.
+    The figures cut from the page go along as pictures: a description such as
+    "open-chain structural formula of a carbohydrate" does not say which one,
+    and a problem that needs to know was skipped as incomplete."""
+    from . import figures as cut_figures
     lang = language_of('\n'.join(texts)[:3000])
     numbered = '\n\n'.join(f'Problem {n}:\n{text}' for n, text in enumerate(texts, 1))
+    images, legend = [], []
+    for n, cut in enumerate(figures or [], 1):
+        tagged = cut_figures.tags_in(texts[n - 1]) if n <= len(texts) else set()
+        for m, url in enumerate(cut or [], 1):
+            # Only a figure the problem's text points at: another is no part of it.
+            image = cut_figures.image_of(url) if m in tagged else None
+            if image:
+                images.append(image)
+                legend.append(f'picture {len(images)} is Problem {n}\'s Figure {m}')
+    pictures = (f"""The figures cut from the page are attached as pictures, in order: {'; '.join(legend)}.
+Read each of these figures from its picture; its description only names it. A figure you have as
+a picture never makes a problem incomplete.
+""" if images else '')
     prompt = f"""A student brought {len(texts)} problems to practise on. Work in {language_name(lang)}.
 
-Treat each problem on its own. A figure is given as [Figure n: what it shows]: solve from that
-description, and keep each such tag exactly as written, where it stands, in the "prompt" you give
-back. For each, first decide whether it can be solved as written. If a needed
+Treat each problem on its own. A figure is given as [Figure n: what it shows]: solve from its
+picture when it is attached, from that description otherwise, and keep each such tag exactly as
+written, where it stands, in the "prompt" you give back.
+{pictures}For each, first decide whether it can be solved as written. If a needed
 fact, number or condition is missing, or it is not a problem at all, give {{"complete": false, "missing":
 "what is missing, one sentence"}} for it. Otherwise give the problem tidied (fix typos only, keep its
 meaning and every given), its difficulty, how it is answered, and its rubric.
@@ -269,7 +293,7 @@ meaning and every given), its difficulty, how it is answered, and its rubric.
 
 Return ONLY valid JSON with exactly one entry per problem, in the same order:
 {{"problems": [{{"complete": true, "prompt": "...", "difficulty": "easy|medium|hard", {KIND_SHAPE}{RUBRIC_SHAPE}}}]}}"""
-    return items_of(ask(prompt, long=True), 'problems')
+    return items_of(ask(prompt, images=images or None, long=True), 'problems')
 
 
 def _problem(item, text: str | None, title: str, lang: str, original: str = '') -> dict | None:

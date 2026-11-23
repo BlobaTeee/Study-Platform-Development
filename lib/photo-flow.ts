@@ -16,7 +16,7 @@ export function asProblem(q: PhotoQuestion): string {
 }
 
 /** Must match MAX_SET in backend/exercises/services/problems.py. */
-export const MAX_PICKED = 10
+export const MAX_PICKED = 20
 
 /** The question at `index` ticked or unticked, keeping page order; no more
  *  than `max` can be ticked. */

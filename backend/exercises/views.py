@@ -27,6 +27,8 @@ def summary(exercise: Exercise) -> dict:
             'notebook_title': exercise.notebook.title if exercise.notebook else '',
             'source_title': exercise.source.title if exercise.source else '',
             'status': exercise.status, 'revisit_on': exercise.revisit_on, 'due': bool(due),
+            # Picked together from one file: the list shows them as one set.
+            'set_key': exercise.set_key, 'set_title': exercise.set_title,
             # Started but not yet solved, so a list does not call it untouched.
             'attempted': exercise.status == 'new' and grading.round_attempts(exercise).filter(kind='submit').exists(),
             'created_at': exercise.created_at}
@@ -124,6 +126,19 @@ class _Generating(APIView):
         return super().get_throttles()
 
 
+class SetView(APIView):
+    """PATCH {title} → the set renamed; an empty title gives back the
+    default name the list shows."""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, key):
+        title = str(request.data.get('title') or '').strip()[:200]
+        changed = Exercise.objects.filter(user=request.user, set_key=key).exclude(set_key='').update(set_title=title)
+        if not changed:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response({'set_key': key, 'set_title': title})
+
+
 class ExerciseListView(APIView):
     """GET ?notebook=&source= → the student's problems, oldest first;
     ?own=1 → only the problems they brought themselves."""
@@ -172,9 +187,10 @@ class OwnProblemView(_Generating):
 
 
 class OwnSetView(_Generating):
-    """POST {texts: [...], figures: [[data URL | null, ...], ...]} → several of
-    the student's own problems, picked together from one photo or file, as
-    one set: {results, skipped}. figures[i] are problem i's, as read."""
+    """POST {texts: [...], figures: [[data URL | null, ...], ...], title} →
+    several of the student's own problems, picked together from one photo or
+    file, as one set: {results, skipped}. figures[i] are problem i's, as
+    read; title names the set (the file's name)."""
 
     def post(self, request):
         raw = request.data.get('texts')
@@ -190,7 +206,8 @@ class OwnSetView(_Generating):
         cut = [[figures.clean(f) for f in (g if isinstance(g, list) else [])][:figures.MAX_PER_QUESTION]
                for g in given[:len(texts)]]
         try:
-            made, skipped = problems.own_set(request.user, texts, cut)
+            made, skipped = problems.own_set(request.user, texts, cut,
+                                             str(request.data.get('title') or ''))
         except problems.IncompleteProblem as exc:
             return Response({'detail': str(exc), 'incomplete': True}, status=400)
         except PracticeUnavailable as exc:
@@ -213,14 +230,14 @@ class ReadPhotoView(_Generating):
             return Response({'detail': _('That file is too large. Use one under 15 MB.')}, status=400)
         data = upload.read()
         try:
-            questions = photo.read_problems(data)
+            questions, title = photo.read_problems(data)
         except photo.NotAnImage as exc:
             return Response({'detail': str(exc)}, status=400)
         except photo.NoProblemInPhoto as exc:
             return Response({'detail': str(exc), 'no_problem': True}, status=400)
         except PracticeUnavailable as exc:
             return Response({'detail': str(exc)}, status=503)
-        return Response({'questions': questions})
+        return Response({'questions': questions, 'title': title})
 
 
 class ExerciseDetailView(APIView):

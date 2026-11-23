@@ -1,7 +1,7 @@
 // Run with: pnpm test  (node --test; Node strips the types itself)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { allMarked, describeAnswer, draftText, filtered, filtersFor, inPracticeOrder, lastChoice, lastGrade, lastHint, lastMarks, lastSubmitted, parseFilter, toRedo } from './practice.ts'
+import { allMarked, describeAnswer, draftText, filtered, filtersFor, inPracticeOrder, lastChoice, lastGrade, lastHint, lastMarks, lastSubmitted, parseFilter, practiceRows, toRedo } from './practice.ts'
 
 type A = { kind: 'submit' | 'hint' | 'reveal'; steps: string[]; result: Record<string, unknown> }
 const at = (kind: A['kind'], steps: string[], result = {}) => ({ id: 0, created_at: '', kind, steps, result })
@@ -98,4 +98,20 @@ test('the hint is told what was picked or marked so far', () => {
   assert.equal(describeAnswer('choice', 'B', {}), 'Picked B')
   assert.equal(describeAnswer('choice', null, {}), '')
   assert.equal(describeAnswer('true_false', null, { a: true, b: false }), 'a) true; b) false')
+})
+
+test('problems picked from one file are one row, where the first of them stands', () => {
+  const p = (id: number, set_key = '', status = 'new', due = false) => ({
+    id, status, due, attempted: false, notebook_id: null, notebook_title: '', origin: 'own' as const,
+    set_key, set_title: set_key ? 'Đề Hoá 12' : '',
+  })
+  const rows = practiceRows([p(9), p(5, 'a', 'mastered'), p(4, 'a'), p(7), p(6, 'a'), p(8, 'b')])
+  assert.deepEqual(rows.map((r) => (r.kind === 'one' ? r.problem.id : r.key)), [9, 'a', 7, 8])
+  const set = rows[1]
+  assert.ok(set.kind === 'set')
+  assert.deepEqual(set.problems.map((q) => q.id), [4, 5, 6])   // page order
+  assert.equal(set.next.id, 4)
+  assert.equal(set.done, 1)
+  assert.equal(set.title, 'Đề Hoá 12')
+  assert.ok(set.started && !set.due)
 })

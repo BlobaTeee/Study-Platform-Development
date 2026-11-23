@@ -46,6 +46,10 @@ class Scripted:
             raise reply
         return reply
 
+    def generate_json_from_images(self, prompt, images):
+        self.images = images
+        return self.generate_json(prompt)
+
 
 @pytest.fixture
 def model(monkeypatch):
@@ -639,6 +643,7 @@ def test_a_set_is_made_in_one_request_skips_what_is_missing_and_keeps_its_order(
     first, second = (client.get(f"/api/exercises/{e['id']}/").json() for e in body['results'])
     assert first['answer_kind'] == 'choice' and second['answer_kind'] == 'written'
     assert first['set'] == {'index': 1, 'total': 2, 'prev_id': None, 'next_id': second['id']}
+    assert first['set_title'] == '' and first['set_key'] == second['set_key'] != ''
     assert second['set']['prev_id'] == first['id'] and second['set']['next_id'] is None
 
 
@@ -656,6 +661,26 @@ def test_a_set_goes_three_problems_per_request(client, model):
     assert len(body['results']) == 7 and body['skipped'] == []
 
 
+def test_a_set_sends_its_cut_figures_along_as_pictures(client, model):
+    """A description like "open-chain formula of a carbohydrate" does not say
+    which one; the model reads the figure itself."""
+    import base64, io
+    from PIL import Image
+    out = io.BytesIO()
+    Image.new('RGB', (40, 20), 'white').save(out, 'PNG')
+    picture = 'data:image/png;base64,' + base64.b64encode(out.getvalue()).decode()
+    one = {'complete': True, **RUBRIC, 'kind': 'written', 'prompt': 'Gọi tên chất [Figure 1: công thức mạch hở].'}
+    provider = model({'problems': [one, one]})
+    texts = ['Giải thích vì sao trời mưa vào mùa hè.', 'Gọi tên chất [Figure 1: công thức mạch hở].']
+
+    res = client.post('/api/exercises/own-set/', {'texts': texts, 'figures': [[], [picture]]}, format='json')
+
+    assert res.status_code == 201
+    assert len(provider.images) == 1 and provider.images[0][1] == 'image/png'
+    assert "picture 1 is Problem 2's Figure 1" in provider.prompts[0]
+    assert 'never makes a problem incomplete' in provider.prompts[0]
+
+
 def test_set_answer_keys_get_the_long_deadline_but_keep_thinking(client, model, monkeypatch):
     from notebooks.services import model_lane
     seen = []
@@ -671,8 +696,8 @@ def test_set_answer_keys_get_the_long_deadline_but_keep_thinking(client, model, 
     assert seen == [(True, False)]
 
 
-def test_a_set_has_at_most_ten_problems(client, model):
-    res = client.post('/api/exercises/own-set/', {'texts': ['Giải thích vì sao trời mưa vào mùa hè.'] * 11}, format='json')
+def test_a_set_has_at_most_twenty_problems(client, model):
+    res = client.post('/api/exercises/own-set/', {'texts': ['Giải thích vì sao trời mưa vào mùa hè.'] * 21}, format='json')
     assert res.status_code == 400
 
 
@@ -694,6 +719,30 @@ def test_a_set_the_model_could_not_be_asked_about_is_503(client, model):
 def test_a_problem_made_alone_has_no_set(client, user, notebook):
     ex = _exercise(user, notebook)
     assert client.get(f'/api/exercises/{ex.id}/').json()['set'] is None
+
+
+def test_a_set_is_named_after_its_file_and_listed_as_one(client, model):
+    one = {'complete': True, **RUBRIC, 'kind': 'written', 'prompt': 'Giải thích vì sao mùa mưa ở Huế lệch với TP.HCM.'}
+    model({'problems': [one, one]})
+    texts = ['Giải thích vì sao mùa mưa ở Huế lệch với TP.HCM.'] * 2
+    client.post('/api/exercises/own-set/', {'texts': texts, 'title': '  Đề ôn tập Hoá 12  '}, format='json')
+
+    listed = client.get('/api/exercises/').json()['results']
+    assert {e['set_title'] for e in listed} == {'Đề ôn tập Hoá 12'}
+    assert len({e['set_key'] for e in listed}) == 1
+
+
+def test_a_set_can_be_renamed_only_by_its_owner(client, user, model):
+    from django.contrib.auth import get_user_model
+    ex = Exercise.objects.create(user=user, origin='own', set_key='k1', set_title='old', prompt='p', reference={})
+    res = client.patch('/api/exercises/sets/k1/', {'title': '  Đề thi thử Hoá  '}, format='json')
+    assert res.status_code == 200
+    ex.refresh_from_db()
+    assert ex.set_title == 'Đề thi thử Hoá'
+
+    other = get_user_model().objects.create(username='someone-else')
+    Exercise.objects.create(user=other, origin='own', set_key='k2', prompt='p', reference={})
+    assert client.patch('/api/exercises/sets/k2/', {'title': 'x'}, format='json').status_code == 404
 
 
 def test_a_set_reply_sent_as_a_bare_list_still_makes_the_set(client, model):

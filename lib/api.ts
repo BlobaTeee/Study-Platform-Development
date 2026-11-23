@@ -150,6 +150,8 @@ export type ExerciseSummary = {
   id: number; notebook_id: number | null; source_id: number | null; origin: 'document' | 'own'
   prompt: string; difficulty: 'easy' | 'medium' | 'hard'; notebook_title: string; source_title: string
   status: 'new' | 'mastered' | 'revisit'; revisit_on: string | null; due: boolean; attempted: boolean; created_at: string
+  // Picked together from one file ('' when made alone); the set's name is the file's.
+  set_key: string; set_title: string
 }
 export type ExerciseResult = {
   verdict?: 'passed' | 'needs_work'; met?: number[]; first_wrong_step?: number | null
@@ -200,14 +202,18 @@ export const exercisesAPI = {
   // The student's own problem: in no notebook, graded from general knowledge.
   own: (text: string) => api.post<ExerciseDetail>('/exercises/own/', { text }),
   // Several picked from one photo or file, made together as one set.
-  ownSet: (texts: string[], figures?: (string | null)[][]) =>
-    api.post<{ results: ExerciseSummary[]; skipped: { index: number; reason: string }[] }>('/exercises/own-set/', { texts, figures }),
+  // Rename a set; '' gives back the default name.
+  renameSet: (key: string, title: string) =>
+    api.patch<{ set_key: string; set_title: string }>(`/exercises/sets/${key}/`, { title }),
+  ownSet: (texts: string[], figures?: (string | null)[][], title?: string) =>
+    api.post<{ results: ExerciseSummary[]; skipped: { index: number; reason: string }[] }>('/exercises/own-set/', { texts, figures, title }),
   // A photo read into its questions (maths in LaTeX), for the student to pick
   // one; the photo is not kept.
   readPhoto: (file: File) => {
     const form = new FormData()
     form.append('image', file)
-    return api.post<{ questions: PhotoQuestion[] }>('/exercises/read-photo/', form, {
+    // title: the AI's short name for the paper, '' when it gave none.
+    return api.post<{ questions: PhotoQuestion[]; title?: string }>('/exercises/read-photo/', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },

@@ -15,6 +15,8 @@ square brackets. The text is only a draft: the student corrects it and then
 creates the problem from it as from any typed problem (problems.own_rubric),
 so a misread digit never reaches the rubric unseen.
 """
+import re
+
 from django.conf import settings
 from django.utils.translation import gettext as _
 
@@ -26,6 +28,7 @@ DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 MAX_DOCX_CHARS = 30000
 MAX_TEXT_CHARS = 4000
 MAX_QUESTIONS = 30
+MAX_TITLE_CHARS = 80
 MAX_LABEL_CHARS = 40
 MAX_INSTRUCTION_CHARS = 400
 MAX_DOCX_FIGURES = 20
@@ -66,17 +69,23 @@ written in. A page with several questions gives several; a photo of one problem 
   order, give in the question's "figures" where it is: {"page": its page in the document (1 for
   a photo), "box": [ymin, xmin, ymax, xmax]}, in thousandths of the page's height and width,
   around the whole figure and its labels but not the question's text.
-- Copy a table row by row in square brackets. For a variation table (bảng biến thiên), give
+- Copy a table row by row in square brackets; a table is text, never a figure, so it gets no
+  [Figure n] tag and no box. For a variation table (bảng biến thiên), give
   for each interval between the x values the sign of y' and the direction of the arrow of y,
   with the values at its ends, e.g. [On (-\\infty; -2): y' -, y decreases from 1 to -\\infty].
   Read each sign and each arrow from the photo; do not infer them.
 - If part of a question cannot be read, write [unreadable] there rather than guessing. A
   question cut off at the edge of the photo is copied as far as it goes.
 
+Also give the paper a short name, as "title", in its language and at most 60 characters: from its
+heading when it has one (the kind of test, the subject, the grade), e.g. "Đề ôn tập cuối kỳ 1 Hoá
+học 12"; otherwise what its problems are about, e.g. "Bài tập rơi tự do".
+
 If there is no problem in the photo (a selfie, a blank page, notes with no question), return
 {"found": false, "questions": []}. Otherwise return
-{"found": true, "questions": [{"label": "how the page numbers it, e.g. Câu 3 or Bài 2a; when the
-page has parts whose numbering restarts, the part too, e.g. Phần II · Câu 1",
+{"found": true, "title": "...", "questions": [{"label": "how the page numbers it, e.g. Câu 3 or Bài 2a, without
+the part", "part": "the part it is in, as printed, e.g. Phần I or Part B, given on every question of
+that part, the first part's included; \"\" when the paper has no parts",
 "instruction": "the section's instruction, or \"\"", "text": "...",
 "figures": [{"page": 1, "box": [ymin, xmin, ymax, xmax]}]}]}
 in the order they appear.
@@ -114,9 +123,11 @@ def max_bytes() -> int:
     return int(getattr(settings, 'PROBLEM_PHOTO_MAX_BYTES', DEFAULT_MAX_BYTES))
 
 
-def read_problems(data: bytes) -> list[dict]:
+def read_problems(data: bytes) -> tuple[list[dict], str]:
     """The questions in the photo, in order, as {label, instruction, text}; maths
-    in LaTeX. The instruction is the section's (how to answer), shared by many."""
+    in LaTeX. The instruction is the section's (how to answer), shared by many.
+    With them, a short name for the paper, from the same request ('' when the
+    model gave none): the name a set picked from it starts with."""
     mime = image_type(data)
     if mime is None:
         raise NotAnImage(_('Use a photo (JPEG, PNG, WEBP or HEIC), a PDF or a Word file.'))
@@ -133,7 +144,7 @@ def read_problems(data: bytes) -> list[dict]:
     raw = items_of(reply, 'questions')
     if not raw and reply.get('text'):
         raw = [{'text': reply.get('text')}]        # an older reply shape: the whole photo as one
-    questions, boxes = [], []
+    questions, boxes, parts = [], [], []
     for item in raw[:MAX_QUESTIONS]:
         if not isinstance(item, dict):
             continue
@@ -143,13 +154,68 @@ def read_problems(data: bytes) -> list[dict]:
             instruction = str(item.get('instruction') or '').strip()[:MAX_INSTRUCTION_CHARS]
             questions.append({'label': label or str(len(questions) + 1), 'instruction': instruction, 'text': text})
             boxes.append(figures.boxes_of(item))
+            parts.append(_part_name(item.get('part')))
+    _label_parts(questions, parts)
+    for question in questions:
+        question['text'] = _statement_letters(question['text'])
     if reply.get('found') is False or not questions:
         raise NoProblemInPhoto(_('No problem could be found in this photo. Try a closer, sharper photo of it.'))
     # A Word file read as text has no pages to cut from; its figures stay described.
     cuts = figures.cut(data, mime, boxes) if mime != DOCX else [[None] * len(b) for b in boxes]
     for question, cut in zip(questions, cuts):
-        question['figures'] = cut              # [Figure n] is figures[n - 1]; None: not cut
-    return questions
+        # [Figure n] is figures[n - 1]; None: not cut. A box the text has no
+        # tag for is dropped: on 2026-11-23 a table, copied as text, also got
+        # a box, which landed on the next question's lines; sent along to the
+        # answer key it pulled that question's statements in.
+        tagged = figures.tags_in(question['text'])
+        question['figures'] = [url if n in tagged else None for n, url in enumerate(cut, 1)]
+        while question['figures'] and question['figures'][-1] is None:
+            question['figures'].pop()
+    title = ' '.join(str(reply.get('title') or '').split())[:MAX_TITLE_CHARS]
+    return questions, title
+
+
+_STATEMENT = re.compile(r'^(\s*)([A-Da-d])\)', re.M)
+
+
+def _statement_letters(text: str) -> str:
+    """Statements lettered the same way throughout: the reader once wrote
+    "a)" and then "B) C) D)". When the first statement is lower case, so
+    are the rest; options A) B) C) D) have no "a)" and stay as they are."""
+    first = _STATEMENT.search(text)
+    if not first or not first.group(2).islower():
+        return text
+    return _STATEMENT.sub(lambda m: m.group(1) + m.group(2).lower() + ')', text)
+
+
+_ROMAN = re.compile(r'[IVXLC]+')
+# A part the model wrote into the label anyway: "PHẦN II · Câu 1", "Part B: Q3".
+_PART_IN_LABEL = re.compile(r'^(?:phần|part|section|mục)\s+\S+\s*[·:.,\-–—]?\s*', re.I)
+
+
+def _part_name(value) -> str:
+    """A part as printed, with a heading in capitals written as a name:
+    "PHẦN II" is "Phần II"; Roman numerals stay."""
+    words = ' '.join(str(value or '').split()).rstrip('.:·-–— ').split(' ')
+    out = [w.capitalize() if w.isupper() and len(w) > 1 and not _ROMAN.fullmatch(w) else w for w in words]
+    return ' '.join(out)[:MAX_LABEL_CHARS]
+
+
+def _label_parts(questions: list[dict], parts: list[str]) -> None:
+    """Every question named with its part ("Phần I · Câu 11") when the paper
+    has more than one, so the parts read the same throughout: the model used
+    to add the part only once the numbering restarted, leaving Part I bare.
+    A question given no part is in the one before it."""
+    current, filled = '', []
+    for part in parts:
+        current = part or current
+        filled.append(current)
+    if len({p for p in filled if p}) < 2:
+        return
+    for question, part in zip(questions, filled):
+        if part:
+            bare = _PART_IN_LABEL.sub('', question['label']) or question['label']
+            question['label'] = f'{part} · {bare}'
 
 
 FIGURES_NOTE = """The document's pictures are attached as {count} images, in order: [Picture 1] in

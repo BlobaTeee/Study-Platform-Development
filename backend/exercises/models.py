@@ -32,6 +32,8 @@ class Exercise(models.Model):
     # Problems picked together from one photo or file share this key, so the
     # page can step through them; empty for a problem made on its own.
     set_key = models.CharField(max_length=32, blank=True, default='', db_index=True)
+    # The set's name in the practice list: the file it was picked from.
+    set_title = models.CharField(max_length=200, blank=True, default='')
     # Figures cut from the student's exam page, as PNG data URLs: [Figure n] in
     # the prompt is figures[n - 1] (None where one could not be cut).
     figures = models.JSONField(default=list, blank=True)

@@ -76,6 +76,34 @@ def test_an_exam_page_comes_back_as_its_questions_in_order(client, reader):
     assert [q['label'] for q in res.json()['questions']] == ['Câu 7', 'Câu 10']
 
 
+def test_the_paper_comes_back_with_a_short_name_for_its_set(client, reader):
+    r = reader({**_one('Tính $u_5$.'), 'title': '  Đề ôn tập cuối kỳ 1\n Hoá học 12 '})
+    res = _post(client, JPEG)
+    assert res.json()['title'] == 'Đề ôn tập cuối kỳ 1 Hoá học 12'
+    assert '"title"' in r.prompt
+    reader(_one('Tính $u_5$.'))                      # none given: the file's name is used
+    assert _post(client, JPEG).json()['title'] == ''
+
+
+def test_every_question_carries_its_part_when_the_paper_has_several(client, reader):
+    """The model used to add the part only once the numbering restarted,
+    so Part I's questions came back bare and Part II's as "PHẦN II · Câu 1"."""
+    reader({'found': True, 'questions': [
+        {'label': 'Câu 11', 'part': 'PHẦN I', 'text': 'Đồ thị dưới đây là của hàm số nào?'},
+        {'label': 'Câu 12', 'text': 'Cho hàm số $y = x$. Mệnh đề nào đúng?'},          # no part: Part I's
+        {'label': 'PHẦN II · Câu 1', 'part': 'PHẦN II.', 'text': 'Cho hàm số $f(x) = x^3$.'},
+        {'label': 'Câu 1', 'part': 'Phần III', 'text': 'Có 9 người cùng lên 3 toa tàu.'},
+    ]})
+    labels = [q['label'] for q in _post(client, JPEG).json()['questions']]
+    assert labels == ['Phần I · Câu 11', 'Phần I · Câu 12', 'Phần II · Câu 1', 'Phần III · Câu 1']
+
+
+def test_a_paper_with_one_part_keeps_plain_labels(client, reader):
+    reader({'found': True, 'questions': [{'label': 'Câu 1', 'part': 'PHẦN I', 'text': 'Tính $1 + 1$.'},
+                                         {'label': 'Câu 2', 'part': 'PHẦN I', 'text': 'Tính $2 + 2$.'}]})
+    assert [q['label'] for q in _post(client, JPEG).json()['questions']] == ['Câu 1', 'Câu 2']
+
+
 def test_a_question_without_a_label_is_numbered(client, reader):
     reader({'found': True, 'questions': [{'text': 'Solve $x + 1 = 3$.'}, {'label': '  ', 'text': 'Find $x$.'}]})
     assert [q['label'] for q in _post(client, JPEG).json()['questions']] == ['1', '2']
@@ -93,7 +121,7 @@ def test_the_reader_is_told_what_not_to_copy(client, reader):
     assert 'handwrit' in prompt                    # a circled answer would give the answer away
     assert 'variation table' in prompt and 'arrow' in prompt
     assert 'exactly as printed' in prompt          # n_2 stays n_2
-    assert 'restart' in prompt                     # Part II's question 1 is not Part I's
+    assert '"part"' in prompt                      # Part II's question 1 is not Part I's
     assert 'same language as the problem' in prompt  # a Vietnamese problem gets Vietnamese [notes]
 
 
