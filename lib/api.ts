@@ -144,7 +144,8 @@ export const explainAPI = {
 
 // Practice problems: apply a document to a case it does not spell out, solve
 // in steps, graded against a rubric the page never sees until solved.
-export type ErrorType = 'misread' | 'concept' | 'missing_step' | 'execution' | 'unsupported'
+// "wrong_answer" is a choice, true/false or short answer that did not match its key.
+export type ErrorType = 'misread' | 'concept' | 'missing_step' | 'execution' | 'unsupported' | 'wrong_answer'
 export type ExerciseSummary = {
   id: number; notebook_id: number | null; source_id: number | null; origin: 'document' | 'own'
   prompt: string; difficulty: 'easy' | 'medium' | 'hard'; notebook_title: string; source_title: string
@@ -153,9 +154,30 @@ export type ExerciseSummary = {
 export type ExerciseResult = {
   verdict?: 'passed' | 'needs_work'; met?: number[]; first_wrong_step?: number | null
   error_type?: ErrorType | null; detail?: string; hint?: string
+  // The answer as the student wrote it, kept with a submit or a hint.
+  text?: string
+  // A keyed answer: the option picked, or each statement's mark and how many were right.
+  answer?: string; answers?: Record<string, boolean | null>; correct?: number; total?: number
 }
+/** How a problem is answered: free text graded by the AI, or one checked against a key. */
+export type AnswerKind = 'written' | 'choice' | 'true_false' | 'short'
+export type AnswerKey = { answer?: string; answers?: Record<string, boolean> }
+/** What the student sends: a label, a mark per statement, or text. */
+export type GivenAnswer = { answer: string } | { answer: Record<string, boolean> } | { text: string }
 export type ExerciseDetail = ExerciseSummary & {
   attempts: { id: number; kind: 'submit' | 'hint' | 'reveal'; steps: string[]; result: ExerciseResult; created_at: string }[]
+  // "steps": working in order (calculation, proof, code); "points": separate
+  // reasons (explain, compare, justify). Problems from before it are steps.
+  answer_format: 'steps' | 'points'
+  answer_kind: AnswerKind
+  // Cut from the student's exam: [Figure n: …] in the prompt is figures[n - 1].
+  figures: (string | null)[]
+  options: { label: string; text: string }[]
+  statements: { label: string; text: string }[]
+  // Which option or marks are right: only once the problem is solved or unlocked.
+  answer_key: AnswerKey | null
+  // Where it stands among the problems picked together from one photo or file.
+  set: { index: number; total: number; prev_id: number | null; next_id: number | null } | null
   checkpoint_count: number
   met_checkpoints: { id: number; text: string; basis: string }[]
   failed_submits: number; can_reveal: boolean
@@ -167,7 +189,8 @@ export type PracticeMistakes = {
 }
 
 /** One question read from a photo; the instruction is its section's (how to answer). */
-export type PhotoQuestion = { label: string; instruction: string; text: string }
+// figures[n - 1] is the picture for [Figure n: …] in the text, cut from the page; null if it could not be.
+export type PhotoQuestion = { label: string; instruction: string; text: string; figures?: (string | null)[] }
 
 export const exercisesAPI = {
   list: (params: { notebook?: number; source?: number; own?: 1 }) =>
@@ -176,6 +199,9 @@ export const exercisesAPI = {
     api.post<{ results: ExerciseSummary[] }>('/exercises/generate/', { source_id: sourceId }),
   // The student's own problem: in no notebook, graded from general knowledge.
   own: (text: string) => api.post<ExerciseDetail>('/exercises/own/', { text }),
+  // Several picked from one photo or file, made together as one set.
+  ownSet: (texts: string[], figures?: (string | null)[][]) =>
+    api.post<{ results: ExerciseSummary[]; skipped: { index: number; reason: string }[] }>('/exercises/own-set/', { texts, figures }),
   // A photo read into its questions (maths in LaTeX), for the student to pick
   // one; the photo is not kept.
   readPhoto: (file: File) => {
@@ -187,8 +213,9 @@ export const exercisesAPI = {
   },
   get: (id: number) => api.get<ExerciseDetail>(`/exercises/${id}/`),
   remove: (id: number) => api.delete(`/exercises/${id}/`),
-  submit: (id: number, steps: string[]) => api.post<ExerciseDetail>(`/exercises/${id}/submit/`, { steps }),
-  hint: (id: number, steps: string[]) => api.post<ExerciseDetail>(`/exercises/${id}/hint/`, { steps }),
+  // The answer as written; the server cuts it into sentences for the grader.
+  submit: (id: number, given: GivenAnswer) => api.post<ExerciseDetail>(`/exercises/${id}/submit/`, given),
+  hint: (id: number, text: string) => api.post<ExerciseDetail>(`/exercises/${id}/hint/`, { text }),
   reveal: (id: number) => api.post<ExerciseDetail>(`/exercises/${id}/reveal/`),
   mistakes: () => api.get<{ notebooks: PracticeMistakes[] }>('/exercises/mistakes/'),
 }
@@ -404,6 +431,9 @@ export const mockTestsAPI = {
     planned_test?: number
     // The paper is exactly this notebook's mistake bank; question_count is ignored.
     mistakes_only?: boolean
+    // An exam-shaped paper; "mixed" draws its parts afresh each sitting
+    // (backend/quizzes/services/exam.py), which also sets the time.
+    template?: 'mixed'
   }) => api.post('/quizzes/mock-tests/', data),
   // Questions answered wrong and not yet answered right twice since — no answers included.
   mistakes: (notebook: number) =>

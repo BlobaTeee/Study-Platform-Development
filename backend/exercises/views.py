@@ -14,7 +14,8 @@ from studyplatform.throttling import GenerationRateThrottle
 
 from .models import Exercise
 from .services import grading, photo, problems
-from .services.common import PracticeUnavailable, clean_steps
+from .services import figures
+from .services.common import PracticeUnavailable, answer_from
 
 
 def summary(exercise: Exercise) -> dict:
@@ -42,9 +43,19 @@ def detail(exercise: Exercise) -> dict:
         if a['kind'] == 'submit':
             met |= set(a['result'].get('met') or [])
     checkpoints = ref.get('checkpoints', [])
+    kind = problems.answer_kind(exercise)
     return {
         **summary(exercise),
         'attempts': attempts,
+        'answer_kind': kind,
+        # What to choose from; which is right stays hidden until it is open.
+        'options': [{'label': o['label'], 'text': o['text']} for o in ref.get('options', [])] if kind == 'choice' else [],
+        'statements': [{'label': st['label'], 'text': st['text']} for st in ref.get('statements', [])]
+        if kind == 'true_false' else [],
+        'answer_key': _answer_key(ref, kind) if is_open else None,
+        'answer_format': problems.answer_format(exercise),
+        'figures': exercise.figures or [],
+        'set': _set_position(exercise),
         'checkpoint_count': len(checkpoints),
         # Reached checkpoints are named, as feedback; the rest stay hidden.
         'met_checkpoints': [c for c in checkpoints if c['id'] in met] if not is_open else checkpoints,
@@ -53,6 +64,49 @@ def detail(exercise: Exercise) -> dict:
         'solution': ref.get('solution', []) if is_open else None,
         'mistakes': ref.get('mistakes', []) if is_open else None,
     }
+
+
+def _set_position(exercise: Exercise) -> dict | None:
+    """Where the problem stands in the set it was picked with, for "3 of 8"
+    and the way to the next; None for a problem made on its own."""
+    if not exercise.set_key:
+        return None
+    ids = list(Exercise.objects.filter(user_id=exercise.user_id, set_key=exercise.set_key)
+               .order_by('id').values_list('id', flat=True))
+    if len(ids) < 2 or exercise.id not in ids:
+        return None
+    at = ids.index(exercise.id)
+    return {'index': at + 1, 'total': len(ids),
+            'prev_id': ids[at - 1] if at > 0 else None, 'next_id': ids[at + 1] if at + 1 < len(ids) else None}
+
+
+def _answer_key(ref: dict, kind: str) -> dict | None:
+    if kind == 'choice':
+        return {'answer': ref.get('answer')}
+    if kind == 'true_false':
+        return {'answers': {st['label']: st['answer'] for st in ref.get('statements', [])}}
+    if kind == 'short':
+        return {'answer': ref.get('answer')}
+    return None
+
+
+def _given(exercise: Exercise, data) -> tuple[object, str]:
+    """The answer to a keyed problem from the request, and an error if it is
+    not one: a choice is one of the options' labels, true/false marks every
+    statement, a short answer is some text."""
+    ref = exercise.reference or {}
+    kind = problems.answer_kind(exercise)
+    answer = data.get('answer')
+    if kind == 'choice':
+        labels = {o['label'] for o in ref.get('options', [])}
+        return (answer, '') if answer in labels else (None, _('Pick one of the options first.'))
+    if kind == 'true_false':
+        labels = [st['label'] for st in ref.get('statements', [])]
+        if not isinstance(answer, dict) or any(not isinstance(answer.get(lb), bool) for lb in labels):
+            return None, _('Mark every statement true or false first.')
+        return {lb: answer[lb] for lb in labels}, ''
+    text = str(data.get('text') or '').strip()[:problems.MAX_SHORT_ANSWER * 2]
+    return (text, '') if text else (None, _('Write your answer first.'))
 
 
 def _mine(request, pk) -> Exercise:
@@ -117,6 +171,34 @@ class OwnProblemView(_Generating):
         return Response(detail(exercise), status=status.HTTP_201_CREATED)
 
 
+class OwnSetView(_Generating):
+    """POST {texts: [...], figures: [[data URL | null, ...], ...]} → several of
+    the student's own problems, picked together from one photo or file, as
+    one set: {results, skipped}. figures[i] are problem i's, as read."""
+
+    def post(self, request):
+        raw = request.data.get('texts')
+        texts = [str(t or '').strip() for t in raw] if isinstance(raw, list) else []
+        if not texts or len(texts) > problems.MAX_SET:
+            return Response({'detail': _('Pick between 1 and %(max)d problems.') % {'max': problems.MAX_SET}},
+                            status=400)
+        if any(len(t) < problems.MIN_OWN_CHARS for t in texts):
+            return Response({'detail': _('Write out the whole problem, with everything it gives.')}, status=400)
+        # Each problem's figures as read (figures.cut), checked again: they
+        # come back from the browser.
+        given = request.data.get('figures') if isinstance(request.data.get('figures'), list) else []
+        cut = [[figures.clean(f) for f in (g if isinstance(g, list) else [])][:figures.MAX_PER_QUESTION]
+               for g in given[:len(texts)]]
+        try:
+            made, skipped = problems.own_set(request.user, texts, cut)
+        except problems.IncompleteProblem as exc:
+            return Response({'detail': str(exc), 'incomplete': True}, status=400)
+        except PracticeUnavailable as exc:
+            return Response({'detail': str(exc)}, status=503)
+        return Response({'results': [summary(e) for e in made], 'skipped': skipped},
+                        status=status.HTTP_201_CREATED)
+
+
 class ReadPhotoView(_Generating):
     """POST multipart {image} → {questions: [{label, instruction, text}]}: the
     photographed questions as text, for the student to pick one and check it
@@ -128,7 +210,7 @@ class ReadPhotoView(_Generating):
         if upload is None:
             return Response({'detail': _('Choose a photo of the problem.')}, status=400)
         if upload.size > photo.max_bytes():
-            return Response({'detail': _('That photo is too large. Use one under 8 MB.')}, status=400)
+            return Response({'detail': _('That file is too large. Use one under 15 MB.')}, status=400)
         data = upload.read()
         try:
             questions = photo.read_problems(data)
@@ -153,15 +235,32 @@ class ExerciseDetailView(APIView):
 
 
 class SubmitView(_Generating):
-    """POST {steps} → the attempt graded against the rubric."""
+    """POST {text} (or {steps}) → the attempt graded against the rubric; for
+    a choice, true/false or short problem, {answer} or {text} checked against
+    its key."""
+
+    def get_throttles(self):
+        # A keyed answer costs no model request, so it does not count
+        # towards the allowance for AI work.
+        mine = Exercise.objects.filter(pk=self.kwargs.get('pk'), user=self.request.user).first()
+        if mine is not None and problems.answer_kind(mine) in problems.KEYED_KINDS:
+            return []
+        return super().get_throttles()
 
     def post(self, request, pk):
         exercise = _mine(request, pk)
-        steps = clean_steps(request.data.get('steps'))
+        if problems.answer_kind(exercise) in problems.KEYED_KINDS:
+            given, problem = _given(exercise, request.data)
+            if problem:
+                return Response({'detail': problem}, status=400)
+            grading.check(exercise, given)
+            exercise.refresh_from_db()
+            return Response(detail(exercise), status=status.HTTP_201_CREATED)
+        steps, text = answer_from(request.data)
         if not steps:
-            return Response({'detail': _('Write at least one step first.')}, status=400)
+            return Response({'detail': _('Write your answer first.')}, status=400)
         try:
-            grading.submit(exercise, steps)
+            grading.submit(exercise, steps, text)
         except PracticeUnavailable as exc:
             return Response({'detail': str(exc)}, status=503)
         exercise.refresh_from_db()
@@ -169,12 +268,13 @@ class SubmitView(_Generating):
 
 
 class HintView(_Generating):
-    """POST {steps} → one guiding question for where the student is stuck."""
+    """POST {text} (or {steps}) → one guiding question for where the student is stuck."""
 
     def post(self, request, pk):
         exercise = _mine(request, pk)
+        steps, text = answer_from(request.data)
         try:
-            grading.hint(exercise, clean_steps(request.data.get('steps')))
+            grading.hint(exercise, steps, text)
         except PracticeUnavailable as exc:
             return Response({'detail': str(exc)}, status=503)
         return Response(detail(exercise), status=status.HTTP_201_CREATED)

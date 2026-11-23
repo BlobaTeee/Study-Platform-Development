@@ -7,14 +7,18 @@ mistakes a student is likely to make. Each checkpoint quotes the document;
 one whose quote is not in the text is dropped, so a rubric cannot rest on
 something the student was never given.
 """
+import re
+import unicodedata
+
 from django.utils.translation import gettext as _
 
 from ml_pipeline.language import language_name
 from notebooks.services.key_points import _find, _searchable
+from notebooks.services.units import unit_symbols
 from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
 
 from ..models import Exercise
-from .common import ERROR_LIST, ERROR_TYPES, PracticeUnavailable, ask, language_of
+from .common import ERROR_LIST, ERROR_TYPES, PracticeUnavailable, ask, items_of, language_of
 
 PER_DOCUMENT = 3
 MIN_CHECKPOINTS = 2
@@ -23,19 +27,41 @@ MAX_MATERIAL_CHARS = 14000
 MIN_OWN_CHARS = 15
 MAX_OWN_CHARS = 4000
 DIFFICULTY_ORDER = {'easy': 0, 'medium': 1, 'hard': 2}
+#: How the student writes the answer: "steps" for working that runs in order
+#: (a calculation, a proof, a procedure, code), "points" for separate reasons or
+#: arguments (explain, compare, justify, evaluate). Problems saved before this
+#: field existed are steps.
+ANSWER_FORMATS = ('steps', 'points')
+DEFAULT_FORMAT = 'steps'
+#: How the answer is given. "written" is free text graded by the model;
+#: the other three carry an answer key and are checked without a request.
+#: Problems written from a document, and any saved before this field, are
+#: written.
+ANSWER_KINDS = ('written', 'choice', 'true_false', 'short')
+KEYED_KINDS = ('choice', 'true_false', 'short')
+MAX_OPTIONS = 8
+MAX_SHORT_ANSWER = 80
 
 RUBRIC_SHAPE = (
+    '"format": "steps|points", '
     '"solution": ["step 1", "step 2", ...], '
     '"checkpoints": [{"text": "what a correct answer must establish", "basis": "exact quote"}], '
     '"mistakes": [{"text": "a likely wrong move", "type": "one error type"}]'
 )
 
+ANSWER_FORMAT_RULE = """- "format": how the student writes the answer. "steps" when it is working that runs in order (a
+  calculation, a proof, a procedure, a piece of code); "points" when it is a set of separate reasons
+  or arguments (explain, compare, justify, evaluate, propose)."""
+
 RUBRIC_RULES = f"""For each problem also write its rubric, which the student never sees until they solve it:
-- "solution": a model solution as short numbered steps.
+{ANSWER_FORMAT_RULE}
+- "solution": a model solution as short numbered steps (or points, for a "points" problem).
 - "checkpoints": {MIN_CHECKPOINTS} to {MAX_CHECKPOINTS} things ANY correct answer must establish,
   whatever route it takes (a result, a decision, a justification), not wording to match.
 - "mistakes": 2 to 4 likely wrong moves, each with one error type from this list:
-{ERROR_LIST}"""
+{ERROR_LIST}
+- Inside LaTeX ($...$), put any word in \\text{{...}}, e.g. $V = \\text{{dài}} \\cdot \\text{{rộng}}$;
+  better still, keep words outside the maths."""
 
 
 def material_of(source) -> str:
@@ -56,12 +82,22 @@ def from_document(user, source) -> list[Exercise]:
     prompt = f"""Write {PER_DOCUMENT} practice problems from this study material, in {language_name(lang)}:
 one easy, one medium, one hard.
 
+First work out which subject the material belongs to. Then give each problem a DIFFERENT
+kind of task that people in that subject really do, for example:
+- mathematics, statistics: a value to compute, a result to prove, a quantity to estimate
+- physics, chemistry, biology: predict or explain an outcome, design or read an experiment, a calculation
+- geography, history, social studies: explain a pattern from data the problem gives (a table,
+  figures, a described map), compare two places or periods, weigh causes and effects
+- technology, engineering, computing: design a process or a solution, find the cause of a fault,
+  choose between options and justify it, write or fix code
+- law, economics, business: analyse a case and reach a decision
+- languages, literature: translate, correct or analyse a passage
+Do not make all three problems calculations unless the material is only about calculating.
+
 Each problem makes the student APPLY the ideas to a situation the material does not
-describe word for word: a case to analyse, a value to work out, code to write or fix, a
-decision to justify, a sentence to translate or correct, whatever suits the subject. Never
-a recall question ("What is ...?", "Define ..."). The problem gives every fact and number
-of the case itself; what the material teaches (rules, values, definitions) is what the
-student brings, so do not restate it in the problem.
+describe word for word. Never a recall question ("What is ...?", "Define ..."). The
+problem gives every fact and number of the case itself; what the material teaches (rules,
+values, definitions) is what the student brings, so do not restate it in the problem.
 
 {RUBRIC_RULES}
 - Each checkpoint has a "basis": an exact quote from the material (one phrase or sentence, at
@@ -73,10 +109,9 @@ Material ("{source.title}"):
 {WRITING_STYLE}
 
 Return ONLY valid JSON:
-{{"problems": [{{"prompt": "...", "difficulty": "easy|medium|hard", {RUBRIC_SHAPE}}}]}}"""
+{{"subject": "...", "problems": [{{"prompt": "...", "difficulty": "easy|medium|hard", {RUBRIC_SHAPE}}}]}}"""
 
-    data = ask(prompt)
-    raw = data.get('problems') if isinstance(data.get('problems'), list) else []
+    raw = items_of(ask(prompt), 'problems')
     problems = [p for p in (_problem(item, text, source.title, lang) for item in raw) if p][:PER_DOCUMENT]
     if not problems:
         raise PracticeUnavailable(_('No usable problem came back for this document. Try again.'))
@@ -93,6 +128,24 @@ def own_problem(user, text: str) -> Exercise:
     return Exercise.objects.create(user=user, notebook=None, source=None, origin='own', **problem)
 
 
+KIND_RULES = """- "kind": how the student answers. "choice" when the problem gives answer options and asks
+  for one (A, B, C, D...); "true_false" when it gives statements to mark true or false one by one;
+  "short" when it, or its instruction, asks only for a final value or a few words and no working;
+  "written" for everything else (working, explanations, essays).
+- For "choice": "prompt" is the question WITHOUT its options; "options": [{"label": "A", "text": "..."}]
+  copied exactly as given and in order; "answer": the label of the correct option.
+- For "true_false": "prompt" is the shared stem WITHOUT the statements; "statements":
+  [{"label": "a", "text": "...", "answer": true}] copied exactly, each with whether it is true.
+- For "short": "answer": the final value or words, as short as possible; "accept": other ways of
+  writing the same answer, if any.
+- Keep all mathematics exactly as the problem writes it, in LaTeX between $...$, in the prompt,
+  the options and the statements alike.
+- Write "solution" and "checkpoints" for every kind: they explain why the answer is right."""
+
+KIND_SHAPE = ('"kind": "written|choice|true_false|short", "options": [], "statements": [], '
+              '"answer": "", "accept": [], ')
+
+
 def own_rubric(text: str) -> dict:
     """The prompt, difficulty and rubric for a problem the student brought,
     without saving anything (the grader's evaluation uses this too)."""
@@ -103,8 +156,9 @@ First decide whether it can be solved as written. If a needed fact, number or co
 missing, or it is not a problem at all, return {{"complete": false, "missing": "what is missing, one sentence"}}.
 
 Otherwise return the problem tidied (fix typos only, keep its meaning and every given),
-its difficulty, and its rubric.
+its difficulty, how it is answered, and its rubric.
 
+{KIND_RULES}
 {RUBRIC_RULES}
 - Leave each checkpoint's "basis" empty.
 
@@ -114,13 +168,13 @@ Problem:
 {WRITING_STYLE}
 
 Return ONLY valid JSON, either the refusal above or:
-{{"complete": true, "prompt": "...", "difficulty": "easy|medium|hard", {RUBRIC_SHAPE}}}"""
+{{"complete": true, "prompt": "...", "difficulty": "easy|medium|hard", {KIND_SHAPE}{RUBRIC_SHAPE}}}"""
 
     data = ask(prompt)
     if data.get('complete') is False:
         missing = tidy_prose(str(data.get('missing') or ''))
         raise IncompleteProblem(missing or _('Something the problem needs is missing.'))
-    problem = _problem({**data, 'prompt': data.get('prompt') or text}, None, '', lang)
+    problem = _problem({**data, 'prompt': data.get('prompt') or text}, None, '', lang, original=text)
     if not problem:
         raise PracticeUnavailable(_('A rubric could not be written for this problem. Try again.'))
     return problem
@@ -130,15 +184,110 @@ class IncompleteProblem(Exception):
     pass
 
 
-def _problem(item, text: str | None, title: str, lang: str) -> dict | None:
+#: Most problems picked together from one photo or file, and how many go in
+#: one request: five answer keys in one reply ran past 30 s on 2026-11-23, so three
+#: go together, each request with the long deadline.
+MAX_SET = 10
+SET_PER_REQUEST = 3
+
+
+def own_set(user, texts: list[str], figures: list[list] | None = None) -> tuple[list[Exercise], list[dict]]:
+    """Several problems from one photo or file, made in as few requests as
+    possible and kept together under one set key, in the order given.
+
+    Returns the problems made and the ones skipped, each skipped one as
+    {"index", "reason"} (0-based, with what is missing when that is why).
+    When none could be made: IncompleteProblem if the model found them
+    unsolvable, PracticeUnavailable if it could not be asked."""
+    import uuid
+    from concurrent.futures import ThreadPoolExecutor
+
+    texts = [t.strip()[:MAX_OWN_CHARS] for t in texts][:MAX_SET]
+    chunks = [list(range(i, min(i + SET_PER_REQUEST, len(texts)))) for i in range(0, len(texts), SET_PER_REQUEST)]
+
+    def rubrics(indexes):
+        try:
+            return indexes, _set_rubrics([texts[i] for i in indexes]), ''
+        except PracticeUnavailable as exc:
+            return indexes, [], str(exc)
+
+    with ThreadPoolExecutor(max_workers=max(1, len(chunks))) as pool:
+        replies = list(pool.map(rubrics, chunks))
+
+    made: dict[int, dict] = {}
+    skipped: list[dict] = []
+    failure = ''
+    for indexes, items, error in replies:
+        failure = failure or error
+        for position, i in enumerate(indexes):
+            item = items[position] if position < len(items) and isinstance(items[position], dict) else None
+            if item is None:
+                skipped.append({'index': i, 'reason': error or _('No answer key came back for this one.')})
+            elif item.get('complete') is False:
+                missing = tidy_prose(str(item.get('missing') or ''))
+                skipped.append({'index': i, 'reason': missing or _('Something the problem needs is missing.')})
+            else:
+                problem = _problem({**item, 'prompt': item.get('prompt') or texts[i]}, None, '',
+                                   language_of(texts[i]), original=texts[i])
+                if problem:
+                    made[i] = problem
+                else:
+                    skipped.append({'index': i, 'reason': _('No answer key came back for this one.')})
+    if not made:
+        if failure:
+            raise PracticeUnavailable(failure)
+        # Every problem was looked at and none can be solved as written: say why.
+        raise IncompleteProblem(skipped[0]['reason'] if skipped else _('Something the problem needs is missing.'))
+    key = uuid.uuid4().hex
+    figures = figures or []
+    exercises = [Exercise.objects.create(user=user, notebook=None, source=None, origin='own', set_key=key,
+                                         figures=figures[i] if i < len(figures) else [], **made[i])
+                 for i in sorted(made)]
+    return exercises, sorted(skipped, key=lambda s: s['index'])
+
+
+def _set_rubrics(texts: list[str]) -> list:
+    """One request for several problems; the reply's list is in their order."""
+    lang = language_of('\n'.join(texts)[:3000])
+    numbered = '\n\n'.join(f'Problem {n}:\n{text}' for n, text in enumerate(texts, 1))
+    prompt = f"""A student brought {len(texts)} problems to practise on. Work in {language_name(lang)}.
+
+Treat each problem on its own. A figure is given as [Figure n: what it shows]: solve from that
+description, and keep each such tag exactly as written, where it stands, in the "prompt" you give
+back. For each, first decide whether it can be solved as written. If a needed
+fact, number or condition is missing, or it is not a problem at all, give {{"complete": false, "missing":
+"what is missing, one sentence"}} for it. Otherwise give the problem tidied (fix typos only, keep its
+meaning and every given), its difficulty, how it is answered, and its rubric.
+
+{KIND_RULES}
+{RUBRIC_RULES}
+- Leave each checkpoint's "basis" empty.
+
+{numbered}
+
+{WRITING_STYLE}
+
+Return ONLY valid JSON with exactly one entry per problem, in the same order:
+{{"problems": [{{"complete": true, "prompt": "...", "difficulty": "easy|medium|hard", {KIND_SHAPE}{RUBRIC_SHAPE}}}]}}"""
+    return items_of(ask(prompt, long=True), 'problems')
+
+
+def _problem(item, text: str | None, title: str, lang: str, original: str = '') -> dict | None:
     """A problem the page and the grader can trust, or None.
 
     `text` is the document a checkpoint must quote; None for the student's
-    own problem, whose checkpoints have no document to rest on."""
+    own problem, whose checkpoints have no document to rest on. `original` is
+    the problem as the student gave it: an answer key is kept only if its
+    options or statements are really in it, and a problem whose key is not
+    kept falls back to a written answer on the full original text."""
     if not isinstance(item, dict):
         return None
+    key = _answer_key(item, original) if original else {'kind': 'written'}
+    if key is None:
+        key = {'kind': 'written'}
+        item = {**item, 'prompt': original}
     prompt = tidy_prose(str(item.get('prompt') or ''), source_title=title)
-    if len(prompt) < 20:
+    if len(prompt) < (5 if key['kind'] in KEYED_KINDS else 20):
         return None
     difficulty = str(item.get('difficulty') or '').lower()
     if difficulty not in DIFFICULTY_ORDER:
@@ -166,7 +315,75 @@ def _problem(item, text: str | None, title: str, lang: str) -> dict | None:
     mistakes = [{'text': tidy_prose(str(m.get('text')))[:300], 'type': m.get('type')}
                 for m in (item.get('mistakes') if isinstance(item.get('mistakes'), list) else [])
                 if isinstance(m, dict) and str(m.get('text') or '').strip() and m.get('type') in ERROR_TYPES][:4]
+    answer_format = str(item.get('format') or '').lower()
+    if answer_format not in ANSWER_FORMATS:
+        answer_format = DEFAULT_FORMAT
     return {'prompt': prompt[:3000], 'difficulty': difficulty,
-            'reference': {'solution': solution, 'checkpoints': checkpoints[:MAX_CHECKPOINTS], 'mistakes': mistakes,
+            'reference': {**key, 'format': answer_format, 'solution': solution, 'checkpoints': checkpoints[:MAX_CHECKPOINTS], 'mistakes': mistakes,
                           # The grader writes in this, not in whatever a two-word step looks like.
                           'language': lang}}
+
+
+_NOT_WORD = re.compile(r'[\W_]+', re.UNICODE)
+
+
+def _plain(value) -> str:
+    """Letters and digits only, lower case: enough to tell whether an option
+    was copied from the problem, whatever happened to spaces and LaTeX."""
+    return _NOT_WORD.sub('', unit_symbols(unicodedata.normalize('NFC', str(value or ''))).lower())
+
+
+def _label(value) -> str:
+    return str(value or '').strip().rstrip('.):').strip()[:3]
+
+
+def _answer_key(item: dict, original: str) -> dict | None:
+    """The answer key of a choice, true/false or short problem, or
+    {"kind": "written"}. None when the model claimed a keyed kind but its key
+    cannot be trusted: an option or statement that is not in the problem, a
+    duplicate label, an answer that is not one of the options."""
+    kind = str(item.get('kind') or '').lower()
+    flat = _plain(original)
+    if kind in ('choice', 'true_false'):
+        field = 'options' if kind == 'choice' else 'statements'
+        rows = item.get(field) if isinstance(item.get(field), list) else []
+        out, seen = [], set()
+        for raw in rows[:MAX_OPTIONS + 1]:
+            if not isinstance(raw, dict):
+                return None
+            label, body = _label(raw.get('label')), str(raw.get('text') or '').strip()
+            if not label or not body or label.lower() in seen or _plain(body) not in flat:
+                return None
+            seen.add(label.lower())
+            row = {'label': label, 'text': unit_symbols(body)[:500]}
+            if kind == 'true_false':
+                if not isinstance(raw.get('answer'), bool):
+                    return None
+                row['answer'] = raw['answer']
+            out.append(row)
+        if not 2 <= len(out) <= MAX_OPTIONS:
+            return None
+        if kind == 'true_false':
+            return {'kind': kind, 'statements': out}
+        answer = _label(item.get('answer'))
+        match = [o['label'] for o in out if o['label'].lower() == answer.lower()]
+        return {'kind': kind, 'options': out, 'answer': match[0]} if match else None
+    if kind == 'short':
+        answer = str(item.get('answer') or '').strip()
+        if not answer or len(answer) > MAX_SHORT_ANSWER:
+            return None
+        accept = [str(a).strip() for a in (item.get('accept') if isinstance(item.get('accept'), list) else [])
+                  if str(a or '').strip() and len(str(a)) <= MAX_SHORT_ANSWER][:5]
+        return {'kind': kind, 'answer': unit_symbols(answer), 'accept': [unit_symbols(a) for a in accept]}
+    return {'kind': 'written'}
+
+
+def answer_kind(exercise) -> str:
+    value = (exercise.reference or {}).get('kind')
+    return value if value in ANSWER_KINDS else 'written'
+
+
+def answer_format(exercise) -> str:
+    """How the student answers this problem: "steps" or "points"."""
+    value = (exercise.reference or {}).get('format')
+    return value if value in ANSWER_FORMATS else DEFAULT_FORMAT

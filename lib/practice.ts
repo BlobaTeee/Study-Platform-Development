@@ -2,13 +2,29 @@ import type { ExerciseDetail, ExerciseResult } from './api'
 
 type Attempt = Pick<ExerciseDetail['attempts'][number], 'kind' | 'steps' | 'result'>
 
-/** The steps to put in the boxes: whatever was last handed in (a hint or a
- *  submit), so asking for help or a grade never loses what was written. */
-export function draftSteps(attempts: Attempt[]): string[] {
+/** Must match MAX_ANSWER_CHARS in backend/exercises/services/common.py. */
+export const MAX_ANSWER_CHARS = 4000
+
+/** What to put back in the answer box: the last answer exactly as it was
+ *  written, or, for one handed in before the text was kept, its steps one
+ *  per line. */
+export function draftText(attempts: Attempt[]): string {
   for (let i = attempts.length - 1; i >= 0; i--) {
-    if (attempts[i].kind !== 'reveal' && attempts[i].steps.length) return [...attempts[i].steps]
+    const a = attempts[i]
+    if (a.kind === 'reveal') continue
+    if (typeof a.result.text === 'string' && a.result.text) return a.result.text
+    if (a.steps.length) return a.steps.join('\n')
   }
-  return ['']
+  return ''
+}
+
+/** The sentences of the last graded submit, to quote the one a grade points
+ *  at even after the student has started editing the box. */
+export function lastSubmitted(attempts: Attempt[]): string[] {
+  for (let i = attempts.length - 1; i >= 0; i--) {
+    if (attempts[i].kind === 'submit') return attempts[i].steps
+  }
+  return []
 }
 
 export function lastGrade(attempts: Attempt[]): ExerciseResult | null {
@@ -25,6 +41,40 @@ export function lastHint(attempts: Attempt[]): string | null {
     if (attempts[i].kind === 'hint') return attempts[i].result.hint ?? null
   }
   return null
+}
+
+/** The option picked in the last submit, to show it again. */
+export function lastChoice(attempts: Attempt[]): string | null {
+  for (let i = attempts.length - 1; i >= 0; i--) {
+    if (attempts[i].kind === 'submit') return attempts[i].result.answer ?? null
+  }
+  return null
+}
+
+/** Each statement's mark from the last submit; unmarked ones are left out. */
+export function lastMarks(attempts: Attempt[]): Record<string, boolean> {
+  for (let i = attempts.length - 1; i >= 0; i--) {
+    if (attempts[i].kind !== 'submit') continue
+    const out: Record<string, boolean> = {}
+    for (const [label, mark] of Object.entries(attempts[i].result.answers ?? {})) {
+      if (typeof mark === 'boolean') out[label] = mark
+    }
+    return out
+  }
+  return {}
+}
+
+export function allMarked(statements: { label: string }[], marks: Record<string, boolean>): boolean {
+  return statements.length > 0 && statements.every((st) => typeof marks[st.label] === 'boolean')
+}
+
+/** A choice or the marks so far, as a line the hint can read. */
+export function describeAnswer(kind: string, choice: string | null, marks: Record<string, boolean>): string {
+  if (kind === 'choice') return choice ? `Picked ${choice}` : ''
+  if (kind === 'true_false') {
+    return Object.entries(marks).map(([label, mark]) => `${label}) ${mark ? 'true' : 'false'}`).join('; ')
+  }
+  return ''
 }
 
 export function toRedo(problems: { status: string; due: boolean }[]): number {

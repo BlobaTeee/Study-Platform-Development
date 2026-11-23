@@ -29,6 +29,12 @@ class Exercise(models.Model):
     # Attempts from this moment count for the current go at the problem; a
     # revisit starts a new round so the solution is hidden again.
     round_started_at = models.DateTimeField(auto_now_add=True)
+    # Problems picked together from one photo or file share this key, so the
+    # page can step through them; empty for a problem made on its own.
+    set_key = models.CharField(max_length=32, blank=True, default='', db_index=True)
+    # Figures cut from the student's exam page, as PNG data URLs: [Figure n] in
+    # the prompt is figures[n - 1] (None where one could not be cut).
+    figures = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

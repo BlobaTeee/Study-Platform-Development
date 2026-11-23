@@ -35,14 +35,16 @@ export function useInPageLanguage(texts: (Ask | undefined | null)[]): Map<string
  *  own words on hover. A short answer (asked with its `context`) keeps its
  *  own words beside it instead: a one-word translation can miss the sense.
  *  `math`: the text may hold $…$ formulas, typeset as MathText does. */
-export function InPageLanguage({ text, found, context, math = false }: {
+export function InPageLanguage({ text, found, context, math = false, figures }: {
   text: string
   found: Map<string, string> | undefined
   context?: string
   math?: boolean
+  // Figures cut from the exam, for the [Figure n: …] tags in `text`.
+  figures?: (string | null)[]
 }) {
   const shown = shownAs(found, text, context)
-  const show = (t: string) => (math ? <MathText text={t} /> : t)
+  const show = (t: string) => (math ? <MathText text={t} figures={figures} /> : t)
   if (!shown) return <>{show(text)}</>
   if (context === undefined) return <span title={text}>{show(shown)}</span>
   return (

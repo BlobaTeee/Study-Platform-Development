@@ -12,9 +12,11 @@ from datetime import timedelta
 from django.utils import timezone
 
 from ml_pipeline.language import language_name
+from notebooks.services.units import unit_symbols
 from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
 
 from ..models import Exercise, ExerciseAttempt
+from .problems import answer_format, answer_kind
 from .common import ERROR_LIST, ERROR_TYPES, ask, language_of
 
 REVEAL_AFTER = 3          # failed submits in a round before the solution unlocks
@@ -56,7 +58,18 @@ def failed_submits(exercise: Exercise) -> int:
 
 
 def _numbered(steps: list[str]) -> str:
-    return '\n'.join(f'Step {i}: {s}' for i, s in enumerate(steps, 1)) or '(no steps yet)'
+    return '\n'.join(f'Sentence {i}: {s}' for i, s in enumerate(steps, 1)) or '(nothing written yet)'
+
+
+def _format_note(answer_format: str) -> str:
+    """How to read the attempt: the student's own text, cut into sentences."""
+    note = ("\nThe attempt is the student's own answer, cut into numbered sentences. One step of their "
+            'reasoning may run over several sentences, or one sentence hold several steps: wherever this '
+            'asks about a step, give the number of the sentence where it is written.')
+    if answer_format == 'points':
+        note += (' The answer is a set of separate reasons or arguments (explain, compare, justify), not '
+                 'working in order.')
+    return note + '\n'
 
 
 def _rubric(exercise: Exercise) -> tuple[str, str]:
@@ -66,9 +79,12 @@ def _rubric(exercise: Exercise) -> tuple[str, str]:
     return checkpoints, solution
 
 
-def submit(exercise: Exercise, steps: list[str]) -> ExerciseAttempt:
+def submit(exercise: Exercise, steps: list[str], text: str = '') -> ExerciseAttempt:
+    """`steps` are the answer's sentences; `text` the answer as written, kept
+    so the page can give it back exactly as the student wrote it."""
     result = grade(exercise, steps)
-    attempt = ExerciseAttempt.objects.create(exercise=exercise, kind='submit', steps=steps, result=result)
+    attempt = ExerciseAttempt.objects.create(exercise=exercise, kind='submit', steps=steps,
+                                             result={**result, 'text': text} if text else result)
     if result['verdict'] == 'passed':
         _settle(exercise, first_try=failed_submits(exercise) == 0 and not _revealed(exercise))
     return attempt
@@ -88,6 +104,8 @@ never quote it.
 A short answer is not a wrong one. Do not flag a step for being brief, for skipping working
 the student plainly got right, or for using a known rule or formula without deriving it.
 Report something as missing only when a checkpoint is not reached at all.
+A sentence that is true but not needed (background, a side remark, an extra fact) is not a
+mistake either: never flag it. Flag only what is actually wrong.
 
 - "met": the ids of the checkpoints the attempt reaches correctly.
 - "first_wrong_step": the number of the first step that contains a mistake itself (a wrong
@@ -117,13 +135,13 @@ Model solution (do not reveal):
 
 Student's attempt:
 {_numbered(steps)}
-
+{_format_note(answer_format(exercise))}
 {WRITING_STYLE}
 
 Return ONLY valid JSON:
 {{"met": [1], "first_wrong_step": 2, "wrong_step_quote": "...", "error_type": "concept", "detail": "...", "hint": "..."}}"""
 
-    return clean_grade(ask(prompt), exercise, steps)
+    return clean_grade(ask(prompt, quick=True), exercise, steps)
 
 
 def clean_grade(data: dict, exercise: Exercise, steps: list[str]) -> dict:
@@ -171,7 +189,7 @@ def _step_quoted(quote, steps: list[str]) -> int | None:
     return hits[0] if len(hits) == 1 else None
 
 
-def hint(exercise: Exercise, steps: list[str]) -> ExerciseAttempt:
+def hint(exercise: Exercise, steps: list[str], text: str = '') -> ExerciseAttempt:
     checkpoints, solution = _rubric(exercise)
     lang = problem_language(exercise)
     prompt = f"""A student is stuck on a practice problem and asked for a hint. Write in {language_name(lang)}.
@@ -191,15 +209,70 @@ Model solution (do not reveal):
 
 Student's steps so far:
 {_numbered(steps)}
-
+{_format_note(answer_format(exercise))}
 {WRITING_STYLE}
 
 Return ONLY valid JSON: {{"hint": "..."}}"""
 
-    text = tidy_prose(str(ask(prompt).get('hint') or ''))[:400]
-    if not text or leaks(text, exercise):
-        text = fallback_hint(exercise, [])
-    return ExerciseAttempt.objects.create(exercise=exercise, kind='hint', steps=steps, result={'hint': text})
+    hint_text = tidy_prose(str(ask(prompt, quick=True).get('hint') or ''))[:400]
+    if not hint_text or leaks(hint_text, exercise):
+        hint_text = fallback_hint(exercise, [])
+    result = {'hint': hint_text, 'text': text} if text else {'hint': hint_text}
+    return ExerciseAttempt.objects.create(exercise=exercise, kind='hint', steps=steps, result=result)
+
+
+def check(exercise: Exercise, given) -> ExerciseAttempt:
+    """A choice, true/false or short answer checked against its key, with
+    no model request. `given` is the label picked, {label: bool} for each
+    statement, or the text typed."""
+    ref = exercise.reference or {}
+    kind = answer_kind(exercise)
+    if kind == 'choice':
+        right = str(given or '').strip().lower() == str(ref.get('answer', '')).lower()
+        result = {'answer': str(given or '').strip()}
+    elif kind == 'true_false':
+        marks = given if isinstance(given, dict) else {}
+        statements = ref.get('statements', [])
+        correct = sum(1 for st in statements if marks.get(st['label']) is st['answer'])
+        right = correct == len(statements)
+        result = {'answers': {st['label']: marks.get(st['label']) for st in statements},
+                  'correct': correct, 'total': len(statements)}
+    else:
+        text = str(given or '').strip()
+        right = short_matches(text, [ref.get('answer', ''), *ref.get('accept', [])])
+        result = {'text': text}
+    result = {'kind': kind, 'verdict': 'passed' if right else 'needs_work',
+              'error_type': None if right else 'wrong_answer', **result}
+    attempt = ExerciseAttempt.objects.create(exercise=exercise, kind='submit', steps=[], result=result)
+    if right:
+        _settle(exercise, first_try=failed_submits(exercise) == 0 and not _revealed(exercise))
+    return attempt
+
+
+_NUMBER = re.compile(r'^[-+]?\d+(?:[.,]\d+)?$')
+
+
+def short_matches(given: str, answers: list[str]) -> bool:
+    """Whether a short answer is one of the accepted ones: numbers by value
+    (a decimal comma or point, spaces and a trailing stop do not matter),
+    words ignoring case, spaces and surrounding $."""
+    def norm(value):
+        value = unit_symbols(unicodedata.normalize('NFC', str(value or ''))).strip().strip('$').strip().rstrip('.')
+        return re.sub(r'\s+', '', value.lower())
+    mine = norm(given)
+    if not mine:
+        return False
+    for answer in answers:
+        theirs = norm(answer)
+        if not theirs:
+            continue
+        if _NUMBER.match(mine) and _NUMBER.match(theirs):
+            a, b = float(mine.replace(',', '.')), float(theirs.replace(',', '.'))
+            if abs(a - b) <= 1e-9 * max(1.0, abs(b)):
+                return True
+        elif mine == theirs:
+            return True
+    return False
 
 
 def reveal(exercise: Exercise) -> ExerciseAttempt:
@@ -232,7 +305,10 @@ def leaks(text: str, exercise: Exercise) -> bool:
     words = [w.lower() for w in _WORD.findall(text)]
     runs = {tuple(words[i:i + LEAK_WORDS]) for i in range(len(words) - LEAK_WORDS + 1)}
     given = set(re.findall(r'\d+(?:[.,]\d+)?', exercise.prompt))
-    for step in (exercise.reference or {}).get('solution', []):
+    ref = exercise.reference or {}
+    # A short answer is given away by its value just as by a solution step.
+    key = [str(ref['answer'])] if answer_kind(exercise) == 'short' and ref.get('answer') else []
+    for step in [*ref.get('solution', []), *key]:
         sw = [w.lower() for w in _WORD.findall(step)]
         if runs & {tuple(sw[i:i + LEAK_WORDS]) for i in range(len(sw) - LEAK_WORDS + 1)}:
             return True

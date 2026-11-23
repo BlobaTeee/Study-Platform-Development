@@ -42,7 +42,27 @@ function PracticeList() {
 
       <section className="sheet p-6 md:p-8" aria-labelledby="practice-list-title">
         <h2 id="practice-list-title" className="sr-only">{t('title')}</h2>
-        <p className="max-w-[65ch] text-sm text-slate-600">{t('pageLead')}</p>
+        {filter === 'all' ? (
+          <p className="max-w-[65ch] text-sm text-slate-600">{t('pageLead')}</p>
+        ) : (
+          // Reached from a notebook (or the own-problem filter): say it is one
+          // slice of the same list, with the way back to all of it.
+          <p className="max-w-[65ch] text-sm text-slate-600">
+            {t('viewing', {
+              name: filter === 'own'
+                ? t('filterOwn')
+                : filters.find((f) => f.key === filter)?.title || t('viewingThisNotebook'),
+            })}
+            {' · '}
+            <button
+              type="button"
+              onClick={() => pick('all')}
+              className="font-medium text-mode-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
+            >
+              {t('showAll')}
+            </button>
+          </p>
+        )}
 
         {filters.length > 1 && (
           <div role="group" aria-label={t('filtersLabel')} className="mt-4 flex flex-wrap gap-2">

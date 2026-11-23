@@ -1,23 +1,10 @@
 // Run with: pnpm test  (node --test; Node strips the types itself)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { draftSteps, filtered, filtersFor, inPracticeOrder, lastGrade, lastHint, parseFilter, toRedo } from './practice.ts'
+import { allMarked, describeAnswer, draftText, filtered, filtersFor, inPracticeOrder, lastChoice, lastGrade, lastHint, lastMarks, lastSubmitted, parseFilter, toRedo } from './practice.ts'
 
 type A = { kind: 'submit' | 'hint' | 'reveal'; steps: string[]; result: Record<string, unknown> }
 const at = (kind: A['kind'], steps: string[], result = {}) => ({ id: 0, created_at: '', kind, steps, result })
-
-test('a fresh problem starts with one empty step', () => {
-  assert.deepEqual(draftSteps([]), [''])
-})
-
-test('the draft picks up from the last thing handed in, hint or submit', () => {
-  assert.deepEqual(draftSteps([at('submit', ['a']), at('hint', ['a', 'b'])]), ['a', 'b'])
-  assert.deepEqual(draftSteps([at('hint', ['a']), at('submit', ['a', 'c'])]), ['a', 'c'])
-})
-
-test('a reveal leaves the draft where it was', () => {
-  assert.deepEqual(draftSteps([at('submit', ['a', 'b']), at('reveal', [])]), ['a', 'b'])
-})
 
 test('the grade and the hint shown are the latest of each', () => {
   const attempts = [at('submit', ['a'], { verdict: 'needs_work' }), at('hint', ['a'], { hint: 'h1' }),
@@ -69,4 +56,46 @@ test('a filter read from the address bar is a notebook id, "own", or everything'
   assert.equal(parseFilter('12'), 12)
   assert.equal(parseFilter(null), 'all')
   assert.equal(parseFilter('x'), 'all')
+})
+
+test('the box gives the answer back exactly as it was written', () => {
+  assert.equal(draftText([]), '')
+  const written = 'HCMC: south-west monsoon. Hue: the mountains.\n\nSo they differ.'
+  assert.equal(draftText([at('submit', ['HCMC: south-west monsoon.', 'Hue: the mountains.', 'So they differ.'], { text: written })]), written)
+  assert.equal(draftText([at('submit', ['a'], { text: 'a' }), at('hint', ['a b'], { hint: 'h', text: 'a b' })]), 'a b')
+})
+
+test('an answer handed in before the text was kept comes back one step per line', () => {
+  assert.equal(draftText([at('submit', ['a']), at('hint', ['a', 'b', 'c'])]), 'a\nb\nc')
+  assert.equal(draftText([at('hint', ['a']), at('submit', ['a', 'c'])]), 'a\nc')
+})
+
+test('a reveal leaves the draft where it was', () => {
+  assert.equal(draftText([at('submit', ['a', 'b']), at('reveal', [])]), 'a\nb')
+})
+
+test('the sentence a grade points at is quoted from the submit that was graded', () => {
+  assert.deepEqual(lastSubmitted([at('submit', ['a', 'b']), at('hint', ['a', 'b', 'c'])]), ['a', 'b'])
+  assert.deepEqual(lastSubmitted([at('hint', ['a'])]), [])
+})
+
+test('a keyed answer comes back as it was given', () => {
+  const attempts = [at('submit', [], { verdict: 'needs_work', answer: 'C' }), at('hint', [], { hint: 'h' }),
+    at('submit', [], { verdict: 'needs_work', answers: { a: true, b: null, c: false } })]
+  assert.equal(lastChoice(attempts.slice(0, 2)), 'C')
+  assert.deepEqual(lastMarks(attempts), { a: true, c: false })
+  assert.deepEqual(lastMarks([]), {})
+})
+
+test('true/false is ready only when every statement is marked', () => {
+  const statements = [{ label: 'a' }, { label: 'b' }]
+  assert.equal(allMarked(statements, { a: true }), false)
+  assert.equal(allMarked(statements, { a: true, b: false }), true)
+  assert.equal(allMarked([], {}), false)
+})
+
+test('the hint is told what was picked or marked so far', () => {
+  assert.equal(describeAnswer('choice', 'B', {}), 'Picked B')
+  assert.equal(describeAnswer('choice', null, {}), '')
+  assert.equal(describeAnswer('true_false', null, { a: true, b: false }), 'a) true; b) false')
 })

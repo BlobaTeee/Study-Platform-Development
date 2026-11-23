@@ -355,8 +355,8 @@ msgstr "Chưa soạn được cách chấm cho đề này. Thử lại nhé."
 msgid "Write out the whole problem, with everything it gives."
 msgstr "Hãy chép đủ cả đề, kèm mọi dữ kiện đề cho."
 
-msgid "Write at least one step first."
-msgstr "Hãy viết ít nhất một bước trước đã."
+msgid "Write your answer first."
+msgstr "Hãy viết bài làm trước đã."
 
 msgid "Keep trying a little longer before looking at the solution."
 msgstr "Thử thêm chút nữa rồi hãy xem lời giải."
@@ -383,3 +383,49 @@ msgid ""
 msgstr ""
 "Gửi tối đa %(count)s đoạn, mỗi đoạn không quá %(chars)s ký tự, kèm ngôn ngữ "
 "cần dịch sang (vi hoặc en)."
+
+msgid "Pick one of the options first."
+msgstr "Hãy chọn một phương án trước đã."
+
+msgid "Mark every statement true or false first."
+msgstr "Hãy chọn Đúng hoặc Sai cho mọi ý trước đã."
+
+msgid "Use a photo (JPEG, PNG, WEBP or HEIC), a PDF or a Word file."
+msgstr "Hãy chọn ảnh (JPEG, PNG, WEBP hoặc HEIC), file PDF hoặc file Word."
+
+msgid "No problem could be found in this file."
+msgstr "Không tìm thấy đề bài nào trong file này."
+
+msgid "That file is too large. Use one under 15 MB."
+msgstr "File lớn quá. Hãy chọn file dưới 15 MB."
+
+msgid "No answer key came back for this one."
+msgstr "Chưa tạo được đáp án cho câu này."
+
+#, python-format
+msgid "Pick between 1 and %(max)d problems."
+msgstr "Hãy chọn từ 1 đến %(max)d câu."
+
+msgid "The AI has used up its free requests for now. Wait a few minutes and try again."
+msgstr "AI đã dùng hết lượt miễn phí. Đợi vài phút rồi thử lại."
+
+msgid "The AI took too long to read the problems. Try again."
+msgstr "AI đọc đề quá lâu. Thử lại nhé."
+
+msgid "The problems could not be read just now. Try again in a minute."
+msgstr "Chưa đọc được đề lúc này. Thử lại sau một phút."
+
+msgid "The AI is overloaded right now. Try again in a few minutes."
+msgstr "AI đang quá tải. Thử lại sau vài phút."
+
+msgid "The AI is overloaded right now. Try again in a few minutes; what you wrote is kept."
+msgstr "AI đang quá tải. Thử lại sau vài phút, bài bạn viết vẫn được giữ."
+
+msgid "Unknown test format."
+msgstr "Không có dạng đề này."
+
+msgid "You've used this hour's AI requests. Try again in %(minutes)s min."
+msgstr "Bạn đã dùng hết lượt AI của giờ này. Thử lại sau %(minutes)s phút."
+
+msgid "The AI took too long to answer. Try again."
+msgstr "AI trả lời quá lâu. Thử lại nhé."
