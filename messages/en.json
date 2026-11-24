@@ -656,6 +656,7 @@
     "commonMistakes": "Common mistakes",
     "notFound": "This problem was not found.",
     "ownIncomplete": "The problem is missing something: {missing}",
+    "answersFromPaper": "Answers are taken from the paper's answer key.",
     "ownGeneralNote": "Graded from general knowledge, not from your documents.",
     "photoButton": "Take a photo or choose a file",
     "photoReading": "Reading the problems…",

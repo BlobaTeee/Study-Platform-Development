@@ -758,6 +758,35 @@ def test_a_students_problem_keeps_its_dashes_and_table_rows(client, model):
     assert '\n| --- | --- |\n' in prompt
 
 
+def test_the_papers_printed_answers_beat_the_models(client, model):
+    """On 2026-11-23 the model marked a statement true that the paper's key marks false."""
+    tf_text = 'Isopropyl formate.\na) Chưng cất để tách ester.\nb) Là ester no, đơn chức.'
+    provider = model({'problems': [
+        {**_keyed_choice(), 'answer': 'C'},
+        {'complete': True, **RUBRIC, 'kind': 'true_false', 'prompt': 'Isopropyl formate.',
+         'statements': [{'label': 'a', 'text': 'Chưng cất để tách ester.', 'answer': True},
+                        {'label': 'b', 'text': 'Là ester no, đơn chức.', 'answer': True}]},
+        {'complete': True, **RUBRIC, 'kind': 'short', 'prompt': 'Phân tử khối của glucose là bao nhiêu?',
+         'answer': '182', 'accept': ['182 g/mol']},
+    ]})
+    texts = [CHOICE_TEXT, tf_text, 'Phân tử khối của glucose là bao nhiêu?']
+    body = client.post('/api/exercises/own-set/', {'texts': texts, 'answers': ['B', {'a': True, 'b': 'S'}, '180']},
+                       format='json').json()
+
+    choice, tf, short = (Exercise.objects.get(id=e['id']).reference for e in body['results'])
+    assert choice['answer'] == 'B' and choice['answer_from'] == 'paper'
+    assert [st['answer'] for st in tf['statements']] == [True, False]
+    assert short['answer'] == '180' and short['accept'] == []       # the model's 182 is not kept
+    assert "answer key gives: Problem 1: B; Problem 2: a true, b false; Problem 3: 180" in provider.prompts[0]
+
+
+def test_a_set_without_printed_answers_keeps_the_models(client, model):
+    model({'problems': [_keyed_choice()]})
+    body = client.post('/api/exercises/own-set/', {'texts': [CHOICE_TEXT], 'answers': [None]}, format='json').json()
+    reference = Exercise.objects.get(id=body['results'][0]['id']).reference
+    assert reference['answer'] == 'B' and 'answer_from' not in reference
+
+
 def test_a_set_reply_sent_as_a_bare_list_still_makes_the_set(client, model):
     one = {'complete': True, **RUBRIC, 'kind': 'written', 'prompt': 'Giải thích vì sao mùa mưa ở Huế lệch với TP.HCM.'}
     model([one, one])

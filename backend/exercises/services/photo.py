@@ -21,7 +21,7 @@ from django.conf import settings
 from django.utils.translation import gettext as _
 
 from . import figures
-from .common import PracticeUnavailable, ask, items_of
+from .common import PracticeUnavailable, ask, items_of, printed_answer
 
 DEFAULT_MAX_BYTES = 15 * 1024 * 1024
 DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -54,6 +54,11 @@ written in. A page with several questions gives several; a photo of one problem 
   out letters, numbers written in the margin. Copy only what is printed; a circled option
   would give the answer away.
 - Leave out page headers and footers (candidate number, exam code, page numbers).
+- An answer key printed in the paper (ĐÁP ÁN, a table of question numbers and answers) is not a
+  question. Give each question its printed answer as "answer": the option's letter ("B"), each
+  statement's mark ({"a": true, "b": false, "c": true, "d": true}; Đ is true, S is false), or the
+  short answer as printed ("180"); null when the paper prints none. Never take an answer from
+  handwriting.
 - Write all mathematics in LaTeX: inline as $...$, a formula on its own line as $$...$$
   (fractions \\frac{a}{b}, roots \\sqrt{x}, powers x^{2}, indices x_{1}, integrals, sums,
   matrices with \\begin{pmatrix}...\\end{pmatrix}). Chemical formulas likewise ($H_2SO_4$).
@@ -90,7 +95,7 @@ the part", "part": "the part it is in, its name and number only, e.g. Phần I o
 title), given on every question of
 that part, the first part's included; \"\" when the paper has no parts",
 "instruction": "the section's instruction, or \"\"", "text": "...",
-"figures": [{"page": 1, "box": [ymin, xmin, ymax, xmax]}]}]}
+"answer": null, "figures": [{"page": 1, "box": [ymin, xmin, ymax, xmax]}]}]}
 in the order they appear.
 
 Return ONLY valid JSON."""
@@ -155,7 +160,11 @@ def read_problems(data: bytes) -> tuple[list[dict], str]:
         if text:
             label = str(item.get('label') or '').strip()[:MAX_LABEL_CHARS]
             instruction = str(item.get('instruction') or '').strip()[:MAX_INSTRUCTION_CHARS]
-            questions.append({'label': label or str(len(questions) + 1), 'instruction': instruction, 'text': text})
+            question = {'label': label or str(len(questions) + 1), 'instruction': instruction, 'text': text}
+            answer = printed_answer(item.get('answer'))
+            if answer is not None:
+                question['answer'] = answer        # the paper's own key, used for the answer key
+            questions.append(question)
             boxes.append(figures.boxes_of(item))
             parts.append(_part_name(item.get('part')))
     _label_parts(questions, parts)

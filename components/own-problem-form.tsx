@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl'
 import { ArrowLeft, Camera, Check, ChevronDown, FileText, Loader2, Maximize2, Pencil, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MathText } from '@/components/math-text'
-import { exercisesAPI, type PhotoQuestion } from '@/lib/api'
+import { exercisesAPI, type PhotoQuestion, type PrintedAnswer } from '@/lib/api'
 import { firstLines } from '@/lib/math-text'
 import { MAX_PICKED, asProblem, fileKind, photoStep, pickAll, togglePick, type PhotoStep } from '@/lib/photo-flow'
 import { cn } from '@/lib/utils'
@@ -28,13 +28,14 @@ export function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: ()
   const [partial, setPartial] = useState<{ firstId: number; made: number; skipped: string[] } | null>(null)
 
   // Problems picked from a photo or file, made together as one set.
-  const createSet = async (texts: string[], labels: string[], figures: (string | null)[][], title: string) => {
+  const createSet = async (texts: string[], labels: string[], figures: (string | null)[][], title: string,
+                           answers: (PrintedAnswer | null)[]) => {
     if (busy || texts.length === 0) return
     setBusy(true)
     setError(null)
     setPartial(null)
     try {
-      const { results, skipped } = (await exercisesAPI.ownSet(texts, figures, title)).data
+      const { results, skipped } = (await exercisesAPI.ownSet(texts, figures, title, answers)).data
       if (skipped.length === 0) return router.push(`/dashboard/practice/${results[0].id}`)
       setPartial({ firstId: results[0].id, made: results.length, skipped: skipped.map((s) => `${labels[s.index] ?? s.index + 1}: ${s.reason}`) })
       setBusy(false)
@@ -63,7 +64,7 @@ export function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: ()
       </button>
       {open && (
         <div id="own-problem-form" className="space-y-6 border-t border-slate-200 p-6 md:p-8">
-          <PhotoFlow busy={busy} onCreate={(texts, labels, figures, title) => void createSet(texts, labels, figures, title)} onError={setError} />
+          <PhotoFlow busy={busy} onCreate={(texts, labels, figures, title, answers) => void createSet(texts, labels, figures, title, answers)} onError={setError} />
 
           {error && <p role="alert" className="max-w-[65ch] text-sm text-red-700">{error}</p>}
           {partial && (
@@ -86,7 +87,9 @@ export function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: ()
 function PhotoFlow({ busy, onCreate, onError }: {
   busy: boolean
   // title: the set's name in the practice list, the file's name without its extension.
-  onCreate: (texts: string[], labels: string[], figures: (string | null)[][], title: string) => void
+  // answers: each problem's answer as the paper prints it, or null.
+  onCreate: (texts: string[], labels: string[], figures: (string | null)[][], title: string,
+             answers: (PrintedAnswer | null)[]) => void
   onError: (message: string | null) => void
 }) {
   const t = useTranslations('practice')
@@ -334,12 +337,14 @@ function PhotoFlow({ busy, onCreate, onError }: {
                 {t('retake')}
               </Button>
             )}
-            <Button type="button" onClick={() => onCreate(texts, picked.map((i) => questions[i].label), picked.map((i) => questions[i].figures ?? []), setName.trim())} disabled={busy || !ready}>
+            <Button type="button" onClick={() => onCreate(texts, picked.map((i) => questions[i].label), picked.map((i) => questions[i].figures ?? []), setName.trim(), picked.map((i) => questions[i].answer ?? null))} disabled={busy || !ready}>
               {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Check aria-hidden />}
               {busy ? t('creatingSet') : texts.length > 1 ? t('createSet', { count: texts.length }) : t('createChecked')}
             </Button>
           </div>
-          <p className="max-w-[65ch] text-sm text-slate-600">{t('ownGeneralNote')}</p>
+          <p className="max-w-[65ch] text-sm text-slate-600">
+            {picked.some((i) => questions[i].answer != null) ? t('answersFromPaper') : t('ownGeneralNote')}
+          </p>
 
           {photo && (
             <dialog

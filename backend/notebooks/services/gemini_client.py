@@ -4,7 +4,7 @@ import threading
 import time
 from django.conf import settings
 
-from .model_lane import is_long, is_quick, thinks_less
+from .model_lane import budget_seconds, is_long, is_quick, seconds_left, thinks_less
 
 
 class GeminiNotConfiguredError(Exception):
@@ -289,10 +289,19 @@ def generate_json(prompt: str, images: list[tuple[bytes, str]] | None = None) ->
     last_quota_error = None
     last_transient_error = None
     last_format_error = None
+    # The whole chain shares one budget (model_lane.within); outside one, this
+    # call has its lane's budget to itself.
+    left = seconds_left()
+    deadline = time.monotonic() + (left if left is not None else budget_seconds(quick, is_long()))
 
     for model in models:
+        remaining = deadline - time.monotonic()
+        if remaining < MIN_TIMEOUT_SECONDS:
+            last_transient_error = last_transient_error or GeminiGenerationError(
+                'Model timed out: out of time for this request')
+            break
         try:
-            wait = _wait_seconds(quick)
+            wait = min(_wait_seconds(quick), remaining)
             try:
                 response = _call_with_deadline(lambda: client.models.generate_content(
                     model=model, contents=contents, config=config), wait)

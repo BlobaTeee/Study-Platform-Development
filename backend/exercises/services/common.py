@@ -9,7 +9,7 @@ from django.utils.translation import gettext as _
 from ml_pipeline.language import detect_language
 from notebooks.services import ai_provider
 from notebooks.services.gemini_client import GeminiNotConfiguredError, GeminiQuotaError, is_quota_error
-from notebooks.services.model_lane import long_read, quick as quick_lane
+from notebooks.services.model_lane import budget_seconds, long_read, quick as quick_lane, within
 
 logger = logging.getLogger(__name__)
 
@@ -75,14 +75,17 @@ def ask(prompt: str, images: list[tuple[bytes, str]] | None = None, quick: bool 
         return provider.generate_json_from_images(prompt, images) if images else provider.generate_json(prompt)
 
     try:
-        try:
-            data = call()
-        except Exception as exc:  # noqa: BLE001
-            if not _transient(exc):
-                raise
-            logger.warning('Practice request dropped, trying once more: %s', exc)
-            time.sleep(RETRY_PAUSE_SECONDS)
-            data = call()
+        # The first try and the retry share one budget, so a busy AI is
+        # reported within it rather than after every model twice over.
+        with within(budget_seconds(quick, reading or long)):
+            try:
+                data = call()
+            except Exception as exc:  # noqa: BLE001
+                if not _transient(exc):
+                    raise
+                logger.warning('Practice request dropped, trying once more: %s', exc)
+                time.sleep(RETRY_PAUSE_SECONDS)
+                data = call()
     except NotImplementedError as exc:
         raise PracticeUnavailable(_('Reading a photo needs the Gemini provider, which is not the one in use.')) from exc
     except GeminiNotConfiguredError as exc:
@@ -190,3 +193,33 @@ def answer_from(data) -> tuple[list[str], str]:
         text = text.strip()[:MAX_ANSWER_CHARS]
         return split_sentences(text), text
     return clean_steps(data.get('steps') if hasattr(data, 'get') else None), ''
+
+
+_TRUE = {'true', 'đúng', 'đ', 'd', 't', 'yes'}
+_FALSE = {'false', 'sai', 's', 'f', 'no'}
+
+
+def printed_answer(raw):
+    """The answer a paper prints in its own answer key, as one of: an option
+    or a short value (a string), or each statement's mark ({"a": True, ...}).
+    None for anything else. It comes from the reader and, later, back from the
+    browser, so it is checked both times."""
+    if isinstance(raw, bool) or raw is None:
+        return None
+    if isinstance(raw, (int, float)):
+        raw = str(raw)
+    if isinstance(raw, str):
+        value = ' '.join(raw.split())
+        return value[:40] if value else None
+    if isinstance(raw, dict) and raw:
+        marks = {}
+        for label, mark in list(raw.items())[:8]:
+            label = str(label).strip().strip(').').lower()
+            if isinstance(mark, str):
+                word = mark.strip().lower()
+                mark = True if word in _TRUE else False if word in _FALSE else None
+            if not (len(label) == 1 and label.isalpha()) or not isinstance(mark, bool):
+                return None
+            marks[label] = mark
+        return marks
+    return None

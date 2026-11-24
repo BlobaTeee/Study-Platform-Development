@@ -13,6 +13,7 @@ Set per call with `with quick(): ...` rather than a parameter, so every
 provider (Gemini, Ollama, test fakes) keeps the same `generate_json(prompt)`
 signature; only the Gemini client reads the lane.
 """
+import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 
@@ -58,3 +59,40 @@ def is_long() -> bool:
 
 def thinks_less() -> bool:
     return _LONG.get() and _THINK_LESS.get()
+
+
+# How long one piece of work may wait on the AI in all: every model in the
+# fallback chain and any retry together. Each model alone may take up to its
+# own deadline, and on 2026-11-23, with Gemini overloaded, one answer key went
+# through the chain for over five minutes before saying so; a clear "try again"
+# after a minute and a half serves the student better.
+_DEADLINE: ContextVar[float | None] = ContextVar('gemini_deadline', default=None)
+
+
+def budget_seconds(quick: bool = False, long: bool = False) -> float:
+    """The total wait for one piece of work on its lane."""
+    from django.conf import settings
+    if long:
+        return float(getattr(settings, 'GEMINI_READ_TOTAL_SECONDS', 200))
+    if quick:
+        return float(getattr(settings, 'GEMINI_FAST_TOTAL_SECONDS', 30))
+    return float(getattr(settings, 'GEMINI_TOTAL_SECONDS', 90))
+
+
+@contextmanager
+def within(seconds: float):
+    """Every model call inside shares `seconds` (or less, inside an earlier
+    `within`)."""
+    end = time.monotonic() + seconds
+    current = _DEADLINE.get()
+    token = _DEADLINE.set(end if current is None else min(current, end))
+    try:
+        yield
+    finally:
+        _DEADLINE.reset(token)
+
+
+def seconds_left() -> float | None:
+    """Seconds left inside `within`, or None outside one."""
+    end = _DEADLINE.get()
+    return None if end is None else end - time.monotonic()

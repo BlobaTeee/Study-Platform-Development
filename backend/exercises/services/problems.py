@@ -18,7 +18,7 @@ from notebooks.services.units import unit_symbols
 from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
 
 from ..models import Exercise
-from .common import ERROR_LIST, ERROR_TYPES, PracticeUnavailable, ask, items_of, language_of
+from .common import ERROR_LIST, ERROR_TYPES, PracticeUnavailable, ask, items_of, language_of, printed_answer
 
 PER_DOCUMENT = 3
 MIN_CHECKPOINTS = 2
@@ -195,25 +195,30 @@ SET_PER_REQUEST = 3
 
 
 def own_set(user, texts: list[str], figures: list[list] | None = None,
-            title: str = '') -> tuple[list[Exercise], list[dict]]:
+            title: str = '', answers: list | None = None) -> tuple[list[Exercise], list[dict]]:
     """Several problems from one photo or file, made in as few requests as
     possible and kept together under one set key, in the order given.
 
     Returns the problems made and the ones skipped, each skipped one as
     {"index", "reason"} (0-based, with what is missing when that is why).
     When none could be made: IncompleteProblem if the model found them
-    unsolvable, PracticeUnavailable if it could not be asked."""
+    unsolvable, PracticeUnavailable if it could not be asked. answers[i] is
+    problem i's answer as the paper prints it (common.printed_answer), or None:
+    the key then follows the paper, not the model."""
     import uuid
     from concurrent.futures import ThreadPoolExecutor
 
     texts = [t.strip()[:MAX_OWN_CHARS] for t in texts][:MAX_SET]
     figures = figures or []
+    answers = [printed_answer(a) for a in (answers or [])]
+    answers += [None] * (len(texts) - len(answers))
     chunks = [list(range(i, min(i + SET_PER_REQUEST, len(texts)))) for i in range(0, len(texts), SET_PER_REQUEST)]
 
     def rubrics(indexes):
         try:
             return indexes, _set_rubrics([texts[i] for i in indexes],
-                                         [figures[i] if i < len(figures) else [] for i in indexes]), ''
+                                         [figures[i] if i < len(figures) else [] for i in indexes],
+                                         [answers[i] for i in indexes]), ''
         except PracticeUnavailable as exc:
             return indexes, [], str(exc)
 
@@ -233,9 +238,12 @@ def own_set(user, texts: list[str], figures: list[list] | None = None,
                 missing = tidy_prose(str(item.get('missing') or ''))
                 skipped.append({'index': i, 'reason': missing or _('Something the problem needs is missing.')})
             else:
+                item = _with_printed_answer(item, answers[i])
                 problem = _problem({**item, 'prompt': item.get('prompt') or texts[i]}, None, '',
                                    language_of(texts[i]), original=texts[i])
                 if problem:
+                    if answers[i] is not None and problem['reference'].get('kind') != 'written':
+                        problem['reference']['answer_from'] = 'paper'
                     made[i] = problem
                 else:
                     skipped.append({'index': i, 'reason': _('No answer key came back for this one.')})
@@ -253,7 +261,35 @@ def own_set(user, texts: list[str], figures: list[list] | None = None,
     return exercises, sorted(skipped, key=lambda s: s['index'])
 
 
-def _set_rubrics(texts: list[str], figures: list[list] | None = None) -> list:
+def _with_printed_answer(item: dict, printed) -> dict:
+    """The model's answer key with the paper's own answer in its place. The
+    model solves most problems right but not all (on 2026-11-23 it marked a
+    statement true that the paper's key marks false); the paper is the
+    authority. A printed answer that does not fit the kind is left out."""
+    if printed is None:
+        return item
+    kind = str(item.get('kind') or '').lower()
+    if kind == 'choice' and isinstance(printed, str) and len(printed) == 1 and printed.isalpha():
+        return {**item, 'answer': printed.upper()}
+    if kind == 'true_false' and isinstance(printed, dict) and isinstance(item.get('statements'), list):
+        statements = [{**st, 'answer': printed[_label(st.get('label')).lower()]}
+                      if isinstance(st, dict) and _label(st.get('label')).lower() in printed else st
+                      for st in item['statements']]
+        return {**item, 'statements': statements}
+    if kind == 'short' and isinstance(printed, str):
+        from .grading import short_matches
+        same = short_matches(str(item.get('answer') or ''), [printed])
+        return {**item, 'answer': printed, 'accept': item.get('accept') if same else []}
+    return item
+
+
+def _as_words(printed) -> str:
+    if isinstance(printed, dict):
+        return ', '.join(f'{label} {"true" if mark else "false"}' for label, mark in printed.items())
+    return str(printed)
+
+
+def _set_rubrics(texts: list[str], figures: list[list] | None = None, answers: list | None = None) -> list:
     """One request for several problems; the reply's list is in their order.
     The figures cut from the page go along as pictures: a description such as
     "open-chain structural formula of a carbohydrate" does not say which one,
@@ -270,6 +306,10 @@ def _set_rubrics(texts: list[str], figures: list[list] | None = None) -> list:
             if image:
                 images.append(image)
                 legend.append(f'picture {len(images)} is Problem {n}\'s Figure {m}')
+    printed = [f'Problem {n}: {_as_words(a)}' for n, a in enumerate(answers or [], 1) if a is not None]
+    keyed = (f"""The paper's own answer key gives: {'; '.join(printed)}. Take these as the right answers:
+give them as the answer, and write the solution and checkpoints that reach them.
+""" if printed else '')
     pictures = (f"""The figures cut from the page are attached as pictures, in order: {'; '.join(legend)}.
 Read each of these figures from its picture; its description only names it. A figure you have as
 a picture never makes a problem incomplete.
@@ -279,7 +319,7 @@ a picture never makes a problem incomplete.
 Treat each problem on its own. A figure is given as [Figure n: what it shows]: solve from its
 picture when it is attached, from that description otherwise, and keep each such tag exactly as
 written, where it stands, in the "prompt" you give back.
-{pictures}For each, first decide whether it can be solved as written. If a needed
+{pictures}{keyed}For each, first decide whether it can be solved as written. If a needed
 fact, number or condition is missing, or it is not a problem at all, give {{"complete": false, "missing":
 "what is missing, one sentence"}} for it. Otherwise give the problem tidied (fix typos only, keep its
 meaning, every given and its line breaks; a table stays a Markdown table, one row per line), its

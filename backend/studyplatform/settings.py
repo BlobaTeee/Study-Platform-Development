@@ -165,6 +165,12 @@ DAILY_NEW_LIMIT = config('DAILY_NEW_LIMIT', default=10, cast=int)
 # GEMINI_MODEL_FALLBACKS. A busy model does not answer with an error — it just
 # stops answering, and without a deadline the student waits with it.
 GEMINI_TIMEOUT_SECONDS = config('GEMINI_TIMEOUT_SECONDS', default=30, cast=int)
+# How long one piece of work may wait on the AI in all, every fallback model
+# and retry included (model_lane.within): a busy AI is reported after this
+# rather than after each model's own deadline in turn.
+GEMINI_TOTAL_SECONDS = config('GEMINI_TOTAL_SECONDS', default=90, cast=int)
+GEMINI_FAST_TOTAL_SECONDS = config('GEMINI_FAST_TOTAL_SECONDS', default=30, cast=int)
+GEMINI_READ_TOTAL_SECONDS = config('GEMINI_READ_TOTAL_SECONDS', default=200, cast=int)
 # How much the model may think before answering: 'default' leaves it to the
 # model, 'off' forbids it, 'low'/'high' set a level on the models that take one.
 # Measured on one excerpt, thinking was 2.089 tokens against 765 of answer on

@@ -107,6 +107,19 @@ def test_a_paper_with_one_part_keeps_plain_labels(client, reader):
     assert [q['label'] for q in _post(client, JPEG).json()['questions']] == ['Câu 1', 'Câu 2']
 
 
+def test_the_papers_own_answers_come_back_with_their_questions(client, reader):
+    r = reader({'found': True, 'questions': [
+        {'label': 'Câu 1', 'text': 'Cặp nào có tính khử mạnh nhất? A. Na. B. Li.', 'answer': 'B'},
+        {'label': 'Câu 2', 'text': 'Cho bảng. a) Zn khử mạnh. b) Fe oxi hoá mạnh.', 'answer': {'a': 'Đ', 'b': 'S'}},
+        {'label': 'Câu 3', 'text': 'Phân tử khối của Y?', 'answer': 180},
+        {'label': 'Câu 4', 'text': 'Giải thích vì sao.', 'answer': None},
+        {'label': 'Câu 5', 'text': 'Cho bảng. a) Zn. b) Fe.', 'answer': {'a': 'maybe'}},
+    ]})
+    questions = _post(client, JPEG).json()['questions']
+    assert [q.get('answer') for q in questions] == ['B', {'a': True, 'b': False}, '180', None, None]
+    assert 'ĐÁP ÁN' in r.prompt and 'handwriting' in r.prompt
+
+
 def test_a_question_without_a_label_is_numbered(client, reader):
     reader({'found': True, 'questions': [{'text': 'Solve $x + 1 = 3$.'}, {'label': '  ', 'text': 'Find $x$.'}]})
     assert [q['label'] for q in _post(client, JPEG).json()['questions']] == ['1', '2']

@@ -192,7 +192,9 @@ export type PracticeMistakes = {
 
 /** One question read from a photo; the instruction is its section's (how to answer). */
 // figures[n - 1] is the picture for [Figure n: …] in the text, cut from the page; null if it could not be.
-export type PhotoQuestion = { label: string; instruction: string; text: string; figures?: (string | null)[] }
+// answer: the paper's own answer from its answer key (ĐÁP ÁN), when it prints one.
+export type PrintedAnswer = string | Record<string, boolean>
+export type PhotoQuestion = { label: string; instruction: string; text: string; figures?: (string | null)[]; answer?: PrintedAnswer }
 
 export const exercisesAPI = {
   list: (params: { notebook?: number; source?: number; own?: 1 }) =>
@@ -205,8 +207,8 @@ export const exercisesAPI = {
   // Rename a set; '' gives back the default name.
   renameSet: (key: string, title: string) =>
     api.patch<{ set_key: string; set_title: string }>(`/exercises/sets/${key}/`, { title }),
-  ownSet: (texts: string[], figures?: (string | null)[][], title?: string) =>
-    api.post<{ results: ExerciseSummary[]; skipped: { index: number; reason: string }[] }>('/exercises/own-set/', { texts, figures, title }),
+  ownSet: (texts: string[], figures?: (string | null)[][], title?: string, answers?: (PrintedAnswer | null)[]) =>
+    api.post<{ results: ExerciseSummary[]; skipped: { index: number; reason: string }[] }>('/exercises/own-set/', { texts, figures, title, answers }),
   // A photo read into its questions (maths in LaTeX), for the student to pick
   // one; the photo is not kept.
   readPhoto: (file: File) => {

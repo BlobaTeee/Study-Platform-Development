@@ -116,3 +116,35 @@ def test_a_text_prompt_is_still_sent_as_plain_text(fake, monkeypatch):
     monkeypatch.setattr(gemini_client, '_get_client', lambda: type('C', (), {'models': models})())
     generate_json('just text')
     assert seen == ['just text']
+
+
+def test_the_chain_stops_when_its_time_is_spent(fake, monkeypatch, settings):
+    """With Gemini overloaded, one request went through every model for over
+    five minutes; the chain now shares one budget and says so when it is spent."""
+    settings.GEMINI_TOTAL_SECONDS = 45
+    settings.GEMINI_TIMEOUT_SECONDS = 30
+    now = [1000.0]
+    monkeypatch.setattr(gemini_client.time, 'monotonic', lambda: now[0])
+    waits = []
+
+    def stalls(call, seconds):
+        waits.append(seconds)
+        now[0] += seconds                       # the model sat for its whole deadline
+        raise GeminiGenerationError(f'Model timed out after {seconds:g}s')
+    monkeypatch.setattr(gemini_client, '_call_with_deadline', stalls)
+    fake({})
+
+    with pytest.raises(GeminiGenerationError):
+        generate_json('x')
+    assert waits == [30, 15]                    # the second model gets what is left; no third
+
+
+def test_a_retry_shares_the_budget_of_the_first_try(monkeypatch, settings):
+    from notebooks.services import model_lane
+    now = [0.0]
+    monkeypatch.setattr(model_lane.time, 'monotonic', lambda: now[0])
+    with model_lane.within(90):
+        now[0] = 60
+        with model_lane.within(90):              # an inner budget never outlasts the outer one
+            assert model_lane.seconds_left() == 30
+    assert model_lane.seconds_left() is None

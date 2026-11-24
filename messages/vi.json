@@ -656,6 +656,7 @@
     "commonMistakes": "Lỗi hay gặp",
     "notFound": "Không tìm thấy bài này.",
     "ownIncomplete": "Đề còn thiếu: {missing}",
+    "answersFromPaper": "Đáp án lấy từ bảng đáp án trong đề.",
     "ownGeneralNote": "Chấm theo kiến thức chung, không theo tài liệu của bạn.",
     "photoButton": "Chụp ảnh hoặc chọn file đề",
     "photoReading": "Đang đọc đề…",
