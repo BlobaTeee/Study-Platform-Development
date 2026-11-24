@@ -30,8 +30,12 @@ class NothingToRead(ValueError):
 
 
 def place_upload(user, uploaded, file_type: str, ui_language: str = 'en'):
-    """Create the Source in the right notebook. Returns (source, notebook, created)."""
-    text, page_count = _read(uploaded, file_type)
+    """Create the Source in the right notebook. Returns (source, notebook, created).
+
+    A scanned PDF is placed by its first pages, read by OCR there and then;
+    the whole book is read in the background, the source 'processing' until
+    it is (ingest.process_in_background)."""
+    text, page_count, scanned = _read(uploaded, file_type)
     title = title_from_filename(uploaded.name)
 
     own = {nb.id: nb for nb in Notebook.objects.filter(user=user)}
@@ -42,6 +46,19 @@ def place_upload(user, uploaded, file_type: str, ui_language: str = 'en'):
 
     match = best_notebook(text, documents)
     created = False
+    if scanned:
+        # No model request on a sample: the notebook is the match, or one
+        # named after the file. The summary comes with the whole text.
+        notebook, created = (own[match], False) if match is not None else _notebook_named(
+            user, title.replace('_', ' '))
+        with transaction.atomic():
+            source = Source.objects.create(
+                notebook=notebook, title=title, file=uploaded, file_type=file_type,
+                original_filename=uploaded.name, status='processing', page_count=page_count)
+            notebook.save(update_fields=['updated_at'])
+        from .ingest import process_in_background
+        process_in_background(source)        # after the save above: the thread finds the row
+        return source, notebook, created
     # One request either way: the overview and main ideas, plus the subject's
     # name when the file needs a notebook of its own.
     reading = read_document(text, title, subject_language=None if match is not None else ui_language)
@@ -62,7 +79,13 @@ def place_upload(user, uploaded, file_type: str, ui_language: str = 'en'):
     return source, notebook, created
 
 
-def _read(uploaded, file_type: str) -> tuple[str, int]:
+QUICK_LOOK_PAGES = 3
+
+
+def _read(uploaded, file_type: str) -> tuple[str, int, bool]:
+    """(text, pages, scanned). For a scanned PDF the text is its first few
+    pages, read by OCR: enough to tell the subject."""
+    from . import ocr
     # Extraction reads a path; the upload may still be in memory.
     suffix = os.path.splitext(uploaded.name)[1]
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -71,13 +94,16 @@ def _read(uploaded, file_type: str) -> tuple[str, int]:
         path = tmp.name
     try:
         text, page_count = extract_text_from_document(path, file_type)
+        text = normalise_text(text)
+        scanned = file_type == 'pdf' and ocr.is_scanned(text, page_count) and ocr.available()
+        if scanned:
+            text = normalise_text(ocr.read_pdf(path, first_pages=QUICK_LOOK_PAGES))
     finally:
         os.unlink(path)
         uploaded.seek(0)
-    text = normalise_text(text)
     if not text.strip():
         raise NothingToRead('No text could be extracted from this file.')
-    return text, page_count
+    return text, page_count, scanned
 
 
 def _notebook_named(user, name: str) -> tuple[Notebook, bool]:

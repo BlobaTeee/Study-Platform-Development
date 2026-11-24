@@ -429,3 +429,18 @@ msgstr "Bạn đã dùng hết lượt AI của giờ này. Thử lại sau %(mi
 
 msgid "The AI took too long to answer. Try again."
 msgstr "AI trả lời quá lâu. Thử lại nhé."
+
+msgid "No text could be extracted. The PDF may be scanned images only."
+msgstr "Không trích được chữ. PDF có thể chỉ toàn ảnh scan."
+
+msgid "No text could be extracted. The Word file may be empty or image-only."
+msgstr "Không trích được chữ. File Word có thể trống hoặc chỉ có ảnh."
+
+msgid "No text could be extracted. The presentation may have no text on slides."
+msgstr "Không trích được chữ. Bài trình chiếu có thể không có chữ trên slide."
+
+msgid "Reading this file stopped part way. Remove it and upload it again."
+msgstr "Việc đọc file này bị dừng giữa chừng. Hãy gỡ file rồi tải lên lại."
+
+msgid "No text could be extracted from this file."
+msgstr "Không trích được chữ từ file này."

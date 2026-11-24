@@ -172,6 +172,7 @@
     "removeFailed": "Could not remove the document",
     "titleOptional": "Title (optional)",
     "processing": "Processing…",
+    "processingNote": "Reading the document. A scan can take a few minutes.",
     "browseFiles": "Browse files",
     "unsupportedFile": "Unsupported file. Use PDF, Word (.docx), or PowerPoint (.pptx).",
     "uploadFailed": "Upload failed",

@@ -172,6 +172,7 @@
     "removeFailed": "Không gỡ được tài liệu",
     "titleOptional": "Tiêu đề (không bắt buộc)",
     "processing": "Đang xử lý…",
+    "processingNote": "Đang đọc tài liệu. Bản scan có thể mất vài phút.",
     "browseFiles": "Chọn file",
     "unsupportedFile": "File không được hỗ trợ. Dùng PDF, Word (.docx) hoặc PowerPoint (.pptx).",
     "uploadFailed": "Tải lên không thành công",

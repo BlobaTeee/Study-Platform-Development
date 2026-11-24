@@ -187,7 +187,11 @@ GEMINI_COOLDOWN_SECONDS = config('GEMINI_COOLDOWN_SECONDS', default=900, cast=in
 USE_LOCAL_FALLBACK_ON_QUOTA = config('USE_LOCAL_FALLBACK_ON_QUOTA', default=True, cast=bool)
 # When True, use local spaCy/scikit-learn pipeline first (fully offline capable).
 USE_ML_PRIMARY = config('USE_ML_PRIMARY', default=False, cast=bool)
-MAX_PDF_UPLOAD_MB = config('MAX_PDF_UPLOAD_MB', default=10, cast=int)
+MAX_PDF_UPLOAD_MB = config('MAX_PDF_UPLOAD_MB', default=100, cast=int)
+# Scanned PDFs are read by Tesseract (brew install tesseract tesseract-lang;
+# apt install tesseract-ocr tesseract-ocr-vie). Without it they fail as before.
+TESSERACT_COMMAND = config('TESSERACT_COMMAND', default='tesseract')
+OCR_MAX_PAGES = config('OCR_MAX_PAGES', default=500, cast=int)
 # LibreOffice draws a Word file into a PDF before the AI reads it (exercises/services/photo.py);
 # empty finds `soffice` on PATH, and without it the file is read as text.
 SOFFICE_PATH = config('SOFFICE_PATH', default='')

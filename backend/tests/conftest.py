@@ -48,6 +48,14 @@ def _forget_failed_models():
     forget_failures()
 
 
+@pytest.fixture(autouse=True)
+def _no_ocr(monkeypatch):
+    """No test runs Tesseract unless it asks (tests/test_ocr.py): a scanned
+    PDF fails as it does where Tesseract is not installed."""
+    from notebooks.services import ocr
+    monkeypatch.setattr(ocr, 'available', lambda: False)
+
+
 class _NoProvider:
     """Stands in for Gemini/Ollama: every call fails at once, with the error
     the code already treats as "provider unavailable"."""

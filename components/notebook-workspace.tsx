@@ -177,8 +177,11 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const swrKey = ['/notebooks/', notebookId]
+  // A scanned PDF is read by OCR in the background for minutes: look again
+  // every few seconds while any document is still processing.
   const { data: notebookRes, isLoading, error: loadError } = useSWR(swrKey, () =>
-    notebooksAPI.getNotebook(notebookId)
+    notebooksAPI.getNotebook(notebookId),
+    { refreshInterval: (latest) => (latest?.data?.sources ?? []).some((s: SourceItem) => s.status === 'processing') ? 5000 : 0 }
   )
 
   const notebook = notebookRes?.data
@@ -243,6 +246,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
   const clearChecked = () => setCheckedSourceIds([])
 
+  const activeStatus = sources.find((s) => s.id === activeSourceId)?.status
   useEffect(() => {
     if (!activeSourceId) {
       setSourceDetail(null)
@@ -265,7 +269,8 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       })
       .catch(() => setSourceDetail(null))
       .finally(() => setLoadingSource(false))
-  }, [activeSourceId])
+    // Its status too: a document read in the background shows itself once ready.
+  }, [activeSourceId, activeStatus])
 
   const activeListItem = sources.find((s) => s.id === activeSourceId)
 
@@ -773,7 +778,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                               handleRemoveSource(src.id, src.title)
                             }}
                             className={cn(
-                              'my-1 mr-1 shrink-0 text-slate-500 hover:bg-red-50 hover:text-mode-danger',
+                              'my-1 mr-1 shrink-0 text-slate-600 hover:bg-red-50 hover:text-mode-danger',
                               'opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100',
                               isActive && 'opacity-100'
                             )}
@@ -865,6 +870,13 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                               : ` · ${fileTypeLabel(activeListItem.file_type)}`}
                       </p>
                     </div>
+
+                    {activeListItem.status === 'processing' && (
+                      <p className="flex items-center gap-2 text-sm text-slate-600">
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                        {t('processingNote')}
+                      </p>
+                    )}
 
                     {sourceDetail?.status === 'failed' && sourceDetail.error_message && (
                       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">

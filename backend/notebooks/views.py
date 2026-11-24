@@ -76,6 +76,11 @@ class NotebookViewSet(viewsets.ModelViewSet):
             Prefetch('sources', queryset=Source.objects.defer('extracted_text'))
         )
 
+    def retrieve(self, request, *args, **kwargs):
+        from .services.ingest import fail_stalled
+        fail_stalled(self.get_object())
+        return super().retrieve(request, *args, **kwargs)
+
     def get_serializer_class(self):
         if self.action in ('create', 'update', 'partial_update'):
             return NotebookCreateSerializer
@@ -225,7 +230,13 @@ class NotebookViewSet(viewsets.ModelViewSet):
             status='processing',
         )
 
-        process_source(source)
+        from .services.ingest import needs_ocr, process_in_background
+        if file_type == 'pdf' and needs_ocr(source.file.path):
+            # A scanned PDF: minutes of OCR. The page shows it as processing
+            # and checks back until it is ready.
+            process_in_background(source)
+        else:
+            process_source(source)
         notebook.save(update_fields=['updated_at'])
 
         return Response(SourceSerializer(source, context={'request': request}).data, status=201)

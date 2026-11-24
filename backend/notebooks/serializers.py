@@ -1,3 +1,4 @@
+from django.utils.translation import gettext
 from rest_framework import serializers
 from .models import Notebook, Source
 from .services.textnorm import clean_summary
@@ -24,6 +25,7 @@ TEXT_PREVIEW_CHARS = 8000
 class SourceSerializer(_CleanSummaryMixin, serializers.ModelSerializer):
     text_preview = serializers.SerializerMethodField()
     text_length = serializers.SerializerMethodField()
+    error_message = serializers.SerializerMethodField()
 
     class Meta:
         model = Source
@@ -36,6 +38,11 @@ class SourceSerializer(_CleanSummaryMixin, serializers.ModelSerializer):
             'file', 'original_filename', 'page_count',
             'gemini_summary', 'key_points', 'status', 'error_message', 'created_at', 'updated_at',
         ]
+
+    def get_error_message(self, obj) -> str:
+        # Stored in English (a background read has no request language);
+        # shown in the reader's.
+        return gettext(obj.error_message) if obj.error_message else ''
 
     def get_text_preview(self, obj) -> str:
         """The opening of the document, not the whole thing.
