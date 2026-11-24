@@ -1,7 +1,7 @@
 // Run with: pnpm test  (node --test; Node strips the types itself)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { allMarked, describeAnswer, draftText, filtered, filtersFor, inPracticeOrder, lastChoice, lastGrade, lastHint, lastMarks, lastSubmitted, parseFilter, practiceRows, toRedo } from './practice.ts'
+import { allMarked, describeAnswer, draftText, filtered, filtersFor, inPracticeOrder, lastChoice, lastGrade, lastHint, lastMarks, lastSubmitted, parseFilter, practiceRows, rowCount, toRedo } from './practice.ts'
 
 type A = { kind: 'submit' | 'hint' | 'reveal'; steps: string[]; result: Record<string, unknown> }
 const at = (kind: A['kind'], steps: string[], result = {}) => ({ id: 0, created_at: '', kind, steps, result })
@@ -114,4 +114,33 @@ test('problems picked from one file are one row, where the first of them stands'
   assert.equal(set.done, 1)
   assert.equal(set.title, 'Đề Hoá 12')
   assert.ok(set.started && !set.due)
+})
+
+test('problems written from one document are one row too, named for the document', () => {
+  const d = (id: number, source_id: number, status = 'new') => ({
+    id, status, due: false, attempted: false, notebook_id: 32, notebook_title: 'Biology', origin: 'document' as const,
+    set_key: '', set_title: '', source_id, source_title: source_id === 51 ? 'Biology Review' : 'Cells',
+  })
+  const rows = practiceRows([d(3, 51), d(9, 60), d(2, 51, 'mastered'), d(1, 51)])
+  assert.deepEqual(rows.map((r) => (r.kind === 'one' ? r.problem.id : r.key)), ['doc:51', 9])   // one problem stays a line
+  const doc = rows[0]
+  assert.ok(doc.kind === 'set' && doc.from === 'document')
+  assert.equal(doc.title, 'Biology Review')
+  assert.deepEqual(doc.problems.map((q) => q.id), [1, 2, 3])
+  assert.equal(doc.next.id, 1)
+  assert.equal(doc.done, 1)
+})
+
+test('the filters count the lines the list shows, not the problems in them', () => {
+  const own = (id: number, set_key: string) => ({
+    id, status: 'new', due: false, attempted: false, notebook_id: null, notebook_title: '', origin: 'own' as const,
+    set_key, set_title: 'Đề Hoá 12',
+  })
+  const doc = (id: number) => ({
+    id, status: 'new', due: false, attempted: false, notebook_id: 32, notebook_title: 'Biology',
+    origin: 'document' as const, set_key: '', set_title: '', source_id: 52, source_title: 'Evolution',
+  })
+  const list = [own(1, 'a'), own(2, 'a'), own(3, 'a'), own(4, 'b'), own(5, 'b'), doc(6), doc(7), doc(8)]
+  assert.equal(rowCount(list), 3)                                  // two sets, one document
+  assert.deepEqual(filtersFor(list).map((f) => [f.key, f.count]), [[32, 1], ['own', 2]])
 })

@@ -10,7 +10,7 @@ import { OwnProblemForm } from '@/components/own-problem-form'
 import { PageHeader } from '@/components/page-header'
 import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { exercisesAPI, type ExerciseSummary } from '@/lib/api'
-import { filtered, filtersFor, inPracticeOrder, parseFilter, practiceRows, type PracticeFilter } from '@/lib/practice'
+import { filtered, filtersFor, inPracticeOrder, parseFilter, practiceRows, rowCount, type PracticeFilter } from '@/lib/practice'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -69,7 +69,7 @@ function PracticeList() {
 
         {filters.length > 1 && (
           <div role="group" aria-label={t('filtersLabel')} className="mt-4 flex flex-wrap gap-2">
-            <FilterChip active={filter === 'all'} onClick={() => pick('all')} label={t('filterAll')} count={all.length} />
+            <FilterChip active={filter === 'all'} onClick={() => pick('all')} label={t('filterAll')} count={rowCount(all)} />
             {filters.map((f) => (
               <FilterChip
                 key={f.key}
@@ -100,15 +100,18 @@ function PracticeList() {
                     href={`/dashboard/practice/${row.next.id}`}
                     icon
                     title={row.title || t('setUntitled')}
-                    meta={t('setMeta', { count: row.problems.length, done: row.done })}
+                    meta={row.from === 'document'
+                      ? t('documentSetMeta', { notebook: row.next.notebook_title, count: row.problems.length, done: row.done })
+                      : t('setMeta', { count: row.problems.length, done: row.done })}
                     status={all ? t('status_mastered') : row.due ? t('dueAgain') : row.started ? t('status_started') : t('status_new')}
                     tone={all ? 'done' : row.due ? 'due' : 'plain'}
-                    action={
+                    // A document's name is the document's own; only a set is renamed here.
+                    action={row.from === 'document' ? undefined : (
                       <Button type="button" variant="ghost" size="icon-sm" onClick={() => setRenaming(row.key)}
                               aria-label={t('renameSet')} title={t('renameSet')}>
                         <Pencil aria-hidden />
                       </Button>
-                    }
+                    )}
                   />
                 )
               }

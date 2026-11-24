@@ -629,6 +629,7 @@
     "renameFailed": "Could not rename. Try again.",
     "setUntitled": "Your set",
     "setMeta": "Set · {count} problems · {done}/{count} done",
+    "documentSetMeta": "{notebook} · {count} problems · {done}/{count} done",
     "problem": "Problem",
     "fromDocument": "From {title}",
     "ownProblem": "Your own problem",

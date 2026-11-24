@@ -745,6 +745,17 @@ def test_a_problem_made_alone_has_no_set(client, user, notebook):
     assert client.get(f'/api/exercises/{ex.id}/').json()['set'] is None
 
 
+def test_problems_from_one_document_lead_from_one_to_the_next(client, user, notebook, contract):
+    """Listed as one row, so each says where it stands among them."""
+    made = [Exercise.objects.create(user=user, notebook=notebook, source=contract, origin='document',
+                                    prompt=f'Problem {n}', reference={}) for n in range(3)]
+    other = Exercise.objects.create(user=user, notebook=notebook, source=make_source(notebook, 'Other'),
+                                    origin='document', prompt='Alone', reference={})
+    middle = client.get(f'/api/exercises/{made[1].id}/').json()['set']
+    assert middle == {'index': 2, 'total': 3, 'prev_id': made[0].id, 'next_id': made[2].id}
+    assert client.get(f'/api/exercises/{other.id}/').json()['set'] is None
+
+
 def test_a_set_is_named_after_its_file_and_listed_as_one(client, model):
     one = {'complete': True, **RUBRIC, 'kind': 'written', 'prompt': 'Giải thích vì sao mùa mưa ở Huế lệch với TP.HCM.'}
     model({'problems': [one, one]})

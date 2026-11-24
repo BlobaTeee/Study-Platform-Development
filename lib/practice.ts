@@ -98,35 +98,52 @@ export function inPracticeOrder<T extends Listed>(problems: T[]): T[] {
   return [...problems].sort((a, b) => rank(a) - rank(b) || b.id - a.id)
 }
 
-type InSet = Listed & { set_key?: string; set_title?: string }
+type InSet = Listed & { set_key?: string; set_title?: string; source_id?: number | null; source_title?: string }
 export type PracticeRow<T> =
   | { kind: 'one'; problem: T }
-  | { kind: 'set'; key: string; title: string; problems: T[]; next: T; done: number; due: boolean; started: boolean }
+  | {
+      kind: 'set'; key: string; title: string; problems: T[]; next: T; done: number; due: boolean; started: boolean
+      // 'file': picked together from a photo or file (a set, renamable);
+      // 'document': written from one document of a notebook.
+      from: 'file' | 'document'
+    }
+
+/** Which row a problem belongs to: its set, or the document it was written
+ *  from; '' for one that stands alone. */
+function groupOf(p: InSet): string {
+  if (p.set_key) return p.set_key
+  return p.origin === 'document' && p.source_id ? `doc:${p.source_id}` : ''
+}
 
 /** The list as rows: problems picked together from one file are one row,
- *  where the first of them in the list would stand. `ordered` is the list
- *  already in practice order. A set's problems are in page order; `next` is
- *  the first one to do now (not mastered, not waiting to come back). */
+ *  and so are the problems written from one document, where the first of
+ *  them in the list would stand. `ordered` is the list already in practice
+ *  order. A row's problems are in the order they were made; `next` is the
+ *  first one to do now (not mastered, not waiting to come back). */
 export function practiceRows<T extends InSet>(ordered: T[]): PracticeRow<T>[] {
   const members = new Map<string, T[]>()
   for (const p of ordered) {
-    if (p.set_key) members.set(p.set_key, [...(members.get(p.set_key) ?? []), p])
+    const key = groupOf(p)
+    if (key) members.set(key, [...(members.get(key) ?? []), p])
   }
   const rows: PracticeRow<T>[] = []
   const placed = new Set<string>()
   for (const p of ordered) {
-    const set = p.set_key ? members.get(p.set_key)! : []
+    const key = groupOf(p)
+    const set = key ? members.get(key)! : []
     if (set.length < 2) {
       rows.push({ kind: 'one', problem: p })
       continue
     }
-    if (placed.has(p.set_key!)) continue
-    placed.add(p.set_key!)
+    if (placed.has(key)) continue
+    placed.add(key)
     const problems = [...set].sort((a, b) => a.id - b.id)
     const open = (q: T) => q.status === 'new' || (q.status === 'revisit' && q.due)
     const done = problems.filter((q) => q.status === 'mastered').length
+    const fromFile = Boolean(p.set_key)
     rows.push({
-      kind: 'set', key: p.set_key!, title: p.set_title ?? '', problems,
+      kind: 'set', key, title: (fromFile ? p.set_title : p.source_title) ?? '', problems,
+      from: fromFile ? 'file' : 'document',
       next: problems.find(open) ?? problems[0], done,
       due: problems.some((q) => q.status === 'revisit' && q.due),
       started: done > 0 || problems.some((q) => q.attempted || q.status === 'revisit'),
@@ -143,17 +160,27 @@ export function filtered<T extends Listed>(problems: T[], filter: PracticeFilter
 
 /** One filter per notebook that has problems, in order of first appearance,
  *  and one for the student's own problems when there are any. */
-export function filtersFor(problems: Listed[]): { key: number | 'own'; title: string; count: number }[] {
-  const out = new Map<number | 'own', { key: number | 'own'; title: string; count: number }>()
+/** How many lines the list shows for these problems: a set, or the
+ *  problems from one document, is one line (practiceRows). */
+export function rowCount(problems: InSet[]): number {
+  return new Set(problems.map((p) => groupOf(p) || `one:${p.id}`)).size
+}
+
+/** The notebooks (and "own") the list can be narrowed to, each with how
+ *  many lines it shows, not how many problems: 83 read as a mistake beside
+ *  six lines (2026-11-25). */
+export function filtersFor(problems: InSet[]): { key: number | 'own'; title: string; count: number }[] {
+  const out = new Map<number | 'own', { key: number | 'own'; title: string; count: number; lines: Set<string> }>()
   for (const p of problems) {
     const key = p.origin === 'own' || p.notebook_id == null ? 'own' : p.notebook_id
-    const slot = out.get(key) ?? { key, title: key === 'own' ? '' : p.notebook_title, count: 0 }
-    slot.count += 1
+    const slot = out.get(key) ?? { key, title: key === 'own' ? '' : p.notebook_title, count: 0, lines: new Set<string>() }
+    slot.lines.add(groupOf(p) || `one:${p.id}`)
+    slot.count = slot.lines.size
     out.set(key, slot)
   }
   const own = out.get('own')
   out.delete('own')
-  return [...out.values(), ...(own ? [own] : [])]
+  return [...out.values(), ...(own ? [own] : [])].map(({ key, title, count }) => ({ key, title, count }))
 }
 
 export function parseFilter(raw: string | null): PracticeFilter {

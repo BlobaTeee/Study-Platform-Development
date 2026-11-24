@@ -69,12 +69,17 @@ def detail(exercise: Exercise) -> dict:
 
 
 def _set_position(exercise: Exercise) -> dict | None:
-    """Where the problem stands in the set it was picked with, for "3 of 8"
-    and the way to the next; None for a problem made on its own."""
-    if not exercise.set_key:
+    """Where the problem stands in the set it was picked with, or among the
+    problems written from the same document (the list shows either as one
+    row), for "3 of 8" and the way to the next; None for one on its own."""
+    if exercise.set_key:
+        group = Exercise.objects.filter(user_id=exercise.user_id, set_key=exercise.set_key)
+    elif exercise.origin == 'document' and exercise.source_id:
+        group = Exercise.objects.filter(user_id=exercise.user_id, origin='document', set_key='',
+                                        source_id=exercise.source_id)
+    else:
         return None
-    ids = list(Exercise.objects.filter(user_id=exercise.user_id, set_key=exercise.set_key)
-               .order_by('id').values_list('id', flat=True))
+    ids = list(group.order_by('id').values_list('id', flat=True))
     if len(ids) < 2 or exercise.id not in ids:
         return None
     at = ids.index(exercise.id)

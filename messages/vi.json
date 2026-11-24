@@ -629,6 +629,7 @@
     "renameFailed": "Chưa đổi được tên. Thử lại nhé.",
     "setUntitled": "Bộ đề của bạn",
     "setMeta": "Bộ đề · {count} bài · xong {done}/{count}",
+    "documentSetMeta": "{notebook} · {count} bài · xong {done}/{count}",
     "problem": "Đề bài",
     "fromDocument": "Từ tài liệu {title}",
     "ownProblem": "Đề bạn tự đưa",
