@@ -44,13 +44,14 @@ type Flashcard = {
   exam_in_days?: number | null
 }
 
-/** The three SM-2 grades, worst recall first. Only you can judge whether you
+/** Two grades, as the student thinks of it: did not remember, remembered
+ *  (the user asked for two on 2026-11-25; "easy" is no longer offered but the
+ *  backend still reads it on older reviews). Only you can judge whether you
  *  remembered a card, so grading is the one step that cannot be automated —
  *  the number keys mirror the on-screen order. */
 const GRADES: { value: ReviewGrade; className: string }[] = [
   { value: 'hard', className: 'border-red-300 bg-red-50 text-red-900 hover:bg-red-100' },
-  { value: 'good', className: 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100' },
-  { value: 'easy', className: 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100' },
+  { value: 'good', className: 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100' },
 ]
 
 function FlashcardsStudy() {
@@ -460,7 +461,7 @@ function FlashcardsStudy() {
           <p className="text-center text-sm text-slate-600">
             {suggestion ? t('suggestedGrade', { grade: t(suggestion) }) : t('howWell')}
           </p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {GRADES.map((g, i) => (
               <button
                 key={g.value}
@@ -478,7 +479,6 @@ function FlashcardsStudy() {
                   <span className="text-base font-semibold">{t(g.value)}</span>
                   <kbd className="font-mono text-xs opacity-70 tabular-nums">{i + 1}</kbd>
                 </span>
-                <span className="block text-sm opacity-80">{t(`${g.value}Hint`)}</span>
               </button>
             ))}
           </div>
