@@ -81,6 +81,11 @@ def from_document(user, source) -> list[Exercise]:
     if not text.strip():
         raise PracticeUnavailable(_('This document has no text to write problems from.'))
     lang = language_of(text[:3000], source.title)
+    # Problems are written from the main ideas. A document never read for
+    # them (its reading failed at upload) is read now, once, and keeps them:
+    # its opening alone is often a table of contents (a scanned book, 2026-11-24).
+    from notebooks.services.key_points import ensure_key_points
+    ensure_key_points(source)
     prompt = f"""Write {PER_DOCUMENT} practice problems from this study material, in {language_name(lang)}:
 one easy, one medium, one hard.
 
@@ -113,7 +118,7 @@ Material ("{source.title}"):
 Return ONLY valid JSON:
 {{"subject": "...", "problems": [{{"prompt": "...", "difficulty": "easy|medium|hard", {RUBRIC_SHAPE}}}]}}"""
 
-    raw = items_of(ask(prompt), 'problems')
+    raw = items_of(ask(prompt, typed=False), 'problems')
     problems = [p for p in (_problem(item, text, source.title, lang) for item in raw) if p][:PER_DOCUMENT]
     if not problems:
         raise PracticeUnavailable(_('No usable problem came back for this document. Try again.'))

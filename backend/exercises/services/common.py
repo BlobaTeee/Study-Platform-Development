@@ -55,7 +55,7 @@ def _transient(exc: Exception) -> bool:
 
 
 def ask(prompt: str, images: list[tuple[bytes, str]] | None = None, quick: bool = False,
-        reading: bool = False, long: bool = False) -> dict:
+        reading: bool = False, long: bool = False, typed: bool | None = None) -> dict:
     """One model request (with images, if given); failures become a message
     the student can act on. `quick` puts it on the fast model first
     (model_lane), for a judgement the student is waiting on. `reading` is a
@@ -92,7 +92,9 @@ def ask(prompt: str, images: list[tuple[bytes, str]] | None = None, quick: bool 
         raise PracticeUnavailable(_('This needs the AI provider, which is not available right now.')) from exc
     except Exception as exc:  # noqa: BLE001
         logger.warning('Practice request failed: %s', exc)
-        typed = not (reading or long)        # the message promises to keep what was typed
+        # The message promises to keep what was typed: only where the student
+        # typed something (not when problems are written from a document).
+        typed = not (reading or long) if typed is None else typed
         if isinstance(exc, GeminiQuotaError) or is_quota_error(exc):
             raise PracticeUnavailable(
                 _('The AI has used up its free requests for now. Wait a few minutes and try again.') if not typed

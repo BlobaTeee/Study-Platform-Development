@@ -444,3 +444,6 @@ msgstr "Việc đọc file này bị dừng giữa chừng. Hãy gỡ file rồi
 
 msgid "No text could be extracted from this file."
 msgstr "Không trích được chữ từ file này."
+
+msgid "That could not be done just now. Try again in a minute."
+msgstr "Chưa làm được lúc này. Thử lại sau một phút nhé."

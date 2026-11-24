@@ -111,6 +111,30 @@ def test_a_checkpoint_the_document_does_not_say_is_dropped(client, model, contra
     assert [c['id'] for c in kept.reference['checkpoints']] == [1, 2]
 
 
+def test_an_overloaded_ai_does_not_promise_to_keep_what_was_never_typed(client, model, contract):
+    """Problems written from a document: the student typed nothing, so the
+    message must not say "what you wrote is kept" (seen on 2026-11-24)."""
+    model(RuntimeError('Every Gemini model was busy: 503 UNAVAILABLE. high demand'))
+    res = client.post('/api/exercises/generate/', {'source_id': contract.id}, format='json')
+    assert res.status_code == 503
+    assert res.json()['detail'] == 'The AI is overloaded right now. Try again in a few minutes.'
+
+
+def test_a_document_without_main_ideas_is_read_for_them_first(client, model, contract, monkeypatch):
+    """The problems come from the main ideas, read now and kept, not from
+    the document's opening (a scanned book's is its table of contents)."""
+    ideas = {'summary': 'Late delivery.', 'key_points': [
+        {'point': 'A late delivery is a breach.', 'label': 'Late delivery', 'importance': 'core', 'quote': Q1}]}
+    provider = model(ideas, {'problems': []})
+    monkeypatch.setattr('notebooks.services.key_points.get_ai_provider', lambda: provider)
+
+    client.post('/api/exercises/generate/', {'source_id': contract.id}, format='json')
+
+    contract.refresh_from_db()
+    assert [p['label'] for p in contract.key_points] == ['Late delivery']
+    assert '- A late delivery is a breach.' in provider.prompts[1]      # written from the idea
+
+
 def test_nothing_usable_is_an_error_and_nothing_is_saved(client, model, contract):
     model({'problems': [problem('Too short', 'easy', [Q1, Q2])]})
 
