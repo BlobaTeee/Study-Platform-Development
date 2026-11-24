@@ -300,9 +300,22 @@ class StudyStreakViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def me(self, request):
-        """Get current user's streak."""
-        streak, created = StudyStreak.objects.get_or_create(user=request.user)
-        return Response(StudyStreakSerializer(streak).data)
+        """The streak as it stands today, from every kind of study (the same
+        days the Progress calendar marks), in the student's own zone. The
+        stored row only adds its best: it never ran back to 0 by itself, and
+        it counted card reviews alone."""
+        from users.timezones import zone_for
+        from .study_days import study_days
+
+        stored, _ = StudyStreak.objects.get_or_create(user=request.user)
+        zone = zone_for(request.user)
+        now = scheduling.streak_from_days(study_days(request.user, zone),
+                                          timezone.now().astimezone(zone).date())
+        data = StudyStreakSerializer(stored).data
+        data['current_streak'] = now.current
+        data['best_streak'] = max(now.best, stored.best_streak, now.current)
+        data['last_session_date'] = now.last_date.isoformat() if now.last_date else None
+        return Response(data)
 
 
 class CardReviewViewSet(viewsets.ReadOnlyModelViewSet):

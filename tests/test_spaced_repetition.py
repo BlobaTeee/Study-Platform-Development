@@ -649,3 +649,35 @@ def test_a_tests_cards_saved_for_later_days_are_paced_not_paused():
                              exam_new_today=5, exam_unseen=15)
     assert share["new_paused"] is False
     assert share["today"] == 45
+
+
+# ---- streak_from_days -------------------------------------------------------
+# The home page reads the streak from the days studied, so it runs back to 0
+# by itself after a gap instead of showing the last stored number for ever.
+
+def _days(*offsets):
+    return {TODAY - timedelta(days=n) for n in offsets}
+
+
+def test_no_study_is_no_streak():
+    assert sm2.streak_from_days(set(), TODAY) == sm2.Streak(0, 0, None)
+
+
+def test_a_streak_still_counts_before_today_is_studied():
+    s = sm2.streak_from_days(_days(1, 2, 3), TODAY)
+    assert (s.current, s.best) == (3, 3)
+
+
+def test_today_extends_the_streak():
+    s = sm2.streak_from_days(_days(0, 1, 2), TODAY)
+    assert (s.current, s.best, s.last_date) == (3, 3, TODAY)
+
+
+def test_a_gap_of_two_days_breaks_the_streak_but_keeps_the_best():
+    s = sm2.streak_from_days(_days(2, 3, 9, 10, 11, 12), TODAY)
+    assert (s.current, s.best) == (0, 4)
+
+
+def test_weeks_away_reads_as_zero():
+    s = sm2.streak_from_days(_days(43), TODAY)
+    assert (s.current, s.best, s.last_date) == (0, 1, TODAY - timedelta(days=43))

@@ -20,7 +20,7 @@ import re
 from django.conf import settings
 from django.utils.translation import gettext as _
 
-from . import figures
+from . import answer_key, figures
 from .common import PracticeUnavailable, ask, items_of, printed_answer
 
 DEFAULT_MAX_BYTES = 15 * 1024 * 1024
@@ -139,6 +139,7 @@ def read_problems(data: bytes) -> tuple[list[dict], str]:
     mime = image_type(data)
     if mime is None:
         raise NotAnImage(_('Use a photo (JPEG, PNG, WEBP or HEIC), a PDF or a Word file.'))
+    word = data if mime == DOCX else None
     if mime == DOCX and (pdf := docx_to_pdf(data)):
         data, mime = pdf, 'application/pdf'
     if mime == DOCX:
@@ -161,13 +162,18 @@ def read_problems(data: bytes) -> tuple[list[dict], str]:
             label = str(item.get('label') or '').strip()[:MAX_LABEL_CHARS]
             instruction = str(item.get('instruction') or '').strip()[:MAX_INSTRUCTION_CHARS]
             question = {'label': label or str(len(questions) + 1), 'instruction': instruction, 'text': text}
-            answer = printed_answer(item.get('answer'))
-            if answer is not None:
-                question['answer'] = answer        # the paper's own key, used for the answer key
+            hint = printed_answer(item.get('answer'))
+            if hint is not None:
+                # The key as the model read it: a hint only. Read from a
+                # picture it was wrong for 7 of 28 answers on 2026-11-24.
+                question['hint'] = hint
             questions.append(question)
             boxes.append(figures.boxes_of(item))
             parts.append(_part_name(item.get('part')))
-    _label_parts(questions, parts)
+    filled = _label_parts(questions, parts)
+    if word is not None:
+        # A Word file's key is read from its table, exactly: the paper's answer.
+        answer_key.apply_key(questions, filled, answer_key.key_from_docx(word))
     for question in questions:
         question['text'] = _statement_letters(question['text'])
     if reply.get('found') is False or not questions:
@@ -229,21 +235,23 @@ def _title(value) -> str:
     return words[0][:1].upper() + ' '.join(words)[1:]
 
 
-def _label_parts(questions: list[dict], parts: list[str]) -> None:
+def _label_parts(questions: list[dict], parts: list[str]) -> list[str]:
     """Every question named with its part ("Phần I · Câu 11") when the paper
     has more than one, so the parts read the same throughout: the model used
     to add the part only once the numbering restarted, leaving Part I bare.
-    A question given no part is in the one before it."""
+    A question given no part is in the one before it. Returns each
+    question's part, so filled."""
     current, filled = '', []
     for part in parts:
         current = part or current
         filled.append(current)
     if len({p for p in filled if p}) < 2:
-        return
+        return filled
     for question, part in zip(questions, filled):
         if part:
             bare = _PART_IN_LABEL.sub('', question['label']) or question['label']
             question['label'] = f'{part} · {bare}'
+    return filled
 
 
 FIGURES_NOTE = """The document's pictures are attached as {count} images, in order: [Picture 1] in

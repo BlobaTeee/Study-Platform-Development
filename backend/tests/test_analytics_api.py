@@ -220,3 +220,22 @@ def test_activity_is_the_users_own(client, other_user):
     _review_at(other_user, theirs, __import__('django.utils.timezone', fromlist=['now']).now())
 
     assert client.get(ACTIVITY).json()['summary']['reviews'] == 0
+
+
+def test_the_streak_counts_any_study_and_fades_after_a_gap(client, user, notebook):
+    """The home page streak marks the same days as the Progress calendar,
+    and a run that ended weeks ago reads 0, not its old length."""
+    from datetime import timedelta
+    from django.utils import timezone
+    from exercises.models import Exercise, ExerciseAttempt
+    from study_sessions.models import StudyStreak
+
+    StudyStreak.objects.create(user=user, current_streak=6, best_streak=6,
+                               last_session_date=timezone.localdate() - timedelta(days=40))
+    res = client.get('/api/study/streaks/me/').json()
+    assert (res['current_streak'], res['best_streak']) == (0, 6)
+
+    problem = Exercise.objects.create(user=user, notebook=notebook, prompt='A')
+    ExerciseAttempt.objects.create(exercise=problem, kind='submit', result={'verdict': 'needs_work'})
+    res = client.get('/api/study/streaks/me/').json()
+    assert (res['current_streak'], res['best_streak']) == (1, 6)

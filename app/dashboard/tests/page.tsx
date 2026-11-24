@@ -343,7 +343,7 @@ function MockTestsInner() {
     } finally {
       setSubmitting(false)
     }
-  }, [test])
+  }, [test, t])
 
   // The countdown is display only: it is derived from the server's `deadline`
   // on every tick, never by counting `duration_minutes` down locally — a
@@ -543,7 +543,7 @@ function MockTestsInner() {
         setSaveError(t('saveFailed'))
       }
     },
-    [test, handleSubmit]
+    [test, handleSubmit, t]
   )
 
   // Typing changes the answer here; it is saved when the box loses focus,

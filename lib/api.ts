@@ -76,7 +76,7 @@ export const flashcardsAPI = {
 }
 
 export const streaksAPI = {
-  // Current/best consecutive-day streak. Advances when a card is reviewed.
+  // Current/best run of days studied, counted like the Progress calendar.
   getMe: () => api.get('/study/streaks/me/'),
 }
 
@@ -194,7 +194,7 @@ export type PracticeMistakes = {
 // figures[n - 1] is the picture for [Figure n: …] in the text, cut from the page; null if it could not be.
 // answer: the paper's own answer from its answer key (ĐÁP ÁN), when it prints one.
 export type PrintedAnswer = string | Record<string, boolean>
-export type PhotoQuestion = { label: string; instruction: string; text: string; figures?: (string | null)[]; answer?: PrintedAnswer }
+export type PhotoQuestion = { label: string; instruction: string; text: string; figures?: (string | null)[]; answer?: PrintedAnswer; hint?: PrintedAnswer }
 
 export const exercisesAPI = {
   list: (params: { notebook?: number; source?: number; own?: 1 }) =>
@@ -207,8 +207,11 @@ export const exercisesAPI = {
   // Rename a set; '' gives back the default name.
   renameSet: (key: string, title: string) =>
     api.patch<{ set_key: string; set_title: string }>(`/exercises/sets/${key}/`, { title }),
-  ownSet: (texts: string[], figures?: (string | null)[][], title?: string, answers?: (PrintedAnswer | null)[]) =>
-    api.post<{ results: ExerciseSummary[]; skipped: { index: number; reason: string }[] }>('/exercises/own-set/', { texts, figures, title, answers }),
+  // answers: the key read from a Word file's table (the paper's answer);
+  // hints: the key as the AI read it from a picture, which may be misread.
+  ownSet: (texts: string[], figures?: (string | null)[][], title?: string, answers?: (PrintedAnswer | null)[],
+           hints?: (PrintedAnswer | null)[]) =>
+    api.post<{ results: ExerciseSummary[]; skipped: { index: number; reason: string }[] }>('/exercises/own-set/', { texts, figures, title, answers, hints }),
   // A photo read into its questions (maths in LaTeX), for the student to pick
   // one; the photo is not kept.
   readPhoto: (file: File) => {

@@ -195,7 +195,8 @@ SET_PER_REQUEST = 3
 
 
 def own_set(user, texts: list[str], figures: list[list] | None = None,
-            title: str = '', answers: list | None = None) -> tuple[list[Exercise], list[dict]]:
+            title: str = '', answers: list | None = None,
+            hints: list | None = None) -> tuple[list[Exercise], list[dict]]:
     """Several problems from one photo or file, made in as few requests as
     possible and kept together under one set key, in the order given.
 
@@ -204,7 +205,9 @@ def own_set(user, texts: list[str], figures: list[list] | None = None,
     When none could be made: IncompleteProblem if the model found them
     unsolvable, PracticeUnavailable if it could not be asked. answers[i] is
     problem i's answer as the paper prints it (common.printed_answer), or None:
-    the key then follows the paper, not the model."""
+    the key then follows the paper, not the model. hints[i] is the key as
+    the model read it from a picture: it may be misread, so the model is told
+    of it but solves the problem itself."""
     import uuid
     from concurrent.futures import ThreadPoolExecutor
 
@@ -212,13 +215,15 @@ def own_set(user, texts: list[str], figures: list[list] | None = None,
     figures = figures or []
     answers = [printed_answer(a) for a in (answers or [])]
     answers += [None] * (len(texts) - len(answers))
+    hints = [printed_answer(h) for h in (hints or [])]
+    hints += [None] * (len(texts) - len(hints))
     chunks = [list(range(i, min(i + SET_PER_REQUEST, len(texts)))) for i in range(0, len(texts), SET_PER_REQUEST)]
 
     def rubrics(indexes):
         try:
             return indexes, _set_rubrics([texts[i] for i in indexes],
                                          [figures[i] if i < len(figures) else [] for i in indexes],
-                                         [answers[i] for i in indexes]), ''
+                                         [answers[i] for i in indexes], [hints[i] for i in indexes]), ''
         except PracticeUnavailable as exc:
             return indexes, [], str(exc)
 
@@ -289,7 +294,8 @@ def _as_words(printed) -> str:
     return str(printed)
 
 
-def _set_rubrics(texts: list[str], figures: list[list] | None = None, answers: list | None = None) -> list:
+def _set_rubrics(texts: list[str], figures: list[list] | None = None, answers: list | None = None,
+                 hints: list | None = None) -> list:
     """One request for several problems; the reply's list is in their order.
     The figures cut from the page go along as pictures: a description such as
     "open-chain structural formula of a carbohydrate" does not say which one,
@@ -310,6 +316,12 @@ def _set_rubrics(texts: list[str], figures: list[list] | None = None, answers: l
     keyed = (f"""The paper's own answer key gives: {'; '.join(printed)}. Take these as the right answers:
 give them as the answer, and write the solution and checkpoints that reach them.
 """ if printed else '')
+    read = [f'Problem {n}: {_as_words(h)}' for n, h in enumerate(hints or [], 1)
+            if h is not None and (not answers or n > len(answers) or answers[n - 1] is None)]
+    if read:
+        keyed += f"""An answer key read from a picture of the paper suggests: {'; '.join(read)}. It may be
+misread: solve each of these yourself, and where your working disagrees with it, give your own answer.
+"""
     pictures = (f"""The figures cut from the page are attached as pictures, in order: {'; '.join(legend)}.
 Read each of these figures from its picture; its description only names it. A figure you have as
 a picture never makes a problem incomplete.

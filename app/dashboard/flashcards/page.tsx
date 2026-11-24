@@ -182,7 +182,7 @@ function FlashcardsStudy() {
         setSaving(false)
       }
     },
-    [flashcards, index, saving, goNext, queue]
+    [flashcards, index, saving, goNext, queue, t]
   )
 
   // Keyboard: space/enter flips, arrows move, number keys grade a revealed

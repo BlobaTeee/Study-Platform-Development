@@ -558,7 +558,7 @@
   },
   "account": {
     "nameTitle": "Display name",
-    "nameLead": "How StudyFlow addresses you. Not shown to anyone else.",
+    "nameLead": "The name your group sees, in chat and live study.",
     "nameLabel": "Name",
     "saved": "Saved",
     "nameFailed": "Could not save the name. Try again.",
@@ -683,7 +683,7 @@
     "step2": "Pick questions",
     "step3": "Check",
     "photoTips": "Photos, PDFs and Word files. Take photos straight on, in good light, with the whole question in frame. The file is only read, never kept.",
-    "photoReadingHint": "Usually 15–40 seconds.",
+    "photoReadingHint": "A photo takes about 30 seconds; a long file up to 3 minutes.",
     "pickLead": "Found {count, plural, one {# question} other {# questions}}. Tick the ones to practise, up to {max}.",
     "retake": "Choose another photo or file",
     "setName": "Set name",

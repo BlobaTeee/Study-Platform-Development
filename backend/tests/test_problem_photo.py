@@ -107,7 +107,9 @@ def test_a_paper_with_one_part_keeps_plain_labels(client, reader):
     assert [q['label'] for q in _post(client, JPEG).json()['questions']] == ['Câu 1', 'Câu 2']
 
 
-def test_the_papers_own_answers_come_back_with_their_questions(client, reader):
+def test_a_key_read_from_a_picture_comes_back_as_a_hint_only(client, reader):
+    """Read from a picture the key can be misread (7 of 28 on 2026-11-24),
+    so it is never handed over as the paper's answer."""
     r = reader({'found': True, 'questions': [
         {'label': 'Câu 1', 'text': 'Cặp nào có tính khử mạnh nhất? A. Na. B. Li.', 'answer': 'B'},
         {'label': 'Câu 2', 'text': 'Cho bảng. a) Zn khử mạnh. b) Fe oxi hoá mạnh.', 'answer': {'a': 'Đ', 'b': 'S'}},
@@ -116,7 +118,8 @@ def test_the_papers_own_answers_come_back_with_their_questions(client, reader):
         {'label': 'Câu 5', 'text': 'Cho bảng. a) Zn. b) Fe.', 'answer': {'a': 'maybe'}},
     ]})
     questions = _post(client, JPEG).json()['questions']
-    assert [q.get('answer') for q in questions] == ['B', {'a': True, 'b': False}, '180', None, None]
+    assert [q.get('hint') for q in questions] == ['B', {'a': True, 'b': False}, '180', None, None]
+    assert all('answer' not in q for q in questions)
     assert 'ĐÁP ÁN' in r.prompt and 'handwriting' in r.prompt
 
 
@@ -395,3 +398,66 @@ def test_reading_asks_for_little_thinking(settings, monkeypatch):
         except Exception:
             pass
     assert seen == ['low']
+
+
+def _keyed_docx():
+    """A three-part paper's key laid out as the 2026-11-24 Hoá paper's:
+    1..18 over letters, then 1a..4d over Đ/S beside 1..6 over numbers."""
+    import io
+    from docx import Document
+    doc = Document()
+    doc.add_paragraph('ĐÁP ÁN')
+    first = doc.add_table(rows=2, cols=3)
+    for i, (head, value) in enumerate([('1', 'B'), ('2', 'D'), ('3', 'C')]):
+        first.cell(0, i).text, first.cell(1, i).text = head, value
+    second = doc.add_table(rows=2, cols=6)
+    for i, (head, value) in enumerate([('1a', 'D'), ('1b', 'S'), ('2a', 'S'), ('2b', 'Đ'), ('1', '1246'), ('2', '-0,7')]):
+        second.cell(0, i).text, second.cell(1, i).text = head, value
+    out = io.BytesIO()
+    doc.save(out)
+    return out.getvalue()
+
+
+def test_a_word_files_key_is_read_from_its_table_not_the_model(client, reader, monkeypatch):
+    monkeypatch.setattr('exercises.services.photo.docx_to_pdf', lambda data: b'%PDF-1.7 drawn')
+    monkeypatch.setattr('exercises.services.figures.cut', lambda data, mime, boxes: [[] for _ in boxes])
+    reader({'found': True, 'questions': [
+        {'label': 'Câu 1', 'part': 'PHẦN I', 'text': 'A?', 'answer': 'A'},
+        {'label': 'Câu 3', 'part': 'PHẦN I', 'text': 'C?', 'answer': 'C'},
+        {'label': 'Câu 2', 'part': 'PHẦN II', 'text': 'a) x. b) y.', 'answer': {'a': True, 'b': False}},
+        {'label': 'Câu 1', 'part': 'PHẦN III', 'text': 'M?', 'answer': '124'},
+        {'label': 'Câu 2', 'part': 'PHẦN III', 'text': 'E?', 'answer': '-0,74'},
+    ]})
+    res = _post(client, _keyed_docx(), name='de.docx',
+                ctype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    questions = res.json()['questions']
+    assert [q.get('answer') for q in questions] == ['B', 'C', {'a': False, 'b': True}, '1246', '-0,7']
+
+
+def test_a_key_that_does_not_fit_the_paper_is_not_used(client, reader, monkeypatch):
+    """Two runs of numbers for a one-part paper: which run is whose cannot be
+    told, so nothing is taken from it."""
+    monkeypatch.setattr('exercises.services.photo.docx_to_pdf', lambda data: b'%PDF-1.7 drawn')
+    monkeypatch.setattr('exercises.services.figures.cut', lambda data, mime, boxes: [[] for _ in boxes])
+    reader({'found': True, 'questions': [{'label': 'Câu 1', 'text': 'A?', 'answer': 'A'}]})
+    res = _post(client, _keyed_docx(), name='de.docx',
+                ctype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    assert [(q.get('answer'), q.get('hint')) for q in res.json()['questions']] == [(None, 'A')]
+
+
+def test_a_key_is_read_from_upright_tables_and_ignores_other_tables():
+    import io
+    from docx import Document
+    from exercises.services.answer_key import key_from_docx
+    doc = Document()
+    options = doc.add_table(rows=1, cols=2)
+    options.cell(0, 0).text, options.cell(0, 1).text = 'A. 1.', 'B. 3.'
+    data = doc.add_table(rows=2, cols=3)
+    for i, (head, value) in enumerate([('t (phút)', '0'), ('10', '20'), ('30', '40')]):
+        data.cell(0, i).text, data.cell(1, i).text = head, value
+    key = doc.add_table(rows=3, cols=2)
+    for r, (head, value) in enumerate([('Câu', 'Đáp án'), ('1', 'b'), ('2', 'A')]):
+        key.cell(r, 0).text, key.cell(r, 1).text = head, value
+    out = io.BytesIO()
+    doc.save(out)
+    assert key_from_docx(out.getvalue()) == [{1: 'b', 2: 'A'}]

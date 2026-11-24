@@ -29,13 +29,13 @@ export function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: ()
 
   // Problems picked from a photo or file, made together as one set.
   const createSet = async (texts: string[], labels: string[], figures: (string | null)[][], title: string,
-                           answers: (PrintedAnswer | null)[]) => {
+                           answers: (PrintedAnswer | null)[], hints: (PrintedAnswer | null)[]) => {
     if (busy || texts.length === 0) return
     setBusy(true)
     setError(null)
     setPartial(null)
     try {
-      const { results, skipped } = (await exercisesAPI.ownSet(texts, figures, title, answers)).data
+      const { results, skipped } = (await exercisesAPI.ownSet(texts, figures, title, answers, hints)).data
       if (skipped.length === 0) return router.push(`/dashboard/practice/${results[0].id}`)
       setPartial({ firstId: results[0].id, made: results.length, skipped: skipped.map((s) => `${labels[s.index] ?? s.index + 1}: ${s.reason}`) })
       setBusy(false)
@@ -64,7 +64,7 @@ export function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: ()
       </button>
       {open && (
         <div id="own-problem-form" className="space-y-6 border-t border-slate-200 p-6 md:p-8">
-          <PhotoFlow busy={busy} onCreate={(texts, labels, figures, title, answers) => void createSet(texts, labels, figures, title, answers)} onError={setError} />
+          <PhotoFlow busy={busy} onCreate={(texts, labels, figures, title, answers, hints) => void createSet(texts, labels, figures, title, answers, hints)} onError={setError} />
 
           {error && <p role="alert" className="max-w-[65ch] text-sm text-red-700">{error}</p>}
           {partial && (
@@ -87,9 +87,10 @@ export function OwnProblemForm({ open, onToggle }: { open: boolean; onToggle: ()
 function PhotoFlow({ busy, onCreate, onError }: {
   busy: boolean
   // title: the set's name in the practice list, the file's name without its extension.
-  // answers: each problem's answer as the paper prints it, or null.
+  // answers: each problem's answer from the Word file's key table, or null;
+  // hints: the key as the AI read it, which may be misread, or null.
   onCreate: (texts: string[], labels: string[], figures: (string | null)[][], title: string,
-             answers: (PrintedAnswer | null)[]) => void
+             answers: (PrintedAnswer | null)[], hints: (PrintedAnswer | null)[]) => void
   onError: (message: string | null) => void
 }) {
   const t = useTranslations('practice')
@@ -233,7 +234,7 @@ function PhotoFlow({ busy, onCreate, onError }: {
                       onChange={() => setPicked((p) => togglePick(p, i))}
                       className="mt-0.5 size-4 shrink-0 accent-mode-strong"
                     />
-                    <span className="w-20 shrink-0 text-sm font-semibold text-slate-900">{q.label}</span>
+                    <span className="w-32 shrink-0 whitespace-nowrap text-sm font-semibold text-slate-900">{q.label}</span>
                     <span className="line-clamp-2 text-sm leading-relaxed text-slate-700">
                       <MathText text={firstLines(q.text)} />
                     </span>
@@ -337,7 +338,7 @@ function PhotoFlow({ busy, onCreate, onError }: {
                 {t('retake')}
               </Button>
             )}
-            <Button type="button" onClick={() => onCreate(texts, picked.map((i) => questions[i].label), picked.map((i) => questions[i].figures ?? []), setName.trim(), picked.map((i) => questions[i].answer ?? null))} disabled={busy || !ready}>
+            <Button type="button" onClick={() => onCreate(texts, picked.map((i) => questions[i].label), picked.map((i) => questions[i].figures ?? []), setName.trim(), picked.map((i) => questions[i].answer ?? null), picked.map((i) => questions[i].hint ?? null))} disabled={busy || !ready}>
               {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Check aria-hidden />}
               {busy ? t('creatingSet') : texts.length > 1 ? t('createSet', { count: texts.length }) : t('createChecked')}
             </Button>

@@ -191,7 +191,8 @@ class OwnSetView(_Generating):
     several of the student's own problems, picked together from one photo or
     file, as one set: {results, skipped}. figures[i] are problem i's, as
     read; title names the set (the file's name); answers[i] is problem i's
-    answer as the paper prints it, or null."""
+    answer from a Word file's key table, or null; hints[i] the key as the
+    model read it from a picture, which may be misread, or null."""
 
     def post(self, request):
         raw = request.data.get('texts')
@@ -208,8 +209,10 @@ class OwnSetView(_Generating):
                for g in given[:len(texts)]]
         try:
             given_answers = request.data.get('answers') if isinstance(request.data.get('answers'), list) else []
+            given_hints = request.data.get('hints') if isinstance(request.data.get('hints'), list) else []
             made, skipped = problems.own_set(request.user, texts, cut,
-                                             str(request.data.get('title') or ''), given_answers[:len(texts)])
+                                             str(request.data.get('title') or ''), given_answers[:len(texts)],
+                                             given_hints[:len(texts)])
         except problems.IncompleteProblem as exc:
             return Response({'detail': str(exc), 'incomplete': True}, status=400)
         except PracticeUnavailable as exc:

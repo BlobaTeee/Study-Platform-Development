@@ -787,6 +787,18 @@ def test_a_set_without_printed_answers_keeps_the_models(client, model):
     assert reference['answer'] == 'B' and 'answer_from' not in reference
 
 
+def test_a_key_read_from_a_picture_is_only_a_hint(client, model):
+    """A key the model read off a picture may be misread: the model is told
+    of it but its own answer stands, and the set does not claim the paper."""
+    provider = model({'problems': [{**_keyed_choice(), 'answer': 'C'}]})
+    body = client.post('/api/exercises/own-set/', {'texts': [CHOICE_TEXT], 'answers': [None], 'hints': ['B']},
+                       format='json').json()
+    reference = Exercise.objects.get(id=body['results'][0]['id']).reference
+    assert reference['answer'] == 'C' and 'answer_from' not in reference
+    assert 'read from a picture of the paper suggests: Problem 1: B' in provider.prompts[0]
+    assert 'answer key gives' not in provider.prompts[0]
+
+
 def test_a_set_reply_sent_as_a_bare_list_still_makes_the_set(client, model):
     one = {'complete': True, **RUBRIC, 'kind': 'written', 'prompt': 'Giải thích vì sao mùa mưa ở Huế lệch với TP.HCM.'}
     model([one, one])
