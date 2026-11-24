@@ -61,7 +61,9 @@ RUBRIC_RULES = f"""For each problem also write its rubric, which the student nev
 - "mistakes": 2 to 4 likely wrong moves, each with one error type from this list:
 {ERROR_LIST}
 - Inside LaTeX ($...$), put any word in \\text{{...}}, e.g. $V = \\text{{dài}} \\cdot \\text{{rộng}}$;
-  better still, keep words outside the maths."""
+  better still, keep words outside the maths.
+- Write a chemical formula or equation in \\ce{{...}} inside the maths, so it prints upright:
+  $\\ce{{H2SO4}}$, $\\ce{{Zn + Cu^2+ -> Zn^2+ + Cu}}$; keep one the problem already writes that way."""
 
 
 def material_of(source) -> str:

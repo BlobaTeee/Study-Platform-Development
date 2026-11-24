@@ -461,3 +461,66 @@ def test_a_key_is_read_from_upright_tables_and_ignores_other_tables():
     out = io.BytesIO()
     doc.save(out)
     assert key_from_docx(out.getvalue()) == [{1: 'b', 2: 'A'}]
+
+
+def _pdf(words):
+    """A one-page PDF with each (x, y, text) written where it says. The font
+    is set before the place, as Word writes it: pypdf then joins pieces on
+    one line and loses where the later ones are."""
+    ops = ''.join(f'BT /F1 10 Tf 1 0 0 1 {x} {y} Tm ({t}) Tj ET\n' for x, y, t in words)
+    objects = ['<< /Type /Catalog /Pages 2 0 R >>',
+               '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+               '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] '
+               '/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+               f'<< /Length {len(ops)} >>\nstream\n{ops}endstream',
+               '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>']
+    out, offsets = '%PDF-1.4\n', []
+    for n, body in enumerate(objects, 1):
+        offsets.append(len(out))
+        out += f'{n} 0 obj\n{body}\nendobj\n'
+    xref = len(out)
+    out += f'xref\n0 {len(objects) + 1}\n0000000000 65535 f \n'
+    out += ''.join(f'{o:010d} 00000 n \n' for o in offsets)
+    out += f'trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n'
+    return out.encode('latin-1')
+
+
+def _keyed_pdf():
+    """The Hoá paper's key as LibreOffice prints it: "1a" is "1" over "a",
+    and a narrow cell wraps, 1246 as "124" over "6", -0,7 as "-0," over "7"."""
+    words = [(60, 700, 'Question 2. Prose that is not part of the key at all.'), (250, 650, 'Answer key')]
+    words += [(80 + 26 * i, 620, str(i + 1)) for i in range(3)]
+    words += [(80 + 26 * i, 606, v) for i, v in enumerate('BDC')]
+    tf = [('1', 'a', 'D'), ('1', 'b', 'S'), ('2', 'a', 'S'), ('2', 'b', 'D')]
+    for i, (n, letter, mark) in enumerate(tf):
+        words += [(80 + 20 * i, 560, n), (80 + 20 * i, 546, letter), (80 + 20 * i, 525, mark)]
+    for i, (first, rest) in enumerate([('124', '6'), ('-0,', '7')]):
+        words += [(170 + 24 * i, 546, str(i + 1)), (168 + 24 * i, 525, first), (171 + 24 * i, 513, rest)]
+    words += [(60, 470, 'Huong dan giai: the worked solutions follow')]
+    return _pdf(words)
+
+
+def test_a_pdfs_key_is_read_from_where_its_words_sit():
+    from exercises.services.answer_key import key_from_pdf
+    assert key_from_pdf(_keyed_pdf()) == [
+        {1: 'B', 2: 'D', 3: 'C'},
+        {1: {'a': True, 'b': False}, 2: {'a': False, 'b': True}},
+        {1: '1246', 2: '-0,7'},
+    ]
+
+
+def test_a_pdf_without_a_key_heading_gives_no_key():
+    from exercises.services.answer_key import key_from_pdf
+    assert key_from_pdf(_pdf([(80, 620, '1'), (106, 620, '2'), (80, 606, 'B'), (106, 606, 'D')])) == []
+    assert key_from_pdf(b'%PDF-1.7 not really') == []
+
+
+def test_a_pdfs_key_is_the_papers_answer(client, reader, monkeypatch):
+    monkeypatch.setattr('exercises.services.figures.cut', lambda data, mime, boxes: [[] for _ in boxes])
+    reader({'found': True, 'questions': [
+        {'label': 'Câu 2', 'part': 'PHẦN I', 'text': 'B?', 'answer': 'A'},
+        {'label': 'Câu 2', 'part': 'PHẦN II', 'text': 'a) x. b) y.', 'answer': {'a': True, 'b': False}},
+        {'label': 'Câu 1', 'part': 'PHẦN III', 'text': 'M?', 'answer': '124'},
+    ]})
+    res = _post(client, _keyed_pdf(), name='de.pdf', ctype='application/pdf')
+    assert [q.get('answer') for q in res.json()['questions']] == ['D', {'a': False, 'b': True}, '1246']

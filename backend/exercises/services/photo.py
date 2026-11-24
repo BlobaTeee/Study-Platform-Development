@@ -61,7 +61,10 @@ written in. A page with several questions gives several; a photo of one problem 
   handwriting.
 - Write all mathematics in LaTeX: inline as $...$, a formula on its own line as $$...$$
   (fractions \\frac{a}{b}, roots \\sqrt{x}, powers x^{2}, indices x_{1}, integrals, sums,
-  matrices with \\begin{pmatrix}...\\end{pmatrix}). Chemical formulas likewise ($H_2SO_4$).
+  matrices with \\begin{pmatrix}...\\end{pmatrix}).
+- Write a chemical formula or equation in \\ce{...} inside the maths, so it prints upright:
+  $\\ce{H2SO4}$, $\\ce{Na+/Na}$, $\\ce{CH3-CH(NH2)-COOH}$, $\\ce{Zn + Cu^2+ -> Zn^2+ + Cu}$; never as
+  maths letters ($H_2SO_4$).
 - Write a unit after a number as its symbol (500 J, 2 Pa, 3 m/s), even where the paper spells it out.
 - Everything you write, the square-bracket descriptions included, is in the
   same language as the problem: a Vietnamese problem gets Vietnamese descriptions (the
@@ -171,9 +174,12 @@ def read_problems(data: bytes) -> tuple[list[dict], str]:
             boxes.append(figures.boxes_of(item))
             parts.append(_part_name(item.get('part')))
     filled = _label_parts(questions, parts)
+    # A Word file's or a text PDF's key is read from the file itself, exactly:
+    # that is the paper's answer. A photo's stays a hint.
     if word is not None:
-        # A Word file's key is read from its table, exactly: the paper's answer.
         answer_key.apply_key(questions, filled, answer_key.key_from_docx(word))
+    elif mime == 'application/pdf':
+        answer_key.apply_key(questions, filled, answer_key.key_from_pdf(data))
     for question in questions:
         question['text'] = _statement_letters(question['text'])
     if reply.get('found') is False or not questions:

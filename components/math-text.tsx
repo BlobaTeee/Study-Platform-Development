@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo } from 'react'
-import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { splitFigures } from '@/lib/figures'
 import { splitMath } from '@/lib/math-text'
+import { renderMath } from '@/lib/render-math'
 import { splitTables } from '@/lib/tables'
 import { cn } from '@/lib/utils'
 
@@ -87,12 +87,7 @@ function Formulas({ text }: { text: string }) {
             key={i}
             className={part.kind === 'display' ? 'my-2 block overflow-x-auto overflow-y-hidden' : undefined}
             dangerouslySetInnerHTML={{
-              __html: katex.renderToString(part.value, {
-                displayMode: part.kind === 'display',
-                throwOnError: false,
-                errorColor: '#b91c1c',
-                trust: false,
-              }),
+              __html: renderMath(part.value, part.kind === 'display'),
             }}
           />
         ),

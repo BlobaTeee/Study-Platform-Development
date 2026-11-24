@@ -125,7 +125,7 @@ student marks each statement true or false.
 - Each statement has a "basis": an exact quote from the material (one phrase or sentence, at
   least five words) that settles it, copied character for character, and the "document" id
   it comes from.
-- Write any mathematics in LaTeX between $...$.
+- Write any mathematics in LaTeX between $...$, a chemical formula in \\ce{{...}} ($\\ce{{H2SO4}}$).
 
 Material:
 {material_text}
