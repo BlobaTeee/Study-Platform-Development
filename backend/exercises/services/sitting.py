@@ -48,12 +48,18 @@ def _row(exercise) -> dict:
     return {**row, 'section': 'written', 'reference': {**ref, **keep}}
 
 
-def paper_from_set(exercises) -> tuple[list[dict], int]:
-    """The rows of the paper, in the set's order, each with its points (the
-    whole worth 10), and the minutes it is given."""
-    rows = [_row(ex) for ex in exercises]
+def weigh(rows: list[dict]) -> int:
+    """Each row's points, the whole worth 10 (set on the rows), and the
+    minutes the paper is given."""
     base = sum(BASE_POINTS[r['section']] for r in rows) or 1.0
     for r in rows:
         r['points'] = round(BASE_POINTS[r['section']] * TOTAL / base, 3)
     minutes = sum(MINUTES[r['section']] for r in rows)
-    return rows, int(min(180, max(10, 5 * math.ceil(minutes / 5))))
+    return int(min(180, max(10, 5 * math.ceil(minutes / 5))))
+
+
+def paper_from_set(exercises) -> tuple[list[dict], int]:
+    """The rows of the paper, in the set's order, each with its points (the
+    whole worth 10), and the minutes it is given."""
+    rows = [_row(ex) for ex in exercises]
+    return rows, weigh(rows)

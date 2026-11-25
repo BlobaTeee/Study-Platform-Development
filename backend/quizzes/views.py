@@ -572,6 +572,10 @@ def _send_misses_back(test, rows) -> None:
     missed = [(r.reference or {}).get('exercise_id') for r in rows if not r.is_correct]
     Exercise.objects.filter(user=test.user, id__in=[m for m in missed if m]).update(
         status='revisit', revisit_on=timezone.localdate())
+    # A paper brought straight to the test (no practice set behind it): its
+    # misses become one.
+    from exercises.services.papers import misses_to_practice
+    misses_to_practice(test, rows)
 
 
 def _exam_paper(user, notebook, source_ids, tpl):

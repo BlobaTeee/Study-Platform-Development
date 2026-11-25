@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import useSWR from 'swr'
 import { exercisesAPI, mockTestsAPI, notebooksAPI, plannedTestsAPI } from '@/lib/api'
 import { inPracticeOrder, practiceRows } from '@/lib/practice'
+import { PaperUpload } from '@/components/paper-upload'
 import { useConfirm } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
@@ -972,6 +973,8 @@ function MockTestsInner() {
           </form>
         </Card>
       )}
+
+      <PaperUpload onStart={(id) => router.replace(`/dashboard/tests?id=${id}`)} />
 
       <RealPapers onSit={(id) => router.replace(`/dashboard/tests?id=${id}`)} />
 

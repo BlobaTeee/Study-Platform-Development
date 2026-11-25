@@ -144,6 +144,24 @@ class SetView(APIView):
         return Response({'set_key': key, 'set_title': title})
 
 
+class PaperView(_Generating):
+    """POST {title, questions} (as read by read-photo) → the paper as a mock
+    test to sit at once, marked by its own key (services/papers.py), with
+    the labels of any question left out: {..the sitting.., "dropped": [...]}."""
+
+    def post(self, request):
+        from quizzes.models import MockTest
+        from quizzes.serializers import MockTestSerializer
+        from .services.papers import build_paper
+        try:
+            test, dropped = build_paper(request.user, str(request.data.get('title') or '').strip(),
+                                        request.data.get('questions'))
+        except PracticeUnavailable as exc:
+            return Response({'detail': str(exc)}, status=503)
+        test = MockTest.objects.prefetch_related('paper').get(pk=test.pk)
+        return Response({**MockTestSerializer(test).data, 'dropped': dropped}, status=status.HTTP_201_CREATED)
+
+
 class SitSetView(APIView):
     """POST → the set sat as the paper it came from: a timed mock test of its
     problems, marked out of 10 at the end (services/sitting.py). Returns the
@@ -280,7 +298,17 @@ class ExerciseDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        return Response(detail(_mine(request, pk)))
+        exercise = _mine(request, pk)
+        if (exercise.reference or {}).get('pending'):
+            # A missed question from a paper whose solution the background
+            # run has not written yet (services/papers.py): write it now.
+            from .services.papers import fill_pending
+            try:
+                fill_pending([exercise.id])
+            except Exception:  # noqa: BLE001 - shown without it, tried again next time
+                pass
+            exercise.refresh_from_db()
+        return Response(detail(exercise))
 
     def delete(self, request, pk):
         _mine(request, pk).delete()

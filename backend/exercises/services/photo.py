@@ -45,6 +45,13 @@ written in. A page with several questions gives several; a photo of one problem 
   question's options or statements into separate questions.
 - Copy every given: numbers, units, conditions, the answer options, the question itself. Do
   not solve it and do not add anything that is not printed.
+- Give each question its "kind": "choice" when it gives lettered options to pick one from;
+  "true_false" when it gives statements a), b), c), d) each to be judged true or false; "short"
+  when it asks for a short final answer (a number or a few words) with no options; "written" for
+  anything worked out in full. For "choice", give the options as "options", [{"label": "A",
+  "text": "..."}] in their printed order, and leave them out of "text"; for "true_false", give the
+  statements as "statements", [{"label": "a", "text": "..."}], and leave them out of "text".
+  "text" is then the question's stem.
 - Keep names, labels and numbering exactly as printed: if the options are n_2, n_1, n_4, n_3,
   write them in that order with those names.
 - If a section's instruction tells how to answer (choose one option; true or false for each
@@ -97,8 +104,9 @@ If there is no problem in the photo (a selfie, a blank page, notes with no quest
 the part", "part": "the part it is in, its name and number only, e.g. Phần I or Part B (not its
 title), given on every question of
 that part, the first part's included; \"\" when the paper has no parts",
-"instruction": "the section's instruction, or \"\"", "text": "...",
-"answer": null, "figures": [{"page": 1, "box": [ymin, xmin, ymax, xmax]}]}]}
+"instruction": "the section's instruction, or \"\"", "kind": "choice", "text": "...",
+"options": [{"label": "A", "text": "..."}], "statements": [], "answer": null,
+"figures": [{"page": 1, "box": [ymin, xmin, ymax, xmax]}]}]}
 in the order they appear.
 
 Return ONLY valid JSON."""
@@ -161,10 +169,11 @@ def read_problems(data: bytes) -> tuple[list[dict], str]:
         if not isinstance(item, dict):
             continue
         text = str(item.get('text') or '').strip()[:MAX_TEXT_CHARS]
-        if text:
+        if text or item.get('options') or item.get('statements'):
             label = str(item.get('label') or '').strip()[:MAX_LABEL_CHARS]
             instruction = str(item.get('instruction') or '').strip()[:MAX_INSTRUCTION_CHARS]
-            question = {'label': label or str(len(questions) + 1), 'instruction': instruction, 'text': text}
+            question = {'label': label or str(len(questions) + 1), 'instruction': instruction, 'text': text,
+                        **_shape(item)}
             hint = printed_answer(item.get('answer'))
             if hint is not None:
                 # The key as the model read it: a hint only. Read from a
@@ -181,7 +190,8 @@ def read_problems(data: bytes) -> tuple[list[dict], str]:
     elif mime == 'application/pdf':
         answer_key.apply_key(questions, filled, answer_key.key_from_pdf(data))
     for question in questions:
-        question['text'] = _statement_letters(question['text'])
+        extra = question.pop('_extra', [])
+        question['text'] = _statement_letters('\n'.join([question['text'], *extra]).strip())
     if reply.get('found') is False or not questions:
         raise NoProblemInPhoto(_('No problem could be found in this photo. Try a closer, sharper photo of it.'))
     # A Word file read as text has no pages to cut from; its figures stay described.
@@ -191,12 +201,54 @@ def read_problems(data: bytes) -> tuple[list[dict], str]:
         # tag for is dropped: on 2026-11-23 a table, copied as text, also got
         # a box, which landed on the next question's lines; sent along to the
         # answer key it pulled that question's statements in.
-        tagged = figures.tags_in(question['text'])
+        tagged = figures.tags_in(_all_text(question))
         question['figures'] = [url if n in tagged else None for n, url in enumerate(cut, 1)]
         while question['figures'] and question['figures'][-1] is None:
             question['figures'].pop()
     title = _title(reply.get('title'))
     return questions, title
+
+
+KINDS = ('choice', 'true_false', 'short', 'written')
+
+
+def _labelled(raw, upper: bool) -> list[dict]:
+    """Options or statements as [{label, text}]: one letter each, in order."""
+    out = []
+    for entry in raw if isinstance(raw, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        label = str(entry.get('label') or '').strip().strip('.)').strip()
+        text = str(entry.get('text') or '').strip()[:MAX_TEXT_CHARS]
+        if len(label) == 1 and label.isalpha() and text:
+            out.append({'label': label.upper() if upper else label.lower(), 'text': text})
+    return out
+
+
+def _shape(item: dict) -> dict:
+    """How the question is answered, as the paper sets it: its kind, and a
+    choice's options or a true/false question's statements, kept apart from
+    the stem so the question can be sat as printed (exercises/services/papers.py)."""
+    kind = item.get('kind') if item.get('kind') in KINDS else 'written'
+    options = _labelled(item.get('options'), upper=True)
+    statements = _labelled(item.get('statements'), upper=False)
+    if kind == 'choice' and len(options) >= 2:
+        return {'kind': 'choice', 'options': options}
+    if kind == 'true_false' and len(statements) >= 2:
+        return {'kind': 'true_false', 'statements': statements}
+    if kind == 'short':
+        return {'kind': 'short'}
+    # Not the shape it claimed: everything it gave goes back into the text.
+    extra = [f"{o['label']}. {o['text']}" for o in options] + [f"{s['label']}) {s['text']}" for s in statements]
+    return {'kind': 'written', '_extra': extra}
+
+
+def _all_text(question: dict) -> str:
+    """The stem with its options and statements, as printed."""
+    lines = [question['text']]
+    lines += [f"{o['label']}. {o['text']}" for o in question.get('options') or []]
+    lines += [f"{s['label']}) {s['text']}" for s in question.get('statements') or []]
+    return '\n'.join(line for line in lines if line)
 
 
 _STATEMENT = re.compile(r'^(\s*)([A-Da-d])\)', re.M)

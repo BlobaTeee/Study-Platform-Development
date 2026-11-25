@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
 import { ArrowRight, FileText, Loader2, Pencil, Timer } from 'lucide-react'
-import { OwnProblemForm } from '@/components/own-problem-form'
 import { PageHeader } from '@/components/page-header'
 import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { exercisesAPI, type ExerciseSummary } from '@/lib/api'
@@ -29,7 +28,6 @@ function PracticeList() {
   const shown = inPracticeOrder(filtered(all, filter))
   const rows = practiceRows(shown)
   const found = useInPageLanguage(shown.map((p) => p.prompt))
-  const [writing, setWriting] = useState(filter === 'own')
   const [renaming, setRenaming] = useState<string | null>(null)
   const [sitting, setSitting] = useState<string | null>(null)
   const [sitError, setSitError] = useState('')
@@ -55,7 +53,6 @@ function PracticeList() {
     <div className="mx-auto max-w-3xl space-y-8">
       <PageHeader title={t('title')} />
 
-      <OwnProblemForm open={writing} onToggle={() => setWriting((v) => !v)} />
 
       <section className="sheet p-6 md:p-8" aria-labelledby="practice-list-title">
         <h2 id="practice-list-title" className="sr-only">{t('title')}</h2>

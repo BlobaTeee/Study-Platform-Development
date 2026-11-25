@@ -57,7 +57,7 @@ def test_the_problem_comes_back_as_text_with_maths_in_latex(client, reader):
     res = _post(client, JPEG)
 
     assert res.status_code == 200
-    assert res.json()['questions'] == [{'label': 'Câu 1', 'instruction': '', 'text': r'Tính $\int_0^1 x^2\,dx$.', 'figures': []}]
+    assert res.json()['questions'] == [{'label': 'Câu 1', 'instruction': '', 'text': r'Tính $\int_0^1 x^2\,dx$.', 'kind': 'written', 'figures': []}]
     assert r.images == [(JPEG, 'image/jpeg')]
     assert 'LaTeX' in r.prompt
     assert not Exercise.objects.exists()          # nothing saved until the student creates it
@@ -130,7 +130,7 @@ def test_a_question_without_a_label_is_numbered(client, reader):
 
 def test_a_reply_with_one_text_still_works(client, reader):
     reader({'found': True, 'text': 'Solve $x + 1 = 3$ for $x$.'})
-    assert _post(client, JPEG).json()['questions'] == [{'label': '1', 'instruction': '', 'text': 'Solve $x + 1 = 3$ for $x$.', 'figures': []}]
+    assert _post(client, JPEG).json()['questions'] == [{'label': '1', 'instruction': '', 'text': 'Solve $x + 1 = 3$ for $x$.', 'kind': 'written', 'figures': []}]
 
 
 def test_the_reader_is_told_what_not_to_copy(client, reader):
@@ -524,3 +524,22 @@ def test_a_pdfs_key_is_the_papers_answer(client, reader, monkeypatch):
     ]})
     res = _post(client, _keyed_pdf(), name='de.pdf', ctype='application/pdf')
     assert [q.get('answer') for q in res.json()['questions']] == ['D', {'a': False, 'b': True}, '1246']
+
+
+def test_a_question_comes_back_in_its_shape(client, reader):
+    """Options and statements apart from the stem, so the paper can be sat as
+    printed; a shape that does not hold goes back into the text."""
+    reader({'found': True, 'questions': [
+        {'label': 'Câu 1', 'kind': 'choice', 'text': 'Chất nào là amine?',
+         'options': [{'label': 'A.', 'text': 'Ethanol'}, {'label': 'b', 'text': 'Methylamine'}]},
+        {'label': 'Câu 2', 'kind': 'true_false', 'text': 'Cho pin Zn – Cu.',
+         'statements': [{'label': 'A', 'text': 'Zn bị oxi hoá.'}, {'label': 'b', 'text': 'Cu là cực âm.'}]},
+        {'label': 'Câu 3', 'kind': 'short', 'text': 'Tính khối lượng.'},
+        {'label': 'Câu 4', 'kind': 'choice', 'text': 'Chọn đáp án.', 'options': [{'label': 'A', 'text': 'Một'}]},
+    ]})
+    q = _post(client, JPEG).json()['questions']
+    assert q[0]['kind'] == 'choice' and q[0]['options'] == [{'label': 'A', 'text': 'Ethanol'},
+                                                           {'label': 'B', 'text': 'Methylamine'}]
+    assert q[1]['kind'] == 'true_false' and [s['label'] for s in q[1]['statements']] == ['a', 'b']
+    assert q[2]['kind'] == 'short'
+    assert q[3]['kind'] == 'written' and q[3]['text'] == 'Chọn đáp án.\nA. Một'      # one option is no choice

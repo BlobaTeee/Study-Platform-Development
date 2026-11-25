@@ -197,29 +197,29 @@ export type PracticeMistakes = {
 export type PrintedAnswer = string | Record<string, boolean>
 export type RedoQuestion = { id: number; question_text: string; question_type: 'multiple_choice' | 'true_false'; options: string[] }
 export type RedoVerdict = { is_correct: boolean; correct_answer: string; explanation: string; cleared: boolean }
-export type PhotoQuestion = { label: string; instruction: string; text: string; figures?: (string | null)[]; answer?: PrintedAnswer; hint?: PrintedAnswer }
+// kind: how the paper sets it; a choice's options and a true/false question's
+// statements come apart from the stem (`text`).
+export type PhotoQuestion = {
+  label: string; instruction: string; text: string; figures?: (string | null)[]
+  kind?: 'choice' | 'true_false' | 'short' | 'written'
+  options?: { label: string; text: string }[]; statements?: { label: string; text: string }[]
+  // answer: the file's own key (exact); hint: the key as the AI read it off a picture.
+  answer?: PrintedAnswer; hint?: PrintedAnswer
+}
 
 export const exercisesAPI = {
   list: (params: { notebook?: number; source?: number; own?: 1 }) =>
     api.get<{ results: ExerciseSummary[] }>('/exercises/', { params }),
   generate: (sourceId: number) =>
     api.post<{ results: ExerciseSummary[] }>('/exercises/generate/', { source_id: sourceId }),
-  // The student's own problem: in no notebook, graded from general knowledge.
-  own: (text: string) => api.post<ExerciseDetail>('/exercises/own/', { text }),
-  // Several picked from one photo or file, made together as one set.
   // Rename a set; '' gives back the default name.
   renameSet: (key: string, title: string) =>
     api.patch<{ set_key: string; set_title: string }>(`/exercises/sets/${key}/`, { title }),
   // The set sat as the real paper it came from: a timed mock test of its
   // problems, marked out of 10 at the end. Returns the sitting.
   sitSet: (key: string) => api.post<{ id: number }>(`/exercises/sets/${key}/sit/`, {}),
-  // answers: the key read from a Word file's table (the paper's answer);
-  // hints: the key as the AI read it from a picture, which may be misread.
-  ownSet: (texts: string[], figures?: (string | null)[][], title?: string, answers?: (PrintedAnswer | null)[],
-           hints?: (PrintedAnswer | null)[]) =>
-    api.post<{ results: ExerciseSummary[]; skipped: { index: number; reason: string }[] }>('/exercises/own-set/', { texts, figures, title, answers, hints }),
-  // A photo read into its questions (maths in LaTeX), for the student to pick
-  // one; the photo is not kept.
+  // A photo or file of a paper read into its questions (maths in LaTeX), to
+  // sit it (startPaper); the file is not kept.
   readPhoto: (file: File) => {
     const form = new FormData()
     form.append('image', file)
@@ -228,6 +228,10 @@ export const exercisesAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+  // A paper read by readPhoto, sat whole as a mock test at once; `dropped`
+  // names the questions left out (no answer could be found).
+  startPaper: (title: string, questions: PhotoQuestion[]) =>
+    api.post<{ id: number; dropped: string[] }>('/exercises/papers/', { title, questions }),
   get: (id: number) => api.get<ExerciseDetail>(`/exercises/${id}/`),
   remove: (id: number) => api.delete(`/exercises/${id}/`),
   // The answer as written; the server cuts it into sentences for the grader.
