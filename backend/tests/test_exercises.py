@@ -840,3 +840,29 @@ def test_a_set_reply_sent_as_a_bare_list_still_makes_the_set(client, model):
     body = client.post('/api/exercises/own-set/', {'texts': ['Giải thích vì sao mùa mưa ở Huế lệch với TP.HCM.'] * 2},
                        format='json').json()
     assert len(body['results']) == 2
+
+
+def test_a_keyed_recall_question_with_one_checkpoint_is_kept(client, model):
+    """"Protein có trong lòng trắng trứng là…" came back with one checkpoint
+    and was dropped (2026-11-25): a keyed problem is marked by its key."""
+    model({'problems': [{**_keyed_choice(), 'solution': ['Rơi tự do: t = √(2h/g) = 2 s.'],
+                         'checkpoints': [{'text': 'Tính đúng thời gian rơi', 'basis': ''}]}]})
+    body = client.post('/api/exercises/own-set/', {'texts': [CHOICE_TEXT]}, format='json').json()
+    assert len(body['results']) == 1 and body['skipped'] == []
+
+
+def test_a_written_problem_still_needs_two_checkpoints(client, model):
+    model({'problems': [{'complete': True, **RUBRIC, 'kind': 'written',
+                         'prompt': 'Giải thích vì sao mùa mưa ở Huế lệch với TP.HCM.',
+                         'checkpoints': [{'text': 'Nêu gió mùa', 'basis': ''}]}]})
+    res = client.post('/api/exercises/own-set/', {'texts': ['Giải thích vì sao mùa mưa ở Huế lệch với TP.HCM.']},
+                      format='json')
+    assert not Exercise.objects.exists() and res.status_code in (400, 503)
+
+
+def test_a_group_that_fails_is_asked_once_more(client, model):
+    """A request of a set that fails is retried before it is reported."""
+    provider = model(RuntimeError('500 INTERNAL. Please retry.'), {'problems': [_keyed_choice()]})
+    body = client.post('/api/exercises/own-set/', {'texts': [CHOICE_TEXT]}, format='json').json()
+    assert len(body['results']) == 1 and body['skipped'] == []
+    assert len(provider.prompts) == 2

@@ -199,6 +199,7 @@ class IncompleteProblem(Exception):
 #: per-minute limit turns away.
 MAX_SET = 20
 SET_PER_REQUEST = 3
+SET_PARALLEL = 3          # requests in flight at once for one set
 
 
 def own_set(user, texts: list[str], figures: list[list] | None = None,
@@ -234,8 +235,15 @@ def own_set(user, texts: list[str], figures: list[list] | None = None,
         except PracticeUnavailable as exc:
             return indexes, [], str(exc)
 
-    with ThreadPoolExecutor(max_workers=max(1, len(chunks))) as pool:
+    # A few at a time: seven requests at once on the free tier came back
+    # with whole groups failed (2026-11-25). A group that fails is asked
+    # once more before it is reported.
+    with ThreadPoolExecutor(max_workers=max(1, min(SET_PARALLEL, len(chunks)))) as pool:
         replies = list(pool.map(rubrics, chunks))
+        failed = [n for n, (_, items, error) in enumerate(replies) if error and not items]
+        for n, again in zip(failed, pool.map(rubrics, [chunks[n] for n in failed])):
+            if again[1] or not again[2]:
+                replies[n] = again
 
     made: dict[int, dict] = {}
     skipped: list[dict] = []
@@ -395,7 +403,10 @@ def _problem(item, text: str | None, title: str, lang: str, original: str = '') 
         if flat is not None and (not basis or _find(basis, flat) is None):
             continue                       # rests on nothing the student was given
         checkpoints.append({'id': len(checkpoints) + 1, 'text': point[:300], 'basis': basis[:300]})
-    if len(checkpoints) < MIN_CHECKPOINTS:
+    # A keyed problem is marked by its key; its checkpoints only explain it,
+    # and a one-line recall question ("the protein in egg white is…") has
+    # one. A written answer is marked against them, so needs more.
+    if len(checkpoints) < (1 if key['kind'] in KEYED_KINDS else MIN_CHECKPOINTS):
         return None
 
     mistakes = [{'text': tidy_prose(str(m.get('text')))[:300], 'type': m.get('type')}
