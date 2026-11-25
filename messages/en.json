@@ -42,7 +42,7 @@
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "account": "Account",
-    "dueToday": "{count, plural, one {# card due today} other {# cards due today}}"
+    "dueToday": "{count, plural, one {# thing to review today} other {# things to review today}}"
   },
   "auth": {
     "signInTitle": "Sign in to your notebooks",
@@ -118,7 +118,14 @@
     "laterCount": "{count, plural, one {# more moved to the coming days} other {# more moved to the coming days}}",
     "newPaused": "New cards are paused until you're caught up.",
     "examFirst": "{title} first: test {days, plural, =0 {today} =1 {tomorrow} other {in # days}}",
-    "newPausedOthers": "New cards for other subjects are paused until you're caught up."
+    "newPausedOthers": "New cards for other subjects are paused until you're caught up.",
+    "todayToReview": "To review today",
+    "rowCards": "{count, plural, one {# card due} other {# cards due}}",
+    "rowOwed": "{count, plural, one {# missed question to redo} other {# missed questions to redo}}",
+    "rowPractice": "{count, plural, one {# practice problem due} other {# practice problems due}}",
+    "actCards": "Review cards",
+    "actOwed": "Redo",
+    "actPractice": "Practise"
   },
   "notebooks": {
     "library": "Library",

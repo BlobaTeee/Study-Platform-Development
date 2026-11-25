@@ -44,6 +44,7 @@ export default function HomePage() {
   // today", not a number that makes starting feel pointless.
   const ready = due.today ?? due.due + due.new
   const exams = due.exams_first ?? []
+  const beyond: { owed: number; practice_due: number } = recsRes?.data?.beyond_cards ?? { owed: 0, practice_due: 0 }
   const dueCards: DueCard[] = dueRes?.data?.results ?? dueRes?.data ?? []
   const firstDue = dueCards[0]
   const found = useInPageLanguage([firstDue?.question])
@@ -85,24 +86,26 @@ export default function HomePage() {
       />
 
       <div className="sheet grid md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-        {/* What is owed today, as the card it is. */}
+        {/* What is owed today: the cards, shown as the card they start with,
+            and beside them the missed questions and practice problems that
+            are due (the user found "to review" meaning cards only odd). */}
         <section data-mode="flashcards" className="border-b border-slate-200 p-6 md:border-b-0 md:border-r md:p-8">
-          {ready === 0 ? (
+          {ready === 0 && beyond.owed === 0 && beyond.practice_due === 0 ? (
             <div className="flex h-full flex-col justify-center gap-4 py-6">
               <p className="text-lg text-slate-700">{caughtUpMessage(due, common, locale)}</p>
             </div>
           ) : (
             <div className="flex h-full flex-col gap-6">
               <div className="flex items-baseline justify-between gap-4">
-                <h2 className="text-lg font-semibold text-slate-900">{t('cardsDueToday', { count: ready })}</h2>
+                <h2 className="text-lg font-semibold text-slate-900">{t('todayToReview')}</h2>
                 {/* With debt pushed to coming days, the full overdue count is the
                     very number this page avoids leading with; the line below
                     says what waits, calmly. */}
-                {due.overdue > 0 && !due.later && (
+                {ready > 0 && due.overdue > 0 && !due.later && (
                   <span className="text-sm text-red-700">{common('overdueCount', { count: due.overdue })}</span>
                 )}
               </div>
-              {(exams.length > 0 || due.later || due.new_paused) && (
+              {ready > 0 && (exams.length > 0 || due.later || due.new_paused) && (
                 // One fact per line: run together with separators, four of them
                 // wrapped into a paragraph nobody could scan.
                 <ul className="-mt-3 space-y-1 text-sm text-slate-600">
@@ -121,35 +124,44 @@ export default function HomePage() {
               )}
 
               {/* The first card of the queue, on the stack it sits in. */}
-              <Link
-                href="/dashboard/flashcards?due=1"
-                className="card-stack group relative block rounded-2xl border border-slate-200 bg-white p-6 shadow-sheet transition-shadow duration-200 hover:shadow-lift focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30 md:p-8"
-              >
-                <span className="absolute left-6 -top-px h-[3px] w-12 rounded-b-full bg-mode md:left-8" aria-hidden />
-                <span className="font-mono text-xs text-slate-500 tabular-nums">1 / {ready}</span>
-                {/* The queue can take a few seconds (flagged cards are rewritten
-                    on fetch); until then a placeholder line, not the heading again. */}
-                {firstDue || dueRes ? (
-                  <p className="mt-3 text-xl leading-snug text-slate-900 md:text-2xl text-pretty">
-                    {firstDue ? <InPageLanguage text={firstDue.question} found={found} /> : t('cardsDueToday', { count: ready })}
-                  </p>
-                ) : (
-                  <div className="mt-3 space-y-2" aria-busy>
-                    <div className="h-6 w-4/5 rounded bg-slate-100" />
-                    <div className="h-6 w-1/2 rounded bg-slate-100" />
-                  </div>
-                )}
-                <span className="mt-6 block h-px w-full bg-slate-100" aria-hidden />
-              </Link>
+              {ready > 0 && (
+                <Link
+                  href="/dashboard/flashcards?due=1"
+                  className="card-stack group relative block rounded-2xl border border-slate-200 bg-white p-6 shadow-sheet transition-shadow duration-200 hover:shadow-lift focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30 md:p-8"
+                >
+                  <span className="absolute left-6 -top-px h-[3px] w-12 rounded-b-full bg-mode md:left-8" aria-hidden />
+                  <span className="font-mono text-xs text-slate-500 tabular-nums">1 / {ready}</span>
+                  {/* The queue can take a few seconds (flagged cards are rewritten
+                      on fetch); until then a placeholder line, not the heading again. */}
+                  {firstDue || dueRes ? (
+                    <p className="mt-3 text-xl leading-snug text-slate-900 md:text-2xl text-pretty">
+                      {firstDue ? <InPageLanguage text={firstDue.question} found={found} /> : t('cardsDueToday', { count: ready })}
+                    </p>
+                  ) : (
+                    <div className="mt-3 space-y-2" aria-busy>
+                      <div className="h-6 w-4/5 rounded bg-slate-100" />
+                      <div className="h-6 w-1/2 rounded bg-slate-100" />
+                    </div>
+                  )}
+                  <span className="mt-6 block h-px w-full bg-slate-100" aria-hidden />
+                </Link>
+              )}
 
-              <div className="mt-auto">
-                <Button asChild size="lg">
-                  <Link href="/dashboard/flashcards?due=1">
-                    {t('studyNow')}
-                    <ArrowRight aria-hidden />
-                  </Link>
-                </Button>
-              </div>
+              {/* One line per kind of thing owed, each with its own way in. */}
+              <ul className="mt-auto divide-y divide-slate-100 border-y border-slate-100">
+                {ready > 0 && (
+                  <OwedLine text={t('rowCards', { count: ready })} href="/dashboard/flashcards?due=1" action={t('actCards')} primary />
+                )}
+                {beyond.owed > 0 && (
+                  <OwedLine text={t('rowOwed', { count: beyond.owed })} href="/dashboard/analytics" action={t('actOwed')} />
+                )}
+                {beyond.practice_due > 0 && (
+                  <OwedLine text={t('rowPractice', { count: beyond.practice_due })} href="/dashboard/practice" action={t('actPractice')} />
+                )}
+              </ul>
+              {ready === 0 && (
+                <p className="-mt-3 text-sm text-slate-600">{caughtUpMessage(due, common, locale)}</p>
+              )}
             </div>
           )}
         </section>
@@ -246,5 +258,20 @@ function HomeSkeleton() {
         </div>
       </div>
     </div>
+  )
+}
+
+/** One kind of thing owed today: how many, and the way to it. */
+function OwedLine({ text, href, action, primary }: { text: string; href: string; action: string; primary?: boolean }) {
+  return (
+    <li className="flex items-center justify-between gap-3 py-2.5">
+      <span className="text-base text-slate-800">{text}</span>
+      <Button asChild size="sm" variant={primary ? 'default' : 'outline'}>
+        <Link href={href}>
+          {action}
+          <ArrowRight aria-hidden />
+        </Link>
+      </Button>
+    </li>
   )
 }

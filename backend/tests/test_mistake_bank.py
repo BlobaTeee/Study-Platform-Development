@@ -110,3 +110,20 @@ def test_the_summary_counts_what_is_owed_in_every_notebook(client, user, other_u
     body = client.get('/api/quizzes/mistakes/summary/').json()
 
     assert body == {'notebooks': [{'notebook_id': notebook.id, 'title': notebook.title, 'count': 2}]}
+
+
+def test_the_home_page_hears_of_missed_questions_and_problems_due(client, user, notebook):
+    """Not cards alone: questions waiting to be redone and practice problems
+    due again are counted beside them (2026-11-25)."""
+    from exercises.models import Exercise
+    qs = _questions(user, notebook)
+    _sit(user, notebook, {qs[0]: False, qs[1]: False, qs[2]: True})
+    today = timezone.localdate()
+    Exercise.objects.create(user=user, notebook=notebook, prompt='Due', reference={}, status='revisit',
+                            revisit_on=today)
+    Exercise.objects.create(user=user, notebook=notebook, prompt='Later', reference={}, status='revisit',
+                            revisit_on=today + timedelta(days=3))
+
+    body = client.get('/api/analytics/sessions/recommendations/').json()
+
+    assert body['beyond_cards'] == {'owed': 2, 'practice_due': 1}

@@ -42,7 +42,7 @@
     "openMenu": "Mở menu",
     "closeMenu": "Đóng menu",
     "account": "Tài khoản",
-    "dueToday": "{count, plural, other {# thẻ đến hạn hôm nay}}"
+    "dueToday": "{count, plural, other {# mục cần ôn hôm nay}}"
   },
   "auth": {
     "signInTitle": "Đăng nhập vào sổ tay của bạn",
@@ -118,7 +118,14 @@
     "laterCount": "{count, plural, other {Còn # thẻ dời sang những ngày tới}}",
     "newPaused": "Thẻ mới tạm dừng cho tới khi ôn xong thẻ đến hạn.",
     "examFirst": "Ưu tiên {title}: thi {days, plural, =0 {hôm nay} =1 {ngày mai} other {sau # ngày}}",
-    "newPausedOthers": "Thẻ mới của các môn khác tạm dừng cho tới khi ôn xong thẻ đến hạn."
+    "newPausedOthers": "Thẻ mới của các môn khác tạm dừng cho tới khi ôn xong thẻ đến hạn.",
+    "todayToReview": "Hôm nay cần ôn",
+    "rowCards": "{count} thẻ đến hạn",
+    "rowOwed": "{count} câu sai chờ làm lại",
+    "rowPractice": "{count} bài vận dụng đến hạn",
+    "actCards": "Ôn thẻ",
+    "actOwed": "Làm lại",
+    "actPractice": "Làm bài"
   },
   "notebooks": {
     "library": "Thư viện",

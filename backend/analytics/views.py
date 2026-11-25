@@ -179,6 +179,7 @@ class AnalyticsViewSet(viewsets.ViewSet):
             'due': due,
             'weak_notebooks': insights.per_notebook_mastery(
                 events, source_to_notebook, notebook_titles),
+            'beyond_cards': _beyond_cards(user, today),
         })
 
     ACTIVITY_DAYS = 14
@@ -236,3 +237,18 @@ class AnalyticsViewSet(viewsets.ViewSet):
         for day in data['days']:
             day['date'] = day['date'].isoformat()
         return Response(data)
+
+
+def _beyond_cards(user, today) -> dict:
+    """What else is owed today besides cards, for the home page and the
+    sidebar's count (the user found "to review" meaning cards only odd,
+    2026-11-25): questions missed in quizzes, mock tests and live rounds
+    that wait to be redone, and practice problems due again."""
+    from exercises.models import Exercise
+    from notebooks.services.membership import notebooks_for
+    from quizzes.views import _owed_question_ids
+    owed = 0
+    for notebook in notebooks_for(user):
+        owed += len(_owed_question_ids(user, notebook))
+    practice_due = Exercise.objects.filter(user=user, status='revisit', revisit_on__lte=today).count()
+    return {'owed': owed, 'practice_due': practice_due}
