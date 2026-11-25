@@ -12,7 +12,6 @@ import { cardTexts, isShort, shownAs } from '@/lib/translate'
 import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { useTranslations } from 'next-intl'
 import { SourceContextBanner } from '@/components/source-context-banner'
-import { useConfirm } from '@/components/confirm-dialog'
 import { PageHeader } from '@/components/page-header'
 import { AskTutor } from '@/components/ask-tutor'
 import { SourceRequired } from '@/components/source-required'
@@ -25,9 +24,7 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronLeft,
-  Pencil,
   RotateCcw,
-  Trash2,
 } from 'lucide-react'
 
 type Flashcard = {
@@ -109,22 +106,12 @@ function FlashcardsStudy() {
   const [graded, setGraded] = useState<Set<number>>(new Set())
   const [lastReview, setLastReview] = useState<{ label: string; interval: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // The AI wrote these cards; the student is the editor. Edits and deletions
-  // are applied on top of the fetched list rather than re-fetching, so the
-  // deck order under the cursor does not change.
-  const [edits, setEdits] = useState<Record<number, { question: string; answer: string }>>({})
-  const [removed, setRemoved] = useState<Set<number>>(new Set())
-  const [draft, setDraft] = useState<{ question: string; answer: string } | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [confirm, confirmDialog] = useConfirm()
   // What was typed into a fill-in-the-blank card, tied to the card it was
   // typed for so moving on starts the next one empty.
   const [attempt, setAttempt] = useState<{ id: number; text: string }>({ id: -1, text: '' })
 
   const flashcards = useMemo(() => {
     const live = allCards
-      .filter((f) => !removed.has(f.id))
-      .map((f) => (edits[f.id] ? { ...f, ...edits[f.id] } : f))
     // The backend already picked the due cards; a source filter still applies if
     // one is present. Grading a card settles its debt, so it leaves the queue —
     // otherwise wrapping round would review it twice and corrupt its schedule.
@@ -140,7 +127,7 @@ function FlashcardsStudy() {
     }
     if (sourceIds.length === 0) return []
     return live.filter((f) => hasAllSources(f.source_ids, sourceIds))
-  }, [allCards, sourceIds, dueMode, relearn, cardIds, graded, edits, removed])
+  }, [allCards, sourceIds, dueMode, relearn, cardIds, graded])
 
   const total = flashcards.length
 
@@ -190,7 +177,7 @@ function FlashcardsStudy() {
   // card — the range comes from GRADES.length so removing/adding a grade
   // renumbers the shortcuts automatically instead of drifting out of sync.
   useEffect(() => {
-    if (total === 0 || draft) return  // typing in the editor must not flip or grade
+    if (total === 0) return
     const onKey = (e: KeyboardEvent) => {
       // Any field on the page (the tutor's question box, say) keeps its
       // keys: a space there is a space, a "2" is a "2".
@@ -209,56 +196,7 @@ function FlashcardsStudy() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [total, goNext, goPrev, flipped, grade, draft])
-
-  const saveEdit = async (card: Flashcard) => {
-    if (!draft) return
-    const question = draft.question.trim()
-    const answer = draft.answer.trim()
-    if (!question || !answer) {
-      setError(t('bothSidesRequired'))
-      return
-    }
-    // Without its one blank a cloze card has nothing to fill in.
-    if (card.kind === 'cloze' && question.split(BLANK).length !== 2) {
-      setError(t('clozeNeedsBlank'))
-      return
-    }
-    setBusy(true)
-    setError(null)
-    try {
-      await flashcardsAPI.updateFlashcard(card.id, { question, answer })
-      setEdits((e) => ({ ...e, [card.id]: { question, answer } }))
-      setDraft(null)
-    } catch {
-      setError(t('saveFailed'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const deleteCard = async (card: Flashcard) => {
-    const ok = await confirm({
-      title: t('deleteTitle'),
-      body: t('deleteBody'),
-      confirmLabel: common('delete'),
-      cancelLabel: common('cancel'),
-    })
-    if (!ok) return
-    setBusy(true)
-    setError(null)
-    try {
-      await flashcardsAPI.deleteFlashcard(card.id)
-      setRemoved((r) => new Set(r).add(card.id))
-      setFlipped(false)
-      // The next card slides into this slot; only clamp if this was the last.
-      setIndex((i) => (i >= total - 1 ? 0 : i))
-    } catch {
-      setError(t('deleteFailed'))
-    } finally {
-      setBusy(false)
-    }
-  }
+  }, [total, goNext, goPrev, flipped, grade])
 
   // The cards are in the document's language; shown in the page's. The next
   // card is asked for too, so it is ready when it comes.
@@ -381,43 +319,6 @@ function FlashcardsStudy() {
       )}
 
       {/* Signature: a real index card that flips in 3D. */}
-      {draft ? (
-        <form
-          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sheet md:p-8"
-          onSubmit={(e) => {
-            e.preventDefault()
-            void saveEdit(card)
-          }}
-        >
-          <label className="block space-y-1.5">
-            <span className="font-mono text-sm font-semibold uppercase tracking-wide text-mode-flashcards">{t('question')}</span>
-            <textarea
-              value={draft.question}
-              onChange={(e) => setDraft({ ...draft, question: e.target.value })}
-              rows={3}
-              autoFocus
-              className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-lg text-slate-900 outline-none focus-visible:border-mode-flashcards focus-visible:ring-mode-flashcards/25 focus-visible:ring-[4px]"
-            />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="font-mono text-sm font-semibold uppercase tracking-wide text-slate-500">{t('answer')}</span>
-            <textarea
-              value={draft.answer}
-              onChange={(e) => setDraft({ ...draft, answer: e.target.value })}
-              rows={4}
-              className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-lg text-slate-900 outline-none focus-visible:border-mode-flashcards focus-visible:ring-mode-flashcards/25 focus-visible:ring-[4px]"
-            />
-          </label>
-          <div className="flex flex-wrap justify-end gap-3">
-            <Button type="button" variant="outline" disabled={busy} onClick={() => setDraft(null)}>
-              {common('cancel')}
-            </Button>
-            <Button type="submit" disabled={busy}>
-              {common('save')}
-            </Button>
-          </div>
-        </form>
-      ) : (
       <div className="flip-scene">
         <button
           type="button"
@@ -437,12 +338,11 @@ function FlashcardsStudy() {
           </div>
         </button>
       </div>
-      )}
 
       {/* The answer stays short enough to recall; the reasoning waits here,
           folded, so reading it is a choice made after answering. It sits
           outside the card because the card itself is the flip button. */}
-      {flipped && !draft && card.explanation && (
+      {flipped && card.explanation && (
         <details key={`explanation-${card.id}`} className="group -mt-4 rounded-xl border border-slate-200 bg-white px-5 py-3">
           <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-900 [&::-webkit-details-marker]:hidden">
             <ChevronDown className="size-4 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
@@ -485,7 +385,7 @@ function FlashcardsStudy() {
         </div>
       ) : (
         <div className="space-y-4">
-        {isCloze && !draft && (
+        {isCloze && (
           // Typing the word is the recall; checking it turns the card. Leaving
           // the box empty and showing the answer still works, as on any card.
           <form
@@ -536,34 +436,10 @@ function FlashcardsStudy() {
         </p>
       )}
 
-      {/* The tutor: only with the answer showing, and never while editing.
-          Keyed by card so a new card starts a new, empty thread. */}
-      {flipped && !draft && <AskTutor key={card.id} cardId={card.id} />}
+      {/* The tutor: only with the answer showing. Keyed by card so a new
+          card starts a new, empty thread. */}
+      {flipped && <AskTutor key={card.id} cardId={card.id} />}
 
-      {/* Quiet on purpose: fixing a card is the exception, recalling it the rule. */}
-      {!draft && (
-        <div className="flex justify-center gap-5 text-sm text-slate-600">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setDraft({ question: card.question, answer: card.answer })}
-            className="inline-flex items-center gap-1.5 hover:text-slate-900 disabled:opacity-50"
-          >
-            <Pencil className="size-3.5" aria-hidden />
-            {t('editCard')}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void deleteCard(card)}
-            className="inline-flex items-center gap-1.5 hover:text-red-700 disabled:opacity-50"
-          >
-            <Trash2 className="size-3.5" aria-hidden />
-            {t('deleteCard')}
-          </button>
-        </div>
-      )}
-      {confirmDialog}
 
       <p className="text-center text-sm text-slate-500">
         {lastReview
