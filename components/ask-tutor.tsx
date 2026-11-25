@@ -8,8 +8,9 @@ import { flashcardsAPI, type TutorTurn } from '@/lib/api'
 const MAX_TURNS = 3
 
 /** A tutor for one card, shown only once its answer is on screen. Three
- *  questions, answered from the card's own passage; the thread lives in
- *  this component and resets with the card (keyed by the parent). */
+ *  questions, answered from the card's own passage, or from knowledge of
+ *  the subject when the passage does not cover it (marked); the thread
+ *  lives in this component and resets with the card (keyed by the parent). */
 export function AskTutor({ cardId }: { cardId: number }) {
   const t = useTranslations('flashcards')
   const [open, setOpen] = useState(false)
@@ -29,7 +30,8 @@ export function AskTutor({ cardId }: { cardId: number }) {
     setDraft('')
     try {
       const res = await flashcardsAPI.askTutor(cardId, { question: q, history: turns })
-      setTurns((prev) => [...prev, { role: 'user', text: q }, { role: 'tutor', text: res.data.answer }])
+      setTurns((prev) => [...prev, { role: 'user', text: q },
+        { role: 'tutor', text: res.data.answer, general: res.data.from === 'general' }])
     } catch (err) {
       const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
       setError(detail || t('tutorFailed'))
@@ -74,6 +76,11 @@ export function AskTutor({ cardId }: { cardId: number }) {
                   : 'rounded-lg bg-slate-50 px-4 py-3 text-base text-slate-700 leading-relaxed'
               }
             >
+              {turn.general && (
+                <span className="mb-1 block font-mono text-xs uppercase tracking-wide text-slate-500">
+                  {t('tutorGeneral')}
+                </span>
+              )}
               {turn.text}
             </li>
           ))}

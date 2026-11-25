@@ -362,7 +362,8 @@
     "docDone": "You've done every card in this document. Cards you forgot will come back to review. To keep going, make a new deck.",
     "docDoneReviewed": "Done. You reviewed {cards}. Cards you forgot will come back to review. To keep going, make a new deck.",
     "newDeck": "Make a new deck",
-    "docLater": "That's enough for today. This document still has {cards} to do; carry on tomorrow."
+    "docLater": "That's enough for today. This document still has {cards} to do; carry on tomorrow.",
+    "tutorGeneral": "Beyond your document"
   },
   "quizzes": {
     "title": "Quiz",

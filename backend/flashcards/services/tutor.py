@@ -2,8 +2,12 @@
 
 Not a chatbot over the documents: it appears only once the student has
 tried to recall and seen the back of the card, it answers from the passage
-the card came from, and it gets three questions per card. When the passage
-does not cover the question it says so rather than filling the gap.
+the card came from, and it gets three questions per card.
+
+A question on the card's topic that the passage does not cover is answered
+from general knowledge of the subject, marked as such ("from": "general"):
+on 2026-11-25 the user found the tutor too tied to the document. A question
+off the card's topic is still turned away.
 """
 import logging
 
@@ -44,8 +48,10 @@ def passage_for(card) -> str:
     return candidates[int(sims.argmax())][:MAX_PASSAGE_CHARS]
 
 
-def ask(card, question: str, history: list[dict]) -> str:
-    """`history` is prior turns [{role: 'user'|'tutor', text}] for this card."""
+def ask(card, question: str, history: list[dict]) -> dict:
+    """{"answer", "from"}: "passage" when the card's passage answers it,
+    "general" when general knowledge of the subject did. `history` is prior
+    turns [{role: 'user'|'tutor', text}] for this card."""
     passage = passage_for(card)
     # The student's language wins: a Vietnamese question about an English
     # paper wants a Vietnamese answer. Too short to tell → the passage's.
@@ -54,15 +60,19 @@ def ask(card, question: str, history: list[dict]) -> str:
         lang = detect_language(passage or f'{card.question} {card.answer}')
     grounding = (f'Passage from the student\'s own material:\n{passage}'
                  if passage else
-                 'No passage is available for this card. Answer from the card alone and say '
-                 'plainly when you would only be guessing.')
+                 'No passage is available for this card.')
     turns = '\n'.join(
         f"{'Student' if t.get('role') == 'user' else 'Tutor'}: {str(t.get('text') or '').strip()[:MAX_QUESTION_CHARS]}"
         for t in history if str(t.get('text') or '').strip())
     prompt = f"""You are a patient tutor. A student is reviewing a flashcard, has seen the answer, and
-still has a question. Answer in {language_name(lang)}, in at most 4 sentences, using ONLY the
-passage below. If the passage does not cover the question, say so in one sentence; do not
-invent facts or cite anything the passage does not say. No greeting, no "great question".
+still has a question. Answer in {language_name(lang)}, in at most 4 sentences. No greeting,
+no "great question".
+- When the passage below answers it, answer from the passage, and give "from": "passage".
+- When the passage does not cover it but the question is about this card's topic, answer from
+  well-established knowledge of the subject, as a textbook would, and give "from": "general".
+  Never say the passage says something it does not.
+- When the question is not about this card's topic, say in one sentence that you can only help
+  with this card, and give "from": "general".
 
 Flashcard front: {card.question}
 Flashcard back: {card.answer}
@@ -73,7 +83,7 @@ Flashcard back: {card.answer}
 
 {WRITING_STYLE}
 
-Return ONLY valid JSON: {{"answer": "..."}}"""
+Return ONLY valid JSON: {{"answer": "...", "from": "passage|general"}}"""
 
     try:
         with quick():
@@ -86,4 +96,5 @@ Return ONLY valid JSON: {{"answer": "..."}}"""
     answer = tidy_prose(str(data.get('answer') or ''))
     if not answer:
         raise TutorUnavailable(_('The tutor could not answer just now. Try again in a minute.'))
-    return answer[:1500]
+    source = 'general' if str(data.get('from') or '').strip().lower() == 'general' else 'passage'
+    return {'answer': answer[:1500], 'from': source}

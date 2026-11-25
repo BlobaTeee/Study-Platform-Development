@@ -51,7 +51,8 @@ export const authAPI = {
 /** How well you recalled a card, worst first. Drives the SM-2 schedule. */
 export type ReviewGrade = 'hard' | 'good' | 'easy'
 
-export type TutorTurn = { role: 'user' | 'tutor'; text: string }
+// general: answered from knowledge of the subject, beyond the card's passage.
+export type TutorTurn = { role: 'user' | 'tutor'; text: string; general?: boolean }
 
 export const flashcardsAPI = {
   getFlashcards: (params?: any) => api.get('/flashcards/flashcards/', { params }),
@@ -59,7 +60,7 @@ export const flashcardsAPI = {
   updateFlashcard: (id: number, data: any) => api.put(`/flashcards/flashcards/${id}/`, data),
   // A question about a card whose answer is showing; three per card per session.
   askTutor: (id: number, data: { question: string; history: TutorTurn[] }) =>
-    api.post<{ answer: string }>(`/flashcards/flashcards/${id}/ask/`, data),
+    api.post<{ answer: string; from: 'passage' | 'general' }>(`/flashcards/flashcards/${id}/ask/`, data),
   deleteFlashcard: (id: number) => api.delete(`/flashcards/flashcards/${id}/`),
   // Self-graded review: the backend schedules the card's next appearance and
   // this is what analytics counts. No study session needed.

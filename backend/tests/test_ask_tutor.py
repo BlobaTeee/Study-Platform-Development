@@ -98,3 +98,25 @@ def test_someone_elses_card_is_not_found(client, other_user, tutor):
     card = Flashcard.objects.create(user=other_user, question='Q', answer='A', is_public=True)
     assert _ask(client, card, 'Why?').status_code == 404
     assert tutor.prompts == []
+
+
+def test_an_on_topic_question_beyond_the_passage_is_answered_and_marked(client, user, notebook, monkeypatch):
+    """The passage is about why Paris; a student asks what the card's topic
+    leads to next. Answered from general knowledge, marked so (2026-11-25)."""
+    class General(Tutor):
+        def generate_json(self, prompt):
+            Tutor.prompts.append(prompt)
+            return {'answer': 'France is a unitary state; Paris holds the government.', 'from': 'general'}
+    Tutor.prompts = []
+    monkeypatch.setattr('flashcards.services.tutor.get_ai_provider', lambda: General())
+    card = _card(user, notebook)
+
+    res = _ask(client, card, 'How is France governed from Paris?')
+
+    assert res.json() == {'answer': 'France is a unitary state; Paris holds the government.', 'from': 'general'}
+    prompt = Tutor.prompts[0]
+    assert "about this card's topic" in prompt and 'not about this card' in prompt   # on topic, or turned away
+
+
+def test_an_answer_from_the_passage_says_so(client, user, notebook, tutor):
+    assert _ask(client, _card(user, notebook), 'Why not Lyon?').json()['from'] == 'passage'

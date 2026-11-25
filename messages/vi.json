@@ -362,7 +362,8 @@
     "docDone": "Bạn đã làm hết thẻ của tài liệu này. Thẻ bạn quên sẽ quay lại để ôn. Muốn học tiếp thì tạo bộ thẻ mới.",
     "docDoneReviewed": "Xong rồi, bạn vừa ôn {cards}. Thẻ bạn quên sẽ quay lại để ôn. Muốn học tiếp thì tạo bộ thẻ mới.",
     "newDeck": "Tạo bộ thẻ mới",
-    "docLater": "Hôm nay bạn đã học đủ. Tài liệu này còn {cards} chưa xong, ngày mai học tiếp nhé."
+    "docLater": "Hôm nay bạn đã học đủ. Tài liệu này còn {cards} chưa xong, ngày mai học tiếp nhé.",
+    "tutorGeneral": "Ngoài tài liệu"
   },
   "quizzes": {
     "title": "Bài kiểm tra",
