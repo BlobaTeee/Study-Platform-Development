@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
-import { ArrowRight, FileText, Pencil } from 'lucide-react'
+import { ArrowRight, FileText, Loader2, Pencil, Timer } from 'lucide-react'
 import { OwnProblemForm } from '@/components/own-problem-form'
 import { PageHeader } from '@/components/page-header'
 import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
@@ -31,6 +31,20 @@ function PracticeList() {
   const found = useInPageLanguage(shown.map((p) => p.prompt))
   const [writing, setWriting] = useState(filter === 'own')
   const [renaming, setRenaming] = useState<string | null>(null)
+  const [sitting, setSitting] = useState<string | null>(null)
+  const [sitError, setSitError] = useState('')
+
+  const sit = async (key: string) => {
+    setSitting(key)
+    setSitError('')
+    try {
+      const res = await exercisesAPI.sitSet(key)
+      router.push(`/dashboard/tests?id=${res.data.id}`)
+    } catch {
+      setSitError(t('sitFailed'))
+      setSitting(null)
+    }
+  }
 
   const pick = (next: PracticeFilter) => {
     const query = next === 'all' ? '' : `?notebook=${next}`
@@ -87,6 +101,8 @@ function PracticeList() {
         ) : shown.length === 0 ? (
           <p className="mt-4 max-w-[65ch] text-slate-600">{all.length === 0 ? t('listEmpty') : t('listEmptyFiltered')}</p>
         ) : (
+          <>
+          {sitError && <p role="alert" className="mt-4 text-sm text-red-700">{sitError}</p>}
           <ul className="mt-4 divide-y divide-slate-100 border-t border-slate-100">
             {rows.map((row) => {
               if (row.kind === 'set') {
@@ -107,10 +123,17 @@ function PracticeList() {
                     tone={all ? 'done' : row.due ? 'due' : 'plain'}
                     // A document's name is the document's own; only a set is renamed here.
                     action={row.from === 'document' ? undefined : (
-                      <Button type="button" variant="ghost" size="icon-sm" onClick={() => setRenaming(row.key)}
-                              aria-label={t('renameSet')} title={t('renameSet')}>
-                        <Pencil aria-hidden />
-                      </Button>
+                      <span className="flex shrink-0 items-center">
+                        {/* The real paper, sat as one: timed, marked out of 10 (Thi thử). */}
+                        <Button type="button" variant="ghost" size="icon-sm" disabled={sitting !== null}
+                                onClick={() => void sit(row.key)} aria-label={t('sitSet')} title={t('sitSet')}>
+                          {sitting === row.key ? <Loader2 className="animate-spin" aria-hidden /> : <Timer aria-hidden />}
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon-sm" onClick={() => setRenaming(row.key)}
+                                aria-label={t('renameSet')} title={t('renameSet')}>
+                          <Pencil aria-hidden />
+                        </Button>
+                      </span>
                     )}
                   />
                 )
@@ -128,6 +151,7 @@ function PracticeList() {
               )
             })}
           </ul>
+          </>
         )}
       </section>
     </div>

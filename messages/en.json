@@ -480,7 +480,14 @@
     "scoreOutOf10": "{score}/10",
     "notGraded": "The written part could not be marked (the AI did not answer), so it scores 0.",
     "modelAnswer": "Model answer",
-    "mixedLead": "Each sitting is a new paper: multiple choice, true/false, short answer, sometimes a written problem. Marked out of 10."
+    "mixedLead": "Each sitting is a new paper: multiple choice, true/false, short answer, sometimes a written problem. Marked out of 10.",
+    "realPapers": "Your real papers",
+    "realPapersLead": "Papers you added to practice, sat for real: timed, marked out of 10.",
+    "realPaperUntitled": "Your set",
+    "realPaperMeta": "{count, plural, one {# question} other {# questions}}",
+    "sitPaper": "Sit",
+    "paperMistakes": "{count, plural, one {# missed question is} other {# missed questions are}} back in practice to redo.",
+    "paperRetake": "Redo in practice"
   },
   "analytics": {
     "readyToStudy": "{count, plural, one {card ready to study} other {cards ready to study}}",
@@ -719,7 +726,9 @@
     "setPosition": "{index} of {total}",
     "prevInSet": "Previous",
     "nextInSet": "Next",
-    "loadFailed": "This problem didn't load."
+    "loadFailed": "This problem didn't load.",
+    "sitSet": "Sit it for real",
+    "sitFailed": "The test didn't open. Try again."
   },
   "desk": {
     "title": "Study from this document",

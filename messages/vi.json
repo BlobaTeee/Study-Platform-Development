@@ -480,7 +480,14 @@
     "scoreOutOf10": "{score}/10",
     "notGraded": "Chưa chấm được phần tự luận (AI không phản hồi), phần này tính 0 điểm.",
     "modelAnswer": "Bài làm mẫu",
-    "mixedLead": "Mỗi lần thi là một đề mới: trắc nghiệm, đúng/sai, trả lời ngắn, đôi khi có tự luận. Chấm thang 10."
+    "mixedLead": "Mỗi lần thi là một đề mới: trắc nghiệm, đúng/sai, trả lời ngắn, đôi khi có tự luận. Chấm thang 10.",
+    "realPapers": "Đề thật của bạn",
+    "realPapersLead": "Đề bạn đã thêm vào Bài vận dụng, thi như thật: có giờ, chấm thang 10.",
+    "realPaperUntitled": "Bộ đề của bạn",
+    "realPaperMeta": "{count} câu",
+    "sitPaper": "Thi",
+    "paperMistakes": "{count} câu sai đã về Bài vận dụng để làm lại.",
+    "paperRetake": "Làm lại trong Bài vận dụng"
   },
   "analytics": {
     "readyToStudy": "thẻ sẵn sàng để ôn",
@@ -719,7 +726,9 @@
     "setPosition": "Câu {index}/{total}",
     "prevInSet": "Câu trước",
     "nextInSet": "Câu tiếp",
-    "loadFailed": "Chưa tải được bài này."
+    "loadFailed": "Chưa tải được bài này.",
+    "sitSet": "Thi như thật",
+    "sitFailed": "Chưa mở được bài thi. Thử lại nhé."
   },
   "desk": {
     "title": "Học từ tài liệu này",

@@ -8,7 +8,8 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import useSWR from 'swr'
-import { mockTestsAPI, notebooksAPI, plannedTestsAPI } from '@/lib/api'
+import { exercisesAPI, mockTestsAPI, notebooksAPI, plannedTestsAPI } from '@/lib/api'
+import { inPracticeOrder, practiceRows } from '@/lib/practice'
 import { useConfirm } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { useLocale, useTranslations } from 'next-intl'
@@ -29,6 +30,7 @@ import {
   ChevronLeft,
   Clock,
   Loader2,
+  Timer,
   Trash2,
   XCircle,
 } from 'lucide-react'
@@ -59,6 +61,8 @@ type PaperQuestion = {
   earned?: number | null
   grade?: { verdict?: string; met?: number[]; detail?: string; not_graded?: boolean }
   solution?: string[]
+  // A real paper's figures, cut from its pages.
+  figures?: (string | null)[]
 }
 
 type ExamSection = 'choice' | 'true_false' | 'short' | 'written'
@@ -84,7 +88,8 @@ type MockTest = {
 
 type SubmitResult = {
   id: number
-  notebook: number
+  // Null for a real paper the student brought, which belongs to no notebook.
+  notebook: number | null
   score: number
   completed_at: string
   question_count: number
@@ -611,14 +616,23 @@ function MockTestsInner() {
             {result.template ? t('scoreOutOf10', { score: scoreOutOfTen(result.score, locale) }) : `${pct}%`}
           </p>
           <p className="min-w-0 flex-1 basis-64 text-base text-slate-700">
-            {result.mistake_count > 0
-              ? t('mistakesAfterTest', { count: result.mistake_count })
-              : t('bankClear')}
+            {result.mistake_count === 0
+              ? t('bankClear')
+              : result.notebook === null
+                ? t('paperMistakes', { count: result.mistake_count })
+                : t('mistakesAfterTest', { count: result.mistake_count })}
           </p>
           {result.mistake_count > 0 && (
-            <Button variant="tinted" onClick={() => handleRetakeMistakes(result.notebook)}>
-              {t('retakeMistakes')}
-            </Button>
+            result.notebook === null ? (
+              // A real paper's misses are back in practice, due today.
+              <Button asChild variant="tinted">
+                <Link href="/dashboard/practice">{t('paperRetake')}</Link>
+              </Button>
+            ) : (
+              <Button variant="tinted" onClick={() => handleRetakeMistakes(result.notebook!)}>
+                {t('retakeMistakes')}
+              </Button>
+            )
           )}
           {setupError && <p className="basis-full text-sm text-red-700">{setupError}</p>}
           {/* Where the points went, part by part, as the exam would report them. */}
@@ -653,7 +667,7 @@ function MockTestsInner() {
                   {result.template && q.section && (
                     <span className="mr-2 text-sm font-medium text-mode-ink">{t(`part_${q.section}`)}</span>
                   )}
-                  <InPageLanguage text={q.question_text} found={found} math={!!result.template} />
+                  <InPageLanguage text={q.question_text} found={found} math={!!result.template} figures={q.figures} />
                 </p>
               </div>
 
@@ -667,7 +681,7 @@ function MockTestsInner() {
                   else if (opt === q.user_answer) style = 'border-red-300 bg-red-50 text-red-900'
                   return (
                     <div key={opt} className={`rounded-lg border-2 px-4 py-2.5 text-base ${style}`}>
-                      <InPageLanguage text={opt} found={found} context={isShort(opt) ? q.question_text : undefined} />
+                      <InPageLanguage text={opt} found={found} math={!!result.template} context={isShort(opt) ? q.question_text : undefined} />
                       {opt === q.correct_answer && (
                         <span className="ml-2 text-sm font-medium text-emerald-700">{t('correctAnswer')}</span>
                       )}
@@ -793,7 +807,7 @@ function MockTestsInner() {
               <span className="h-px flex-1 bg-slate-100" aria-hidden />
             </div>
             <p className="text-2xl md:text-3xl text-slate-900 leading-relaxed mb-8">
-              <InPageLanguage text={question.question_text} found={found} math={!!test.template} />
+              <InPageLanguage text={question.question_text} found={found} math={!!test.template} figures={question.figures} />
             </p>
 
             {question.section && question.section !== 'choice' && (
@@ -820,7 +834,7 @@ function MockTestsInner() {
                       isSelected ? 'border-mode bg-mode/10' : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
-                    <InPageLanguage text={opt} found={found} context={isShort(opt) ? question.question_text : undefined} />
+                    <InPageLanguage text={opt} found={found} math={!!test.template} context={isShort(opt) ? question.question_text : undefined} />
                   </button>
                 )
               })}
@@ -958,6 +972,8 @@ function MockTestsInner() {
           </form>
         </Card>
       )}
+
+      <RealPapers onSit={(id) => router.replace(`/dashboard/tests?id=${id}`)} />
 
       <div className="space-y-6 border-t border-slate-200 pt-8">
         <div>
@@ -1172,6 +1188,54 @@ export default function MockTestsPage() {
  *  reread. The passage is the chunk the generator saw, folded to three lines
  *  until asked for; the link opens the notebook on that very document. A
  *  question whose source was deleted keeps its passage and loses the link. */
+/** The real papers the student added to practice, each to sit as that
+ *  paper: here beside the papers written from their documents, so this is
+ *  the one place to sit a test (2026-11-25). */
+function RealPapers({ onSit }: { onSit: (testId: number) => void }) {
+  const t = useTranslations('tests')
+  const { data } = useSWR(['/exercises', 'all'], () => exercisesAPI.list({}))
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const sets = practiceRows(inPracticeOrder(data?.data?.results ?? []))
+    .flatMap((row) => (row.kind === 'set' && row.from === 'file' ? [row] : []))
+  if (sets.length === 0) return null
+
+  const sit = async (key: string) => {
+    setBusy(key)
+    setError('')
+    try {
+      onSit((await exercisesAPI.sitSet(key)).data.id)
+    } catch (err) {
+      setError(apiErrorMessage(err, t('startFailed')))
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="space-y-4 border-t border-slate-200 pt-8">
+      <div>
+        <h2 className="font-display text-2xl font-semibold text-slate-900">{t('realPapers')}</h2>
+        <p className="text-base text-slate-500 mt-2 leading-relaxed">{t('realPapersLead')}</p>
+      </div>
+      <Card className="divide-y divide-slate-100 px-6 py-2 md:px-8">
+        {sets.map((set) => (
+          <div key={set.key} className="flex items-center gap-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-base text-slate-900">{set.title || t('realPaperUntitled')}</p>
+              <p className="text-sm text-slate-600">{t('realPaperMeta', { count: set.problems.length })}</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void sit(set.key)}>
+              {busy === set.key ? <Loader2 className="animate-spin" aria-hidden /> : <Timer aria-hidden />}
+              {t('sitPaper')}
+            </Button>
+          </div>
+        ))}
+      </Card>
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    </div>
+  )
+}
+
 function Provenance({
   source,
   excerpt,

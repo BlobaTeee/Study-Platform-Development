@@ -210,6 +210,9 @@ export const exercisesAPI = {
   // Rename a set; '' gives back the default name.
   renameSet: (key: string, title: string) =>
     api.patch<{ set_key: string; set_title: string }>(`/exercises/sets/${key}/`, { title }),
+  // The set sat as the real paper it came from: a timed mock test of its
+  // problems, marked out of 10 at the end. Returns the sitting.
+  sitSet: (key: string) => api.post<{ id: number }>(`/exercises/sets/${key}/sit/`, {}),
   // answers: the key read from a Word file's table (the paper's answer);
   // hints: the key as the AI read it from a picture, which may be misread.
   ownSet: (texts: string[], figures?: (string | null)[][], title?: string, answers?: (PrintedAnswer | null)[],

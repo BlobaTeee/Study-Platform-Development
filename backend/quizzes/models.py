@@ -126,8 +126,12 @@ class MockTest(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='mock_tests')
     # String reference on purpose: notebooks already imports quizzes.serializers,
     # so importing notebooks here would close a circular import.
+    # Null for a real paper the student brought (a practice set sat as an
+    # exam, exercises/services/sitting.py): it belongs to no notebook.
     notebook = models.ForeignKey('notebooks.Notebook', on_delete=models.CASCADE,
-                                 related_name='mock_tests')
+                                 related_name='mock_tests', null=True, blank=True)
+    # That paper's name (the set's), shown where a notebook's would be.
+    paper_title = models.CharField(max_length=200, blank=True, default='')
     question_count = models.PositiveSmallIntegerField(default=20)
     duration_minutes = models.PositiveSmallIntegerField(default=30)
     started_at = models.DateTimeField(auto_now_add=True)

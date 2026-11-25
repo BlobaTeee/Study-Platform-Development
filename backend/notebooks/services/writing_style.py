@@ -167,8 +167,14 @@ class CleanGeneratedText:
     question_fields: tuple[str, ...] = ()
     prose_fields: tuple[str, ...] = ()
 
+    def keep_as_written(self, instance) -> bool:
+        """Text the student brought (a real paper) is shown as they gave it."""
+        return False
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        if self.keep_as_written(instance):
+            return data
         title = _title_of(instance) if self.prose_fields else ''
         for field in self.question_fields:
             if data.get(field):

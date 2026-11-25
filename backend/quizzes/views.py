@@ -518,6 +518,13 @@ def _mark_exam_row(row) -> None:
     if row.section == 'true_false':
         row.earned, right = tf_earned(parse_marks(row.user_answer), row.statements, row.points)
         row.is_correct = right == len(row.statements)
+    elif row.section == 'short' and (row.reference or {}).get('answer'):
+        # A real paper's answer (services/sitting.py): as practice checks it,
+        # against the printed answer and the other ways of writing it.
+        from exercises.services.grading import short_matches
+        ref = row.reference
+        row.is_correct = short_matches(row.user_answer, [str(ref['answer']), *ref.get('accept', [])])
+        row.earned = row.points if row.is_correct else 0.0
     elif row.section == 'short':
         verdict = 'wrong'
         if row.user_answer.strip():
@@ -555,6 +562,16 @@ def _mark_exam_row(row) -> None:
     else:
         row.is_correct = _answer_matches(row.user_answer, row.correct_answer)
         row.earned = row.points if row.is_correct else 0.0
+
+
+def _send_misses_back(test, rows) -> None:
+    """A real paper's problems missed in the sitting are due again in
+    practice today, so they come up under "to review today"."""
+    from django.utils import timezone
+    from exercises.models import Exercise
+    missed = [(r.reference or {}).get('exercise_id') for r in rows if not r.is_correct]
+    Exercise.objects.filter(user=test.user, id__in=[m for m in missed if m]).update(
+        status='revisit', revisit_on=timezone.localdate())
 
 
 def _exam_paper(user, notebook, source_ids, tpl):
@@ -941,6 +958,8 @@ class MockTestViewSet(viewsets.ModelViewSet):
             locked.completed_at = timezone.now()
             locked.score = round(sum(r.earned or 0 for r in rows) / total * 100, 1) if total else 0.0
             locked.save(update_fields=['completed_at', 'score'])
+            if locked.template == 'paper':
+                _send_misses_back(locked, rows)
         return Response(self._review(locked, rows))
 
     @action(detail=True, methods=['post'])
@@ -973,13 +992,16 @@ class MockTestViewSet(viewsets.ModelViewSet):
         return {
             'id': test.id,
             'notebook': test.notebook_id,
+            'paper_title': test.paper_title,
             'score': test.score,
             'completed_at': test.completed_at,
             'question_count': test.question_count,
             'correct_count': sum(1 for r in rows if r.is_correct),
             # What the bank holds now, this sitting included — the review
             # can say "N questions to redo" without a second request.
-            'mistake_count': len(_owed_question_ids(test.user, test.notebook)),
+            # A real paper's misses went back to practice (_send_misses_back).
+            'mistake_count': (sum(1 for r in rows if not r.is_correct) if test.notebook is None
+                              else len(_owed_question_ids(test.user, test.notebook))),
             'paper': MockTestQuestionReviewSerializer(rows, many=True).data,
             'template': test.template,
             # Points per part of an exam-shaped paper, in part order; empty for
