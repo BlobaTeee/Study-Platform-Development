@@ -253,7 +253,9 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'user': config('THROTTLE_USER', default='60/min'),
+        # One page opens several requests at once (the problem, the list, the
+        # sidebar's counts); 60/min was reached by clicking through a set.
+        'user': config('THROTTLE_USER', default='300/min'),
         # 'off' lifts it (a demo should not run out mid-way); 30/hour once deployed.
         'generate': _rate_or_none(config('THROTTLE_GENERATE', default='30/hour')),
     },

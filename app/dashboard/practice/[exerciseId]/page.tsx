@@ -77,10 +77,23 @@ export default function PracticePage({ params }: { params: Promise<{ exerciseId:
     )
   }
   if (!exercise || loadError) {
+    // "Not found" only when it is not there: a refusal for going too fast
+    // or a server error once read as a missing problem (2026-11-25).
+    const failed = loadError as { response?: { status?: number; data?: { detail?: unknown } } } | undefined
+    const status = failed?.response?.status
+    const detail = failed?.response?.data?.detail
+    const missing = !loadError || status === 404
     return (
       <div className="mx-auto max-w-3xl space-y-8">
         <PageHeader title={t('title')} action={back} />
-        <p className="sheet p-8 text-lg text-slate-700">{t('notFound')}</p>
+        <div className="sheet space-y-4 p-8">
+          <p className="text-lg text-slate-700">
+            {missing ? t('notFound') : typeof detail === 'string' && detail ? detail : t('loadFailed')}
+          </p>
+          {!missing && (
+            <Button type="button" variant="outline" onClick={() => void mutate()}>{common('retry')}</Button>
+          )}
+        </div>
       </div>
     )
   }

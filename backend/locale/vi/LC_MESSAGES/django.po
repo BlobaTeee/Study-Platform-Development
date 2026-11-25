@@ -447,3 +447,6 @@ msgstr "Không trích được chữ từ file này."
 
 msgid "That could not be done just now. Try again in a minute."
 msgstr "Chưa làm được lúc này. Thử lại sau một phút nhé."
+
+msgid "That was a lot at once. Wait a few seconds and try again."
+msgstr "Bạn thao tác hơi nhanh. Đợi vài giây rồi thử lại."

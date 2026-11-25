@@ -734,7 +734,8 @@
     "setLabel": "Problem set",
     "setPosition": "{index} of {total}",
     "prevInSet": "Previous",
-    "nextInSet": "Next"
+    "nextInSet": "Next",
+    "loadFailed": "This problem didn't load."
   },
   "desk": {
     "title": "Study from this document",

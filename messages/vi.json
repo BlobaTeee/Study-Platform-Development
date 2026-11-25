@@ -734,7 +734,8 @@
     "setLabel": "Bộ đề",
     "setPosition": "Câu {index}/{total}",
     "prevInSet": "Câu trước",
-    "nextInSet": "Câu tiếp"
+    "nextInSet": "Câu tiếp",
+    "loadFailed": "Chưa tải được bài này."
   },
   "desk": {
     "title": "Học từ tài liệu này",

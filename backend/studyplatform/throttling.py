@@ -34,6 +34,10 @@ class GenerationRateThrottle(UserRateThrottle):
 
     def allow_request(self, request, view):
         allowed = super().allow_request(request, view)
+        if not allowed:
+            # So the message can say it is the AI allowance that ran out,
+            # not the general one (exception_handler).
+            getattr(request, '_request', request)._generation_throttled = True
         if allowed and getattr(self, "key", None):      # no key when the limit is off
             # On the Django request, which the middleware below sees.
             django_request = getattr(request, '_request', request)
@@ -70,10 +74,16 @@ def RefundFailedGeneration(get_response):
 
 def exception_handler(exc, context):
     """DRF's handler, with the throttle's message in the student's language
-    and in minutes ("Expected available in 2961 seconds" says little)."""
+    and in minutes ("Expected available in 2961 seconds" says little). Only
+    the AI allowance says so; the general one is about going too fast (it
+    once told a student clicking through a set that their AI was used up)."""
     response = drf_exception_handler(exc, context)
     if isinstance(exc, Throttled) and response is not None:
-        minutes = max(1, ceil((exc.wait or 60) / 60))
-        response.data = {'detail': _("You've used this hour's AI requests. Try again in %(minutes)s min.")
-                         % {'minutes': minutes}}
+        request = context.get('request')
+        if getattr(getattr(request, '_request', request), '_generation_throttled', False):
+            minutes = max(1, ceil((exc.wait or 60) / 60))
+            response.data = {'detail': _("You've used this hour's AI requests. Try again in %(minutes)s min.")
+                             % {'minutes': minutes}}
+        else:
+            response.data = {'detail': _('That was a lot at once. Wait a few seconds and try again.')}
     return response

@@ -96,3 +96,22 @@ def test_off_lifts_the_allowance(client, notebook, monkeypatch):
     monkeypatch.setitem(GenerationRateThrottle.THROTTLE_RATES, 'generate', None)
     codes = {_generate(client, notebook).status_code for _ in range(LIMIT + 5)}
     assert codes == {400}
+
+
+def test_clicking_through_a_set_is_not_told_its_ai_ran_out(client, user, notebook, monkeypatch):
+    """The general per-minute limit says to slow down; only the AI allowance
+    speaks of AI requests (a student clicking "next" was told their AI was
+    used up, 2026-11-25)."""
+    from rest_framework.throttling import UserRateThrottle
+    from exercises.models import Exercise
+    monkeypatch.setattr(UserRateThrottle, 'rate', '3/min', raising=False)
+    ex = Exercise.objects.create(user=user, notebook=notebook, prompt='P', reference={})
+    codes = [client.get(f'/api/exercises/{ex.id}/') for _ in range(4)]
+    assert [r.status_code for r in codes] == [200, 200, 200, 429]
+    assert 'AI' not in codes[-1].json()['detail'] and 'seconds' in codes[-1].json()['detail']
+
+
+def test_the_general_limit_fits_a_page_that_opens_several_requests():
+    from django.conf import settings
+    rate = settings.REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']['user']
+    assert int(rate.split('/')[0]) >= 300 and rate.endswith('/min')
