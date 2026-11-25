@@ -332,6 +332,60 @@ class MistakeBankView(APIView):
             for r in rows]})
 
 
+class MistakeRedoView(APIView):
+    """Redoing one notebook's missed questions like a quiz, one at a time
+    with the answer right after, not as a timed mock test (the user found
+    the test oddly formal for going over mistakes, 2026-11-25).
+
+    GET ?notebook=: the owed questions, without their answers, so the list
+    is still no crib sheet. POST {notebook, question_id, answer}: marks one,
+    records it as quiz evidence for the mistake bank, and says whether it
+    has now left the bank (two right in a row)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _notebook(self, request, raw):
+        return notebooks_for(request.user).filter(id=raw).first()
+
+    def get(self, request):
+        notebook = self._notebook(request, request.query_params.get('notebook'))
+        if notebook is None:
+            return Response({'detail': _('Notebook not found.')}, status=404)
+        owed = _owed_question_ids(request.user, notebook)
+        questions = Question.objects.filter(id__in=owed).order_by('id')
+        return Response({'notebook': {'id': notebook.id, 'title': notebook.title}, 'questions': [
+            {'id': q.id, 'question_text': q.question_text, 'question_type': q.question_type,
+             'options': q.options} for q in questions]})
+
+    def post(self, request):
+        from django.utils import timezone
+        notebook = self._notebook(request, request.data.get('notebook'))
+        if notebook is None:
+            return Response({'detail': _('Notebook not found.')}, status=404)
+        question = Question.objects.filter(id=request.data.get('question_id'),
+                                           quiz__sources__notebook=notebook).distinct().first()
+        if question is None:
+            return Response({'detail': _('Question not part of this quiz.')}, status=404)
+        answer = str(request.data.get('answer') or '')
+        if not answer:
+            return Response({'detail': _('Pick an answer first.')}, status=400)
+        is_correct = answer == question.correct_answer
+        now = timezone.now()
+        attempt = (QuizAttempt.objects.filter(user=request.user, quiz=question.quiz, is_redo=True,
+                                              started_at__date=timezone.localdate())
+                   .first()
+                   or QuizAttempt.objects.create(user=request.user, quiz=question.quiz, is_redo=True))
+        Answer.objects.create(quiz_attempt=attempt, question=question, user_answer=answer,
+                              is_correct=is_correct, points_earned=int(is_correct))
+        answers = attempt.answers.all()
+        attempt.total_points = answers.count()
+        attempt.score = answers.filter(is_correct=True).count() / attempt.total_points * 100
+        attempt.is_completed, attempt.completed_at = True, now
+        attempt.save(update_fields=['total_points', 'score', 'is_completed', 'completed_at'])
+        return Response({'is_correct': is_correct, 'correct_answer': question.correct_answer,
+                         'explanation': question.explanation or '',
+                         'cleared': question.id not in _owed_question_ids(request.user, notebook)})
+
+
 class MistakeSummaryView(APIView):
     """How many questions each notebook still owes, for the review list on
     the Progress page. Notebooks with nothing owed are left out."""

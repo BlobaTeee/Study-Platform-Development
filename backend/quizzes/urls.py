@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     QuizViewSet, QuestionViewSet, QuizAttemptViewSet, MockTestViewSet,
-    PlannedTestViewSet, MistakeBankView, MistakeSummaryView, WeakConceptsView, PracticeConceptView,
+    PlannedTestViewSet, MistakeBankView, MistakeRedoView, MistakeSummaryView, WeakConceptsView, PracticeConceptView,
     MisconceptionsView, MisconceptionPracticeView,
 )
 
@@ -16,6 +16,7 @@ router.register(r'planned-tests', PlannedTestViewSet, basename='planned-test')
 urlpatterns = [
     path('mistakes/', MistakeBankView.as_view(), name='mistake-bank'),
     path('mistakes/summary/', MistakeSummaryView.as_view(), name='mistake-summary'),
+    path('mistakes/redo/', MistakeRedoView.as_view(), name='mistake-redo'),
     path('weak-concepts/', WeakConceptsView.as_view(), name='weak-concepts'),
     path('weak-concepts/practice/', PracticeConceptView.as_view(), name='practice-concept'),
     path('misconceptions/', MisconceptionsView.as_view(), name='misconceptions'),

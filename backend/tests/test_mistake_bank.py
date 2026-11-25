@@ -127,3 +127,35 @@ def test_the_home_page_hears_of_missed_questions_and_problems_due(client, user, 
     body = client.get('/api/analytics/sessions/recommendations/').json()
 
     assert body['beyond_cards'] == {'owed': 2, 'practice_due': 1}
+
+
+def test_missed_questions_are_redone_like_a_quiz(client, user, notebook):
+    """One at a time, the answer straight after, no clock (2026-11-25). The
+    list still shows no answers; two right in a row clear a question."""
+    qs = _questions(user, notebook)
+    _sit(user, notebook, {qs[0]: False, qs[1]: False})
+    url = '/api/quizzes/mistakes/redo/'
+
+    listed = client.get(f'{url}?notebook={notebook.id}').json()['questions']
+    assert [q['id'] for q in listed] == [qs[0].id, qs[1].id]
+    assert all('correct_answer' not in q for q in listed)
+
+    first = client.post(url, {'notebook': notebook.id, 'question_id': qs[0].id, 'answer': 'a'}, format='json').json()
+    assert first['is_correct'] and first['correct_answer'] == 'a' and not first['cleared']   # one right is luck
+    second = client.post(url, {'notebook': notebook.id, 'question_id': qs[0].id, 'answer': 'a'}, format='json').json()
+    assert second['cleared']
+    wrong = client.post(url, {'notebook': notebook.id, 'question_id': qs[1].id, 'answer': 'b'}, format='json').json()
+    assert not wrong['is_correct'] and not wrong['cleared']
+
+    assert [q['id'] for q in client.get(f'{url}?notebook={notebook.id}').json()['questions']] == [qs[1].id]
+    redo = QuizAttempt.objects.get(user=user, is_redo=True)          # one redo attempt for the day
+    assert (redo.total_points, redo.is_completed) == (3, True)
+
+
+def test_a_redo_only_takes_questions_of_ones_own_notebooks(client, other_user, notebook):
+    from notebooks.models import Notebook
+    theirs = Notebook.objects.create(user=other_user, title='Theirs')
+    assert client.get(f'/api/quizzes/mistakes/redo/?notebook={theirs.id}').status_code == 404
+    res = client.post('/api/quizzes/mistakes/redo/', {'notebook': notebook.id, 'question_id': 999999, 'answer': 'a'},
+                      format='json')
+    assert res.status_code == 404

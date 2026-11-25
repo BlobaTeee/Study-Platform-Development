@@ -23,7 +23,6 @@ import { cn } from '@/lib/utils'
 type Entry = ReviewNotebook<ForgottenNotebook, Misconception, PracticeMistakes>
 
 // A sitting of the mistake bank started from here gets the setup form's default.
-const RETAKE_MINUTES = 30
 
 /** "Cần ôn": one line per notebook, closed until pressed. Opened, it is split
  *  by kind (wrong questions, forgotten cards, mix-ups, practice errors), each
@@ -173,17 +172,9 @@ function OwedGroup({ notebookId, owed }: { notebookId: number; owed: number }) {
   const concepts: WeakConcept[] = data?.data?.concepts ?? []
   const found = useInPageLanguage(concepts.flatMap((c) => [c.label, c.sample[0]]))
 
-  const retake = async () => {
-    setBusy('retake')
-    setError('')
-    try {
-      const res = await mockTestsAPI.start({ notebook: notebookId, duration_minutes: RETAKE_MINUTES, mistakes_only: true })
-      router.push(`/dashboard/tests?id=${res.data.id}`)
-    } catch {
-      setError(tests('startFailed'))
-      setBusy(null)
-    }
-  }
+  // Missed questions are redone like a quiz, marked one by one, not sat
+  // as a timed paper.
+  const retake = () => router.push(`/dashboard/quizzes/redo?notebook=${notebookId}`)
 
   const practise = async (c: WeakConcept) => {
     setBusy(c.key)
@@ -204,8 +195,7 @@ function OwedGroup({ notebookId, owed }: { notebookId: number; owed: number }) {
       count={owed}
       note={t('groupOwedFrom')}
       action={
-        <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void retake()}>
-          {busy === 'retake' ? <Loader2 className="animate-spin" aria-hidden /> : null}
+        <Button variant="outline" size="sm" disabled={busy !== null} onClick={retake}>
           {t('retakeOwed')}
         </Button>
       }

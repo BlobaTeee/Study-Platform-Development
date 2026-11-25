@@ -380,7 +380,15 @@
     "finish": "Finish",
     "nextQuestion": "Next question",
     "true": "True",
-    "false": "False"
+    "false": "False",
+    "redoTitle": "Redo missed questions",
+    "redoEmpty": "Nothing missed is left in this notebook. Well done!",
+    "redoCleared": "Off the missed list.",
+    "redoStays": "One more right answer and it leaves the list.",
+    "redoDone": "{right}/{total} right · {cleared} left the missed list",
+    "redoAgain": "Redo the ones still missed",
+    "redoBack": "Back to progress",
+    "redoFailed": "That one couldn't be marked. Try again."
   },
   "tests": {
     "sitLead": "Once you start, the questions and the timer are set.",

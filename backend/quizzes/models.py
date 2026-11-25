@@ -72,6 +72,9 @@ class QuizAttempt(models.Model):
     score = models.FloatField(null=True, blank=True)
     total_points = models.IntegerField(default=0)
     is_completed = models.BooleanField(default=False)
+    # A day's redo of missed questions from this quiz (quizzes/views
+    # MistakeRedoView), kept apart from attempts at the quiz itself.
+    is_redo = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.user.username} - {self.quiz.title}"

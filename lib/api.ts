@@ -195,6 +195,8 @@ export type PracticeMistakes = {
 // figures[n - 1] is the picture for [Figure n: …] in the text, cut from the page; null if it could not be.
 // answer: the paper's own answer from its answer key (ĐÁP ÁN), when it prints one.
 export type PrintedAnswer = string | Record<string, boolean>
+export type RedoQuestion = { id: number; question_text: string; question_type: 'multiple_choice' | 'true_false'; options: string[] }
+export type RedoVerdict = { is_correct: boolean; correct_answer: string; explanation: string; cleared: boolean }
 export type PhotoQuestion = { label: string; instruction: string; text: string; figures?: (string | null)[]; answer?: PrintedAnswer; hint?: PrintedAnswer }
 
 export const exercisesAPI = {
@@ -443,6 +445,14 @@ export const mockTestsAPI = {
     api.get<{ count: number; questions: { id: number; question_text: string }[] }>(
       `/quizzes/mistakes/?notebook=${notebook}`
     ),
+  // Redoing one notebook's missed questions like a quiz: the list carries no
+  // answers; each answer is marked as it is given, and says whether that
+  // question has now left the bank (two right in a row).
+  redoMistakes: (notebook: number) =>
+    api.get<{ notebook: { id: number; title: string }; questions: RedoQuestion[] }>(
+      `/quizzes/mistakes/redo/?notebook=${notebook}`),
+  redoAnswer: (notebook: number, questionId: number, answer: string) =>
+    api.post<RedoVerdict>('/quizzes/mistakes/redo/', { notebook, question_id: questionId, answer }),
   // How many questions each notebook still owes; notebooks owing none are left out.
   mistakeSummary: () =>
     api.get<{ notebooks: { notebook_id: number; title: string; count: number }[] }>('/quizzes/mistakes/summary/'),

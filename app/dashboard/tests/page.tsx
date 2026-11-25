@@ -184,7 +184,6 @@ function MockTestsInner() {
   // under the new one; `mistakeCount` below is null until this one's arrives.
   const [bank, setBank] = useState<{ notebook: number; count: number } | null>(null)
   const mistakeCount = bank && bank.notebook === notebookId ? bank.count : null
-  const [retaking, setRetaking] = useState(false)
 
   const {
     data: plansData,
@@ -435,19 +434,9 @@ function MockTestsInner() {
     }
   }
 
-  // Sits the whole bank for a notebook: from the setup form (its duration
-  // field) or straight from a review (the default duration).
-  const handleRetakeMistakes = async (notebook: number, duration: number) => {
-    setRetaking(true)
-    setSetupError('')
-    try {
-      await beginTest({ notebook, duration_minutes: duration, mistakes_only: true })
-    } catch (err) {
-      setSetupError(apiErrorMessage(err, t('startFailed')))
-    } finally {
-      setRetaking(false)
-    }
-  }
+  // A notebook's missed questions are redone like a quiz, marked one by
+  // one, not sat as another timed paper.
+  const handleRetakeMistakes = (notebook: number) => router.push(`/dashboard/quizzes/redo?notebook=${notebook}`)
 
   const handleStartFromPlan = async (plan: PlannedTest) => {
     setStartingPlanId(plan.id)
@@ -627,8 +616,7 @@ function MockTestsInner() {
               : t('bankClear')}
           </p>
           {result.mistake_count > 0 && (
-            <Button variant="tinted" disabled={retaking} onClick={() => void handleRetakeMistakes(result.notebook, 30)}>
-              {retaking ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            <Button variant="tinted" onClick={() => handleRetakeMistakes(result.notebook)}>
               {t('retakeMistakes')}
             </Button>
           )}

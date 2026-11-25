@@ -380,7 +380,15 @@
     "finish": "Hoàn thành",
     "nextQuestion": "Câu tiếp",
     "true": "Đúng",
-    "false": "Sai"
+    "false": "Sai",
+    "redoTitle": "Làm lại câu sai",
+    "redoEmpty": "Sổ tay này không còn câu sai nào. Giỏi lắm!",
+    "redoCleared": "Đã rời danh sách câu sai.",
+    "redoStays": "Đúng thêm một lần nữa là câu này rời danh sách.",
+    "redoDone": "Đúng {right}/{total} câu · {cleared} câu đã rời danh sách",
+    "redoAgain": "Làm lại các câu còn sai",
+    "redoBack": "Về Tiến độ",
+    "redoFailed": "Chưa chấm được câu này. Thử lại nhé."
   },
   "tests": {
     "sitLead": "Bắt đầu rồi thì đề và thời gian không đổi nữa.",

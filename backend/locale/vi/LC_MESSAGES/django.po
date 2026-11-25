@@ -450,3 +450,6 @@ msgstr "Chưa làm được lúc này. Thử lại sau một phút nhé."
 
 msgid "That was a lot at once. Wait a few seconds and try again."
 msgstr "Bạn thao tác hơi nhanh. Đợi vài giây rồi thử lại."
+
+msgid "Pick an answer first."
+msgstr "Chọn một đáp án trước đã."
