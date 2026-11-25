@@ -98,7 +98,11 @@ export default function DashboardLayout({
         <MobileNavBar />
         <LiveInvites />
 
-        <main className="paper-grid min-h-0 flex-1 overflow-auto">
+        {/* `relative`: an absolutely placed child (KaTeX's hidden MathML on
+            every formula) is held inside the scrolling area. Without it, a
+            formula far down a long page stretched the whole document, which
+            then scrolled past the app into white (2026-11-26). */}
+        <main className="paper-grid relative min-h-0 flex-1 overflow-auto">
           <div className={cn('h-full w-full', isNotebooks ? 'p-0' : 'mx-auto max-w-5xl px-4 py-6 md:px-10 md:py-10')}>
             {children}
           </div>
