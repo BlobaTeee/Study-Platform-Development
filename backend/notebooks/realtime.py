@@ -62,13 +62,15 @@ async def group_join(sid, data):
     """Join a chat group's room. The rooms a client gets on connecting are
     the groups it was in then; a group made, or joined, after that was never
     delivered until the page was reloaded (2026-11-26). The page asks for the
-    group it shows, and again after every reconnect; only a member gets in."""
+    group it shows, and again after every reconnect; only a member gets in.
+    The reply names the member: a message that comes back over the socket
+    carries no "is_you", so the page tells its own from it."""
     session = await sio.get_session(sid)
     group_id = (data or {}).get('group')
     if not session or not group_id or not await _in_group(session['user_id'], group_id):
         return {'ok': False}
     await sio.enter_room(sid, f'group-{group_id}')
-    return {'ok': True}
+    return {'ok': True, 'you': session['user_id']}
 
 
 @sync_to_async

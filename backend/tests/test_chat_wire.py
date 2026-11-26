@@ -68,7 +68,7 @@ def test_only_a_member_can_ask_to_join_a_group(server, user, other_user, shared_
         await outsider.connect()
         try:
             group = (await me.api('POST', 'groups/', {'name': 'Riêng', 'members': [other_user.id]}))['id']
-            assert await me.sio.call('group:join', {'group': group}, timeout=WAIT) == {'ok': True}
+            assert await me.sio.call('group:join', {'group': group}, timeout=WAIT) == {'ok': True, 'you': user.id}
             assert await outsider.sio.call('group:join', {'group': group}, timeout=WAIT) == {'ok': False}
             assert await outsider.sio.call('group:join', {'group': 'x'}, timeout=WAIT) == {'ok': False}
             await me.api('POST', f'groups/{group}/messages/', {'body': 'bí mật'})
