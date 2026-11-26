@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import { AuthBrandPanel } from '@/components/auth-brand-panel'
 import { LanguageSwitch } from '@/components/language-switch'
@@ -85,9 +85,8 @@ export default function ResetPasswordPage() {
                 )}
                 <div className="space-y-2">
                   <Label htmlFor="password">{t('newPassword')}</Label>
-                  <Input
+                  <PasswordInput
                     id="password"
-                    type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="new-password"
@@ -97,9 +96,8 @@ export default function ResetPasswordPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirm">{t('confirmPassword')}</Label>
-                  <Input
+                  <PasswordInput
                     id="confirm"
-                    type="password"
                     placeholder={t('confirmPasswordPlaceholder')}
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}

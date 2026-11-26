@@ -28,7 +28,9 @@
     "masteryStrong": "Solid",
     "masteryGood": "Getting there",
     "masteryShaky": "Not solid yet",
-    "masteryWeak": "Needs work"
+    "masteryWeak": "Needs work",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "nav": {
     "home": "Home",

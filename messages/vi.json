@@ -28,7 +28,9 @@
     "masteryStrong": "Nắm chắc",
     "masteryGood": "Khá ổn",
     "masteryShaky": "Chưa vững",
-    "masteryWeak": "Cần ôn thêm"
+    "masteryWeak": "Cần ôn thêm",
+    "showPassword": "Hiện mật khẩu",
+    "hidePassword": "Ẩn mật khẩu"
   },
   "nav": {
     "home": "Trang chủ",

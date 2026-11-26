@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth, EMAIL_RATE_LIMIT } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { Mail } from 'lucide-react'
@@ -145,9 +146,8 @@ export default function RegisterPage() {
 
             <div className="space-y-2">
               <Label htmlFor="password">{t('password')}</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 placeholder={t('createPasswordPlaceholder')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -158,9 +158,8 @@ export default function RegisterPage() {
 
             <div className="space-y-2">
               <Label htmlFor="confirm-password">{t('confirmPassword')}</Label>
-              <Input
+              <PasswordInput
                 id="confirm-password"
-                type="password"
                 placeholder={t('confirmPasswordPlaceholder')}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
