@@ -99,7 +99,9 @@
     "orDivider": "or with email",
     "oauthFailed": "Could not start sign-in with that provider. Try again.",
     "confirmingAccount": "Confirming your account…",
-    "loadingApp": "Loading…"
+    "loadingApp": "Loading…",
+    "alreadyRegistered": "This email already has an account. Sign in, or use “Forgot password?”.",
+    "emailRateLimit": "Too many emails sent this hour. Try again in a few minutes."
   },
   "home": {
     "streak": "{count, plural, one {# day streak} other {# day streak}}",

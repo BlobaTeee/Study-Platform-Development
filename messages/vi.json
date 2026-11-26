@@ -99,7 +99,9 @@
     "orDivider": "hoặc dùng email",
     "oauthFailed": "Không bắt đầu được đăng nhập với nhà cung cấp đó. Hãy thử lại.",
     "confirmingAccount": "Đang xác nhận tài khoản…",
-    "loadingApp": "Đang tải…"
+    "loadingApp": "Đang tải…",
+    "alreadyRegistered": "Email này đã có tài khoản. Hãy đăng nhập, hoặc chọn “Quên mật khẩu?”.",
+    "emailRateLimit": "Đã gửi quá nhiều email trong giờ này. Thử lại sau ít phút."
   },
   "home": {
     "streak": "Chuỗi {count} ngày",

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
-import { useAuth } from '@/lib/auth-context'
+import { useAuth, EMAIL_RATE_LIMIT } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,7 +26,8 @@ export default function ForgotPasswordPage() {
       await requestPasswordReset(email.trim())
       setSent(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('resetRequestFailed'))
+      const message = err instanceof Error ? err.message : ''
+      setError(message === EMAIL_RATE_LIMIT ? t('emailRateLimit') : message || t('resetRequestFailed'))
     } finally {
       setLoading(false)
     }
