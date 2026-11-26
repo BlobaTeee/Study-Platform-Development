@@ -57,6 +57,29 @@ async def typing(sid, data):
                    room=room, skip_sid=sid)
 
 
+@sio.on('group:join')
+async def group_join(sid, data):
+    """Join a chat group's room. The rooms a client gets on connecting are
+    the groups it was in then; a group made, or joined, after that was never
+    delivered until the page was reloaded (2026-11-26). The page asks for the
+    group it shows, and again after every reconnect; only a member gets in."""
+    session = await sio.get_session(sid)
+    group_id = (data or {}).get('group')
+    if not session or not group_id or not await _in_group(session['user_id'], group_id):
+        return {'ok': False}
+    await sio.enter_room(sid, f'group-{group_id}')
+    return {'ok': True}
+
+
+@sync_to_async
+def _in_group(user_id, group_id):
+    from .models import ChatGroupMember
+    try:
+        return ChatGroupMember.objects.filter(group_id=int(group_id), user_id=user_id).exists()
+    except (TypeError, ValueError):
+        return False
+
+
 @sio.on('live:join')
 async def live_join(sid, data):
     """Watch a live round. Only a member of its notebook is let in; the
@@ -98,6 +121,34 @@ def _user_from_token(token):
 def _rooms_for(user):
     from .services.chat import rooms_for_user
     return rooms_for_user(user)
+
+
+async def _move_users(room: str, user_ids, join: bool) -> None:
+    for uid in user_ids:
+        for sid, _eio in list(sio.manager.get_participants('/', f'user-{uid}')):
+            if join:
+                await sio.enter_room(sid, room)
+            else:
+                await sio.leave_room(sid, room)
+
+
+def add_to_room(room: str, user_ids) -> None:
+    """Put the open sockets of these people into `room`: someone added to a
+    group, or the group just made, hears it from now on without reconnecting.
+    Best effort, like emit_to_room; the page also asks to join (group:join)."""
+    try:
+        async_to_sync(_move_users)(room, list(user_ids), True)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning('Socket room join failed (%s): %s', room, exc)
+
+
+def remove_from_room(room: str, user_ids) -> None:
+    """Take these people's open sockets out of `room`: someone who left a
+    group stops hearing it at once, not at their next reconnect."""
+    try:
+        async_to_sync(_move_users)(room, list(user_ids), False)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning('Socket room leave failed (%s): %s', room, exc)
 
 
 def emit_to_room(room: str, event: str, payload: dict) -> None:

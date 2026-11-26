@@ -14,13 +14,18 @@ const URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').rep
 export async function getSocket(): Promise<Socket | null> {
   if (!supabase) return null
   if (socket) return socket
-  const token = (await supabase.auth.getSession()).data.session?.access_token
+  const client = supabase
+  const token = (await client.auth.getSession()).data.session?.access_token
   if (!token) return null
 
   socket = io(URL, {
     // The token travels in the handshake, where the server checks it before
-    // admitting the client to any room.
-    auth: { token },
+    // admitting the client to any room. Read afresh on every (re)connect: a
+    // token fixed at the first one expires within the hour, and every later
+    // reconnect (a server restart, a network drop) was then refused.
+    auth: (cb) => {
+      void client.auth.getSession().then(({ data }) => cb({ token: data.session?.access_token ?? '' }))
+    },
     transports: ['websocket', 'polling'],
     reconnectionDelay: 500,
     reconnectionDelayMax: 5000,

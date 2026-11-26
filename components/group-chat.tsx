@@ -73,12 +73,27 @@ export function GroupChat({ groupId, meId }: { groupId: number; meId?: number })
       typingTimer.current = window.setTimeout(() => setTyping(null), TYPING_IDLE_MS)
     }
 
+    // The group's room is asked for here, not only on connecting: a group
+    // made or joined after the socket connected was never delivered until a
+    // reload (2026-11-26). After a reconnect it is asked for again, and the
+    // thread is fetched again for whatever was said in between.
+    const join = () => socket?.emit('group:join', { group: groupId })
+    const onConnect = () => {
+      setLive(true)
+      join()
+      notebooksAPI.groupMessages(groupId).then((res) => {
+        if (!cancelled) setMessages(res.data.messages)
+      }).catch(() => {})
+    }
+    const onDisconnect = () => setLive(false)
+
     void getSocket().then((s) => {
       if (cancelled || !s) return
       socket = s
       setLive(s.connected)
-      s.on('connect', () => setLive(true))
-      s.on('disconnect', () => setLive(false))
+      if (s.connected) join()
+      s.on('connect', onConnect)
+      s.on('disconnect', onDisconnect)
       s.on('message:new', onNew)
       s.on('message:deleted', onDeleted)
       s.on('typing', onTyping)
@@ -87,6 +102,8 @@ export function GroupChat({ groupId, meId }: { groupId: number; meId?: number })
     return () => {
       cancelled = true
       if (typingTimer.current) window.clearTimeout(typingTimer.current)
+      socket?.off('connect', onConnect)
+      socket?.off('disconnect', onDisconnect)
       socket?.off('message:new', onNew)
       socket?.off('message:deleted', onDeleted)
       socket?.off('typing', onTyping)

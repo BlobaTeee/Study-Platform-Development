@@ -567,6 +567,9 @@ class ChatGroupsView(APIView):
             return Response({'detail': _('You can only add people you share a notebook with.')}, status=400)
         except ValueError:
             return Response({'detail': _('Give the group a name.')}, status=400)
+        from .realtime import add_to_room
+        from .services.chat import room_for
+        add_to_room(room_for(group.id), group.members.values_list('user_id', flat=True))
         return Response({'id': group.id, 'name': group.name}, status=201)
 
 
@@ -629,6 +632,9 @@ class ChatGroupMembersView(APIView):
             add_member(group, request.user, person)
         except PermissionError:
             return Response({'detail': _('You can only add people you share a notebook with.')}, status=403)
+        from .realtime import add_to_room
+        from .services.chat import room_for
+        add_to_room(room_for(group.id), [person.id])
         return Response({'user_id': person.id}, status=201)
 
     def delete(self, request, group_id, user_id):
@@ -641,6 +647,9 @@ class ChatGroupMembersView(APIView):
         if user_id != request.user.id:
             return Response({'detail': _('You can only leave a group yourself.')}, status=403)
         ChatGroupMember.objects.filter(group=group, user_id=user_id).delete()
+        from .realtime import remove_from_room
+        from .services.chat import room_for
+        remove_from_room(room_for(group.id), [user_id])
         return Response(status=204)
 
 
