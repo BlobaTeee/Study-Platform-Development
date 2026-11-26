@@ -84,6 +84,50 @@ def _answer_matches(given: str | None, expected: str | None) -> bool:
     return (given or '').strip().casefold() == (expected or '').strip().casefold()
 
 
+def typed_verdict(given: str | None, expected: str | None) -> str:
+    """A typed missing word against the hidden one: "correct", "close" (a
+    missing accent, or one slip in a long word) or "wrong"; "empty" when
+    nothing was typed. The same check as lib/cloze.ts, which shows it."""
+    said, meant = _plain(given), _plain(expected)
+    if not said:
+        return 'empty'
+    if said == meant:
+        return 'correct'
+    if _unaccented(said) == _unaccented(meant):
+        return 'close'
+    if len(meant) >= 6 and _edits(said, meant) <= 1:
+        return 'close'
+    return 'wrong'
+
+
+def typed_matches(given: str | None, expected: str | None) -> bool:
+    """A typed answer counts when it is right or close: the student is
+    tested on the idea, not on Telex."""
+    return typed_verdict(given, expected) in ('correct', 'close')
+
+
+def _plain(text: str | None) -> str:
+    import re
+    import unicodedata
+    text = unicodedata.normalize('NFC', text or '').lower()
+    return re.sub(r'\s+', ' ', re.sub(r'[^\w\s]|_', ' ', text)).strip()
+
+
+def _unaccented(text: str) -> str:
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', text) if not unicodedata.combining(c)).replace('đ', 'd')
+
+
+def _edits(a: str, b: str) -> int:
+    prev = list(range(len(b) + 1))
+    for i in range(1, len(a) + 1):
+        row = [i]
+        for j in range(1, len(b) + 1):
+            row.append(min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] != b[j - 1])))
+        prev = row
+    return prev[len(b)]
+
+
 def source_accuracy(answer_rows: list[dict]) -> dict[int, float]:
     """Percent correct per source, from graded quiz answers.
 

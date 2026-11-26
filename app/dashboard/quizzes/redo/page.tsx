@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/page-header'
 import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
+import { FillBlank } from '@/components/fill-blank'
 import { mockTestsAPI, type RedoQuestion, type RedoVerdict } from '@/lib/api'
 import { isShort } from '@/lib/translate'
 
@@ -86,7 +87,7 @@ function MistakeRedo() {
   const last = index >= questions.length - 1
 
   const check = async () => {
-    if (!picked || busy) return
+    if (!picked?.trim() || busy) return
     setBusy(true)
     setFailed(false)
     try {
@@ -124,9 +125,21 @@ function MistakeRedo() {
 
       <Card className="relative p-8 md:p-10">
         <span className="absolute left-8 -top-px h-[3px] w-12 rounded-b-full bg-mode md:left-10" aria-hidden />
+        {question.question_type === 'fill_blank' ? (
+          <FillBlank
+            key={question.id}
+            text={question.question_text}
+            answer={verdict?.correct_answer ?? null}
+            typed={picked ?? ''}
+            onType={setPicked}
+            onSubmit={() => void check()}
+            checked={verdict !== null}
+          />
+        ) : (
         <p className="mb-8 text-2xl leading-relaxed text-slate-900 md:text-[1.75rem] text-pretty">
           <InPageLanguage text={question.question_text} found={found} />
         </p>
+        )}
         <div className="space-y-3">
           {question.options.map((opt) => {
             let style = 'border-slate-200 bg-white hover:bg-slate-50'
@@ -173,7 +186,7 @@ function MistakeRedo() {
             <ArrowRight aria-hidden />
           </Button>
         ) : (
-          <Button size="lg" disabled={!picked || busy} onClick={() => void check()} className="px-8">
+          <Button size="lg" disabled={!picked?.trim() || busy} onClick={() => void check()} className="px-8">
             {t('checkAnswer')}
           </Button>
         )}

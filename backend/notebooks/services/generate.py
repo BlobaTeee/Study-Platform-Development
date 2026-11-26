@@ -6,7 +6,7 @@ from django.db import transaction
 from django.utils.translation import gettext as _
 from ml_pipeline.language import detect_language, language_name
 from flashcards.models import Flashcard
-from flashcards.services.card_format import ANSWER_RULES, CLOZE_RULES, checked_cloze, spread_cloze
+from flashcards.services.card_format import ANSWER_RULES, BLANK_RULES
 from .writing_style import WRITING_STYLE, tidy_prose, tidy_question
 from .units import unit_symbols
 from quizzes.models import Quiz, Question
@@ -299,17 +299,12 @@ def _save_flashcards_from_json(
             difficulty = 'medium'
         if not question or not answer:
             continue
-        kind = 'cloze' if str(item.get('kind') or '').strip().lower() == 'cloze' else 'basic'
-        if kind == 'cloze':
-            # A puzzle with no single answer would be graded on luck.
-            question = checked_cloze(question, answer)
-            if question is None:
-                continue
-        valid.append({'kind': kind, 'question': question, 'answer': answer,
+        # Typing a missing word moved to quizzes (2026-11-26): every new
+        # card is a question and its answer.
+        valid.append({'kind': 'basic', 'question': question, 'answer': answer,
                       'explanation': explanation, 'difficulty': difficulty})
 
-    created = [Flashcard.objects.create(user=user, is_public=False, **fields)
-               for fields in spread_cloze(valid)]
+    created = [Flashcard.objects.create(user=user, is_public=False, **fields) for fields in valid]
 
     # Raising rather than returning [] is what lets the caller fall back to the
     # extractive generator. It is also what protects the existing deck: the
@@ -421,12 +416,10 @@ point of the passage.
 
 {ANSWER_RULES}
 
-{CLOZE_RULES}
-
 {WRITING_STYLE}
 
 Return ONLY valid JSON:
-{{"flashcards": [{{"kind": "basic|cloze", "question": "...", "answer": "...", "explanation": "...", "difficulty": "easy|medium|hard"}}]}}
+{{"flashcards": [{{"question": "...", "answer": "...", "explanation": "...", "difficulty": "easy|medium|hard"}}]}}
 
 Source: {label}
 Excerpt:
@@ -518,7 +511,8 @@ item unless there are fewer ideas than items."""
 
 
 def quiz_prompt(chunk: str, n: int, lang: str, label: str,
-                existing: list[str] = (), thin: bool = False, ideas: bool = False) -> str:
+                existing: list[str] = (), thin: bool = False, ideas: bool = False,
+                blanks: bool = False) -> str:
     """The question-generation prompt, at module level so it can be measured.
 
     `ml_pipeline/notebooks/06_question_quality.ipynb` scores what this prompt
@@ -544,8 +538,15 @@ between two ideas, or which statement is NOT true. Each question must still be a
 from the excerpt alone.
 """
     intro = IDEAS_INTRO if ideas else 'from this excerpt.'
-    return f"""Create exactly {n} multiple-choice questions {intro}
-Write in {language_name(lang)}, the language of the excerpt.
+    # A quiz of its own mixes in typed blanks; a mock test's top-up (which
+    # passes `existing`) needs choices only.
+    kinds = f'\n{BLANK_RULES}\nWhat follows is for the multiple-choice ones.\n' if blanks else ''
+    shape = ('{{"questions": [{{"kind": "multiple_choice|fill_blank", "question_text": "...", "correct_answer": "...", '
+             '"distractors": ["...", "...", "..."], "explanation": "..."}}]}}' if blanks else
+             '{{"questions": [{{"question_text": "...", "correct_answer": "...", "distractors": ["...", "...", "..."], '
+             '"explanation": "..."}}]}}').replace('{{', '{').replace('}}', '}')
+    return f"""Create exactly {n} {'' if blanks else 'multiple-choice '}questions {intro}
+Write in {language_name(lang)}, the language of the excerpt.{kinds}
 For each question give: the question, the single correct answer, and exactly 3
 plausible but incorrect answers (distractors) on the same topic. Do NOT put the
 correct answer in the distractors, and make the distractors distinct.
@@ -559,7 +560,7 @@ item is, or why it matters.
 {WRITING_STYLE}
 
 Return ONLY valid JSON in exactly this shape:
-{{"questions": [{{"question_text": "...", "correct_answer": "...", "distractors": ["...", "...", "..."], "explanation": "..."}}]}}
+{shape}
 
 Source: {label}
 Excerpt:
@@ -625,7 +626,7 @@ def _generate_quiz(sources, user, question_count: int, meta: dict | None,
     per_chunk = -(-asked // len(chunks))  # ceil, so excerpts cover the count
 
     def build_prompt(chunk: str, n: int) -> str:
-        return quiz_prompt(chunk, n, lang, label, existing, thin, ideas)
+        return quiz_prompt(chunk, n, lang, label, existing, thin, ideas, blanks=not existing)
 
     try:
         provider = get_ai_provider()

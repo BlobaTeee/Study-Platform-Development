@@ -38,6 +38,16 @@ def shape_quiz_question(raw: dict, rng) -> dict | None:
     correct = unit_symbols(strip_option_prefix(raw.get("correct_answer") or raw.get("answer") or ""))
     if not question or not correct:
         return None
+    if str(raw.get("kind") or "").strip().lower() == "fill_blank":
+        # One blank, a short term, not shown elsewhere in the sentence: a
+        # blank with no single answer would be marked on luck. Imported here
+        # so the choice shaping above stays loadable without the backend.
+        from flashcards.services.card_format import checked_cloze
+        sentence = checked_cloze(question, correct)
+        if sentence is None:
+            return None
+        return {"question_text": sentence, "question_type": "fill_blank", "options": [],
+                "correct_answer": correct, "explanation": (raw.get("explanation") or "").strip() or None}
 
     # Prefer explicit distractors; else derive them from a legacy options list.
     candidates = raw.get("distractors")

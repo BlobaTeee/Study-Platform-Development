@@ -195,7 +195,7 @@ export type PracticeMistakes = {
 // figures[n - 1] is the picture for [Figure n: …] in the text, cut from the page; null if it could not be.
 // answer: the paper's own answer from its answer key (ĐÁP ÁN), when it prints one.
 export type PrintedAnswer = string | Record<string, boolean>
-export type RedoQuestion = { id: number; question_text: string; question_type: 'multiple_choice' | 'true_false'; options: string[] }
+export type RedoQuestion = { id: number; question_text: string; question_type: 'multiple_choice' | 'true_false' | 'fill_blank'; options: string[] }
 export type RedoVerdict = { is_correct: boolean; correct_answer: string; explanation: string; cleared: boolean }
 // kind: how the paper sets it; a choice's options and a true/false question's
 // statements come apart from the stem (`text`).

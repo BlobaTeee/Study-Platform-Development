@@ -103,7 +103,7 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         user_answer = request.data.get('answer')
 
         question = Question.objects.get(pk=question_id)
-        is_correct = user_answer == question.correct_answer
+        is_correct = _quiz_answer_correct(question, user_answer)
 
         answer = Answer.objects.create(
             quiz_attempt=attempt,
@@ -190,6 +190,15 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         return Response({'id': answer.id, 'is_correct': is_correct, 'overridden': True})
 
 
+def _quiz_answer_correct(question, answer) -> bool:
+    """A picked option must be the stored one; a typed missing word may be
+    off by an accent or a slip (typed_matches)."""
+    from .services.paper import typed_matches
+    if question.question_type == 'fill_blank':
+        return typed_matches(answer, question.correct_answer)
+    return answer == question.correct_answer
+
+
 def _top_up_pool(user, notebook, source_ids, pool, requested):
     """Generate questions until the notebook can fill the paper, or we stop.
 
@@ -265,6 +274,8 @@ def _question_pool(user, source_ids):
     for row in (Question.objects
                 .filter(Q(quiz__is_published=True, quiz__sources__in=source_ids)
                         & (Q(quiz__user=user) | Q(quiz__sources__notebook__in=notebooks_for(user))))
+                # A typed blank has no options to put on a paper.
+                .exclude(question_type='fill_blank')
                 .values('id', 'quiz__sources')):
         pool.setdefault(row['id'], []).append(row['quiz__sources'])
     return [{'id': qid, 'source_ids': ids} for qid, ids in pool.items()]
@@ -368,7 +379,7 @@ class MistakeRedoView(APIView):
         answer = str(request.data.get('answer') or '')
         if not answer:
             return Response({'detail': _('Pick an answer first.')}, status=400)
-        is_correct = answer == question.correct_answer
+        is_correct = _quiz_answer_correct(question, answer)
         now = timezone.now()
         attempt = (QuizAttempt.objects.filter(user=request.user, quiz=question.quiz, is_redo=True,
                                               started_at__date=timezone.localdate())

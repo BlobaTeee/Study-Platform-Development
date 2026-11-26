@@ -255,6 +255,7 @@ def rank_by_quality(items: list[dict], excerpt_key: str = '_excerpt') -> list[di
     question with a weak distractor. Each item is scored against the passage
     it was generated from, stored under `excerpt_key`.
     """
-    scored = [(len(score_question(item, item.get(excerpt_key) or '').flags), i, item)
-              for i, item in enumerate(items)]
+    # A fill-in-the-blank question has no distractors to judge.
+    scored = [(0 if item.get('kind') == 'fill_blank' else len(score_question(item, item.get(excerpt_key) or '').flags),
+               i, item) for i, item in enumerate(items)]
     return [item for _, _, item in sorted(scored, key=lambda t: (t[0], t[1]))]

@@ -12,6 +12,7 @@ import { SourceContextBanner } from '@/components/source-context-banner'
 import { SourceRequired } from '@/components/source-required'
 import { PageHeader } from '@/components/page-header'
 import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
+import { FillBlank, blankCounts } from '@/components/fill-blank'
 import { isShort, quizTexts, quizTitle } from '@/lib/translate'
 import { useTranslations } from 'next-intl'
 import { ArrowRight } from 'lucide-react'
@@ -98,6 +99,7 @@ function QuizzesStudy() {
   // runtime this is undefined before the quiz loads; the handlers guard on
   // it. TypeScript narrows it back to Question from the indexed read.
   const question: Question | undefined = questions[qIndex]
+  const isBlank = question?.question_type === 'fill_blank'
   const options =
     question?.question_type === 'true_false' && (!question.options?.length)
       ? ['True', 'False'] // stored values; shown through optionLabel()
@@ -109,8 +111,9 @@ function QuizzesStudy() {
   useInPageLanguage(nextQuestion ? quizTexts(nextQuestion) : [])
 
   const handleSubmit = async () => {
-    if (!selected || !attemptId || !question) return
-    const correct = selected === question.correct_answer
+    if (!selected?.trim() || !attemptId || !question) return
+    // A typed blank counts when right or off by an accent; a choice must match.
+    const correct = isBlank ? blankCounts(selected, question.correct_answer) : selected === question.correct_answer
     if (correct) setScore((s) => s + 1)
 
     try {
@@ -200,9 +203,22 @@ function QuizzesStudy() {
 
       <Card className="relative p-8 md:p-10">
         <span className="absolute left-8 -top-px h-[3px] w-12 rounded-b-full bg-mode md:left-10" aria-hidden />
+        {isBlank ? (
+          // The sentence as the document has it: the word typed is the document's own.
+          <FillBlank
+            key={question.id}
+            text={question.question_text}
+            answer={question.correct_answer}
+            typed={selected ?? ''}
+            onType={setSelected}
+            onSubmit={() => void handleSubmit()}
+            checked={submitted}
+          />
+        ) : (
         <p className="mb-8 text-2xl leading-relaxed text-slate-900 md:text-[1.75rem] text-pretty">
           <InPageLanguage text={question.question_text} found={found} />
         </p>
+        )}
 
           <div className="space-y-3">
             {options.map((opt) => {
@@ -240,7 +256,7 @@ function QuizzesStudy() {
         {!submitted ? (
           <Button
             size="lg"
-            disabled={!selected}
+            disabled={!selected?.trim()}
             onClick={handleSubmit}
             className="px-8"
           >

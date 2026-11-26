@@ -39,6 +39,10 @@ class Question(models.Model):
         ('multiple_choice', 'Multiple Choice'),
         ('true_false', 'True/False'),
         ('short_answer', 'Short Answer'),
+        # One sentence from the document with a key term blanked out, typed
+        # in. Moved here from flashcards on 2026-11-26. No options, so live
+        # rounds and mock tests (which need choices) leave it out.
+        ('fill_blank', 'Fill in the blank'),
     ]
 
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions')

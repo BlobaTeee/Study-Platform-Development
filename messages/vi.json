@@ -350,12 +350,6 @@
     "relearnDone": "Xong rồi. Bạn vừa ôn lại {cards}.",
     "moreExplanation": "Giải thích thêm",
     "fillBlank": "Điền vào chỗ trống",
-    "typeMissing": "Gõ từ còn thiếu",
-    "check": "Kiểm tra",
-    "suggestedGrade": "Gợi ý: {grade}. Bạn vẫn tự chọn mức nhớ.",
-    "cloze_correct": "Bạn gõ “{typed}”: đúng rồi.",
-    "cloze_close": "Bạn gõ “{typed}”: gần đúng, xem lại chính tả hoặc dấu.",
-    "cloze_wrong": "Bạn gõ “{typed}”: chưa đúng.",
     "docDone": "Bạn đã làm hết thẻ của tài liệu này. Thẻ bạn quên sẽ quay lại để ôn. Muốn học tiếp thì tạo bộ thẻ mới.",
     "docDoneReviewed": "Xong rồi, bạn vừa ôn {cards}. Thẻ bạn quên sẽ quay lại để ôn. Muốn học tiếp thì tạo bộ thẻ mới.",
     "newDeck": "Tạo bộ thẻ mới",
@@ -385,7 +379,11 @@
     "redoDone": "Đúng {right}/{total} câu · {cleared} câu đã rời danh sách",
     "redoAgain": "Làm lại các câu còn sai",
     "redoBack": "Về Tiến độ",
-    "redoFailed": "Chưa chấm được câu này. Thử lại nhé."
+    "redoFailed": "Chưa chấm được câu này. Thử lại nhé.",
+    "typeMissing": "Gõ từ còn thiếu",
+    "blank_correct": "Đúng rồi.",
+    "blank_close": "Gần đúng: bạn gõ “{typed}”, xem lại dấu hoặc chính tả.",
+    "blank_wrong": "Chưa đúng: bạn gõ “{typed}”."
   },
   "tests": {
     "sitLead": "Bắt đầu rồi thì đề và thời gian không đổi nữa.",

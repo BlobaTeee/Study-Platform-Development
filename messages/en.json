@@ -350,12 +350,6 @@
     "relearnDone": "Done. You went back over {cards}.",
     "moreExplanation": "More explanation",
     "fillBlank": "Fill in the blank",
-    "typeMissing": "Type the missing word",
-    "check": "Check",
-    "suggestedGrade": "Suggested: {grade}. The choice is still yours.",
-    "cloze_correct": "You typed “{typed}”: that's right.",
-    "cloze_close": "You typed “{typed}”: nearly, check the spelling or accents.",
-    "cloze_wrong": "You typed “{typed}”: not quite.",
     "docDone": "You've done every card in this document. Cards you forgot will come back to review. To keep going, make a new deck.",
     "docDoneReviewed": "Done. You reviewed {cards}. Cards you forgot will come back to review. To keep going, make a new deck.",
     "newDeck": "Make a new deck",
@@ -385,7 +379,11 @@
     "redoDone": "{right}/{total} right · {cleared} left the missed list",
     "redoAgain": "Redo the ones still missed",
     "redoBack": "Back to progress",
-    "redoFailed": "That one couldn't be marked. Try again."
+    "redoFailed": "That one couldn't be marked. Try again.",
+    "typeMissing": "Type the missing word",
+    "blank_correct": "Right.",
+    "blank_close": "Close: you typed “{typed}”, check the spelling or accents.",
+    "blank_wrong": "Not quite: you typed “{typed}”."
   },
   "tests": {
     "sitLead": "Once you start, the questions and the timer are set.",
