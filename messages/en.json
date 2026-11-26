@@ -498,7 +498,11 @@
     "paperPreparing": "Preparing the paper…",
     "paperAnother": "Choose another file",
     "paperDropped": "{count, plural, one {# question was} other {# questions were}} left out, no answer found: {labels}.",
-    "paperGo": "Go to the test"
+    "paperGo": "Go to the test",
+    "unfinishedLeft": "in progress, {answered}/{total} answered, {minutes} min left",
+    "unfinishedUntitled": "Test",
+    "carryOn": "Carry on",
+    "paperDiscard": "Put this paper aside"
   },
   "analytics": {
     "readyToStudy": "{count, plural, one {card ready to study} other {cards ready to study}}",

@@ -465,6 +465,10 @@ export const mockTestsAPI = {
       '/quizzes/weak-concepts/practice/', data
     ),
   get: (id: number) => api.get(`/quizzes/mock-tests/${id}/`),
+  // Sittings started and not handed in, time not up: offered to carry on.
+  unfinished: () =>
+    api.get<{ id: number; title: string; deadline: string; seconds_left: number; question_count: number; answered: number }[]>(
+      '/quizzes/mock-tests/unfinished/'),
   // Deliberately returns no marking — feedback waits until the paper is handed in.
   answer: (id: number, paperQuestionId: number, answer: string) =>
     api.post(`/quizzes/mock-tests/${id}/answer/`, {

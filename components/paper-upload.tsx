@@ -7,40 +7,40 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { exercisesAPI, type PhotoQuestion } from '@/lib/api'
+import { exercisesAPI } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 import { MAX_FILE_BYTES, fileKind, keyedByFile, kindCounts } from '@/lib/paper'
+import { clearDraft, readPaper, renameDraft, usePaperDraft } from '@/lib/paper-draft'
 
 /** A paper the student brings (a photo, a PDF or a Word file), read once and
  *  sat whole, timed and marked out of 10 by its own key. `onStart` gets the
- *  sitting to open. */
+ *  sitting to open. The paper waits here (lib/paper-draft) until it is sat
+ *  or put aside, even if the page is left while it is read. */
 export function PaperUpload({ onStart }: { onStart: (testId: number) => void }) {
   const t = useTranslations('tests')
   const picker = useRef<HTMLInputElement>(null)
-  const [reading, setReading] = useState(false)
+  const owner = String(useAuth().user?.id ?? '')
+  const { reading, questions, title, error: readError } = usePaperDraft(owner)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState('')
-  const [questions, setQuestions] = useState<PhotoQuestion[]>([])
-  const [title, setTitle] = useState('')
   const [dropped, setDropped] = useState<{ id: number; labels: string[] } | null>(null)
+  const setTitle = (value: string) => renameDraft(owner, value)
+  const shownError = error || (readError
+    ? readError.detail ?? (readError.kind === 'noProblem' ? t('paperNoProblem') : t('paperFailed'))
+    : '')
 
-  const read = async (file: File) => {
+  const read = (file: File) => {
     setError('')
     setDropped(null)
     if (!fileKind(file)) return setError(t('paperNotFile'))
     if (file.size > MAX_FILE_BYTES) return setError(t('paperTooLarge'))
-    setQuestions([])
-    setTitle(file.name.replace(/\.[^.]+$/, ''))
-    setReading(true)
-    try {
-      const res = (await exercisesAPI.readPhoto(file)).data
-      setQuestions(res.questions)
-      if (res.title) setTitle(res.title)
-    } catch (e) {
-      const body = (e as { response?: { data?: { detail?: unknown; no_problem?: boolean } } }).response?.data
-      setError(body?.no_problem ? t('paperNoProblem') : typeof body?.detail === 'string' ? body.detail : t('paperFailed'))
-    } finally {
-      setReading(false)
-    }
+    void readPaper(owner, file, file.name.replace(/\.[^.]+$/, ''))
+  }
+
+  // Into the sitting: the draft has done its job.
+  const open = (id: number) => {
+    clearDraft()
+    onStart(id)
   }
 
   const start = async () => {
@@ -50,7 +50,7 @@ export function PaperUpload({ onStart }: { onStart: (testId: number) => void }) 
       const res = (await exercisesAPI.startPaper(title.trim(), questions)).data
       // Say what was left out before the clock starts; otherwise go straight in.
       if (res.dropped.length) setDropped({ id: res.id, labels: res.dropped })
-      else onStart(res.id)
+      else open(res.id)
     } catch (e) {
       const detail = (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
       setError(typeof detail === 'string' ? detail : t('paperFailed'))
@@ -81,7 +81,7 @@ export function PaperUpload({ onStart }: { onStart: (testId: number) => void }) 
         onChange={(e) => {
           const file = e.target.files?.[0]
           e.target.value = ''
-          if (file) void read(file)
+          if (file) read(file)
         }}
       />
 
@@ -125,7 +125,7 @@ export function PaperUpload({ onStart }: { onStart: (testId: number) => void }) 
               <p className="text-sm text-amber-900">
                 {t('paperDropped', { count: dropped.labels.length, labels: dropped.labels.join(', ') })}
               </p>
-              <Button type="button" onClick={() => onStart(dropped.id)}>{t('paperGo')}</Button>
+              <Button type="button" onClick={() => open(dropped.id)}>{t('paperGo')}</Button>
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-3">
@@ -136,11 +136,14 @@ export function PaperUpload({ onStart }: { onStart: (testId: number) => void }) 
               <Button type="button" variant="ghost" disabled={starting} onClick={() => picker.current?.click()}>
                 {t('paperAnother')}
               </Button>
+              <Button type="button" variant="ghost" disabled={starting} onClick={() => { clearDraft(); setDropped(null) }}>
+                {t('paperDiscard')}
+              </Button>
             </div>
           )}
         </Card>
       )}
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {shownError && <p role="alert" className="text-sm text-red-700">{shownError}</p>}
     </div>
   )
 }

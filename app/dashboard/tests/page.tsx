@@ -886,6 +886,8 @@ function MockTestsInner() {
     <div className="max-w-2xl mx-auto space-y-8">
       <PageHeader title={nav('tests')} />
 
+      <Unfinished onOpen={(id) => router.replace(`/dashboard/tests?id=${id}`)} />
+
       <p className="text-base text-slate-500 leading-relaxed">{t('sitLead')}</p>
 
       {notebooksLoading ? (
@@ -1180,6 +1182,32 @@ export default function MockTestsPage() {
  *  reread. The passage is the chunk the generator saw, folded to three lines
  *  until asked for; the link opens the notebook on that very document. A
  *  question whose source was deleted keeps its passage and loses the link. */
+/** Papers started and left before handing in, while their time runs: one
+ *  line each, to carry on where the answers were left (2026-11-26). */
+function Unfinished({ onOpen }: { onOpen: (id: number) => void }) {
+  const t = useTranslations('tests')
+  const { data } = useSWR(['/quizzes/mock-tests/unfinished/'], () => mockTestsAPI.unfinished(),
+                          { revalidateOnFocus: true })
+  const open = data?.data ?? []
+  if (open.length === 0) return null
+  return (
+    <ul className="space-y-2">
+      {open.map((s) => {
+        const minutes = Math.max(1, Math.ceil(s.seconds_left / 60))
+        return (
+          <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="min-w-0 text-base text-slate-900">
+              <span className="font-medium">{s.title || t('unfinishedUntitled')}</span>
+              <span className="text-slate-600"> · {t('unfinishedLeft', { minutes, answered: s.answered, total: s.question_count })}</span>
+            </p>
+            <Button type="button" size="sm" onClick={() => onOpen(s.id)}>{t('carryOn')}</Button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 function Provenance({
   source,
   excerpt,

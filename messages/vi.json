@@ -498,7 +498,11 @@
     "paperPreparing": "Đang chuẩn bị đề…",
     "paperAnother": "Chọn file khác",
     "paperDropped": "Đã bỏ {count} câu chưa tìm được đáp án: {labels}.",
-    "paperGo": "Vào thi"
+    "paperGo": "Vào thi",
+    "unfinishedLeft": "đang làm dở, đã làm {answered}/{total} câu, còn {minutes} phút",
+    "unfinishedUntitled": "Bài thi",
+    "carryOn": "Làm tiếp",
+    "paperDiscard": "Bỏ đề này"
   },
   "analytics": {
     "readyToStudy": "thẻ sẵn sàng để ôn",

@@ -667,6 +667,22 @@ class MockTestViewSet(viewsets.ModelViewSet):
                 .select_related('notebook')
                 .prefetch_related('paper'))
 
+    @action(detail=False, methods=['get'])
+    def unfinished(self, request):
+        """Sittings started and not handed in whose time is not up: the
+        mock-test page offers to carry on with them, so leaving the page
+        mid-paper no longer loses it (2026-11-26). Newest first."""
+        from django.utils import timezone
+        now = timezone.now()
+        open_ = (MockTest.objects.filter(user=request.user, completed_at__isnull=True)
+                 .select_related('notebook').order_by('-started_at')[:20])
+        return Response([
+            {'id': t.id, 'title': t.paper_title or (t.notebook.title if t.notebook else ''),
+             'deadline': t.deadline, 'seconds_left': int((t.deadline - now).total_seconds()),
+             'question_count': t.question_count,
+             'answered': t.paper.exclude(user_answer__isnull=True).exclude(user_answer='').count()}
+            for t in open_ if t.deadline > now])
+
     def get_throttles(self):
         # Starting a sitting can generate questions to fill the paper (see
         # topup), so it pays the generation rate; everything else on this
