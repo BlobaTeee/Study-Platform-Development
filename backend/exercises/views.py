@@ -162,30 +162,17 @@ class PaperView(_Generating):
         return Response({**MockTestSerializer(test).data, 'dropped': dropped}, status=status.HTTP_201_CREATED)
 
 
-class SitSetView(APIView):
-    """POST → the set sat as the paper it came from: a timed mock test of its
-    problems, marked out of 10 at the end (services/sitting.py). Returns the
-    sitting, which the mock-test page takes from there."""
+class RemoveView(APIView):
+    """POST {ids} → those problems of yours gone, with their attempts: a
+    whole set at once, rather than one problem at a time (2026-11-26)."""
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, key):
-        from django.db import transaction
-        from quizzes.models import MockTest, MockTestQuestion
-        from quizzes.serializers import MockTestSerializer
-        from .services.sitting import paper_from_set
-
-        exercises = list(Exercise.objects.filter(user=request.user, set_key=key).exclude(set_key='').order_by('id'))
-        if not exercises:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        rows, minutes = paper_from_set(exercises)
-        with transaction.atomic():
-            test = MockTest.objects.create(user=request.user, notebook=None, template='paper',
-                                           paper_title=exercises[0].set_title[:200],
-                                           question_count=len(rows), duration_minutes=minutes)
-            MockTestQuestion.objects.bulk_create([
-                MockTestQuestion(mock_test=test, order=i, **fields) for i, fields in enumerate(rows)])
-        test = MockTest.objects.prefetch_related('paper').get(pk=test.pk)
-        return Response(MockTestSerializer(test).data, status=status.HTTP_201_CREATED)
+    def post(self, request):
+        ids = request.data.get('ids')
+        if not isinstance(ids, list) or not ids or not all(isinstance(i, int) for i in ids):
+            return Response({'detail': 'ids must be a list of problem ids.'}, status=400)
+        removed, _by_model = Exercise.objects.filter(user=request.user, id__in=ids).delete()
+        return Response({'removed': removed})
 
 
 class ExerciseListView(APIView):

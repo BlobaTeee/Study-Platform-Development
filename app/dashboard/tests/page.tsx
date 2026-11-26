@@ -8,8 +8,7 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import useSWR from 'swr'
-import { exercisesAPI, mockTestsAPI, notebooksAPI, plannedTestsAPI } from '@/lib/api'
-import { inPracticeOrder, practiceRows } from '@/lib/practice'
+import { mockTestsAPI, notebooksAPI, plannedTestsAPI } from '@/lib/api'
 import { PaperUpload } from '@/components/paper-upload'
 import { useConfirm } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
@@ -31,7 +30,6 @@ import {
   ChevronLeft,
   Clock,
   Loader2,
-  Timer,
   Trash2,
   XCircle,
 } from 'lucide-react'
@@ -623,17 +621,11 @@ function MockTestsInner() {
                 ? t('paperMistakes', { count: result.mistake_count })
                 : t('mistakesAfterTest', { count: result.mistake_count })}
           </p>
-          {result.mistake_count > 0 && (
-            result.notebook === null ? (
-              // A real paper's misses are back in practice, due today.
-              <Button asChild variant="tinted">
-                <Link href="/dashboard/practice">{t('paperRetake')}</Link>
-              </Button>
-            ) : (
-              <Button variant="tinted" onClick={() => handleRetakeMistakes(result.notebook!)}>
-                {t('retakeMistakes')}
-              </Button>
-            )
+          {/* A brought paper's misses stay in this review (no notebook to redo them from). */}
+          {result.mistake_count > 0 && result.notebook !== null && (
+            <Button variant="tinted" onClick={() => handleRetakeMistakes(result.notebook!)}>
+              {t('retakeMistakes')}
+            </Button>
           )}
           {setupError && <p className="basis-full text-sm text-red-700">{setupError}</p>}
           {/* Where the points went, part by part, as the exam would report them. */}
@@ -973,8 +965,6 @@ function MockTestsInner() {
 
       <PaperUpload onStart={(id) => router.replace(`/dashboard/tests?id=${id}`)} />
 
-      <RealPapers onSit={(id) => router.replace(`/dashboard/tests?id=${id}`)} />
-
       <div className="space-y-6 border-t border-slate-200 pt-8">
         <div>
           <h2 className="font-display text-2xl font-semibold text-slate-900">{t('planAhead')}</h2>
@@ -1188,54 +1178,6 @@ export default function MockTestsPage() {
  *  reread. The passage is the chunk the generator saw, folded to three lines
  *  until asked for; the link opens the notebook on that very document. A
  *  question whose source was deleted keeps its passage and loses the link. */
-/** The real papers the student added to practice, each to sit as that
- *  paper: here beside the papers written from their documents, so this is
- *  the one place to sit a test (2026-11-25). */
-function RealPapers({ onSit }: { onSit: (testId: number) => void }) {
-  const t = useTranslations('tests')
-  const { data } = useSWR(['/exercises', 'all'], () => exercisesAPI.list({}))
-  const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState('')
-  const sets = practiceRows(inPracticeOrder(data?.data?.results ?? []))
-    .flatMap((row) => (row.kind === 'set' && row.from === 'file' ? [row] : []))
-  if (sets.length === 0) return null
-
-  const sit = async (key: string) => {
-    setBusy(key)
-    setError('')
-    try {
-      onSit((await exercisesAPI.sitSet(key)).data.id)
-    } catch (err) {
-      setError(apiErrorMessage(err, t('startFailed')))
-      setBusy(null)
-    }
-  }
-
-  return (
-    <div className="space-y-4 border-t border-slate-200 pt-8">
-      <div>
-        <h2 className="font-display text-2xl font-semibold text-slate-900">{t('realPapers')}</h2>
-        <p className="text-base text-slate-500 mt-2 leading-relaxed">{t('realPapersLead')}</p>
-      </div>
-      <Card className="divide-y divide-slate-100 px-6 py-2 md:px-8">
-        {sets.map((set) => (
-          <div key={set.key} className="flex items-center gap-4 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-base text-slate-900">{set.title || t('realPaperUntitled')}</p>
-              <p className="text-sm text-slate-600">{t('realPaperMeta', { count: set.problems.length })}</p>
-            </div>
-            <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void sit(set.key)}>
-              {busy === set.key ? <Loader2 className="animate-spin" aria-hidden /> : <Timer aria-hidden />}
-              {t('sitPaper')}
-            </Button>
-          </div>
-        ))}
-      </Card>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-    </div>
-  )
-}
-
 function Provenance({
   source,
   excerpt,

@@ -2,11 +2,10 @@
 
 Read once, sat as printed. The paper's own key marks it, so a Word file with
 a key needs no further request; a photo's answers are found in one request;
-only a written question gets a rubric. What is missed comes back to
-practice, its solution written afterwards.
+only a written question gets a rubric. What is missed stays with the
+paper's review: mock tests and practice no longer feed each other.
 """
 import pytest
-from django.utils import timezone
 
 from exercises.models import Exercise
 from quizzes.models import MockTest
@@ -52,12 +51,6 @@ def model(monkeypatch):
     return use
 
 
-@pytest.fixture(autouse=True)
-def inline_threads(monkeypatch):
-    """The background write of missed solutions, run where the test sees it."""
-    monkeypatch.setattr('exercises.services.papers._in_background', lambda work: work())
-
-
 def test_a_word_paper_with_its_key_is_sat_without_asking_for_answers(client, model):
     provider = model({'problems': [RUBRIC]})                      # the written one's rubric only
     body = client.post(URL, {'title': 'Đề Hoá HK1', 'questions': [
@@ -88,8 +81,8 @@ def test_a_question_whose_answer_is_not_found_is_left_out(client, model):
     assert body['dropped'] == ['Câu 2'] and len(body['paper']) == 1
 
 
-def test_what_is_missed_comes_back_to_practice_with_its_solution(client, model):
-    model({'problems': [{**RUBRIC, 'kind': 'choice', 'options': CHOICE['options'], 'answer': 'B'}]})
+def test_what_is_missed_stays_with_the_paper(client, model):
+    model()                                                        # all keyed: no request
     body = client.post(URL, {'title': 'Đề Hoá HK1', 'questions': [
         {**CHOICE, 'answer': 'B'}, {**SHORT, 'answer': '4'}]}, format='json').json()
     rows = {r['section']: r['id'] for r in body['paper']}
@@ -100,11 +93,16 @@ def test_what_is_missed_comes_back_to_practice_with_its_solution(client, model):
     review = client.post(f'{url}/submit/').json()
 
     assert review['mistake_count'] == 1
-    missed = Exercise.objects.get()
-    assert (missed.set_title, missed.status, missed.revisit_on) == ('Đề Hoá HK1', 'revisit', timezone.localdate())
-    assert missed.prompt.startswith('Kim loại nào khử mạnh nhất?') and 'B. K' in missed.prompt
-    assert missed.reference['answer'] == 'B' and missed.reference['solution']           # written afterwards
-    assert 'pending' not in missed.reference
+    assert not Exercise.objects.exists()                           # nothing sent to practice
+
+
+def test_a_papers_words_are_shown_as_printed(client, model):
+    """No tidying of the paper's own text: "Zn – Cu" stays a dash."""
+    model()
+    body = client.post(URL, {'title': 'Đề', 'questions': [
+        {**SHORT, 'text': 'Cho pin điện hoá Zn – Cu.', 'answer': '1'},
+        {**SHORT, 'label': 'Câu 2', 'text': 'Câu 2 — tính.', 'answer': '2'}]}, format='json').json()
+    assert [r['question_text'] for r in body['paper']] == ['Cho pin điện hoá Zn – Cu.', 'Câu 2 — tính.']
 
 
 def test_a_missed_question_still_waiting_gets_its_solution_when_opened(client, user, model):

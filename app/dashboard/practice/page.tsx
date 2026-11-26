@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
-import { ArrowRight, FileText, Loader2, Pencil, Timer } from 'lucide-react'
+import { ArrowRight, FileText, Loader2, Pencil, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
+import { useConfirm } from '@/components/confirm-dialog'
 import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { exercisesAPI, type ExerciseSummary } from '@/lib/api'
 import { filtered, filtersFor, inPracticeOrder, parseFilter, practiceRows, rowCount, type PracticeFilter } from '@/lib/practice'
@@ -19,6 +20,7 @@ import { cn } from '@/lib/utils'
  *  opens it filtered, which is how a notebook links here. */
 function PracticeList() {
   const t = useTranslations('practice')
+  const common = useTranslations('common')
   const router = useRouter()
   const searchParams = useSearchParams()
   const filter = parseFilter(searchParams.get('notebook'))
@@ -29,18 +31,28 @@ function PracticeList() {
   const rows = practiceRows(shown)
   const found = useInPageLanguage(shown.map((p) => p.prompt))
   const [renaming, setRenaming] = useState<string | null>(null)
-  const [sitting, setSitting] = useState<string | null>(null)
-  const [sitError, setSitError] = useState('')
+  const [confirm, confirmDialog] = useConfirm()
+  const [removing, setRemoving] = useState<string | null>(null)
+  const [removeError, setRemoveError] = useState('')
 
-  const sit = async (key: string) => {
-    setSitting(key)
-    setSitError('')
+  // A whole set at once, rather than opening each problem to delete it.
+  const removeSet = async (key: string, title: string, ids: number[]) => {
+    const ok = await confirm({
+      title: t('removeSetTitle', { title }),
+      body: t('removeSetBody', { count: ids.length }),
+      confirmLabel: t('removeSetConfirm'),
+      cancelLabel: common('cancel'),
+    })
+    if (!ok) return
+    setRemoving(key)
+    setRemoveError('')
     try {
-      const res = await exercisesAPI.sitSet(key)
-      router.push(`/dashboard/tests?id=${res.data.id}`)
+      await exercisesAPI.removeMany(ids)
+      await mutate()
     } catch {
-      setSitError(t('sitFailed'))
-      setSitting(null)
+      setRemoveError(t('removeSetFailed'))
+    } finally {
+      setRemoving(null)
     }
   }
 
@@ -99,7 +111,7 @@ function PracticeList() {
           <p className="mt-4 max-w-[65ch] text-slate-600">{all.length === 0 ? t('listEmpty') : t('listEmptyFiltered')}</p>
         ) : (
           <>
-          {sitError && <p role="alert" className="mt-4 text-sm text-red-700">{sitError}</p>}
+          {removeError && <p role="alert" className="mt-4 text-sm text-red-700">{removeError}</p>}
           <ul className="mt-4 divide-y divide-slate-100 border-t border-slate-100">
             {rows.map((row) => {
               if (row.kind === 'set') {
@@ -118,17 +130,20 @@ function PracticeList() {
                       : t('setMeta', { count: row.problems.length, done: row.done })}
                     status={all ? t('status_mastered') : row.due ? t('dueAgain') : row.started ? t('status_started') : t('status_new')}
                     tone={all ? 'done' : row.due ? 'due' : 'plain'}
-                    // A document's name is the document's own; only a set is renamed here.
-                    action={row.from === 'document' ? undefined : (
+                    action={(
                       <span className="flex shrink-0 items-center">
-                        {/* The real paper, sat as one: timed, marked out of 10 (Thi thử). */}
-                        <Button type="button" variant="ghost" size="icon-sm" disabled={sitting !== null}
-                                onClick={() => void sit(row.key)} aria-label={t('sitSet')} title={t('sitSet')}>
-                          {sitting === row.key ? <Loader2 className="animate-spin" aria-hidden /> : <Timer aria-hidden />}
-                        </Button>
-                        <Button type="button" variant="ghost" size="icon-sm" onClick={() => setRenaming(row.key)}
-                                aria-label={t('renameSet')} title={t('renameSet')}>
-                          <Pencil aria-hidden />
+                        {/* A document's name is the document's own; only a set is renamed here. */}
+                        {row.from !== 'document' && (
+                          <Button type="button" variant="ghost" size="icon-sm" onClick={() => setRenaming(row.key)}
+                                  aria-label={t('renameSet')} title={t('renameSet')}>
+                            <Pencil aria-hidden />
+                          </Button>
+                        )}
+                        <Button type="button" variant="ghost" size="icon-sm" className="text-slate-500 hover:text-red-700"
+                                disabled={removing !== null}
+                                onClick={() => void removeSet(row.key, row.title || t('setUntitled'), row.problems.map((p) => p.id))}
+                                aria-label={t('removeSet')} title={t('removeSet')}>
+                          {removing === row.key ? <Loader2 className="animate-spin" aria-hidden /> : <Trash2 aria-hidden />}
                         </Button>
                       </span>
                     )}
@@ -148,6 +163,7 @@ function PracticeList() {
               )
             })}
           </ul>
+          {confirmDialog}
           </>
         )}
       </section>

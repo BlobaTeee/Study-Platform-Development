@@ -9,13 +9,10 @@ twenty questions); only what the key does not give is asked for:
 - the answers a photo has no key for, all in one request (solve_keys);
 - a rubric for each written question, which is marked against it.
 
-What is missed comes back to practice afterwards, and only then is its
-model solution written, in the background (misses_to_practice), or when
-the student opens the problem first (fill_pending).
+What is missed stays with the paper, in its review: since 2026-11-26 mock
+tests and practice no longer feed each other. fill_pending still writes the
+solution of a missed question sent to practice before then, when opened.
 """
-import logging
-import threading
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 from django.utils.translation import gettext as _
@@ -25,11 +22,7 @@ from .common import PracticeUnavailable, ask, language_of, printed_answer
 from .photo import MAX_QUESTIONS
 from .sitting import weigh
 
-logger = logging.getLogger(__name__)
-
 KEYED = ('choice', 'true_false', 'short')
-#: Missed questions whose solution is written straight after the sitting.
-BACKGROUND_FILL = 6
 MAX_TEXT = 4000
 
 
@@ -206,61 +199,6 @@ def build_paper(user, title: str, raw_questions) -> tuple[object, list[str]]:
         MockTestQuestion.objects.bulk_create([MockTestQuestion(mock_test=test, order=n, **fields)
                                               for n, fields in enumerate(rows)])
     return test, dropped
-
-
-def _key_reference(pq: dict) -> dict:
-    """A missed keyed question as practice keeps it, before its solution is written."""
-    kind, key = pq['kind'], pq['answer']
-    ref = {'kind': kind, 'pending': True, 'language': language_of(as_printed(pq))}
-    if kind == 'choice':
-        ref.update(options=pq['options'], answer=key)
-    elif kind == 'true_false':
-        ref.update(statements=[{**s, 'answer': key[s['label']]} for s in pq['statements']])
-    else:
-        ref.update(answer=key, accept=[])
-    return ref
-
-
-def misses_to_practice(test, rows) -> None:
-    """The paper's missed questions, as one practice set due today. A written
-    one keeps the rubric it was marked by; a keyed one has its solution
-    written in the background (fill_pending)."""
-    from django.utils import timezone
-    from ..models import Exercise
-    missed = [r for r in rows if not r.is_correct and (r.reference or {}).get('paper_question')]
-    if not missed:
-        return
-    key, today = uuid.uuid4().hex, timezone.localdate()
-    made = []
-    for r in missed:
-        pq = r.reference['paper_question']
-        if pq['kind'] == 'written':
-            reference = {k: v for k, v in r.reference.items() if k not in ('figures', 'paper_question')}
-        else:
-            reference = _key_reference(pq)
-        made.append(Exercise(user=test.user, notebook=None, origin='own', set_key=key,
-                             set_title=test.paper_title[:200], prompt=as_printed(pq), reference=reference,
-                             figures=r.reference.get('figures') or [], status='revisit', revisit_on=today))
-    created = Exercise.objects.bulk_create(made)
-    pending = [e.id for e in created if e.reference.get('pending')]
-    if pending:
-        # The first few now, so the set opens ready; the rest when opened
-        # (ExerciseDetailView): a paper left half blank would otherwise spend
-        # ten requests on solutions nobody may read.
-        _in_background(lambda: fill_pending(pending[:BACKGROUND_FILL]))
-
-
-def _in_background(work) -> None:
-    """Run `work` on a thread of its own, after the response has gone."""
-    def run():
-        from django.db import close_old_connections
-        try:
-            work()
-        except Exception:  # noqa: BLE001 - a later open of the problem tries again
-            logger.warning('Writing the solutions of missed questions failed', exc_info=True)
-        finally:
-            close_old_connections()
-    threading.Thread(target=run, daemon=True).start()
 
 
 def _printed(ref: dict):

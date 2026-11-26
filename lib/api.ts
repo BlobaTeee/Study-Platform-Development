@@ -215,9 +215,8 @@ export const exercisesAPI = {
   // Rename a set; '' gives back the default name.
   renameSet: (key: string, title: string) =>
     api.patch<{ set_key: string; set_title: string }>(`/exercises/sets/${key}/`, { title }),
-  // The set sat as the real paper it came from: a timed mock test of its
-  // problems, marked out of 10 at the end. Returns the sitting.
-  sitSet: (key: string) => api.post<{ id: number }>(`/exercises/sets/${key}/sit/`, {}),
+  /** A whole set at once: every problem in it, gone for good. */
+  removeMany: (ids: number[]) => api.post<{ removed: number }>('/exercises/remove/', { ids }),
   // A photo or file of a paper read into its questions (maths in LaTeX), to
   // sit it (startPaper); the file is not kept.
   readPhoto: (file: File) => {

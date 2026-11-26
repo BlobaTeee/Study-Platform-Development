@@ -564,20 +564,6 @@ def _mark_exam_row(row) -> None:
         row.earned = row.points if row.is_correct else 0.0
 
 
-def _send_misses_back(test, rows) -> None:
-    """A real paper's problems missed in the sitting are due again in
-    practice today, so they come up under "to review today"."""
-    from django.utils import timezone
-    from exercises.models import Exercise
-    missed = [(r.reference or {}).get('exercise_id') for r in rows if not r.is_correct]
-    Exercise.objects.filter(user=test.user, id__in=[m for m in missed if m]).update(
-        status='revisit', revisit_on=timezone.localdate())
-    # A paper brought straight to the test (no practice set behind it): its
-    # misses become one.
-    from exercises.services.papers import misses_to_practice
-    misses_to_practice(test, rows)
-
-
 def _exam_paper(user, notebook, source_ids, tpl):
     """The rows of an exam-shaped paper (services/exam.py), in part order, and
     what fell short: ([row fields], {"missing": [kinds], "generated": bool}).
@@ -962,8 +948,6 @@ class MockTestViewSet(viewsets.ModelViewSet):
             locked.completed_at = timezone.now()
             locked.score = round(sum(r.earned or 0 for r in rows) / total * 100, 1) if total else 0.0
             locked.save(update_fields=['completed_at', 'score'])
-            if locked.template == 'paper':
-                _send_misses_back(locked, rows)
         return Response(self._review(locked, rows))
 
     @action(detail=True, methods=['post'])
@@ -1003,7 +987,7 @@ class MockTestViewSet(viewsets.ModelViewSet):
             'correct_count': sum(1 for r in rows if r.is_correct),
             # What the bank holds now, this sitting included — the review
             # can say "N questions to redo" without a second request.
-            # A real paper's misses went back to practice (_send_misses_back).
+            # A brought paper (no notebook) counts its own misses.
             'mistake_count': (sum(1 for r in rows if not r.is_correct) if test.notebook is None
                               else len(_owed_question_ids(test.user, test.notebook))),
             'paper': MockTestQuestionReviewSerializer(rows, many=True).data,
