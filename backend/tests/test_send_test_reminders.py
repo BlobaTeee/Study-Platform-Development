@@ -221,5 +221,5 @@ def test_an_english_profile_gets_the_english_reminder(settings, sent, user, note
     _run()
 
     (subject, body, _, _), = sent
-    assert 'Bài thi thử' not in subject
+    assert 'Bài tự kiểm tra' not in subject
     assert 'Sit it here' in body

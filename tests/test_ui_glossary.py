@@ -21,7 +21,7 @@ AVOID = {
     },
     "vi": {
         r"\bnotebooks?\b": 'viết "sổ tay"',
-        r"\bquiz(zes)?\b": 'viết "bài kiểm tra"',
+        r"\bquiz(zes)?\b": 'viết "bài trắc nghiệm"',
         r"ngân hàng lỗi sai": 'viết "câu sai cần làm lại"',
     },
 }

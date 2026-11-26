@@ -84,7 +84,7 @@ msgid "flashcard set"
 msgstr "bộ thẻ"
 
 msgid "quiz"
-msgstr "bài kiểm tra"
+msgstr "bài trắc nghiệm"
 
 #, python-format
 msgid ""
@@ -192,7 +192,7 @@ msgid "You can only message people you share a notebook with."
 msgstr "Bạn chỉ nhắn được cho người có chung sổ tay."
 
 msgid "Not your quiz."
-msgstr "Đây không phải bài kiểm tra của bạn."
+msgstr "Đây không phải bài trắc nghiệm của bạn."
 
 msgid "The correct answer must be one of the options."
 msgstr "Đáp án đúng phải là một trong các phương án."
@@ -235,7 +235,7 @@ msgid "Type an answer first."
 msgstr "Hãy gõ câu trả lời trước."
 
 msgid "Question not part of this quiz."
-msgstr "Câu hỏi không thuộc bài kiểm tra này."
+msgstr "Câu hỏi không thuộc bài trắc nghiệm này."
 
 msgid "Answer not part of this attempt."
 msgstr "Câu trả lời không thuộc lượt làm bài này."
@@ -253,10 +253,10 @@ msgid "a weak concept"
 msgstr "một khái niệm còn yếu"
 
 msgid "Planned test not found."
-msgstr "Không tìm thấy lịch thi thử."
+msgstr "Không tìm thấy lịch tự kiểm tra."
 
 msgid "This planned test has already been sat."
-msgstr "Lịch thi thử này đã được thi."
+msgstr "Lịch tự kiểm tra này đã được thi."
 
 #, python-format
 msgid "This test opens at %(when)s."
@@ -278,7 +278,7 @@ msgid ""
 "finished processing, then try generating a quiz from them."
 msgstr ""
 "Chưa tạo được câu hỏi nào cho sổ tay này. Hãy kiểm tra các tài liệu đã xử lý "
-"xong, rồi thử tạo bài kiểm tra từ chúng."
+"xong, rồi thử tạo bài trắc nghiệm từ chúng."
 
 msgid "This test has already been submitted."
 msgstr "Bài thi này đã được nộp."
