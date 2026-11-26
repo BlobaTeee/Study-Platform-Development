@@ -61,6 +61,32 @@ PREFIX = 'data:image/png;base64,'
 _TAG = re.compile(r'\[Figure\s*(\d+)\s*:')
 
 
+#: A bracketed description: starts with a letter and runs to a few words,
+#: unlike maths such as [B,SC,D], the tags themselves, a table copied as
+#: text ([Table: ...]) or a variation table's interval ([On (-2; 1): ...]).
+_DESCRIBED = re.compile(r'\[(?!Figure\s*\d)(?!unreadable\])(?!(?:Table|Bảng|On|Trên)\b)'
+                        r'([A-Za-zÀ-ỹ][^\[\]$]{25,})\]')
+
+
+def tag_untagged(text: str, cut: int) -> str:
+    """A question with a figure cut but no [Figure n: ...] tag: its bracketed
+    descriptions become the tags, in order. On 2026-11-26 the reader wrote
+    "[Ellipse with semi-major axis, ...]" for the paper's drawing, so the
+    drawing, cut from the page, was dropped and the test showed only words.
+    A text that has a tag, or no figure cut, is left as it is."""
+    if not cut or tags_in(text):
+        return text
+    n = 0
+
+    def tag(m):
+        nonlocal n
+        if n >= cut:
+            return m.group(0)
+        n += 1
+        return f'[Figure {n}: {m.group(1).strip()}]'
+    return _DESCRIBED.sub(tag, text)
+
+
 def tags_in(text: str) -> set[int]:
     """The figure numbers a text has a [Figure n: ...] tag for."""
     return {int(n) for n in _TAG.findall(text or '')}

@@ -86,6 +86,31 @@ def test_a_box_the_text_has_no_tag_for_is_dropped(client, monkeypatch):
     assert '\nb) Fe2+' in question['text']             # lettered like the first statement
 
 
+def test_a_figure_described_without_its_tag_is_still_shown(client, monkeypatch):
+    """The reader wrote "[Ellipse with ...]" for a paper's drawing, with its
+    box but no "Figure 1:", and the test showed only the words (2026-11-26)."""
+    class Reader:
+        def generate_json_from_images(self, prompt, images):
+            return {'found': True, 'questions': [{'label': 'Câu 20', 'instruction': '',
+                    'text': 'Tính $S=a+b+c+d$. [Ellipse with semi-major axis and a cubic curve through the centre]',
+                    'figures': [{'page': 1, 'box': [500, 200, 700, 400]}]}]}
+    monkeypatch.setattr('notebooks.services.ai_provider.get_ai_provider', lambda: Reader())
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    res = client.post('/api/exercises/read-photo/', {'image': SimpleUploadedFile('de.png', _page(), 'image/png')},
+                      format='multipart')
+    [question] = res.json()['questions']
+    assert '[Figure 1: Ellipse with' in question['text']
+    assert len(question['figures']) == 1 and question['figures'][0].startswith('data:image/png')
+
+
+@pytest.mark.parametrize('text', ['Góc $[B,SC,D]$ bằng bao nhiêu độ, hỏi cả lớp xem?',
+                                  'Cho bảng [Table: Cặp oxi hóa - khử; E (V) của từng cặp]',
+                                  'Bảng biến thiên [On (-\\infty; -2): y giảm từ 1 xuống âm vô cùng]',
+                                  'Đã có [Figure 1: hình] và [Một hình chữ nhật dài hơn chiều rộng nhiều]'])
+def test_maths_tables_and_tagged_texts_are_left_alone(text):
+    assert figures.tag_untagged(text, 1) == text
+
+
 def test_a_figure_not_in_the_problem_is_not_sent_to_the_answer_key(monkeypatch):
     from exercises.services import problems
     [[url]] = figures.cut(_page(), 'image/png', [[(1, (0.5, 0.2, 0.7, 0.4))]])

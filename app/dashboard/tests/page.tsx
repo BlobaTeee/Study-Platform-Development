@@ -799,7 +799,9 @@ function MockTestsInner() {
               )}
               <span className="h-px flex-1 bg-slate-100" aria-hidden />
             </div>
-            <p className="text-2xl md:text-3xl text-slate-900 leading-relaxed mb-8">
+            {/* A short question reads large; a real paper's long one at reading size (2026-11-26). */}
+            <p className={cn('mb-8 leading-relaxed text-slate-900',
+                             question.question_text.length > 140 ? 'text-lg md:text-xl' : 'text-xl md:text-2xl')}>
               <InPageLanguage text={question.question_text} found={found} math={!!test.template} figures={question.figures} />
             </p>
 

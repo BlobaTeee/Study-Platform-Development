@@ -80,7 +80,8 @@ written in. A page with several questions gives several; a photo of one problem 
   [Figure n: what it shows, with the values and labels the question needs], n counting 1, 2, ...
   within that question; keep the word "Figure" in English, but write what it shows in the
   problem's language, e.g.
-  [Figure 1: Right triangle ABC, right angle at C, AC = 3 cm, BC = 4 cm]. For each, in the same
+  [Figure 1: Right triangle ABC, right angle at C, AC = 3 cm, BC = 4 cm]; a figure described
+  in brackets without "Figure n:" is lost. For each, in the same
   order, give in the question's "figures" where it is: {"page": its page in the document (1 for
   a photo), "box": [ymin, xmin, ymax, xmax]}, in thousandths of the page's height and width,
   around the whole figure and its labels but not the question's text.
@@ -201,6 +202,7 @@ def read_problems(data: bytes) -> tuple[list[dict], str]:
         # tag for is dropped: on 2026-11-23 a table, copied as text, also got
         # a box, which landed on the next question's lines; sent along to the
         # answer key it pulled that question's statements in.
+        question['text'] = figures.tag_untagged(question['text'], sum(1 for url in cut if url))
         tagged = figures.tags_in(_all_text(question))
         question['figures'] = [url if n in tagged else None for n, url in enumerate(cut, 1)]
         while question['figures'] and question['figures'][-1] is None:
