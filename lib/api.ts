@@ -318,10 +318,6 @@ export const notebooksAPI = {
   getNotebook: (id: number) => api.get(`/notebooks/notebooks/${id}/`),
   createNotebook: (data: { title: string; description?: string }) =>
     api.post('/notebooks/notebooks/', data),
-  // A CSV of the notebook's live cards or published questions. Fetched with
-  // the auth header (a plain <a href> could not carry it) and saved client-side.
-  exportCsv: (id: number, kind: 'flashcards' | 'questions') =>
-    api.get<Blob>(`/notebooks/notebooks/${id}/export/`, { params: { kind }, responseType: 'blob' }),
   // Chat groups. Sending goes over REST so a message is never lost to a
   // dropped socket; the socket is how everyone else hears it.
   createGroup: (data: { name: string; members: number[] }) =>
@@ -382,8 +378,6 @@ export const notebooksAPI = {
     api.post<{ notebook: { id: number; title: string } }>(`/notebooks/sources/${sourceId}/move/`, to),
   uploadPdf: (notebookId: number, file: File, title?: string) =>
     notebooksAPI.uploadSource(notebookId, file, title),
-  addTextSource: (notebookId: number, data: { text: string; title?: string }) =>
-    api.post(`/notebooks/notebooks/${notebookId}/add_text/`, data),
   addUrlSource: (notebookId: number, data: { url: string; title?: string }) =>
     api.post(`/notebooks/notebooks/${notebookId}/add_url/`, data),
   // How many flashcards this exact source selection already holds. Generating
