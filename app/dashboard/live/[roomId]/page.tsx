@@ -359,10 +359,7 @@ function Reveal({ room, voted, majorityIn, busy, onNext }: {
             <p className="max-w-[65ch] text-base leading-relaxed text-slate-800"><InPageLanguage text={r.explanation} found={found} math /></p>
           )}
           {r.source_excerpt && (
-            <figure className="max-w-[65ch] rounded-lg bg-slate-50 px-4 py-3">
-              <figcaption className="text-sm font-medium text-slate-700">{t('fromSource', { title: r.source_title || '—' })}</figcaption>
-              <blockquote className="mt-1 text-base leading-relaxed text-slate-800">“{r.source_excerpt}”</blockquote>
-            </figure>
+            <SourceExcerpt key={r.source_excerpt} title={r.source_title || '—'} text={r.source_excerpt} />
           )}
         </div>
       )}
@@ -489,5 +486,30 @@ function Players({ room }: { room: LiveState }) {
         ))}
       </ul>
     </section>
+  )
+}
+
+/** The passage the answer comes from. A long one shows its first three lines
+ *  and opens on a click: the whole of it crowded the reveal (2026-11-26). */
+function SourceExcerpt({ title, text }: { title: string; text: string }) {
+  const t = useTranslations('live')
+  const [open, setOpen] = useState(false)
+  const long = text.length > 220
+  return (
+    <figure className="max-w-[65ch] rounded-lg bg-slate-50 px-4 py-3">
+      <figcaption className="text-sm font-medium text-slate-700">{t('fromSource', { title })}</figcaption>
+      <blockquote className={cn('mt-1 text-sm leading-relaxed text-slate-800', long && !open && 'line-clamp-3')}>
+        “{text}”
+      </blockquote>
+      {long && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="mt-1 text-xs text-slate-500 underline underline-offset-4 hover:text-slate-900"
+        >
+          {open ? t('hidePassage') : t('showPassage')}
+        </button>
+      )}
+    </figure>
   )
 }

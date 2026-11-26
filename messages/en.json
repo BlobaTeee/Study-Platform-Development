@@ -814,6 +814,8 @@
     "votedWaiting": "You voted. Waiting for the room; after {s} s, more than half is enough.",
     "votedMajority": "Waiting for everyone, or for more than half of the room.",
     "why": "Why?",
-    "blank": "no answer"
+    "blank": "no answer",
+    "showPassage": "Show the whole passage",
+    "hidePassage": "Show less"
   }
 }

@@ -814,6 +814,8 @@
     "votedWaiting": "Bạn đã chọn. Chờ cả phòng; sau {s} giây, quá nửa là đủ.",
     "votedMajority": "Chờ cả phòng, hoặc quá nửa phòng là chuyển.",
     "why": "Vì sao?",
-    "blank": "bỏ trống"
+    "blank": "bỏ trống",
+    "showPassage": "Xem cả đoạn",
+    "hidePassage": "Thu gọn"
   }
 }
