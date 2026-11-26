@@ -463,7 +463,6 @@
     "whyTitle": "Why",
     "whyFailed": "Could not write an explanation. Try again in a minute.",
     "continuePractice": "Continue",
-    "sitNow": "Start now",
     "mistakesWaiting": "{count, plural, one {# wrong question} other {# wrong questions}} waiting",
     "seeReviewList": "See them in To review",
     "part_choice": "Multiple choice",
