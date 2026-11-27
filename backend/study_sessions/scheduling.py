@@ -11,7 +11,7 @@ intervals and dates it is handed.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import NamedTuple
 
 # Grades, easiest-to-recall last. These mirror CardReview.RESULT_CHOICES.
@@ -343,6 +343,34 @@ class Streak(NamedTuple):
     current: int
     best: int
     last_date: date
+
+
+def streak_from_days(days, today: date) -> Streak:
+    """The streak as it stands today, from the set of days the student
+    studied on.
+
+    A streak still counts on a day not yet studied (today), so it runs back
+    from today or, failing that, from yesterday; anything older is broken.
+    `best` is the longest run anywhere in `days`. `last_date` is the newest
+    day, or None when there is none.
+    """
+    days = set(days)
+    if not days:
+        return Streak(0, 0, None)
+    one = timedelta(days=1)
+    best = 0
+    for day in days:
+        if day - one in days:
+            continue                      # not the start of a run
+        length = 1
+        while day + one * length in days:
+            length += 1
+        best = max(best, length)
+    end = today if today in days else today - one
+    current = 0
+    while end - one * current in days:
+        current += 1
+    return Streak(current, best, max(days))
 
 
 def advance_streak(current: int, best: int, last_date: date | None, today: date) -> Streak:

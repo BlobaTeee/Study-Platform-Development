@@ -12,6 +12,7 @@ from django.core.cache import cache
 
 from ml_pipeline.weak_concepts import cluster_questions, top_terms
 from notebooks.services.ai_provider import get_ai_provider
+from notebooks.services.model_lane import quick
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,8 @@ in the same language as the questions — a noun phrase, no quotes, no trailing 
 
 Return ONLY valid JSON: {{"label": "..."}}"""
     try:
-        data = get_ai_provider().generate_json(prompt)
+        with quick():
+            data = get_ai_provider().generate_json(prompt)
         label = str(data.get('label') or '').strip().strip('."\'')
         return label[:80]
     except Exception as exc:  # noqa: BLE001 — no provider, quota, bad JSON: all mean "use the terms"

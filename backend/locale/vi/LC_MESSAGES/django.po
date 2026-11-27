@@ -84,7 +84,7 @@ msgid "flashcard set"
 msgstr "bộ thẻ"
 
 msgid "quiz"
-msgstr "bài kiểm tra"
+msgstr "bài trắc nghiệm"
 
 #, python-format
 msgid ""
@@ -192,7 +192,7 @@ msgid "You can only message people you share a notebook with."
 msgstr "Bạn chỉ nhắn được cho người có chung sổ tay."
 
 msgid "Not your quiz."
-msgstr "Đây không phải bài kiểm tra của bạn."
+msgstr "Đây không phải bài trắc nghiệm của bạn."
 
 msgid "The correct answer must be one of the options."
 msgstr "Đáp án đúng phải là một trong các phương án."
@@ -235,7 +235,7 @@ msgid "Type an answer first."
 msgstr "Hãy gõ câu trả lời trước."
 
 msgid "Question not part of this quiz."
-msgstr "Câu hỏi không thuộc bài kiểm tra này."
+msgstr "Câu hỏi không thuộc bài trắc nghiệm này."
 
 msgid "Answer not part of this attempt."
 msgstr "Câu trả lời không thuộc lượt làm bài này."
@@ -253,10 +253,10 @@ msgid "a weak concept"
 msgstr "một khái niệm còn yếu"
 
 msgid "Planned test not found."
-msgstr "Không tìm thấy lịch thi thử."
+msgstr "Không tìm thấy lịch tự kiểm tra."
 
 msgid "This planned test has already been sat."
-msgstr "Lịch thi thử này đã được thi."
+msgstr "Lịch tự kiểm tra này đã được thi."
 
 #, python-format
 msgid "This test opens at %(when)s."
@@ -278,7 +278,7 @@ msgid ""
 "finished processing, then try generating a quiz from them."
 msgstr ""
 "Chưa tạo được câu hỏi nào cho sổ tay này. Hãy kiểm tra các tài liệu đã xử lý "
-"xong, rồi thử tạo bài kiểm tra từ chúng."
+"xong, rồi thử tạo bài trắc nghiệm từ chúng."
 
 msgid "This test has already been submitted."
 msgstr "Bài thi này đã được nộp."
@@ -355,8 +355,8 @@ msgstr "Chưa soạn được cách chấm cho đề này. Thử lại nhé."
 msgid "Write out the whole problem, with everything it gives."
 msgstr "Hãy chép đủ cả đề, kèm mọi dữ kiện đề cho."
 
-msgid "Write at least one step first."
-msgstr "Hãy viết ít nhất một bước trước đã."
+msgid "Write your answer first."
+msgstr "Hãy viết bài làm trước đã."
 
 msgid "Keep trying a little longer before looking at the solution."
 msgstr "Thử thêm chút nữa rồi hãy xem lời giải."
@@ -383,3 +383,73 @@ msgid ""
 msgstr ""
 "Gửi tối đa %(count)s đoạn, mỗi đoạn không quá %(chars)s ký tự, kèm ngôn ngữ "
 "cần dịch sang (vi hoặc en)."
+
+msgid "Pick one of the options first."
+msgstr "Hãy chọn một phương án trước đã."
+
+msgid "Mark every statement true or false first."
+msgstr "Hãy chọn Đúng hoặc Sai cho mọi ý trước đã."
+
+msgid "Use a photo (JPEG, PNG, WEBP or HEIC), a PDF or a Word file."
+msgstr "Hãy chọn ảnh (JPEG, PNG, WEBP hoặc HEIC), file PDF hoặc file Word."
+
+msgid "No problem could be found in this file."
+msgstr "Không tìm thấy đề bài nào trong file này."
+
+msgid "That file is too large. Use one under 15 MB."
+msgstr "File lớn quá. Hãy chọn file dưới 15 MB."
+
+msgid "No answer key came back for this one."
+msgstr "Chưa tạo được đáp án cho câu này."
+
+#, python-format
+msgid "Pick between 1 and %(max)d problems."
+msgstr "Hãy chọn từ 1 đến %(max)d câu."
+
+msgid "The AI has used up its free requests for now. Wait a few minutes and try again."
+msgstr "AI đã dùng hết lượt miễn phí. Đợi vài phút rồi thử lại."
+
+msgid "The AI took too long to read the problems. Try again."
+msgstr "AI đọc đề quá lâu. Thử lại nhé."
+
+msgid "The problems could not be read just now. Try again in a minute."
+msgstr "Chưa đọc được đề lúc này. Thử lại sau một phút."
+
+msgid "The AI is overloaded right now. Try again in a few minutes."
+msgstr "AI đang quá tải. Thử lại sau vài phút."
+
+msgid "The AI is overloaded right now. Try again in a few minutes; what you wrote is kept."
+msgstr "AI đang quá tải. Thử lại sau vài phút, bài bạn viết vẫn được giữ."
+
+msgid "Unknown test format."
+msgstr "Không có dạng đề này."
+
+msgid "You've used this hour's AI requests. Try again in %(minutes)s min."
+msgstr "Bạn đã dùng hết lượt AI của giờ này. Thử lại sau %(minutes)s phút."
+
+msgid "The AI took too long to answer. Try again."
+msgstr "AI trả lời quá lâu. Thử lại nhé."
+
+msgid "No text could be extracted. The PDF may be scanned images only."
+msgstr "Không trích được chữ. PDF có thể chỉ toàn ảnh scan."
+
+msgid "No text could be extracted. The Word file may be empty or image-only."
+msgstr "Không trích được chữ. File Word có thể trống hoặc chỉ có ảnh."
+
+msgid "No text could be extracted. The presentation may have no text on slides."
+msgstr "Không trích được chữ. Bài trình chiếu có thể không có chữ trên slide."
+
+msgid "Reading this file stopped part way. Remove it and upload it again."
+msgstr "Việc đọc file này bị dừng giữa chừng. Hãy gỡ file rồi tải lên lại."
+
+msgid "No text could be extracted from this file."
+msgstr "Không trích được chữ từ file này."
+
+msgid "That could not be done just now. Try again in a minute."
+msgstr "Chưa làm được lúc này. Thử lại sau một phút nhé."
+
+msgid "That was a lot at once. Wait a few seconds and try again."
+msgstr "Bạn thao tác hơi nhanh. Đợi vài giây rồi thử lại."
+
+msgid "Pick an answer first."
+msgstr "Chọn một đáp án trước đã."

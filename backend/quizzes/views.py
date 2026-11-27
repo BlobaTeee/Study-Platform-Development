@@ -103,7 +103,7 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         user_answer = request.data.get('answer')
 
         question = Question.objects.get(pk=question_id)
-        is_correct = user_answer == question.correct_answer
+        is_correct = _quiz_answer_correct(question, user_answer)
 
         answer = Answer.objects.create(
             quiz_attempt=attempt,
@@ -190,6 +190,15 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         return Response({'id': answer.id, 'is_correct': is_correct, 'overridden': True})
 
 
+def _quiz_answer_correct(question, answer) -> bool:
+    """A picked option must be the stored one; a typed missing word may be
+    off by an accent or a slip (typed_matches)."""
+    from .services.paper import typed_matches
+    if question.question_type == 'fill_blank':
+        return typed_matches(answer, question.correct_answer)
+    return answer == question.correct_answer
+
+
 def _top_up_pool(user, notebook, source_ids, pool, requested):
     """Generate questions until the notebook can fill the paper, or we stop.
 
@@ -265,6 +274,8 @@ def _question_pool(user, source_ids):
     for row in (Question.objects
                 .filter(Q(quiz__is_published=True, quiz__sources__in=source_ids)
                         & (Q(quiz__user=user) | Q(quiz__sources__notebook__in=notebooks_for(user))))
+                # A typed blank has no options to put on a paper.
+                .exclude(question_type='fill_blank')
                 .values('id', 'quiz__sources')):
         pool.setdefault(row['id'], []).append(row['quiz__sources'])
     return [{'id': qid, 'source_ids': ids} for qid, ids in pool.items()]
@@ -330,6 +341,60 @@ class MistakeBankView(APIView):
             {'id': r['id'], 'question_text': r['question_text'],
              'source': {'id': r['source_id'], 'title': r['source__title']}}
             for r in rows]})
+
+
+class MistakeRedoView(APIView):
+    """Redoing one notebook's missed questions like a quiz, one at a time
+    with the answer right after, not as a timed mock test (the user found
+    the test oddly formal for going over mistakes, 2026-11-25).
+
+    GET ?notebook=: the owed questions, without their answers, so the list
+    is still no crib sheet. POST {notebook, question_id, answer}: marks one,
+    records it as quiz evidence for the mistake bank, and says whether it
+    has now left the bank (two right in a row)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _notebook(self, request, raw):
+        return notebooks_for(request.user).filter(id=raw).first()
+
+    def get(self, request):
+        notebook = self._notebook(request, request.query_params.get('notebook'))
+        if notebook is None:
+            return Response({'detail': _('Notebook not found.')}, status=404)
+        owed = _owed_question_ids(request.user, notebook)
+        questions = Question.objects.filter(id__in=owed).order_by('id')
+        return Response({'notebook': {'id': notebook.id, 'title': notebook.title}, 'questions': [
+            {'id': q.id, 'question_text': q.question_text, 'question_type': q.question_type,
+             'options': q.options} for q in questions]})
+
+    def post(self, request):
+        from django.utils import timezone
+        notebook = self._notebook(request, request.data.get('notebook'))
+        if notebook is None:
+            return Response({'detail': _('Notebook not found.')}, status=404)
+        question = Question.objects.filter(id=request.data.get('question_id'),
+                                           quiz__sources__notebook=notebook).distinct().first()
+        if question is None:
+            return Response({'detail': _('Question not part of this quiz.')}, status=404)
+        answer = str(request.data.get('answer') or '')
+        if not answer:
+            return Response({'detail': _('Pick an answer first.')}, status=400)
+        is_correct = _quiz_answer_correct(question, answer)
+        now = timezone.now()
+        attempt = (QuizAttempt.objects.filter(user=request.user, quiz=question.quiz, is_redo=True,
+                                              started_at__date=timezone.localdate())
+                   .first()
+                   or QuizAttempt.objects.create(user=request.user, quiz=question.quiz, is_redo=True))
+        Answer.objects.create(quiz_attempt=attempt, question=question, user_answer=answer,
+                              is_correct=is_correct, points_earned=int(is_correct))
+        answers = attempt.answers.all()
+        attempt.total_points = answers.count()
+        attempt.score = answers.filter(is_correct=True).count() / attempt.total_points * 100
+        attempt.is_completed, attempt.completed_at = True, now
+        attempt.save(update_fields=['total_points', 'score', 'is_completed', 'completed_at'])
+        return Response({'is_correct': is_correct, 'correct_answer': question.correct_answer,
+                         'explanation': question.explanation or '',
+                         'cleared': question.id not in _owed_question_ids(request.user, notebook)})
 
 
 class MistakeSummaryView(APIView):
@@ -446,6 +511,146 @@ class PracticeConceptView(APIView):
         return Response(payload(quiz), status=201)
 
 
+def _parts_summary(rows) -> list[dict]:
+    parts: dict[str, dict] = {}
+    for row in rows:
+        part = parts.setdefault(row.section, {'section': row.section, 'count': 0, 'points': 0.0, 'earned': 0.0})
+        part['count'] += 1
+        part['points'] = round(part['points'] + row.points, 2)
+        part['earned'] = round(part['earned'] + (row.earned or 0), 2)
+    return list(parts.values())
+
+
+def _mark_exam_row(row) -> None:
+    """Set is_correct, earned and (for a written answer) grade on one row of
+    an exam-shaped paper. Never raises: a part the model cannot mark earns
+    nothing and says so, rather than leaving the paper unsubmitted."""
+    from .services.exam import parse_marks, tf_earned, written_earned
+    if row.section == 'true_false':
+        row.earned, right = tf_earned(parse_marks(row.user_answer), row.statements, row.points)
+        row.is_correct = right == len(row.statements)
+    elif row.section == 'short' and (row.reference or {}).get('answer'):
+        # A real paper's answer (services/sitting.py): as practice checks it,
+        # against the printed answer and the other ways of writing it.
+        from exercises.services.grading import short_matches
+        ref = row.reference
+        row.is_correct = short_matches(row.user_answer, [str(ref['answer']), *ref.get('accept', [])])
+        row.earned = row.points if row.is_correct else 0.0
+    elif row.section == 'short':
+        verdict = 'wrong'
+        if row.user_answer.strip():
+            try:
+                from .services.typed_grading import grade_typed
+                verdict = grade_typed(row, row.user_answer)['verdict']
+            except Exception:  # noqa: BLE001 - the scorer is missing: fall back to exact match
+                verdict = 'correct' if _answer_matches(row.user_answer, row.correct_answer) else 'wrong'
+        row.is_correct = verdict == 'correct'
+        row.earned = row.points if row.is_correct else 0.0
+    elif row.section == 'written':
+        from exercises.models import Exercise
+        from exercises.services import grading
+        from exercises.services.common import PracticeUnavailable, split_sentences
+        sentences = split_sentences(row.user_answer)
+        if not sentences:
+            row.grade, row.earned, row.is_correct = {'verdict': 'needs_work', 'met': []}, 0.0, False
+            return
+        # Marked once and never again, so it waits for an answer: the normal
+        # lane, and one more try. A failure here would cost the part's points.
+        exercise = Exercise(prompt=row.question_text, reference=row.reference)
+        result = None
+        for _ in range(2):
+            try:
+                result = grading.grade(exercise, sentences, quick=False)
+                break
+            except PracticeUnavailable:
+                continue
+        if result is None:
+            row.grade, row.earned, row.is_correct = {'not_graded': True}, 0.0, False
+            return
+        row.grade = {**result, 'sentences': sentences}
+        row.earned = written_earned(result, len((row.reference or {}).get('checkpoints', [])), row.points)
+        row.is_correct = result.get('verdict') == 'passed'
+    else:
+        row.is_correct = _answer_matches(row.user_answer, row.correct_answer)
+        row.earned = row.points if row.is_correct else 0.0
+
+
+def _exam_paper(user, notebook, source_ids, tpl):
+    """The rows of an exam-shaped paper (services/exam.py), in part order, and
+    what fell short: ([row fields], {"missing": [kinds], "generated": bool}).
+
+    Parts I and III come from the multiple-choice bank (III only from
+    questions whose answer is short enough to type); Part II from the
+    notebook's true/false items, written by the model when there are too few;
+    Part IV from the student's practice problems on this notebook, one made
+    when there is none."""
+    import random
+    from exercises.models import Exercise
+    from exercises.services import problems as practice
+    from exercises.services.common import PracticeUnavailable
+    from .models import TrueFalseItem
+    from .services.exam import suits_typing, write_true_false
+
+    want = {kind: (count, points) for kind, count, points in tpl['parts']}
+    generated = False
+    rows: dict[str, list[dict]] = {kind: [] for kind in want}
+
+    need_mc = sum(want.get(k, (0, 0))[0] for k in ('choice', 'short'))
+    if need_mc:
+        pool = _question_pool(user, source_ids)
+        if len(pool) < need_mc:
+            pool, generated = _top_up_pool(user, notebook, source_ids, pool, need_mc)
+        by_id = {q.id: q for q in Question.objects.filter(id__in=[e['id'] for e in pool],
+                                                           question_type='multiple_choice')}
+        pool = [e for e in pool if e['id'] in by_id]
+        weights = source_weights(_source_accuracy(user, source_ids))
+        taken: set[int] = set()
+        for kind in ('short', 'choice'):
+            if kind not in want:
+                continue
+            fits = [e for e in pool if e['id'] not in taken
+                    and (kind == 'choice' or suits_typing(by_id[e['id']].correct_answer))]
+            for entry in sample_paper(fits, weights, count=want[kind][0]):
+                q = by_id[entry['id']]
+                taken.add(q.id)
+                rows[kind].append({'question_id': q.id, 'question_text': q.question_text, 'options': q.options,
+                                   'correct_answer': q.correct_answer, 'explanation': q.explanation,
+                                   'source_id': q.source_id, 'source_excerpt': q.source_excerpt})
+
+    if 'true_false' in want:
+        count = want['true_false'][0]
+        bank = list(TrueFalseItem.objects.filter(notebook=notebook))
+        if len(bank) < count:
+            made = write_true_false(notebook, count - len(bank) + 2)
+            generated = generated or bool(made)
+            bank += made
+        for item in random.sample(bank, min(count, len(bank))):
+            rows['true_false'].append({'question_text': item.stem, 'statements': item.statements,
+                                       'source_id': item.source_id,
+                                       'source_excerpt': ' … '.join(st.get('basis', '') for st in item.statements)})
+
+    if 'written' in want:
+        mine = list(Exercise.objects.filter(user=user, notebook=notebook, origin='document'))
+        if not mine:
+            source = next((src for src in notebook.sources.all() if (src.extracted_text or '').strip()), None)
+            if source is not None:
+                try:
+                    mine = practice.from_document(user, source)
+                    generated = True
+                except PracticeUnavailable:
+                    mine = []
+        for ex in random.sample(mine, min(want['written'][0], len(mine))):
+            rows['written'].append({'question_text': ex.prompt, 'reference': ex.reference,
+                                    'source_id': ex.source_id})
+
+    paper = []
+    for kind, _count, points in tpl['parts']:
+        for fields in rows[kind]:
+            paper.append({**fields, 'section': kind, 'points': points})
+    missing = [kind for kind, count, _ in tpl['parts'] if len(rows[kind]) < count]
+    return paper, {'missing': missing, 'generated': generated}
+
+
 class MockTestViewSet(viewsets.ModelViewSet):
     """Sit a timed paper drawn from a whole notebook."""
     serializer_class = MockTestSerializer
@@ -461,6 +666,22 @@ class MockTestViewSet(viewsets.ModelViewSet):
         return (MockTest.objects.filter(user=self.request.user)
                 .select_related('notebook')
                 .prefetch_related('paper'))
+
+    @action(detail=False, methods=['get'])
+    def unfinished(self, request):
+        """Sittings started and not handed in whose time is not up: the
+        mock-test page offers to carry on with them, so leaving the page
+        mid-paper no longer loses it (2026-11-26). Newest first."""
+        from django.utils import timezone
+        now = timezone.now()
+        open_ = (MockTest.objects.filter(user=request.user, completed_at__isnull=True)
+                 .select_related('notebook').order_by('-started_at')[:20])
+        return Response([
+            {'id': t.id, 'title': t.paper_title or (t.notebook.title if t.notebook else ''),
+             'deadline': t.deadline, 'seconds_left': int((t.deadline - now).total_seconds()),
+             'question_count': t.question_count,
+             'answered': t.paper.exclude(user_answer__isnull=True).exclude(user_answer='').count()}
+            for t in open_ if t.deadline > now])
 
     def get_throttles(self):
         # Starting a sitting can generate questions to fill the paper (see
@@ -524,6 +745,9 @@ class MockTestViewSet(viewsets.ModelViewSet):
         source_ids = set(notebook.sources.values_list('id', flat=True))
         mistakes_only = bool(request.data.get('mistakes_only'))
         generated = False
+        name = str(request.data.get('template') or '')
+        if name and not mistakes_only and plan is None:
+            return self._create_exam(request, notebook, source_ids, name)
         if mistakes_only:
             # A retake paper is exactly the bank, however long that is: no
             # top-up (new questions were never missed) and no cap, so the
@@ -607,6 +831,37 @@ class MockTestViewSet(viewsets.ModelViewSet):
             data['generated_questions'] = True
         return Response(data, status=status.HTTP_201_CREATED)
 
+    def _create_exam(self, request, notebook, source_ids, name):
+        """Start a sitting in an exam's shape (services/exam.py TEMPLATES)."""
+        from django.db import transaction
+        from .services.exam import template
+
+        tpl = template(name)
+        if tpl is None:
+            return Response({'detail': _('Unknown test format.')}, status=400)
+        paper, info = _exam_paper(request.user, notebook, source_ids, tpl)
+        if not paper:
+            return Response(
+                {'detail': _('No questions could be generated for this notebook. '
+                             'Check its documents have finished processing, then '
+                             'try generating a quiz from them.')},
+                status=400,
+            )
+        with transaction.atomic():
+            test = MockTest.objects.create(user=request.user, notebook=notebook, template=name,
+                                           question_count=len(paper), duration_minutes=tpl['duration'])
+            MockTestQuestion.objects.bulk_create([
+                MockTestQuestion(mock_test=test, order=i, **fields) for i, fields in enumerate(paper)
+            ])
+        test = self.get_queryset().get(pk=test.pk)
+        data = MockTestSerializer(test).data
+        if info['missing']:
+            data['short_paper'] = True
+            data['missing_parts'] = info['missing']
+        if info['generated']:
+            data['generated_questions'] = True
+        return Response(data, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['post'])
     def answer(self, request, pk=None):
         """Record one answer. Deliberately returns no marking.
@@ -635,6 +890,10 @@ class MockTestViewSet(viewsets.ModelViewSet):
         # literal text "None" and be graded (and shown on the review) as
         # though the student had typed that word.
         raw_answer = request.data.get('answer', '')
+        if isinstance(raw_answer, dict):
+            # A true/false question's marks, {label: bool}, kept as JSON.
+            import json
+            raw_answer = json.dumps({str(k): v for k, v in raw_answer.items() if isinstance(v, bool)})
         row.user_answer = '' if raw_answer is None else str(raw_answer)
         row.answered_at = now
         row.save(update_fields=['user_answer', 'answered_at'])
@@ -662,6 +921,8 @@ class MockTestViewSet(viewsets.ModelViewSet):
         # row lock it doesn't need.
         if test.completed_at:
             return Response(self._review(test))
+        if test.template:
+            return self._submit_exam(test)
 
         with transaction.atomic():
             # Re-fetch under select_for_update() and re-check completed_at:
@@ -695,6 +956,27 @@ class MockTestViewSet(viewsets.ModelViewSet):
 
         return Response(self._review(test, rows))
 
+    def _submit_exam(self, test):
+        """Mark an exam-shaped paper part by part. Typed and written answers
+        may ask the model, so they are marked before the row lock is taken;
+        the lock then only guards stamping the result once."""
+        from django.db import transaction
+        from django.utils import timezone
+
+        rows = list(test.paper.all())
+        for row in rows:
+            _mark_exam_row(row)
+        with transaction.atomic():
+            locked = MockTest.objects.select_for_update().get(pk=test.pk)
+            if locked.completed_at:
+                return Response(self._review(locked))
+            MockTestQuestion.objects.bulk_update(rows, ['is_correct', 'earned', 'grade'])
+            total = sum(r.points for r in rows)
+            locked.completed_at = timezone.now()
+            locked.score = round(sum(r.earned or 0 for r in rows) / total * 100, 1) if total else 0.0
+            locked.save(update_fields=['completed_at', 'score'])
+        return Response(self._review(locked, rows))
+
     @action(detail=True, methods=['post'])
     def explain(self, request, pk=None):
         """'Why?' on one wrong answer of a submitted paper."""
@@ -725,14 +1007,21 @@ class MockTestViewSet(viewsets.ModelViewSet):
         return {
             'id': test.id,
             'notebook': test.notebook_id,
+            'paper_title': test.paper_title,
             'score': test.score,
             'completed_at': test.completed_at,
             'question_count': test.question_count,
             'correct_count': sum(1 for r in rows if r.is_correct),
             # What the bank holds now, this sitting included — the review
             # can say "N questions to redo" without a second request.
-            'mistake_count': len(_owed_question_ids(test.user, test.notebook)),
+            # A brought paper (no notebook) counts its own misses.
+            'mistake_count': (sum(1 for r in rows if not r.is_correct) if test.notebook is None
+                              else len(_owed_question_ids(test.user, test.notebook))),
             'paper': MockTestQuestionReviewSerializer(rows, many=True).data,
+            'template': test.template,
+            # Points per part of an exam-shaped paper, in part order; empty for
+            # a classic paper, which counts questions.
+            'parts': _parts_summary(rows) if test.template else [],
         }
 
 

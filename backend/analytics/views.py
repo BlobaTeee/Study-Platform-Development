@@ -1,14 +1,18 @@
+from datetime import timedelta
+
 from django.db.models import Avg
 from django.utils import timezone
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from exercises.models import ExerciseAttempt
 from flashcards.models import Flashcard
+from live.models import LiveAnswer
 from notebooks.models import Notebook, Source
 from quizzes.models import Answer, MockTest, Question, Quiz, QuizAttempt
 from study_sessions import daily, scheduling
-from study_sessions.models import CardReview
+from study_sessions.models import CardReview, FeynmanAttempt
 from study_sessions.views import studiable_cards
 from users.timezones import zone_for
 from . import insights
@@ -175,6 +179,7 @@ class AnalyticsViewSet(viewsets.ViewSet):
             'due': due,
             'weak_notebooks': insights.per_notebook_mastery(
                 events, source_to_notebook, notebook_titles),
+            'beyond_cards': _beyond_cards(user, today),
         })
 
     ACTIVITY_DAYS = 14
@@ -201,8 +206,49 @@ class AnalyticsViewSet(viewsets.ViewSet):
             for when, score in MockTest.objects.filter(user=user, completed_at__isnull=False)
             .values_list('completed_at', 'score')
         ]
+        # Only the window is read: older rows cannot land in any day of it.
+        since = timezone.now() - timedelta(days=self.ACTIVITY_DAYS + 1)
+        quizzes = [
+            {'date': when.astimezone(zone).date(), 'score': score}
+            for when, score in QuizAttempt.objects.filter(
+                user=user, is_completed=True, completed_at__gte=since)
+            .values_list('completed_at', 'score')
+        ]
+        problems = [
+            {'date': when.astimezone(zone).date(), 'exercise_id': exercise_id,
+             'passed': kind == 'submit' and (result or {}).get('verdict') == 'passed'}
+            for when, exercise_id, kind, result in ExerciseAttempt.objects.filter(
+                exercise__user=user, created_at__gte=since)
+            .values_list('created_at', 'exercise_id', 'kind', 'result')
+        ]
+        explanations = [
+            {'date': when.astimezone(zone).date()}
+            for when in FeynmanAttempt.objects.filter(user=user, created_at__gte=since)
+            .values_list('created_at', flat=True)
+        ]
+        live = [
+            {'date': when.astimezone(zone).date(), 'session_id': session_id}
+            for when, session_id in LiveAnswer.objects.filter(user=user, answered_at__gte=since)
+            .values_list('answered_at', 'session_id')
+        ]
         data = insights.daily_activity(reviews, mock_tests, today=today,
-                                       days=self.ACTIVITY_DAYS)
+                                       days=self.ACTIVITY_DAYS, quizzes=quizzes,
+                                       problems=problems, explanations=explanations, live=live)
         for day in data['days']:
             day['date'] = day['date'].isoformat()
         return Response(data)
+
+
+def _beyond_cards(user, today) -> dict:
+    """What else is owed today besides cards, for the home page and the
+    sidebar's count (the user found "to review" meaning cards only odd,
+    2026-11-25): questions missed in quizzes, mock tests and live rounds
+    that wait to be redone, and practice problems due again."""
+    from exercises.models import Exercise
+    from notebooks.services.membership import notebooks_for
+    from quizzes.views import _owed_question_ids
+    owed = 0
+    for notebook in notebooks_for(user):
+        owed += len(_owed_question_ids(user, notebook))
+    practice_due = Exercise.objects.filter(user=user, status='revisit', revisit_on__lte=today).count()
+    return {'owed': owed, 'practice_due': practice_due}

@@ -39,6 +39,10 @@ class Question(models.Model):
         ('multiple_choice', 'Multiple Choice'),
         ('true_false', 'True/False'),
         ('short_answer', 'Short Answer'),
+        # One sentence from the document with a key term blanked out, typed
+        # in. Moved here from flashcards on 2026-11-26. No options, so live
+        # rounds and mock tests (which need choices) leave it out.
+        ('fill_blank', 'Fill in the blank'),
     ]
 
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions')
@@ -72,6 +76,9 @@ class QuizAttempt(models.Model):
     score = models.FloatField(null=True, blank=True)
     total_points = models.IntegerField(default=0)
     is_completed = models.BooleanField(default=False)
+    # A day's redo of missed questions from this quiz (quizzes/views
+    # MistakeRedoView), kept apart from attempts at the quiz itself.
+    is_redo = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.user.username} - {self.quiz.title}"
@@ -123,13 +130,22 @@ class MockTest(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='mock_tests')
     # String reference on purpose: notebooks already imports quizzes.serializers,
     # so importing notebooks here would close a circular import.
+    # Null for a real paper the student brought (a practice set sat as an
+    # exam, exercises/services/sitting.py): it belongs to no notebook.
     notebook = models.ForeignKey('notebooks.Notebook', on_delete=models.CASCADE,
-                                 related_name='mock_tests')
+                                 related_name='mock_tests', null=True, blank=True)
+    # That paper's name (the set's), shown where a notebook's would be.
+    paper_title = models.CharField(max_length=200, blank=True, default='')
     question_count = models.PositiveSmallIntegerField(default=20)
     duration_minutes = models.PositiveSmallIntegerField(default=30)
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     score = models.FloatField(null=True, blank=True)
+    # The exam shape it follows (services/exam.py TEMPLATES): parts of
+    # different answer kinds, each marked by the real exam's rules. Empty for
+    # the classic paper of multiple-choice questions, still used for the
+    # mistakes-only retake and planned tests.
+    template = models.CharField(max_length=10, blank=True, default='')
 
     class Meta:
         ordering = ['-started_at']
@@ -205,6 +221,20 @@ class MockTestQuestion(models.Model):
     # free and the wording does not change under the student.
     ai_explanation = models.TextField(blank=True, default='')
 
+    # Which part of an exam-shaped paper this is: "choice", "true_false",
+    # "short" or "written". Classic papers are all "choice".
+    section = models.CharField(max_length=12, default='choice')
+    # A true/false question's statements, [{"label", "text", "answer"}]; the
+    # answers are only sent once the paper is submitted.
+    statements = models.JSONField(default=list, blank=True)
+    # What the question is worth on an exam-shaped paper and what it earned
+    # (null until submission). Zero on classic papers, which count questions.
+    points = models.FloatField(default=0)
+    earned = models.FloatField(null=True, blank=True)
+    # A written problem's frozen rubric (Exercise.reference) and its grade.
+    reference = models.JSONField(default=dict, blank=True)
+    grade = models.JSONField(default=dict, blank=True)
+
     class Meta:
         ordering = ['order']
         unique_together = [('mock_test', 'order'), ('mock_test', 'question')]
@@ -212,6 +242,27 @@ class MockTestQuestion(models.Model):
 
     def __str__(self):
         return f'{self.mock_test_id} #{self.order}'
+
+
+class TrueFalseItem(models.Model):
+    """A true/false question in the exam's shape: a stem and four statements,
+    each with its answer and the passage that settles it. Written for
+    Part II of exam-shaped mock tests and kept for later sittings."""
+    id = models.BigAutoField(primary_key=True)
+    notebook = models.ForeignKey('notebooks.Notebook', on_delete=models.CASCADE,
+                                 related_name='true_false_items')
+    source = models.ForeignKey('notebooks.Source', on_delete=models.SET_NULL, null=True,
+                               blank=True, related_name='+')
+    stem = models.TextField()
+    # [{"label": "a", "text": "...", "answer": true, "basis": "exact quote"}]
+    statements = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return self.stem[:60]
 
 
 class PlannedTest(models.Model):

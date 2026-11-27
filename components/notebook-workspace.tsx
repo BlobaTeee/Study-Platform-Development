@@ -26,11 +26,9 @@ import {
   AlertCircle,
   ArrowLeft,
   ChevronDown,
-  ClipboardPaste,
   Link2,
   FileUp,
   Loader2,
-  Download,
   Pencil,
   Plus,
   Radio,
@@ -145,13 +143,12 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   // A source without a file: pasted text or a link. One small inline form,
   // one of two shapes, so a first-time visitor with nothing to upload still
   // gets to a deck in under a minute.
-  const [composer, setComposer] = useState<'text' | 'url' | null>(null)
+  const [composer, setComposer] = useState<'url' | null>(null)
   const [composerBody, setComposerBody] = useState('')
   const [error, setError] = useState('')
   // Renaming: null when not editing, else the draft title.
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
-  const [exporting, setExporting] = useState<'flashcards' | 'questions' | null>(null)
   // Who is in this notebook; the chat itself lives in the corner launcher.
   const [panel, setPanel] = useState<'members' | 'live' | null>(null)
   // Set when generation silently degraded to the extractive fallback, so a
@@ -177,8 +174,11 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const swrKey = ['/notebooks/', notebookId]
+  // A scanned PDF is read by OCR in the background for minutes: look again
+  // every few seconds while any document is still processing.
   const { data: notebookRes, isLoading, error: loadError } = useSWR(swrKey, () =>
-    notebooksAPI.getNotebook(notebookId)
+    notebooksAPI.getNotebook(notebookId),
+    { refreshInterval: (latest) => (latest?.data?.sources ?? []).some((s: SourceItem) => s.status === 'processing') ? 5000 : 0 }
   )
 
   const notebook = notebookRes?.data
@@ -243,6 +243,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
 
   const clearChecked = () => setCheckedSourceIds([])
 
+  const activeStatus = sources.find((s) => s.id === activeSourceId)?.status
   useEffect(() => {
     if (!activeSourceId) {
       setSourceDetail(null)
@@ -265,7 +266,8 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       })
       .catch(() => setSourceDetail(null))
       .finally(() => setLoadingSource(false))
-  }, [activeSourceId])
+    // Its status too: a document read in the background shows itself once ready.
+  }, [activeSourceId, activeStatus])
 
   const activeListItem = sources.find((s) => s.id === activeSourceId)
 
@@ -296,10 +298,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     setError('')
     try {
       const title = uploadTitle.trim() || undefined
-      const res =
-        composer === 'text'
-          ? await notebooksAPI.addTextSource(notebookId, { text: composerBody, title })
-          : await notebooksAPI.addUrlSource(notebookId, { url: composerBody.trim(), title })
+      const res = await notebooksAPI.addUrlSource(notebookId, { url: composerBody.trim(), title })
       setUploadTitle('')
       setComposerBody('')
       setComposer(null)
@@ -307,7 +306,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
       refresh()
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { detail?: string } } }
-      setError(ax.response?.data?.detail || (composer === 'text' ? t('addTextFailed') : t('addLinkFailed')))
+      setError(ax.response?.data?.detail || t('addLinkFailed'))
     } finally {
       setUploading(false)
     }
@@ -484,25 +483,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
     }
   }
 
-  const exportCsv = async (kind: 'flashcards' | 'questions') => {
-    setExporting(kind)
-    setError('')
-    try {
-      const res = await notebooksAPI.exportCsv(notebook.id, kind)
-      const name = /filename="?([^"]+)"?/.exec(res.headers['content-disposition'] ?? '')?.[1]
-      const url = URL.createObjectURL(res.data)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = name ?? `${kind}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch {
-      setError(t('exportFailed'))
-    } finally {
-      setExporting(null)
-    }
-  }
-
   return (
     <div className="flex flex-col h-full min-h-0 bg-white">
       {confirmDialog}
@@ -587,14 +567,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
             <Users aria-hidden />
             {t('share')}
           </Button>
-          <ActionMenu
-            label={t('exportMenu')}
-            icon={exporting ? <Loader2 className="animate-spin" aria-hidden /> : <Download aria-hidden />}
-            items={[
-              { key: 'cards', label: t('exportCardsCsv'), disabled: exporting !== null, onSelect: () => void exportCsv('flashcards') },
-              { key: 'questions', label: t('exportQuestionsCsv'), disabled: exporting !== null, onSelect: () => void exportCsv('questions') },
-            ]}
-          />
         </div>
       </div>
 
@@ -658,7 +630,6 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                     icon={<Plus aria-hidden />}
                     items={[
                       { key: 'file', label: t('browseFiles'), icon: <FileUp aria-hidden />, onSelect: () => fileRef.current?.click() },
-                      { key: 'text', label: t('pasteText'), icon: <ClipboardPaste aria-hidden />, onSelect: () => setComposer('text') },
                       { key: 'url', label: t('addLink'), icon: <Link2 aria-hidden />, onSelect: () => setComposer('url') },
                     ]}
                   />
@@ -679,24 +650,13 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                   onChange={(e) => setUploadTitle(e.target.value)}
                   placeholder={t('titleOptional')}
                 />
-                {composer === 'text' ? (
-                  <textarea
-                    autoFocus
-                    value={composerBody}
-                    onChange={(e) => setComposerBody(e.target.value)}
-                    placeholder={t('pastePlaceholder')}
-                    rows={6}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus-visible:border-mode focus-visible:ring-[3px] focus-visible:ring-mode/25"
-                  />
-                ) : (
-                  <Input
-                    autoFocus
-                    type="url"
-                    value={composerBody}
-                    onChange={(e) => setComposerBody(e.target.value)}
-                    placeholder={t('urlPlaceholder')}
-                  />
-                )}
+                <Input
+                  autoFocus
+                  type="url"
+                  value={composerBody}
+                  onChange={(e) => setComposerBody(e.target.value)}
+                  placeholder={t('urlPlaceholder')}
+                />
                 <div className="flex flex-wrap gap-2">
                   <Button type="submit" disabled={uploading || !composerBody.trim()}>
                     {uploading ? t('adding') : t('addSource')}
@@ -773,7 +733,7 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                               handleRemoveSource(src.id, src.title)
                             }}
                             className={cn(
-                              'my-1 mr-1 shrink-0 text-slate-500 hover:bg-red-50 hover:text-mode-danger',
+                              'my-1 mr-1 shrink-0 text-slate-600 hover:bg-red-50 hover:text-mode-danger',
                               'opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100',
                               isActive && 'opacity-100'
                             )}
@@ -865,6 +825,13 @@ export function NotebookWorkspace({ notebookId }: { notebookId: number }) {
                               : ` · ${fileTypeLabel(activeListItem.file_type)}`}
                       </p>
                     </div>
+
+                    {activeListItem.status === 'processing' && (
+                      <p className="flex items-center gap-2 text-sm text-slate-600">
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                        {t('processingNote')}
+                      </p>
+                    )}
 
                     {sourceDetail?.status === 'failed' && sourceDetail.error_message && (
                       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">

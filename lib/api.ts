@@ -51,7 +51,8 @@ export const authAPI = {
 /** How well you recalled a card, worst first. Drives the SM-2 schedule. */
 export type ReviewGrade = 'hard' | 'good' | 'easy'
 
-export type TutorTurn = { role: 'user' | 'tutor'; text: string }
+// general: answered from knowledge of the subject, beyond the card's passage.
+export type TutorTurn = { role: 'user' | 'tutor'; text: string; general?: boolean }
 
 export const flashcardsAPI = {
   getFlashcards: (params?: any) => api.get('/flashcards/flashcards/', { params }),
@@ -59,7 +60,7 @@ export const flashcardsAPI = {
   updateFlashcard: (id: number, data: any) => api.put(`/flashcards/flashcards/${id}/`, data),
   // A question about a card whose answer is showing; three per card per session.
   askTutor: (id: number, data: { question: string; history: TutorTurn[] }) =>
-    api.post<{ answer: string }>(`/flashcards/flashcards/${id}/ask/`, data),
+    api.post<{ answer: string; from: 'passage' | 'general' }>(`/flashcards/flashcards/${id}/ask/`, data),
   deleteFlashcard: (id: number) => api.delete(`/flashcards/flashcards/${id}/`),
   // Self-graded review: the backend schedules the card's next appearance and
   // this is what analytics counts. No study session needed.
@@ -76,7 +77,7 @@ export const flashcardsAPI = {
 }
 
 export const streaksAPI = {
-  // Current/best consecutive-day streak. Advances when a card is reviewed.
+  // Current/best run of days studied, counted like the Progress calendar.
   getMe: () => api.get('/study/streaks/me/'),
 }
 
@@ -144,18 +145,42 @@ export const explainAPI = {
 
 // Practice problems: apply a document to a case it does not spell out, solve
 // in steps, graded against a rubric the page never sees until solved.
-export type ErrorType = 'misread' | 'concept' | 'missing_step' | 'execution' | 'unsupported'
+// "wrong_answer" is a choice, true/false or short answer that did not match its key.
+export type ErrorType = 'misread' | 'concept' | 'missing_step' | 'execution' | 'unsupported' | 'wrong_answer'
 export type ExerciseSummary = {
   id: number; notebook_id: number | null; source_id: number | null; origin: 'document' | 'own'
   prompt: string; difficulty: 'easy' | 'medium' | 'hard'; notebook_title: string; source_title: string
   status: 'new' | 'mastered' | 'revisit'; revisit_on: string | null; due: boolean; attempted: boolean; created_at: string
+  // Picked together from one file ('' when made alone); the set's name is the file's.
+  set_key: string; set_title: string
 }
 export type ExerciseResult = {
   verdict?: 'passed' | 'needs_work'; met?: number[]; first_wrong_step?: number | null
   error_type?: ErrorType | null; detail?: string; hint?: string
+  // The answer as the student wrote it, kept with a submit or a hint.
+  text?: string
+  // A keyed answer: the option picked, or each statement's mark and how many were right.
+  answer?: string; answers?: Record<string, boolean | null>; correct?: number; total?: number
 }
+/** How a problem is answered: free text graded by the AI, or one checked against a key. */
+export type AnswerKind = 'written' | 'choice' | 'true_false' | 'short'
+export type AnswerKey = { answer?: string; answers?: Record<string, boolean> }
+/** What the student sends: a label, a mark per statement, or text. */
+export type GivenAnswer = { answer: string } | { answer: Record<string, boolean> } | { text: string }
 export type ExerciseDetail = ExerciseSummary & {
   attempts: { id: number; kind: 'submit' | 'hint' | 'reveal'; steps: string[]; result: ExerciseResult; created_at: string }[]
+  // "steps": working in order (calculation, proof, code); "points": separate
+  // reasons (explain, compare, justify). Problems from before it are steps.
+  answer_format: 'steps' | 'points'
+  answer_kind: AnswerKind
+  // Cut from the student's exam: [Figure n: …] in the prompt is figures[n - 1].
+  figures: (string | null)[]
+  options: { label: string; text: string }[]
+  statements: { label: string; text: string }[]
+  // Which option or marks are right: only once the problem is solved or unlocked.
+  answer_key: AnswerKey | null
+  // Where it stands among the problems picked together from one photo or file.
+  set: { index: number; total: number; prev_id: number | null; next_id: number | null } | null
   checkpoint_count: number
   met_checkpoints: { id: number; text: string; basis: string }[]
   failed_submits: number; can_reveal: boolean
@@ -167,28 +192,50 @@ export type PracticeMistakes = {
 }
 
 /** One question read from a photo; the instruction is its section's (how to answer). */
-export type PhotoQuestion = { label: string; instruction: string; text: string }
+// figures[n - 1] is the picture for [Figure n: …] in the text, cut from the page; null if it could not be.
+// answer: the paper's own answer from its answer key (ĐÁP ÁN), when it prints one.
+export type PrintedAnswer = string | Record<string, boolean>
+export type RedoQuestion = { id: number; question_text: string; question_type: 'multiple_choice' | 'true_false' | 'fill_blank'; options: string[] }
+export type RedoVerdict = { is_correct: boolean; correct_answer: string; explanation: string; cleared: boolean }
+// kind: how the paper sets it; a choice's options and a true/false question's
+// statements come apart from the stem (`text`).
+export type PhotoQuestion = {
+  label: string; instruction: string; text: string; figures?: (string | null)[]
+  kind?: 'choice' | 'true_false' | 'short' | 'written'
+  options?: { label: string; text: string }[]; statements?: { label: string; text: string }[]
+  // answer: the file's own key (exact); hint: the key as the AI read it off a picture.
+  answer?: PrintedAnswer; hint?: PrintedAnswer
+}
 
 export const exercisesAPI = {
   list: (params: { notebook?: number; source?: number; own?: 1 }) =>
     api.get<{ results: ExerciseSummary[] }>('/exercises/', { params }),
   generate: (sourceId: number) =>
     api.post<{ results: ExerciseSummary[] }>('/exercises/generate/', { source_id: sourceId }),
-  // The student's own problem: in no notebook, graded from general knowledge.
-  own: (text: string) => api.post<ExerciseDetail>('/exercises/own/', { text }),
-  // A photo read into its questions (maths in LaTeX), for the student to pick
-  // one; the photo is not kept.
+  // Rename a set; '' gives back the default name.
+  renameSet: (key: string, title: string) =>
+    api.patch<{ set_key: string; set_title: string }>(`/exercises/sets/${key}/`, { title }),
+  /** A whole set at once: every problem in it, gone for good. */
+  removeMany: (ids: number[]) => api.post<{ removed: number }>('/exercises/remove/', { ids }),
+  // A photo or file of a paper read into its questions (maths in LaTeX), to
+  // sit it (startPaper); the file is not kept.
   readPhoto: (file: File) => {
     const form = new FormData()
     form.append('image', file)
-    return api.post<{ questions: PhotoQuestion[] }>('/exercises/read-photo/', form, {
+    // title: the AI's short name for the paper, '' when it gave none.
+    return api.post<{ questions: PhotoQuestion[]; title?: string }>('/exercises/read-photo/', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+  // A paper read by readPhoto, sat whole as a mock test at once; `dropped`
+  // names the questions left out (no answer could be found).
+  startPaper: (title: string, questions: PhotoQuestion[]) =>
+    api.post<{ id: number; dropped: string[] }>('/exercises/papers/', { title, questions }),
   get: (id: number) => api.get<ExerciseDetail>(`/exercises/${id}/`),
   remove: (id: number) => api.delete(`/exercises/${id}/`),
-  submit: (id: number, steps: string[]) => api.post<ExerciseDetail>(`/exercises/${id}/submit/`, { steps }),
-  hint: (id: number, steps: string[]) => api.post<ExerciseDetail>(`/exercises/${id}/hint/`, { steps }),
+  // The answer as written; the server cuts it into sentences for the grader.
+  submit: (id: number, given: GivenAnswer) => api.post<ExerciseDetail>(`/exercises/${id}/submit/`, given),
+  hint: (id: number, text: string) => api.post<ExerciseDetail>(`/exercises/${id}/hint/`, { text }),
   reveal: (id: number) => api.post<ExerciseDetail>(`/exercises/${id}/reveal/`),
   mistakes: () => api.get<{ notebooks: PracticeMistakes[] }>('/exercises/mistakes/'),
 }
@@ -213,18 +260,9 @@ export const quizzesAPI = {
   getQuizzes: (params?: any) => api.get('/quizzes/quizzes/', { params }),
   getAttempts: () => api.get('/quizzes/attempts/'),
   createQuiz: (data: any) => api.post('/quizzes/quizzes/', data),
-  // Fixing a generated question. The server rejects a correct_answer that is
-  // not one of the options, and a quiz that is not the caller's.
-  updateQuestion: (id: number, data: { question_text?: string; options?: string[]; correct_answer?: string; explanation?: string }) =>
-    api.patch(`/quizzes/questions/${id}/`, data),
-  deleteQuestion: (id: number) => api.delete(`/quizzes/questions/${id}/`),
   startAttempt: (quizId: number) => api.post(`/quizzes/quizzes/${quizId}/start_attempt/`, {}),
   submitAnswer: (attemptId: number, data: any) => api.post(`/quizzes/attempts/${attemptId}/submit_answer/`, data),
   completeQuiz: (attemptId: number, data: any) => api.post(`/quizzes/attempts/${attemptId}/complete/`, data),
-  gradeTypedAnswer: (attemptId: number, data: { question_id: number; answer: string }) =>
-    api.post(`/quizzes/attempts/${attemptId}/grade_typed_answer/`, data),
-  overrideAnswer: (attemptId: number, data: { answer_id: number; is_correct: boolean }) =>
-    api.post(`/quizzes/attempts/${attemptId}/override_answer/`, data),
 }
 
 export type ChatMessage = {
@@ -280,10 +318,6 @@ export const notebooksAPI = {
   getNotebook: (id: number) => api.get(`/notebooks/notebooks/${id}/`),
   createNotebook: (data: { title: string; description?: string }) =>
     api.post('/notebooks/notebooks/', data),
-  // A CSV of the notebook's live cards or published questions. Fetched with
-  // the auth header (a plain <a href> could not carry it) and saved client-side.
-  exportCsv: (id: number, kind: 'flashcards' | 'questions') =>
-    api.get<Blob>(`/notebooks/notebooks/${id}/export/`, { params: { kind }, responseType: 'blob' }),
   // Chat groups. Sending goes over REST so a message is never lost to a
   // dropped socket; the socket is how everyone else hears it.
   createGroup: (data: { name: string; members: number[] }) =>
@@ -344,8 +378,6 @@ export const notebooksAPI = {
     api.post<{ notebook: { id: number; title: string } }>(`/notebooks/sources/${sourceId}/move/`, to),
   uploadPdf: (notebookId: number, file: File, title?: string) =>
     notebooksAPI.uploadSource(notebookId, file, title),
-  addTextSource: (notebookId: number, data: { text: string; title?: string }) =>
-    api.post(`/notebooks/notebooks/${notebookId}/add_text/`, data),
   addUrlSource: (notebookId: number, data: { url: string; title?: string }) =>
     api.post(`/notebooks/notebooks/${notebookId}/add_url/`, data),
   // How many flashcards this exact source selection already holds. Generating
@@ -404,12 +436,23 @@ export const mockTestsAPI = {
     planned_test?: number
     // The paper is exactly this notebook's mistake bank; question_count is ignored.
     mistakes_only?: boolean
+    // An exam-shaped paper; "mixed" draws its parts afresh each sitting
+    // (backend/quizzes/services/exam.py), which also sets the time.
+    template?: 'mixed'
   }) => api.post('/quizzes/mock-tests/', data),
   // Questions answered wrong and not yet answered right twice since — no answers included.
   mistakes: (notebook: number) =>
     api.get<{ count: number; questions: { id: number; question_text: string }[] }>(
       `/quizzes/mistakes/?notebook=${notebook}`
     ),
+  // Redoing one notebook's missed questions like a quiz: the list carries no
+  // answers; each answer is marked as it is given, and says whether that
+  // question has now left the bank (two right in a row).
+  redoMistakes: (notebook: number) =>
+    api.get<{ notebook: { id: number; title: string }; questions: RedoQuestion[] }>(
+      `/quizzes/mistakes/redo/?notebook=${notebook}`),
+  redoAnswer: (notebook: number, questionId: number, answer: string) =>
+    api.post<RedoVerdict>('/quizzes/mistakes/redo/', { notebook, question_id: questionId, answer }),
   // How many questions each notebook still owes; notebooks owing none are left out.
   mistakeSummary: () =>
     api.get<{ notebooks: { notebook_id: number; title: string; count: number }[] }>('/quizzes/mistakes/summary/'),
@@ -422,6 +465,10 @@ export const mockTestsAPI = {
       '/quizzes/weak-concepts/practice/', data
     ),
   get: (id: number) => api.get(`/quizzes/mock-tests/${id}/`),
+  // Sittings started and not handed in, time not up: offered to carry on.
+  unfinished: () =>
+    api.get<{ id: number; title: string; deadline: string; seconds_left: number; question_count: number; answered: number }[]>(
+      '/quizzes/mock-tests/unfinished/'),
   // Deliberately returns no marking — feedback waits until the paper is handed in.
   answer: (id: number, paperQuestionId: number, answer: string) =>
     api.post(`/quizzes/mock-tests/${id}/answer/`, {

@@ -8,7 +8,7 @@ const config = [
   ...nextVitals,
   ...nextTs,
   {
-    ignores: ['.next/**', 'node_modules/**', 'backend/**', 'ml_pipeline/**', '.venv/**', 'datasets/**'],
+    ignores: ['.next/**', 'node_modules/**', 'backend/**', 'ml_pipeline/**', '.venv/**', 'datasets/**', 'docs/report/tools/**'],
   },
   {
     rules: {

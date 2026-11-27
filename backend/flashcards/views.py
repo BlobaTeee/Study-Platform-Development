@@ -75,6 +75,6 @@ class FlashcardViewSet(viewsets.ModelViewSet):
             return Response({'detail': _("That's three questions on this card. Try recalling it again, "
                                          "and come back later if it's still unclear.")}, status=400)
         try:
-            return Response({'answer': ask(card, question, history[-2 * MAX_TURNS:])})
+            return Response(ask(card, question, history[-2 * MAX_TURNS:]))
         except TutorUnavailable as exc:
             return Response({'detail': str(exc)}, status=503)

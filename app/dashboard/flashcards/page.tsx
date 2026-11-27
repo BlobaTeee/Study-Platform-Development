@@ -7,12 +7,11 @@ import { Button } from '@/components/ui/button'
 import useSWR from 'swr'
 import { analyticsAPI, flashcardsAPI, notebooksAPI, type ReviewGrade } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { BLANK, type ClozeVerdict, checkTypedAny, splitAtBlank, suggestedGrade } from '@/lib/cloze'
+import { BLANK, splitAtBlank } from '@/lib/cloze'
 import { cardTexts, isShort, shownAs } from '@/lib/translate'
 import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
 import { useTranslations } from 'next-intl'
 import { SourceContextBanner } from '@/components/source-context-banner'
-import { useConfirm } from '@/components/confirm-dialog'
 import { PageHeader } from '@/components/page-header'
 import { AskTutor } from '@/components/ask-tutor'
 import { SourceRequired } from '@/components/source-required'
@@ -25,9 +24,7 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronLeft,
-  Pencil,
   RotateCcw,
-  Trash2,
 } from 'lucide-react'
 
 type Flashcard = {
@@ -36,7 +33,8 @@ type Flashcard = {
   answer: string
   /** The detail behind a short answer; empty on cards made before it existed. */
   explanation?: string
-  /** "cloze": the question is a sentence with one blank, typed into. */
+  /** "cloze": the question is a sentence with one blank. Typing it moved to
+   *  quizzes (2026-11-26); an older card like this is turned like any other. */
   kind?: 'basic' | 'cloze'
   difficulty: string
   source_ids?: number[]
@@ -44,13 +42,14 @@ type Flashcard = {
   exam_in_days?: number | null
 }
 
-/** The three SM-2 grades, worst recall first. Only you can judge whether you
+/** Two grades, as the student thinks of it: did not remember, remembered
+ *  (the user asked for two on 2026-11-25; "easy" is no longer offered but the
+ *  backend still reads it on older reviews). Only you can judge whether you
  *  remembered a card, so grading is the one step that cannot be automated —
  *  the number keys mirror the on-screen order. */
 const GRADES: { value: ReviewGrade; className: string }[] = [
   { value: 'hard', className: 'border-red-300 bg-red-50 text-red-900 hover:bg-red-100' },
-  { value: 'good', className: 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100' },
-  { value: 'easy', className: 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100' },
+  { value: 'good', className: 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100' },
 ]
 
 function FlashcardsStudy() {
@@ -108,22 +107,9 @@ function FlashcardsStudy() {
   const [graded, setGraded] = useState<Set<number>>(new Set())
   const [lastReview, setLastReview] = useState<{ label: string; interval: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // The AI wrote these cards; the student is the editor. Edits and deletions
-  // are applied on top of the fetched list rather than re-fetching, so the
-  // deck order under the cursor does not change.
-  const [edits, setEdits] = useState<Record<number, { question: string; answer: string }>>({})
-  const [removed, setRemoved] = useState<Set<number>>(new Set())
-  const [draft, setDraft] = useState<{ question: string; answer: string } | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [confirm, confirmDialog] = useConfirm()
-  // What was typed into a fill-in-the-blank card, tied to the card it was
-  // typed for so moving on starts the next one empty.
-  const [attempt, setAttempt] = useState<{ id: number; text: string }>({ id: -1, text: '' })
 
   const flashcards = useMemo(() => {
     const live = allCards
-      .filter((f) => !removed.has(f.id))
-      .map((f) => (edits[f.id] ? { ...f, ...edits[f.id] } : f))
     // The backend already picked the due cards; a source filter still applies if
     // one is present. Grading a card settles its debt, so it leaves the queue —
     // otherwise wrapping round would review it twice and corrupt its schedule.
@@ -139,7 +125,7 @@ function FlashcardsStudy() {
     }
     if (sourceIds.length === 0) return []
     return live.filter((f) => hasAllSources(f.source_ids, sourceIds))
-  }, [allCards, sourceIds, dueMode, relearn, cardIds, graded, edits, removed])
+  }, [allCards, sourceIds, dueMode, relearn, cardIds, graded])
 
   const total = flashcards.length
 
@@ -182,14 +168,14 @@ function FlashcardsStudy() {
         setSaving(false)
       }
     },
-    [flashcards, index, saving, goNext, queue]
+    [flashcards, index, saving, goNext, queue, t]
   )
 
   // Keyboard: space/enter flips, arrows move, number keys grade a revealed
   // card — the range comes from GRADES.length so removing/adding a grade
   // renumbers the shortcuts automatically instead of drifting out of sync.
   useEffect(() => {
-    if (total === 0 || draft) return  // typing in the editor must not flip or grade
+    if (total === 0) return
     const onKey = (e: KeyboardEvent) => {
       // Any field on the page (the tutor's question box, say) keeps its
       // keys: a space there is a space, a "2" is a "2".
@@ -208,56 +194,7 @@ function FlashcardsStudy() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [total, goNext, goPrev, flipped, grade, draft])
-
-  const saveEdit = async (card: Flashcard) => {
-    if (!draft) return
-    const question = draft.question.trim()
-    const answer = draft.answer.trim()
-    if (!question || !answer) {
-      setError(t('bothSidesRequired'))
-      return
-    }
-    // Without its one blank a cloze card has nothing to fill in.
-    if (card.kind === 'cloze' && question.split(BLANK).length !== 2) {
-      setError(t('clozeNeedsBlank'))
-      return
-    }
-    setBusy(true)
-    setError(null)
-    try {
-      await flashcardsAPI.updateFlashcard(card.id, { question, answer })
-      setEdits((e) => ({ ...e, [card.id]: { question, answer } }))
-      setDraft(null)
-    } catch {
-      setError(t('saveFailed'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const deleteCard = async (card: Flashcard) => {
-    const ok = await confirm({
-      title: t('deleteTitle'),
-      body: t('deleteBody'),
-      confirmLabel: common('delete'),
-      cancelLabel: common('cancel'),
-    })
-    if (!ok) return
-    setBusy(true)
-    setError(null)
-    try {
-      await flashcardsAPI.deleteFlashcard(card.id)
-      setRemoved((r) => new Set(r).add(card.id))
-      setFlipped(false)
-      // The next card slides into this slot; only clamp if this was the last.
-      setIndex((i) => (i >= total - 1 ? 0 : i))
-    } catch {
-      setError(t('deleteFailed'))
-    } finally {
-      setBusy(false)
-    }
-  }
+  }, [total, goNext, goPrev, flipped, grade])
 
   // The cards are in the document's language; shown in the page's. The next
   // card is asked for too, so it is ready when it comes.
@@ -332,14 +269,6 @@ function FlashcardsStudy() {
   // The clamping effect above runs after this render, so on the frame a graded
   // card leaves the queue the index can still point past the end.
   const card = flashcards[index] ?? flashcards[0]
-  const isCloze = card.kind === 'cloze'
-  const typed = attempt.id === card.id ? attempt.text : ''
-  // Checked once the card is turned, whichever way it was turned.
-  // The missing word typed in either language counts.
-  const answerShown = shownAs(found, card.answer, answerContext(card))
-  const verdict: ClozeVerdict | null =
-    isCloze && flipped ? checkTypedAny(typed, answerShown ? [card.answer, answerShown] : [card.answer]) : null
-  const suggestion = verdict ? suggestedGrade(verdict) : null
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
@@ -380,43 +309,6 @@ function FlashcardsStudy() {
       )}
 
       {/* Signature: a real index card that flips in 3D. */}
-      {draft ? (
-        <form
-          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sheet md:p-8"
-          onSubmit={(e) => {
-            e.preventDefault()
-            void saveEdit(card)
-          }}
-        >
-          <label className="block space-y-1.5">
-            <span className="font-mono text-sm font-semibold uppercase tracking-wide text-mode-flashcards">{t('question')}</span>
-            <textarea
-              value={draft.question}
-              onChange={(e) => setDraft({ ...draft, question: e.target.value })}
-              rows={3}
-              autoFocus
-              className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-lg text-slate-900 outline-none focus-visible:border-mode-flashcards focus-visible:ring-mode-flashcards/25 focus-visible:ring-[4px]"
-            />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="font-mono text-sm font-semibold uppercase tracking-wide text-slate-500">{t('answer')}</span>
-            <textarea
-              value={draft.answer}
-              onChange={(e) => setDraft({ ...draft, answer: e.target.value })}
-              rows={4}
-              className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-lg text-slate-900 outline-none focus-visible:border-mode-flashcards focus-visible:ring-mode-flashcards/25 focus-visible:ring-[4px]"
-            />
-          </label>
-          <div className="flex flex-wrap justify-end gap-3">
-            <Button type="button" variant="outline" disabled={busy} onClick={() => setDraft(null)}>
-              {common('cancel')}
-            </Button>
-            <Button type="submit" disabled={busy}>
-              {common('save')}
-            </Button>
-          </div>
-        </form>
-      ) : (
       <div className="flip-scene">
         <button
           type="button"
@@ -431,17 +323,16 @@ function FlashcardsStudy() {
               flipped && 'is-flipped'
             )}
           >
-            <IndexFace side="front" card={card} typed={typed} found={found} />
-            <IndexFace side="back" card={card} typed={typed} verdict={verdict} found={found} />
+            <IndexFace side="front" card={card} found={found} />
+            <IndexFace side="back" card={card} found={found} />
           </div>
         </button>
       </div>
-      )}
 
       {/* The answer stays short enough to recall; the reasoning waits here,
           folded, so reading it is a choice made after answering. It sits
           outside the card because the card itself is the flip button. */}
-      {flipped && !draft && card.explanation && (
+      {flipped && card.explanation && (
         <details key={`explanation-${card.id}`} className="group -mt-4 rounded-xl border border-slate-200 bg-white px-5 py-3">
           <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-900 [&::-webkit-details-marker]:hidden">
             <ChevronDown className="size-4 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
@@ -458,9 +349,9 @@ function FlashcardsStudy() {
       {flipped ? (
         <div className="space-y-3">
           <p className="text-center text-sm text-slate-600">
-            {suggestion ? t('suggestedGrade', { grade: t(suggestion) }) : t('howWell')}
+            {t('howWell')}
           </p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {GRADES.map((g, i) => (
               <button
                 key={g.value}
@@ -471,54 +362,24 @@ function FlashcardsStudy() {
                   'rounded-xl border px-4 py-3 text-left transition-[background-color,transform] duration-150 active:translate-y-px disabled:opacity-50',
                   'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30',
                   g.className,
-                  suggestion === g.value && 'ring-2 ring-slate-900 ring-offset-2'
                 )}
               >
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="text-base font-semibold">{t(g.value)}</span>
                   <kbd className="font-mono text-xs opacity-70 tabular-nums">{i + 1}</kbd>
                 </span>
-                <span className="block text-sm opacity-80">{t(`${g.value}Hint`)}</span>
               </button>
             ))}
           </div>
         </div>
       ) : (
         <div className="space-y-4">
-        {isCloze && !draft && (
-          // Typing the word is the recall; checking it turns the card. Leaving
-          // the box empty and showing the answer still works, as on any card.
-          <form
-            className="mx-auto flex max-w-md gap-2"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (typed.trim()) setFlipped(true)
-            }}
-          >
-            <input
-              key={card.id}
-              autoFocus
-              value={typed}
-              onChange={(e) => setAttempt({ id: card.id, text: e.target.value })}
-              placeholder={t('typeMissing')}
-              aria-label={t('typeMissing')}
-              autoComplete="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              className="h-11 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-4 text-base text-slate-900 placeholder:text-slate-500 focus-visible:border-mode focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode/30"
-            />
-            <Button type="submit" size="lg" disabled={!typed.trim()}>
-              {t('check')}
-            </Button>
-          </form>
-        )}
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Button variant="outline" size="lg" onClick={goPrev}>
             <ArrowLeft aria-hidden />
             {t('previous')}
           </Button>
-          {/* On a cloze card "Check" is the main action; this is the way out. */}
-          <Button size="lg" variant={isCloze ? 'outline' : 'default'} onClick={() => setFlipped(true)} className="px-8">
+          <Button size="lg" onClick={() => setFlipped(true)} className="px-8">
             <RotateCcw aria-hidden />
             {t('showAnswer')}
           </Button>
@@ -536,34 +397,10 @@ function FlashcardsStudy() {
         </p>
       )}
 
-      {/* The tutor: only with the answer showing, and never while editing.
-          Keyed by card so a new card starts a new, empty thread. */}
-      {flipped && !draft && <AskTutor key={card.id} cardId={card.id} />}
+      {/* The tutor: only with the answer showing. Keyed by card so a new
+          card starts a new, empty thread. */}
+      {flipped && <AskTutor key={card.id} cardId={card.id} />}
 
-      {/* Quiet on purpose: fixing a card is the exception, recalling it the rule. */}
-      {!draft && (
-        <div className="flex justify-center gap-5 text-sm text-slate-600">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setDraft({ question: card.question, answer: card.answer })}
-            className="inline-flex items-center gap-1.5 hover:text-slate-900 disabled:opacity-50"
-          >
-            <Pencil className="size-3.5" aria-hidden />
-            {t('editCard')}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void deleteCard(card)}
-            className="inline-flex items-center gap-1.5 hover:text-red-700 disabled:opacity-50"
-          >
-            <Trash2 className="size-3.5" aria-hidden />
-            {t('deleteCard')}
-          </button>
-        </div>
-      )}
-      {confirmDialog}
 
       <p className="text-center text-sm text-slate-500">
         {lastReview
@@ -584,11 +421,9 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 /** One face of the index card. The tabbed top edge and ruled baseline are
  *  the physical cues; front is amber (prompt), back is ink (recall). */
-function IndexFace({ side, card, typed = '', verdict = null, found }: {
+function IndexFace({ side, card, found }: {
   side: 'front' | 'back'
   card: Flashcard
-  typed?: string
-  verdict?: ClozeVerdict | null
   found: Map<string, string> | undefined
 }) {
   const t = useTranslations('flashcards')
@@ -619,26 +454,21 @@ function IndexFace({ side, card, typed = '', verdict = null, found }: {
       </p>
       <p className="text-2xl leading-relaxed text-slate-900 md:text-[1.75rem] text-pretty">
         {isCloze ? (
-          <ClozeSentence card={card} fill={isFront ? typed : null} found={found} />
+          <ClozeSentence card={card} fill={isFront ? '' : null} found={found} />
         ) : isFront ? (
           <InPageLanguage text={card.question} found={found} />
         ) : (
           <InPageLanguage text={card.answer} found={found} context={answerContext(card)} />
         )}
       </p>
-      {!isFront && verdict && verdict !== 'empty' && (
-        <p className={cn('mt-5 text-base', verdict === 'wrong' ? 'text-red-800' : verdict === 'close' ? 'text-amber-800' : 'text-emerald-800')}>
-          {t(`cloze_${verdict}`, { typed: typed.trim() })}
-        </p>
-      )}
       {/* Ruled baseline — a single notebook rule under the content */}
       <span className="mt-8 block h-px w-full bg-slate-100" aria-hidden />
     </div>
   )
 }
 
-/** The cloze sentence. On the front the blank shows what is being typed;
- *  on the back it holds the answer, marked so the eye lands on it. */
+/** The cloze sentence. On the front the blank is empty; on the back it
+ *  holds the answer, marked so the eye lands on it. */
 function ClozeSentence({ card, fill, found }: { card: Flashcard; fill: string | null; found: Map<string, string> | undefined }) {
   // A translation that lost its blank has nothing to fill in: the card's own words then.
   const translated = shownAs(found, card.question)

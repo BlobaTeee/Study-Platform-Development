@@ -11,6 +11,7 @@ from django.utils.translation import gettext as _
 
 from ml_pipeline.language import detect_language, language_name
 from notebooks.services.ai_provider import get_ai_provider
+from notebooks.services.model_lane import quick
 from notebooks.services.writing_style import WRITING_STYLE, tidy_prose
 from notebooks.services.gemini_client import GeminiNotConfiguredError
 
@@ -51,7 +52,8 @@ Student answered: {row.user_answer or "(left blank)"}
 Return ONLY valid JSON: {{"explanation": "..."}}"""
 
     try:
-        data = get_ai_provider().generate_json(prompt)
+        with quick():
+            data = get_ai_provider().generate_json(prompt)
     except GeminiNotConfiguredError as exc:
         raise ExplainUnavailable(_('Explanations need the AI provider, which is not available right now.')) from exc
     except Exception as exc:  # noqa: BLE001

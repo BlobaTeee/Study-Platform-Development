@@ -85,6 +85,10 @@ class MockTestQuestionSerializer(CleanGeneratedText, serializers.ModelSerializer
     question_fields = ('question_text',)
     prose_fields = ()
 
+    def keep_as_written(self, obj):
+        # A real paper's questions are the paper's words (exercises.services.sitting).
+        return obj.mock_test.template == 'paper'
+
     """A question as it appears *during* the test — no answer, no marking.
 
     Withholding `correct_answer` and `is_correct` here is what separates a test
@@ -96,15 +100,36 @@ class MockTestQuestionSerializer(CleanGeneratedText, serializers.ModelSerializer
     keep listing only these four fields: `correct_answer` now lives on this
     same row too, and must stay off this serializer regardless.
     """
+    options = serializers.SerializerMethodField()
+    statements = serializers.SerializerMethodField()
+    figures = serializers.SerializerMethodField()
+
     class Meta:
         model = MockTestQuestion
-        fields = ['id', 'order', 'question_text', 'options', 'user_answer']
+        fields = ['id', 'order', 'question_text', 'options', 'user_answer', 'section', 'statements', 'points',
+                  'figures']
         read_only_fields = fields
+
+    def get_figures(self, obj):
+        # A real paper's figures, cut from its pages (exercises.services.sitting).
+        return (obj.reference or {}).get('figures') or []
+
+    def get_options(self, obj):
+        # A Part III question is typed: its options would give the answer away.
+        return [] if obj.section == 'short' else obj.options
+
+    def get_statements(self, obj):
+        # The statements to mark, never whether each is true.
+        return [{'label': st['label'], 'text': st['text']} for st in obj.statements or []]
 
 
 class MockTestQuestionReviewSerializer(CleanGeneratedText, serializers.ModelSerializer):
     question_fields = ('question_text',)
     prose_fields = ('explanation', 'ai_explanation')
+
+    def keep_as_written(self, obj):
+        # A real paper's questions are the paper's words (exercises.services.sitting).
+        return obj.mock_test.template == 'paper'
 
     """The same question after submission, with the marking revealed.
 
@@ -114,13 +139,27 @@ class MockTestQuestionReviewSerializer(CleanGeneratedText, serializers.ModelSeri
     sitting), and the review must stay complete regardless.
     """
     source = serializers.SerializerMethodField()
+    solution = serializers.SerializerMethodField()
+    statements = serializers.SerializerMethodField()
+    figures = serializers.SerializerMethodField()
 
     class Meta:
         model = MockTestQuestion
         fields = ['id', 'order', 'question_text', 'options', 'user_answer',
                   'correct_answer', 'explanation', 'is_correct', 'source', 'source_excerpt',
-                  'ai_explanation']
+                  'ai_explanation', 'section', 'statements', 'points', 'earned', 'grade', 'solution',
+                  'figures']
         read_only_fields = fields
+
+    def get_figures(self, obj):
+        return (obj.reference or {}).get('figures') or []
+
+    def get_statements(self, obj):
+        return [{'label': st['label'], 'text': st['text'], 'answer': st['answer']} for st in obj.statements or []]
+
+    def get_solution(self, obj):
+        """A written problem's model answer, shown with its marking."""
+        return (obj.reference or {}).get('solution', []) if obj.section == 'written' else []
 
     def get_source(self, obj):
         """Where to reread: null once the source is gone (the passage stays)."""
@@ -132,15 +171,19 @@ class MockTestQuestionReviewSerializer(CleanGeneratedText, serializers.ModelSeri
 
 class MockTestSerializer(serializers.ModelSerializer):
     paper = MockTestQuestionSerializer(many=True, read_only=True)
-    notebook_title = serializers.CharField(source='notebook.title', read_only=True)
+    notebook_title = serializers.SerializerMethodField()
     deadline = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = MockTest
-        fields = ['id', 'notebook', 'notebook_title', 'question_count',
+        fields = ['id', 'notebook', 'notebook_title', 'paper_title', 'question_count',
                   'duration_minutes', 'started_at', 'deadline', 'completed_at',
-                  'score', 'paper']
+                  'score', 'paper', 'template']
         read_only_fields = ['started_at', 'completed_at', 'score', 'paper']
+
+    def get_notebook_title(self, obj):
+        # A real paper has no notebook; its own name stands in.
+        return obj.notebook.title if obj.notebook_id else obj.paper_title
 
 
 class PlannedTestSerializer(serializers.ModelSerializer):

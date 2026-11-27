@@ -4,6 +4,20 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase-client'
 import { authAPI } from './api'
 
+/** Set as an Error's message when Supabase refuses to send another email
+ *  for now; the page says so in the student's language. */
+export const EMAIL_RATE_LIMIT = 'email-rate-limit'
+
+/** An auth error as a message for the page. Supabase's own email service
+ *  sends a few emails an hour; past that it refuses, and a failed send came
+ *  back with the message "{}", which the page showed as is (2026-11-26).
+ *  An empty message lets the page say its own "could not send". */
+function authFailure(error: { message?: string; status?: number; code?: string }): Error {
+  const message = (error.message ?? '').trim()
+  if (error.status === 429 || /rate.?limit/i.test(`${error.code ?? ''} ${message}`)) return new Error(EMAIL_RATE_LIMIT)
+  return new Error(message === '{}' ? '' : message)
+}
+
 interface User {
   id: string
   username: string
@@ -17,7 +31,7 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
-  register: (username: string, email: string, password: string) => Promise<{ needsConfirmation: boolean }>
+  register: (username: string, email: string, password: string) => Promise<{ needsConfirmation: boolean; alreadyRegistered: boolean }>
   logout: () => Promise<void>
   /** Emails a recovery link that lands on /reset-password. Resolves whether or
    *  not the address has an account, so the form cannot be used to find out. */
@@ -135,16 +149,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       options: { data: { username } },
     })
 
-    if (error || !data.user) {
-      throw new Error(error?.message || 'Registration failed. Please try again.')
-    }
+    if (error) throw authFailure(error)
+    if (!data.user) throw new Error('')
 
     // When email confirmation is required, signUp returns a user but NO session
     // until the address is verified. Signal that so the UI can prompt the student
     // to check their email instead of redirecting to a dashboard that would just
     // bounce them back to login. (A session present here means auto-confirm is on
     // and onAuthStateChange will complete the sign-in.)
-    return { needsConfirmation: !data.session }
+    // An address that already has an account: Supabase answers as if signing
+    // up worked (so the form cannot be used to find accounts) but sends no
+    // email, and the user has no identities. Without this the student waited
+    // for a mail that never came (2026-11-26, "User repeated signup").
+    const alreadyRegistered = !data.session && (data.user.identities?.length ?? 1) === 0
+    return { needsConfirmation: !data.session && !alreadyRegistered, alreadyRegistered }
   }
 
   const logout = async () => {
@@ -166,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     })
-    if (error) throw new Error(error.message)
+    if (error) throw authFailure(error)
   }
 
   const updatePassword = async (password: string) => {

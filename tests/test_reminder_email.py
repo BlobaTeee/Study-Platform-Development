@@ -100,7 +100,7 @@ def test_vietnamese_reminder_speaks_vietnamese_including_the_month():
     # A real zone, as the command passes: its %Z is "+07", not "UTC+07:00".
     when = datetime(2026, 9, 16, 15, 0, tzinfo=ZoneInfo('Asia/Ho_Chi_Minh'))
     subject, body = emails.build_reminder('Sinh học', when, 20, 30, 'http://x/tests', lang='vi')
-    assert subject == 'Bài thi thử Sinh học sắp tới'
+    assert subject == 'Bài tự kiểm tra Sinh học sắp tới'
     assert 'Khi nào: 16 tháng 9 2026 lúc 15:00 +07' in body
     assert 'Đề: 20 câu, 30 phút' in body
     assert 'Làm bài tại: http://x/tests' in body

@@ -65,12 +65,14 @@ function Wordmark({ compact = false, className, style }: { compact?: boolean; cl
   )
 }
 
-/** Today's share of due cards, read from the same request as the home page. */
+/** Everything owed today, read from the same request as the home page:
+ *  today's share of due cards, missed questions to redo, practice problems due. */
 function useDueToday(): number {
   const { data } = useSWR(['/analytics/recommendations'], () => analyticsAPI.getRecommendations())
   const due = data?.data?.due
-  if (!due) return 0
-  return due.today ?? (due.due ?? 0) + (due.new ?? 0)
+  const beyond = data?.data?.beyond_cards
+  const cards = due ? due.today ?? (due.due ?? 0) + (due.new ?? 0) : 0
+  return cards + (beyond?.owed ?? 0) + (beyond?.practice_due ?? 0)
 }
 
 // Opening glides out and settles (ease-out-expo); closing tucks away quickly.

@@ -23,6 +23,10 @@ export function GroupChat({ groupId, meId }: { groupId: number; meId?: number })
   const [typing, setTyping] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [loadingOlder, setLoadingOlder] = useState(false)
+  // Who "me" is, for messages that arrive over the socket: they carry no
+  // is_you (one payload goes to the whole group), so without it your own
+  // message landed on the left with your name (2026-11-26).
+  const [me, setMe] = useState<number | undefined>(meId)
   const listRef = useRef<HTMLDivElement>(null)
   const typingTimer = useRef<number | null>(null)
 
@@ -73,12 +77,30 @@ export function GroupChat({ groupId, meId }: { groupId: number; meId?: number })
       typingTimer.current = window.setTimeout(() => setTyping(null), TYPING_IDLE_MS)
     }
 
+    // The group's room is asked for here, not only on connecting: a group
+    // made or joined after the socket connected was never delivered until a
+    // reload (2026-11-26). After a reconnect it is asked for again, and the
+    // thread is fetched again for whatever was said in between.
+    const join = () =>
+      socket?.emit('group:join', { group: groupId }, (res?: { ok?: boolean; you?: number }) => {
+        if (!cancelled && res?.you != null) setMe(res.you)
+      })
+    const onConnect = () => {
+      setLive(true)
+      join()
+      notebooksAPI.groupMessages(groupId).then((res) => {
+        if (!cancelled) setMessages(res.data.messages)
+      }).catch(() => {})
+    }
+    const onDisconnect = () => setLive(false)
+
     void getSocket().then((s) => {
       if (cancelled || !s) return
       socket = s
       setLive(s.connected)
-      s.on('connect', () => setLive(true))
-      s.on('disconnect', () => setLive(false))
+      if (s.connected) join()
+      s.on('connect', onConnect)
+      s.on('disconnect', onDisconnect)
       s.on('message:new', onNew)
       s.on('message:deleted', onDeleted)
       s.on('typing', onTyping)
@@ -87,6 +109,8 @@ export function GroupChat({ groupId, meId }: { groupId: number; meId?: number })
     return () => {
       cancelled = true
       if (typingTimer.current) window.clearTimeout(typingTimer.current)
+      socket?.off('connect', onConnect)
+      socket?.off('disconnect', onDisconnect)
       socket?.off('message:new', onNew)
       socket?.off('message:deleted', onDeleted)
       socket?.off('typing', onTyping)
@@ -102,7 +126,12 @@ export function GroupChat({ groupId, meId }: { groupId: number; meId?: number })
     try {
       const res = await notebooksAPI.sendGroupMessage(groupId, body)
       setDraft('')
-      setMessages((prev) => (prev?.some((m) => m.id === res.data.id) ? prev : [...(prev ?? []), res.data]))
+      // The socket's copy may have come first; the reply's copy knows it is yours.
+      setMessages((prev) =>
+        prev?.some((m) => m.id === res.data.id)
+          ? prev.map((m) => (m.id === res.data.id ? res.data : m))
+          : [...(prev ?? []), res.data],
+      )
       requestAnimationFrame(scrollToEnd)
     } catch {
       setError(t('chatFailed'))
@@ -137,7 +166,7 @@ export function GroupChat({ groupId, meId }: { groupId: number; meId?: number })
     }
   }
 
-  const mine = (m: ChatMessage) => m.author.is_you ?? (meId != null && m.author.user_id === meId)
+  const mine = (m: ChatMessage) => m.author.is_you ?? (me != null && m.author.user_id === me)
 
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-label={t('chatTitle')}>

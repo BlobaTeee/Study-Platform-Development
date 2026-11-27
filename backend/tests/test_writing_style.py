@@ -247,7 +247,7 @@ def test_the_tutor_prompt_and_answer(user, notebook, monkeypatch):
     monkeypatch.setattr('flashcards.services.tutor.get_ai_provider', lambda: provider)
     card = Flashcard.objects.create(user=user, notebook=notebook, question='Q?', answer='A')
 
-    answer = ask(card, 'Where is ATP made?', [])
+    answer = ask(card, 'Where is ATP made?', [])['answer']
 
     assert WRITING_STYLE in provider.prompts[-1]
     assert answer == 'ATP is made in the mitochondria, mostly.'

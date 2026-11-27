@@ -4,15 +4,21 @@ from rest_framework.decorators import action
 from django.utils.translation import gettext as _
 from studyplatform.throttling import GenerationRateThrottle
 from ml_pipeline.source_guard import InsufficientSourceTextError
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _user_error(exc) -> str:
     """What to tell the student about a failed generation.
 
     The source guard's message is the one they meet most, so it is restated
-    in their language from the numbers the exception carries; provider
-    errors are technical and stay as raised.
+    in their language from the numbers the exception carries. A provider
+    error is technical ("Every Gemini model was busy: 503 UNAVAILABLE.
+    {'error': ...}" reached the page on 2026-11-24): it becomes what the
+    student can do about it, and the detail goes to the log.
     """
+    from notebooks.services.gemini_client import GeminiGenerationError, GeminiQuotaError, is_quota_error
     if isinstance(exc, InsufficientSourceTextError):
         kind = {'flashcard set': _('flashcard set'), 'quiz': _('quiz')}.get(exc.kind, exc.kind)
         return _('This source is too short to generate a %(kind)s (%(count)s words; '
@@ -20,7 +26,19 @@ def _user_error(exc) -> str:
             'kind': kind, 'count': exc.count, 'min': exc.min_words}
     if str(exc) == 'No sources selected.':
         return _('No sources selected.')
-    return str(exc)
+    if not isinstance(exc, GeminiGenerationError):
+        return str(exc)
+    logger.warning('Generation failed: %s', exc)
+    text = str(exc).lower()
+    if isinstance(exc, GeminiQuotaError) or is_quota_error(exc):
+        return _('The AI has used up its free requests for now. Wait a few minutes and try again.')
+    if '503' in text or 'overloaded' in text or 'unavailable' in text or 'high demand' in text:
+        return _('The AI is overloaded right now. Try again in a few minutes.')
+    if 'timed out' in text or 'out of time' in text:
+        return _('The AI took too long to answer. Try again.')
+    if 'generation failed:' in text or 'every gemini model' in text or "{'error'" in text:
+        return _('That could not be done just now. Try again in a minute.')
+    return str(exc)            # already written for the student (generate.py)
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -75,6 +93,11 @@ class NotebookViewSet(viewsets.ModelViewSet):
         return notebooks_for(self.request.user).prefetch_related(
             Prefetch('sources', queryset=Source.objects.defer('extracted_text'))
         )
+
+    def retrieve(self, request, *args, **kwargs):
+        from .services.ingest import fail_stalled
+        fail_stalled(self.get_object())
+        return super().retrieve(request, *args, **kwargs)
 
     def get_serializer_class(self):
         if self.action in ('create', 'update', 'partial_update'):
@@ -225,7 +248,13 @@ class NotebookViewSet(viewsets.ModelViewSet):
             status='processing',
         )
 
-        process_source(source)
+        from .services.ingest import needs_ocr, process_in_background
+        if file_type == 'pdf' and needs_ocr(source.file.path):
+            # A scanned PDF: minutes of OCR. The page shows it as processing
+            # and checks back until it is ready.
+            process_in_background(source)
+        else:
+            process_source(source)
         notebook.save(update_fields=['updated_at'])
 
         return Response(SourceSerializer(source, context={'request': request}).data, status=201)
@@ -251,8 +280,9 @@ class NotebookViewSet(viewsets.ModelViewSet):
         meta = {}
         try:
             cards = generate_flashcards_for_sources(sources, request.user, count=count, meta=meta)
-        except GeminiNotConfiguredError as exc:
-            return Response({'detail': str(exc)}, status=503)
+        except GeminiNotConfiguredError:
+            return Response({'detail': _('This needs the AI provider, which is not available right now.')},
+                            status=503)
         except (GeminiGenerationError, ValueError) as exc:
             return Response({'detail': _user_error(exc)}, status=400)
 
@@ -420,8 +450,9 @@ class NotebookViewSet(viewsets.ModelViewSet):
         try:
             quiz = generate_quiz_for_sources(
                 sources, request.user, question_count=question_count, meta=meta)
-        except GeminiNotConfiguredError as exc:
-            return Response({'detail': str(exc)}, status=503)
+        except GeminiNotConfiguredError:
+            return Response({'detail': _('This needs the AI provider, which is not available right now.')},
+                            status=503)
         except (GeminiGenerationError, ValueError) as exc:
             return Response({'detail': _user_error(exc)}, status=400)
 
@@ -536,6 +567,9 @@ class ChatGroupsView(APIView):
             return Response({'detail': _('You can only add people you share a notebook with.')}, status=400)
         except ValueError:
             return Response({'detail': _('Give the group a name.')}, status=400)
+        from .realtime import add_to_room
+        from .services.chat import room_for
+        add_to_room(room_for(group.id), group.members.values_list('user_id', flat=True))
         return Response({'id': group.id, 'name': group.name}, status=201)
 
 
@@ -598,6 +632,9 @@ class ChatGroupMembersView(APIView):
             add_member(group, request.user, person)
         except PermissionError:
             return Response({'detail': _('You can only add people you share a notebook with.')}, status=403)
+        from .realtime import add_to_room
+        from .services.chat import room_for
+        add_to_room(room_for(group.id), [person.id])
         return Response({'user_id': person.id}, status=201)
 
     def delete(self, request, group_id, user_id):
@@ -610,6 +647,9 @@ class ChatGroupMembersView(APIView):
         if user_id != request.user.id:
             return Response({'detail': _('You can only leave a group yourself.')}, status=403)
         ChatGroupMember.objects.filter(group=group, user_id=user_id).delete()
+        from .realtime import remove_from_room
+        from .services.chat import room_for
+        remove_from_room(room_for(group.id), [user_id])
         return Response(status=204)
 
 
@@ -735,8 +775,9 @@ class SourceViewSet(
 
         try:
             cards = generate_flashcards_for_source(source, request.user, count=count)
-        except GeminiNotConfiguredError as exc:
-            return Response({'detail': str(exc)}, status=503)
+        except GeminiNotConfiguredError:
+            return Response({'detail': _('This needs the AI provider, which is not available right now.')},
+                            status=503)
         except (GeminiGenerationError, ValueError) as exc:
             return Response({'detail': _user_error(exc)}, status=400)
 
@@ -755,8 +796,9 @@ class SourceViewSet(
 
         try:
             quiz = generate_quiz_for_source(source, request.user, question_count=question_count)
-        except GeminiNotConfiguredError as exc:
-            return Response({'detail': str(exc)}, status=503)
+        except GeminiNotConfiguredError:
+            return Response({'detail': _('This needs the AI provider, which is not available right now.')},
+                            status=503)
         except (GeminiGenerationError, ValueError) as exc:
             return Response({'detail': _user_error(exc)}, status=400)
 

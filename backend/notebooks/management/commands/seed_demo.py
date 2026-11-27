@@ -127,18 +127,11 @@ def _build_content(user, rows, rng) -> list[dict]:
                 gemini_summary=f'{doc_title}: ' + ' '.join(_sentences(picked[0]['support'])[:2]))
 
             cards = []
-            for i, r in enumerate(picked[:CARDS_PER_DOCUMENT]):
+            for r in picked[:CARDS_PER_DOCUMENT]:
                 answer = r['correct_answer'].strip()
-                question, kind = r['question'].strip(), 'basic'
-                if i % 4 == 3:
-                    # Every fourth card is fill-in-the-blank, from the passage itself.
-                    sentence = next((s for s in _sentences(r['support']) if answer.lower() in s.lower()), '')
-                    blanked = re.sub(re.escape(answer), '___', sentence, count=1, flags=re.I) if sentence else ''
-                    if blanked and checked_cloze(blanked, answer):
-                        question, kind = checked_cloze(blanked, answer), 'cloze'
                 card = Flashcard.objects.create(
-                    user=user, notebook=notebook, question=question, answer=answer[:1].upper() + answer[1:],
-                    explanation=_explanation(r['support'], r['question'], answer), kind=kind, is_public=False)
+                    user=user, notebook=notebook, question=r['question'].strip(), answer=answer[:1].upper() + answer[1:],
+                    explanation=_explanation(r['support'], r['question'], answer), is_public=False)
                 card.sources.set([source])
                 cards.append(card)
 
@@ -149,8 +142,16 @@ def _build_content(user, rows, rng) -> list[dict]:
             for order, r in enumerate(mixed + picked[CARDS_PER_DOCUMENT:CARDS_PER_DOCUMENT + QUESTIONS_PER_DOCUMENT]):
                 options = [r['correct_answer'], r['distractor1'], r['distractor2'], r['distractor3']]
                 rng.shuffle(options)
+                text, kind = r['question'], 'multiple_choice'
+                if order >= len(mixed) and order % 4 == 3:
+                    # Every fourth question is a blank to type, from the passage itself.
+                    answer = r['correct_answer'].strip()
+                    sentence = next((s for s in _sentences(r['support']) if answer.lower() in s.lower()), '')
+                    blanked = re.sub(re.escape(answer), '___', sentence, count=1, flags=re.I) if sentence else ''
+                    if blanked and checked_cloze(blanked, answer):
+                        text, kind, options = checked_cloze(blanked, answer), 'fill_blank', []
                 questions.append(Question.objects.create(
-                    quiz=quiz, question_text=r['question'], question_type='multiple_choice', options=options,
+                    quiz=quiz, question_text=text, question_type=kind, options=options,
                     correct_answer=r['correct_answer'], explanation=_explanation(r['support'], r['question'], r['correct_answer']),
                     order=order, source=source, source_excerpt=r['support'][:2000]))
             documents.append({'notebook': notebook, 'title': doc_title, 'cards': cards, 'questions': questions,
@@ -269,7 +270,9 @@ def _sit_mock_test(user, documents, nb_id, when, rng, MockTest, MockTestQuestion
     other idea of the pair."""
     docs = [d for d in documents if d['notebook'].id == nb_id]
     mixups = [(q, d) for d in docs for q in d['questions'] if q.id in d['confusing']]
-    rest = [(q, d) for d in docs for q in d['questions'] if q.id not in d['confusing']]
+    # A typed blank has no options to sit on a paper.
+    rest = [(q, d) for d in docs for q in d['questions']
+            if q.id not in d['confusing'] and q.question_type != 'fill_blank']
     paper = mixups + rng.sample(rest, max(0, min(10 - len(mixups), len(rest))))
     with mock.patch('django.utils.timezone.now', return_value=when):
         test = MockTest.objects.create(user=user, notebook_id=nb_id, question_count=len(paper), duration_minutes=20)

@@ -31,9 +31,9 @@ def build_reminder(notebook_title: str, scheduled_for, question_count: int,
                 f'lúc {scheduled_for:%H:%M}')
         if zone:
             when = f'{when} {zone}'
-        subject = f'Bài thi thử {notebook_title} sắp tới'
+        subject = f'Bài tự kiểm tra {notebook_title} sắp tới'
         body = (
-            f'Bạn đã lên lịch một bài thi thử cho {notebook_title}.\n\n'
+            f'Bạn đã lên lịch một bài tự kiểm tra cho {notebook_title}.\n\n'
             f'Khi nào: {when}\n'
             f'Đề: {question_count} câu, {duration_minutes} phút\n\n'
             f'Làm bài tại: {url}\n\n'

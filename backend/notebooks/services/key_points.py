@@ -132,30 +132,40 @@ def _normalise(s: str) -> str:
 
 
 def _searchable(text: str) -> tuple[str, list[int]]:
-    """The text lowercased with runs of space collapsed, and for each of its
-    characters the position it came from in the original."""
-    flat, index, prev_space = [], [], False
+    """The text lowercased with every space taken out, and for each of its
+    characters the position it came from in the original.
+
+    Spaces are dropped, not just collapsed: a PDF's text layer often splits
+    a Vietnamese syllable ("n ội năng", "c ấu trúc"), so a quote the model
+    copied correctly was not found and its idea dropped. On 2026-11-26 a
+    25-page physics summary kept 3 of its main ideas for that reason."""
+    flat, index = [], []
     for i, ch in enumerate(_normalise(text)):
-        if ch.isspace():
-            if prev_space:
-                continue
-            ch, prev_space = ' ', True
-        else:
-            prev_space = False
-        flat.append(ch)
-        index.append(i)
+        if not ch.isspace():
+            flat.append(ch)
+            index.append(i)
     return ''.join(flat), index
 
 
+#: Spaceless characters a quote needs to stand as evidence.
+MIN_QUOTE = 16
+#: How much of a long quote's start or end has to be found word for word.
+QUOTE_EDGE = 40
+
+
 def _find(quote: str, flat: str) -> int | None:
-    needle = _SPACE.sub(' ', _normalise(quote)).strip().strip('."\'')
-    if len(needle) < 20:
+    needle = _SPACE.sub('', _normalise(quote)).strip('."\'')
+    if len(needle) < MIN_QUOTE:
         return None      # too short to stand as evidence
     at = flat.find(needle)
-    if at < 0 and len(needle) > 60:
-        # A long quote with a small slip further on: its opening still has to
-        # be in the document word for word.
-        at = flat.find(needle[:60])
+    if at < 0 and len(needle) > QUOTE_EDGE + 10:
+        # A long quote with a small slip (a formula the text layer garbled,
+        # a word tidied): its start, or else its end, has to be in the
+        # document as written.
+        at = flat.find(needle[:QUOTE_EDGE])
+        if at < 0:
+            end = flat.find(needle[-QUOTE_EDGE:])
+            at = max(0, end - (len(needle) - QUOTE_EDGE)) if end >= 0 else -1
     return at if at >= 0 else None
 
 

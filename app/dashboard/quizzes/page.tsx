@@ -10,13 +10,12 @@ import { quizzesAPI } from '@/lib/api'
 import { parseSourceIdsParam, hasAllSources } from '@/lib/source-utils'
 import { SourceContextBanner } from '@/components/source-context-banner'
 import { SourceRequired } from '@/components/source-required'
-import { useConfirm } from '@/components/confirm-dialog'
-import { QuestionEditor, type EditableQuestion } from '@/components/question-editor'
 import { PageHeader } from '@/components/page-header'
 import { InPageLanguage, useInPageLanguage } from '@/components/in-page-language'
+import { FillBlank, blankCounts } from '@/components/fill-blank'
 import { isShort, quizTexts, quizTitle } from '@/lib/translate'
 import { useTranslations } from 'next-intl'
-import { ArrowRight, CheckCircle2, CircleDashed, Keyboard, Pencil, Trash2, XCircle } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 
 type Question = {
   id: number
@@ -36,20 +35,8 @@ type Quiz = {
   questions: Question[]
 }
 
-type Graded = {
-  id: number
-  verdict: 'correct' | 'near' | 'wrong'
-  how: string
-  is_correct: boolean
-  reference_answer: string
-  explanation?: string | null
-}
-
-const TYPED_MODE_KEY = 'quiz-typed-mode'
-
 function QuizzesStudy() {
   const t = useTranslations('quizzes')
-  const common = useTranslations('common')
   const searchParams = useSearchParams()
   const sourceParam = searchParams.get('source')
   const sourceIds = useMemo(() => parseSourceIdsParam(sourceParam), [sourceParam])
@@ -74,23 +61,10 @@ function QuizzesStudy() {
     return quizzes[0]
   }, [quizzes, quizIdParam])
 
-  // The AI wrote these questions; the student is the editor. Edits and
-  // deletions sit on top of the fetched quiz so the attempt in progress
-  // keeps its order and its answers.
-  const [edits, setEdits] = useState<Record<number, Partial<Question>>>({})
-  const [removed, setRemoved] = useState<Set<number>>(new Set())
-  const [editing, setEditing] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [editError, setEditError] = useState('')
-  const [confirm, confirmDialog] = useConfirm()
-
   const questions = useMemo(
     () =>
-      [...(quiz?.questions ?? [])]
-        .filter((q) => !removed.has(q.id))
-        .map((q) => (edits[q.id] ? { ...q, ...edits[q.id] } : q))
-        .sort((a, b) => a.order - b.order),
-    [quiz, edits, removed]
+      [...(quiz?.questions ?? [])].sort((a, b) => a.order - b.order),
+    [quiz]
   )
 
   const [qIndex, setQIndex] = useState(0)
@@ -101,33 +75,6 @@ function QuizzesStudy() {
   const [attemptId, setAttemptId] = useState<number | null>(null)
   const [starting, setStarting] = useState(false)
 
-  // Typed mode: recall instead of recognition. Off by default, remembered
-  // per browser; a 503 from the grader (no model built) turns it off again.
-  const [typedMode, setTypedMode] = useState(false)
-  const [typedUnavailable, setTypedUnavailable] = useState(false)
-  const [typed, setTyped] = useState('')
-  const [grading, setGrading] = useState(false)
-  const [graded, setGraded] = useState<Graded | null>(null)
-  const [typedError, setTypedError] = useState('')
-
-  useEffect(() => {
-    try {
-      setTypedMode(localStorage.getItem(TYPED_MODE_KEY) === '1')
-    } catch {
-      /* private mode: stays off */
-    }
-  }, [])
-
-  const toggleTypedMode = () => {
-    const next = !typedMode
-    setTypedMode(next)
-    try {
-      localStorage.setItem(TYPED_MODE_KEY, next ? '1' : '0')
-    } catch {
-      /* ignore */
-    }
-  }
-
   useEffect(() => {
     setQIndex(0)
     setSelected(null)
@@ -135,11 +82,6 @@ function QuizzesStudy() {
     setScore(0)
     setFinished(false)
     setAttemptId(null)
-    setTyped('')
-    setGraded(null)
-    setTypedError('')
-    setEditing(false)
-    setEditError('')
   }, [quiz?.id])
 
   useEffect(() => {
@@ -157,6 +99,7 @@ function QuizzesStudy() {
   // runtime this is undefined before the quiz loads; the handlers guard on
   // it. TypeScript narrows it back to Question from the indexed read.
   const question: Question | undefined = questions[qIndex]
+  const isBlank = question?.question_type === 'fill_blank'
   const options =
     question?.question_type === 'true_false' && (!question.options?.length)
       ? ['True', 'False'] // stored values; shown through optionLabel()
@@ -168,8 +111,9 @@ function QuizzesStudy() {
   useInPageLanguage(nextQuestion ? quizTexts(nextQuestion) : [])
 
   const handleSubmit = async () => {
-    if (!selected || !attemptId || !question) return
-    const correct = selected === question.correct_answer
+    if (!selected?.trim() || !attemptId || !question) return
+    // A typed blank counts when right or off by an accent; a choice must match.
+    const correct = isBlank ? blankCounts(selected, question.correct_answer) : selected === question.correct_answer
     if (correct) setScore((s) => s + 1)
 
     try {
@@ -182,45 +126,6 @@ function QuizzesStudy() {
     }
 
     setSubmitted(true)
-  }
-
-  const handleCheckTyped = async () => {
-    if (!typed.trim() || !attemptId || grading || !question) return
-    setGrading(true)
-    setTypedError('')
-    try {
-      const res = await quizzesAPI.gradeTypedAnswer(attemptId, {
-        question_id: question.id,
-        answer: typed.trim(),
-      })
-      const g: Graded = res.data
-      setGraded(g)
-      if (g.is_correct) setScore((s) => s + 1)
-      setSubmitted(true)
-    } catch (err) {
-      const status = (err as { response?: { status?: number } }).response?.status
-      if (status === 503) {
-        // No model on this server: fall back to choices for good this session.
-        setTypedUnavailable(true)
-        setTypedMode(false)
-        setTypedError(t('typedUnavailable'))
-      } else {
-        setTypedError(t('gradeFailed'))
-      }
-    } finally {
-      setGrading(false)
-    }
-  }
-
-  const handleOverride = async () => {
-    if (!graded || !attemptId || graded.is_correct) return
-    try {
-      await quizzesAPI.overrideAnswer(attemptId, { answer_id: graded.id, is_correct: true })
-      setGraded({ ...graded, is_correct: true })
-      setScore((s) => s + 1)
-    } catch {
-      setTypedError(t('overrideFailed'))
-    }
   }
 
   const handleNext = async () => {
@@ -238,87 +143,7 @@ function QuizzesStudy() {
     setQIndex((i) => i + 1)
     setSelected(null)
     setSubmitted(false)
-    setTyped('')
-    setGraded(null)
-    setTypedError('')
   }
-
-  const saveQuestion = async (patch: EditableQuestion) => {
-    if (!question) return
-    setBusy(true)
-    setEditError('')
-    try {
-      await quizzesAPI.updateQuestion(question.id, patch)
-      setEdits((e) => ({ ...e, [question.id]: patch }))
-      setEditing(false)
-    } catch (err) {
-      const data = (err as { response?: { data?: Record<string, unknown> } }).response?.data
-      const field = data && (data.correct_answer ?? data.detail)
-      setEditError(Array.isArray(field) ? String(field[0]) : typeof field === 'string' ? field : t('saveFailed'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const deleteQuestion = async () => {
-    if (!question) return
-    const ok = await confirm({
-      title: t('deleteTitle'),
-      body: t('deleteBody'),
-      confirmLabel: common('delete'),
-      cancelLabel: common('cancel'),
-    })
-    if (!ok) return
-    setBusy(true)
-    setEditError('')
-    try {
-      await quizzesAPI.deleteQuestion(question.id)
-      setRemoved((r) => new Set(r).add(question.id))
-      // The next question slides into this slot; if this was the last one,
-      // the attempt is over.
-      if (qIndex >= questions.length - 1) {
-        if (attemptId) {
-          try {
-            await quizzesAPI.completeQuiz(attemptId, {})
-          } catch {
-            /* ignore */
-          }
-        }
-        setFinished(true)
-        return
-      }
-      setSelected(null)
-      setSubmitted(false)
-      setTyped('')
-      setGraded(null)
-      setTypedError('')
-    } catch {
-      setEditError(t('deleteFailed'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  // Enter checks (the form), Enter again advances, `r` overrides when
-  // offered. Declared with the handlers, before any early return, so React
-  // sees the same hooks on every render.
-  useEffect(() => {
-    if (!typedMode || editing) return  // Enter in the editor must not advance
-    const onKey = (e: KeyboardEvent) => {
-      // "r" typed into a field is a letter, not an override.
-      const el = e.target as HTMLElement | null
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && e.key !== 'Enter') return
-      if (e.key === 'Enter' && submitted) {
-        e.preventDefault()
-        void handleNext()
-      } else if (e.key === 'r' && submitted && graded && !graded.is_correct) {
-        e.preventDefault()
-        void handleOverride()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [typedMode, submitted, graded, handleNext, handleOverride, editing])
 
   if (!sourceParam || sourceIds.length === 0) {
     return <SourceRequired type="quiz" />
@@ -367,19 +192,6 @@ function QuizzesStudy() {
       <PageHeader
         title={shownTitle(quiz.title, t)}
         meta={t('questionOf', { n: qIndex + 1, total: questions.length })}
-        action={
-          !typedUnavailable ? (
-            <Button
-              type="button"
-              variant={typedMode ? 'tinted' : 'outline'}
-              aria-pressed={typedMode}
-              onClick={toggleTypedMode}
-            >
-              <Keyboard aria-hidden />
-              {t('typeAnswers')}
-            </Button>
-          ) : undefined
-        }
       />
 
       <div className="h-1 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(((qIndex + 1) / questions.length) * 100)}>
@@ -389,47 +201,25 @@ function QuizzesStudy() {
         />
       </div>
 
-      {editing ? (
-        <QuestionEditor
-          question={{ ...question, options }}
-          busy={busy}
-          error={editError}
-          onCancel={() => {
-            setEditing(false)
-            setEditError('')
-          }}
-          onSave={saveQuestion}
-        />
-      ) : (
       <Card className="relative p-8 md:p-10">
         <span className="absolute left-8 -top-px h-[3px] w-12 rounded-b-full bg-mode md:left-10" aria-hidden />
+        {isBlank ? (
+          // The sentence as the document has it: the word typed is the document's own.
+          <FillBlank
+            key={question.id}
+            text={question.question_text}
+            answer={question.correct_answer}
+            typed={selected ?? ''}
+            onType={setSelected}
+            onSubmit={() => void handleSubmit()}
+            checked={submitted}
+          />
+        ) : (
         <p className="mb-8 text-2xl leading-relaxed text-slate-900 md:text-[1.75rem] text-pretty">
           <InPageLanguage text={question.question_text} found={found} />
         </p>
+        )}
 
-        {typedMode ? (
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!submitted) void handleCheckTyped()
-            }}
-          >
-            {!submitted ? (
-              <input
-                autoFocus
-                value={typed}
-                onChange={(e) => setTyped(e.target.value)}
-                placeholder={t('typeYourAnswer')}
-                aria-label={t('yourAnswer')}
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-lg text-slate-900 outline-none focus-visible:border-mode focus-visible:ring-[3px] focus-visible:ring-mode/25"
-              />
-            ) : graded ? (
-              <TypedVerdict typed={typed} graded={graded} onOverride={handleOverride} question={question.question_text} found={found} />
-            ) : null}
-            {typedError && <p className="text-base text-red-700">{typedError}</p>}
-          </form>
-        ) : (
           <div className="space-y-3">
             {options.map((opt) => {
               let style = 'border-slate-200 bg-white hover:bg-slate-50'
@@ -454,26 +244,23 @@ function QuizzesStudy() {
               )
             })}
           </div>
-        )}
 
-        {submitted && !typedMode && question.explanation && (
+        {submitted && question.explanation && (
           <p className="mt-6 text-lg text-slate-500 leading-relaxed">
             <InPageLanguage text={question.explanation} found={found} />
           </p>
         )}
       </Card>
-      )}
 
-      {!editing && (
       <div className="flex justify-center gap-4">
         {!submitted ? (
           <Button
             size="lg"
-            disabled={typedMode ? !typed.trim() || grading : !selected}
-            onClick={typedMode ? handleCheckTyped : handleSubmit}
+            disabled={!selected?.trim()}
+            onClick={handleSubmit}
             className="px-8"
           >
-            {grading ? t('checking') : t('checkAnswer')}
+            {t('checkAnswer')}
           </Button>
         ) : (
           <Button size="lg" onClick={handleNext} className="px-8">
@@ -482,34 +269,7 @@ function QuizzesStudy() {
           </Button>
         )}
       </div>
-      )}
 
-      {/* Only once the answer is showing: editing earlier would reveal it. */}
-      {submitted && !editing && (
-        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-sm text-slate-600">
-          <span>{t('somethingWrong')}</span>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setEditing(true)}
-            className="inline-flex items-center gap-1.5 hover:text-slate-900 disabled:opacity-50"
-          >
-            <Pencil className="size-3.5" aria-hidden />
-            {t('editQuestion')}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void deleteQuestion()}
-            className="inline-flex items-center gap-1.5 hover:text-red-700 disabled:opacity-50"
-          >
-            <Trash2 className="size-3.5" aria-hidden />
-            {t('deleteQuestion')}
-          </button>
-          {editError && <p role="alert" className="w-full text-center text-red-700">{editError}</p>}
-        </div>
-      )}
-      {confirmDialog}
     </div>
   )
 }
@@ -519,69 +279,6 @@ export default function QuizzesPage() {
     <Suspense fallback={<p className="text-xl text-slate-500 py-20 text-center">Loading…</p>}>
       <QuizzesStudy />
     </Suspense>
-  )
-}
-
-/** What the grader said about a typed answer. Colour never stands alone:
- *  each state has its icon and its word. `near` and `wrong` offer the
- *  override — the student's judgement is the last word, and the label. */
-function TypedVerdict({
-  typed,
-  graded,
-  onOverride,
-  question,
-  found,
-}: {
-  typed: string
-  graded: Graded
-  onOverride: () => void
-  question: string
-  found: Map<string, string> | undefined
-}) {
-  const t = useTranslations('quizzes')
-  const state = graded.is_correct
-    ? { icon: CheckCircle2, word: t('correct'), tone: 'border-emerald-400 bg-emerald-50 text-emerald-900', iconTone: 'text-emerald-600' }
-    : graded.verdict === 'near'
-      ? { icon: CircleDashed, word: t('close'), tone: 'border-amber-400 bg-amber-50 text-amber-900', iconTone: 'text-amber-600' }
-      : { icon: XCircle, word: t('notQuite'), tone: 'border-red-300 bg-red-50 text-red-900', iconTone: 'text-red-600' }
-  const Icon = state.icon
-  return (
-    <div className="space-y-4">
-      <div className={`rounded-xl border-2 px-5 py-4 ${state.tone}`}>
-        <p className="flex items-center gap-2 font-mono text-xs uppercase tracking-wide">
-          <Icon className={`size-4 ${state.iconTone}`} aria-hidden />
-          {state.word}
-        </p>
-        <p className="mt-1 text-lg">{typed}</p>
-      </div>
-      {!graded.is_correct && (
-        <p className="text-lg text-slate-900">
-          {t.rich('theAnswerIs', {
-            answer: graded.reference_answer,
-            b: () => (
-              <span className="font-semibold">
-                <InPageLanguage text={graded.reference_answer} found={found}
-                  context={isShort(graded.reference_answer) ? question : undefined} />
-              </span>
-            ),
-          })}
-        </p>
-      )}
-      {graded.explanation && (
-        <p className="text-lg text-slate-500 leading-relaxed">
-          <InPageLanguage text={graded.explanation} found={found} />
-        </p>
-      )}
-      {!graded.is_correct && (
-        <button
-          type="button"
-          onClick={onOverride}
-          className="text-base text-slate-600 underline underline-offset-4 hover:text-slate-900"
-        >
-          {t('iWasRight')} <span className="font-mono text-xs text-slate-400">(r)</span>
-        </button>
-      )}
-    </div>
   )
 }
 

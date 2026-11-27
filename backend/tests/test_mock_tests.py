@@ -81,3 +81,23 @@ def test_someone_elses_plan_looks_like_no_plan_at_all(client, other_user, notebo
 
     assert res.status_code == 404
     assert MockTest.objects.count() == 0
+
+
+def test_a_sitting_left_half_way_is_offered_to_carry_on(client, user, other_user):
+    """Leaving the page mid-paper lost it (2026-11-26): the page now lists
+    what is open, until it is handed in or its time is up."""
+    from datetime import timedelta
+    from django.utils import timezone
+    from quizzes.models import MockTest
+    open_ = MockTest.objects.create(user=user, notebook=None, template='paper', paper_title='Đề Toán',
+                                    question_count=3, duration_minutes=30)
+    done = MockTest.objects.create(user=user, notebook=None, template='paper', paper_title='Xong',
+                                   question_count=3, duration_minutes=30, completed_at=timezone.now())
+    late = MockTest.objects.create(user=user, notebook=None, template='paper', paper_title='Hết giờ',
+                                   question_count=3, duration_minutes=30)
+    MockTest.objects.filter(id=late.id).update(started_at=timezone.now() - timedelta(hours=2))
+    MockTest.objects.create(user=other_user, notebook=None, template='paper', paper_title='Của người khác',
+                            question_count=3, duration_minutes=30)
+    listed = client.get('/api/quizzes/mock-tests/unfinished/').json()
+    assert [(t['id'], t['title'], t['answered']) for t in listed] == [(open_.id, 'Đề Toán', 0)]
+    assert done.id and late.id

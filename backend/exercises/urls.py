@@ -5,6 +5,10 @@ from . import views
 urlpatterns = [
     path('', views.ExerciseListView.as_view(), name='exercises'),
     path('generate/', views.GenerateView.as_view(), name='exercises-generate'),
+    path('own-set/', views.OwnSetView.as_view(), name='exercises-own-set'),
+    path('sets/<str:key>/', views.SetView.as_view(), name='exercises-set'),
+    path('remove/', views.RemoveView.as_view(), name='exercises-remove'),
+    path('papers/', views.PaperView.as_view(), name='exercises-papers'),
     path('own/', views.OwnProblemView.as_view(), name='exercises-own'),
     path('read-photo/', views.ReadPhotoView.as_view(), name='exercises-read-photo'),
     path('mistakes/', views.MistakesView.as_view(), name='exercises-mistakes'),

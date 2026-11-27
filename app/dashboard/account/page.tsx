@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import { useConfirm } from '@/components/confirm-dialog'
 import { AlertCircle, CheckCircle2 } from 'lucide-react'
@@ -158,18 +159,18 @@ export default function AccountPage() {
           <form onSubmit={savePassword} className="space-y-4 mt-5">
             <div className="space-y-2">
               <Label htmlFor="current">{t('currentPassword')}</Label>
-              <Input id="current" type="password" autoComplete="current-password" value={current}
+              <PasswordInput id="current" autoComplete="current-password" value={current}
                      onChange={(e) => setCurrent(e.target.value)} required />
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="next">{t('newPassword')}</Label>
-                <Input id="next" type="password" autoComplete="new-password" value={next}
+                <PasswordInput id="next" autoComplete="new-password" value={next}
                        onChange={(e) => setNext(e.target.value)} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="again">{t('confirmPassword')}</Label>
-                <Input id="again" type="password" autoComplete="new-password" value={again}
+                <PasswordInput id="again" autoComplete="new-password" value={again}
                        onChange={(e) => setAgain(e.target.value)} required />
               </div>
             </div>

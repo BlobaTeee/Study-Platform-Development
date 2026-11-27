@@ -42,10 +42,12 @@ def test_it_builds_notebooks_documents_cards_and_quizzes(user, no_ai):
     assert sources.count() == 6
     assert all(s.status == 'ready' and len(s.extracted_text) > 1500 for s in sources)
     assert Flashcard.objects.filter(user=user, archived=False).count() >= 50
-    assert Flashcard.objects.filter(user=user, kind='cloze').exists()
+    assert not Flashcard.objects.filter(user=user, kind='cloze').exists()          # typed blanks are quiz questions now
     questions = Question.objects.filter(quiz__user=user, quiz__is_published=True)
     assert questions.count() >= 40
-    assert all(len(q.options) == 4 and q.correct_answer in q.options and q.source_excerpt for q in questions)
+    assert questions.filter(question_type='fill_blank').exists()
+    assert all(len(q.options) == 4 and q.correct_answer in q.options and q.source_excerpt
+               for q in questions.exclude(question_type='fill_blank'))
 
 
 def test_the_history_is_spread_over_past_days(user, no_ai):

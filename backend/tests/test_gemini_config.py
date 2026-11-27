@@ -238,7 +238,7 @@ def test_a_model_that_never_answers_hands_over_to_the_next(fake, settings, monke
         return real(model, contents, config=config, **kwargs)
 
     monkeypatch.setattr(models, 'generate_content', slow)
-    monkeypatch.setattr(gemini_client, '_wait_seconds', lambda: 0.2)
+    monkeypatch.setattr(gemini_client, '_wait_seconds', lambda quick=False: 0.2)
 
     started = _time.time()
     assert generate_json('x') == {'questions': ['ok']}
@@ -263,7 +263,7 @@ def test_a_model_that_never_answers_is_not_waited_for_again(fake, settings, monk
         return real(model, contents, config=config, **kwargs)
 
     monkeypatch.setattr(models, 'generate_content', slow)
-    monkeypatch.setattr(gemini_client, '_wait_seconds', lambda: 0.2)
+    monkeypatch.setattr(gemini_client, '_wait_seconds', lambda quick=False: 0.2)
 
     generate_json('x')
     generate_json('x')

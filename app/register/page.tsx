@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth-context'
+import { useAuth, EMAIL_RATE_LIMIT } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { Mail } from 'lucide-react'
@@ -37,14 +38,16 @@ export default function RegisterPage() {
     setLoading(true)
 
     try {
-      const { needsConfirmation } = await register(username, email, password)
-      if (needsConfirmation) {
+      const { needsConfirmation, alreadyRegistered } = await register(username, email, password)
+      if (alreadyRegistered) {
+        setError(t('alreadyRegistered'))
+      } else if (needsConfirmation) {
         setSentTo(email)
       } else {
         router.push('/dashboard/notebooks')
       }
     } catch (err: any) {
-      setError(err.message || t('registerFailed'))
+      setError(err.message === EMAIL_RATE_LIMIT ? t('emailRateLimit') : err.message || t('registerFailed'))
     } finally {
       setLoading(false)
     }
@@ -143,9 +146,8 @@ export default function RegisterPage() {
 
             <div className="space-y-2">
               <Label htmlFor="password">{t('password')}</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 placeholder={t('createPasswordPlaceholder')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -156,9 +158,8 @@ export default function RegisterPage() {
 
             <div className="space-y-2">
               <Label htmlFor="confirm-password">{t('confirmPassword')}</Label>
-              <Input
+              <PasswordInput
                 id="confirm-password"
-                type="password"
                 placeholder={t('confirmPasswordPlaceholder')}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}

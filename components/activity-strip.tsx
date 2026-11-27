@@ -4,36 +4,26 @@ import { useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import { scoreOutOfTen } from '@/lib/study-format'
 import { cn } from '@/lib/utils'
+import { dayLines, studied, summaryParts, type ActivityDay, type ActivitySummary } from '@/lib/activity'
 
-export type ActivityDay = {
-  date: string // ISO date, the student's own day
-  reviews: number
-  correct: number
-  accuracy: number | null
-  mock_scores: number[]
-}
-
-export type ActivitySummary = {
-  reviews: number
-  correct?: number
-  accuracy: number | null
-  mock_tests: number
-}
+export type { ActivityDay, ActivitySummary }
 
 /** The last fourteen days as a calendar: one square per day, filled when the
  *  student studied, laid out in weeks under weekday names like a printed
  *  calendar. It replaced a bar chart whose heights, mock-test dots and
  *  weekend bands each had to be decoded; a filled square needs no legend
  *  beyond "studied". How much was done is said in words — in the sentence
- *  above and in the line under the day that is selected. */
+ *  above and in the lines beside the day that is selected. Every kind of
+ *  study counts: cards, quizzes, practice problems, mock tests,
+ *  explanations and live rounds. */
 export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary: ActivitySummary }) {
   const t = useTranslations('analytics')
   const locale = useLocale()
-  const lastStudied = findLastIndex(days, (d) => d.reviews > 0 || d.mock_scores.length > 0)
+  const lastStudied = findLastIndex(days, studied)
   const [selected, setSelected] = useState<number>(lastStudied >= 0 ? lastStudied : days.length - 1)
 
-  const studiedDays = days.filter((d) => d.reviews > 0 || d.mock_scores.length > 0).length
-  const recalled = summary.correct ?? days.reduce((n, d) => n + d.correct, 0)
+  const studiedDays = summary.days ?? days.filter(studied).length
+  const parts = summaryParts(summary).map((p) => t(p.key, p.values)).join(' · ')
   const weeks = asWeeks(days)
   const weekdayNames = weekdayHeaders(locale)
   const chosen = days[selected]
@@ -44,10 +34,9 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
         {t('last14')}
       </h2>
       <p className="mt-1 text-sm leading-relaxed text-slate-700">
-        {studiedDays === 0
+        {studiedDays === 0 || !parts
           ? t('stripEmpty')
-          : t('studySummary', { days: studiedDays, cards: summary.reviews, recalled })}
-        {summary.mock_tests > 0 && ` ${t('mockSummary', { count: summary.mock_tests })}`}
+          : t('studySummary', { days: studiedDays, parts })}
       </p>
 
       <div className="mt-4 grid gap-6 md:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] md:items-start">
@@ -70,7 +59,7 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
                 }
                 const index = cell.index
                 const day = days[index]
-                const studied = day.reviews > 0 || day.mock_scores.length > 0
+                const done = studied(day)
                 const isToday = index === days.length - 1
                 return (
                   <button
@@ -82,7 +71,7 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
                     className={cn(
                       'aspect-square rounded-md text-sm font-medium tabular-nums transition-[box-shadow,background-color] duration-150',
                       'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-mode-analytics/40',
-                      studied
+                      done
                         ? 'bg-mode-analytics-ink text-white hover:bg-mode-analytics-hover'
                         : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300',
                       isToday && 'ring-2 ring-slate-900 ring-offset-1',
@@ -114,11 +103,7 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
 
       <div className="space-y-2">
         <p className="text-sm text-slate-600">{t('tapDayHint')}</p>
-        {chosen && (
-          <p className="rounded-lg bg-slate-50 px-4 py-3 text-base leading-relaxed text-slate-800" aria-live="polite">
-            {dayDetail(chosen, t, locale)}
-          </p>
-        )}
+        {chosen && <DayCard day={chosen} t={t} locale={locale} />}
       </div>
       </div>
     </section>
@@ -127,19 +112,38 @@ export function ActivityStrip({ days, summary }: { days: ActivityDay[]; summary:
 
 type T = (key: string, values?: Record<string, string | number>) => string
 
-/** One day in plain words: what was reviewed, what stuck, any mock test. */
+/** The selected day: its name, then one line per thing done. */
+function DayCard({ day, t, locale }: { day: ActivityDay; t: T; locale: string }) {
+  const lines = dayText(day, t, locale)
+  return (
+    <div className="rounded-lg bg-slate-50 px-4 py-3" aria-live="polite">
+      <p className="text-base font-medium text-slate-900">{longDay(day.date, locale)}</p>
+      {lines.length === 0 ? (
+        <p className="mt-1 text-base text-slate-600">{t('dayRest')}</p>
+      ) : (
+        <ul className="mt-1.5 space-y-1 text-base leading-relaxed text-slate-800">
+          {lines.map((line, i) => (
+            <li key={i} className="flex gap-2">
+              <span aria-hidden className="mt-[0.6em] size-1.5 shrink-0 rounded-full bg-mode-analytics-ink" />
+              {line}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/** What was done that day, in words; scores are said out of ten. */
+function dayText(day: ActivityDay, t: T, locale: string): string[] {
+  return dayLines(day).map(({ key, values }) =>
+    'score' in values ? t(key, { score: scoreOutOfTen(values.score, locale) }) : t(key, values))
+}
+
+/** The whole day in one sentence, for a screen reader on the square. */
 function dayDetail(day: ActivityDay, t: T, locale: string): string {
-  const name = longDay(day.date, locale)
-  const parts: string[] = []
-  if (day.reviews > 0) {
-    parts.push(t('dayReviewed', { day: name, cards: day.reviews, recalled: day.correct, forgot: day.reviews - day.correct }))
-  }
-  for (const s of day.mock_scores) {
-    parts.push(t('dayMock', { score: scoreOutOfTen(s, locale) }))
-  }
-  if (parts.length === 0) return t('dayRest', { day: name })
-  // The mock-test sentence needs the day's name only when it stands alone.
-  return day.reviews > 0 ? parts.join(' ') : `${t('dayOnly', { day: name })} ${parts.join(' ')}`
+  const lines = dayText(day, t, locale)
+  return `${longDay(day.date, locale)}: ${lines.length ? lines.join('; ') : t('dayRest')}`
 }
 
 /** The days laid out Monday-first in weeks, with blanks before the first day

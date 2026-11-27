@@ -56,3 +56,10 @@ datasets/raw/MMLU/
 backend/.cache/
 # IWSLT'15 en-vi (TED talks, research use, cite Luong & Manning 2015): fetched on demand, see datasets/README.md
 datasets/raw/IWSLT/
+
+# editor hook caches
+.impeccable/
+
+# Personal report and presentation, kept off the repo
+docs/report/
+docs/presentation/

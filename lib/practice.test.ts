@@ -1,23 +1,10 @@
 // Run with: pnpm test  (node --test; Node strips the types itself)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { draftSteps, filtered, filtersFor, inPracticeOrder, lastGrade, lastHint, parseFilter, toRedo } from './practice.ts'
+import { allMarked, describeAnswer, draftText, filtered, filtersFor, inPracticeOrder, lastChoice, lastGrade, lastHint, lastMarks, lastSubmitted, parseFilter, practiceRows, rowCount, toRedo } from './practice.ts'
 
 type A = { kind: 'submit' | 'hint' | 'reveal'; steps: string[]; result: Record<string, unknown> }
 const at = (kind: A['kind'], steps: string[], result = {}) => ({ id: 0, created_at: '', kind, steps, result })
-
-test('a fresh problem starts with one empty step', () => {
-  assert.deepEqual(draftSteps([]), [''])
-})
-
-test('the draft picks up from the last thing handed in, hint or submit', () => {
-  assert.deepEqual(draftSteps([at('submit', ['a']), at('hint', ['a', 'b'])]), ['a', 'b'])
-  assert.deepEqual(draftSteps([at('hint', ['a']), at('submit', ['a', 'c'])]), ['a', 'c'])
-})
-
-test('a reveal leaves the draft where it was', () => {
-  assert.deepEqual(draftSteps([at('submit', ['a', 'b']), at('reveal', [])]), ['a', 'b'])
-})
 
 test('the grade and the hint shown are the latest of each', () => {
   const attempts = [at('submit', ['a'], { verdict: 'needs_work' }), at('hint', ['a'], { hint: 'h1' }),
@@ -69,4 +56,91 @@ test('a filter read from the address bar is a notebook id, "own", or everything'
   assert.equal(parseFilter('12'), 12)
   assert.equal(parseFilter(null), 'all')
   assert.equal(parseFilter('x'), 'all')
+})
+
+test('the box gives the answer back exactly as it was written', () => {
+  assert.equal(draftText([]), '')
+  const written = 'HCMC: south-west monsoon. Hue: the mountains.\n\nSo they differ.'
+  assert.equal(draftText([at('submit', ['HCMC: south-west monsoon.', 'Hue: the mountains.', 'So they differ.'], { text: written })]), written)
+  assert.equal(draftText([at('submit', ['a'], { text: 'a' }), at('hint', ['a b'], { hint: 'h', text: 'a b' })]), 'a b')
+})
+
+test('an answer handed in before the text was kept comes back one step per line', () => {
+  assert.equal(draftText([at('submit', ['a']), at('hint', ['a', 'b', 'c'])]), 'a\nb\nc')
+  assert.equal(draftText([at('hint', ['a']), at('submit', ['a', 'c'])]), 'a\nc')
+})
+
+test('a reveal leaves the draft where it was', () => {
+  assert.equal(draftText([at('submit', ['a', 'b']), at('reveal', [])]), 'a\nb')
+})
+
+test('the sentence a grade points at is quoted from the submit that was graded', () => {
+  assert.deepEqual(lastSubmitted([at('submit', ['a', 'b']), at('hint', ['a', 'b', 'c'])]), ['a', 'b'])
+  assert.deepEqual(lastSubmitted([at('hint', ['a'])]), [])
+})
+
+test('a keyed answer comes back as it was given', () => {
+  const attempts = [at('submit', [], { verdict: 'needs_work', answer: 'C' }), at('hint', [], { hint: 'h' }),
+    at('submit', [], { verdict: 'needs_work', answers: { a: true, b: null, c: false } })]
+  assert.equal(lastChoice(attempts.slice(0, 2)), 'C')
+  assert.deepEqual(lastMarks(attempts), { a: true, c: false })
+  assert.deepEqual(lastMarks([]), {})
+})
+
+test('true/false is ready only when every statement is marked', () => {
+  const statements = [{ label: 'a' }, { label: 'b' }]
+  assert.equal(allMarked(statements, { a: true }), false)
+  assert.equal(allMarked(statements, { a: true, b: false }), true)
+  assert.equal(allMarked([], {}), false)
+})
+
+test('the hint is told what was picked or marked so far', () => {
+  assert.equal(describeAnswer('choice', 'B', {}), 'Picked B')
+  assert.equal(describeAnswer('choice', null, {}), '')
+  assert.equal(describeAnswer('true_false', null, { a: true, b: false }), 'a) true; b) false')
+})
+
+test('problems picked from one file are one row, where the first of them stands', () => {
+  const p = (id: number, set_key = '', status = 'new', due = false) => ({
+    id, status, due, attempted: false, notebook_id: null, notebook_title: '', origin: 'own' as const,
+    set_key, set_title: set_key ? 'Đề Hoá 12' : '',
+  })
+  const rows = practiceRows([p(9), p(5, 'a', 'mastered'), p(4, 'a'), p(7), p(6, 'a'), p(8, 'b')])
+  assert.deepEqual(rows.map((r) => (r.kind === 'one' ? r.problem.id : r.key)), [9, 'a', 7, 8])
+  const set = rows[1]
+  assert.ok(set.kind === 'set')
+  assert.deepEqual(set.problems.map((q) => q.id), [4, 5, 6])   // page order
+  assert.equal(set.next.id, 4)
+  assert.equal(set.done, 1)
+  assert.equal(set.title, 'Đề Hoá 12')
+  assert.ok(set.started && !set.due)
+})
+
+test('problems written from one document are one row too, named for the document', () => {
+  const d = (id: number, source_id: number, status = 'new') => ({
+    id, status, due: false, attempted: false, notebook_id: 32, notebook_title: 'Biology', origin: 'document' as const,
+    set_key: '', set_title: '', source_id, source_title: source_id === 51 ? 'Biology Review' : 'Cells',
+  })
+  const rows = practiceRows([d(3, 51), d(9, 60), d(2, 51, 'mastered'), d(1, 51)])
+  assert.deepEqual(rows.map((r) => (r.kind === 'one' ? r.problem.id : r.key)), ['doc:51', 9])   // one problem stays a line
+  const doc = rows[0]
+  assert.ok(doc.kind === 'set' && doc.from === 'document')
+  assert.equal(doc.title, 'Biology Review')
+  assert.deepEqual(doc.problems.map((q) => q.id), [1, 2, 3])
+  assert.equal(doc.next.id, 1)
+  assert.equal(doc.done, 1)
+})
+
+test('the filters count the lines the list shows, not the problems in them', () => {
+  const own = (id: number, set_key: string) => ({
+    id, status: 'new', due: false, attempted: false, notebook_id: null, notebook_title: '', origin: 'own' as const,
+    set_key, set_title: 'Đề Hoá 12',
+  })
+  const doc = (id: number) => ({
+    id, status: 'new', due: false, attempted: false, notebook_id: 32, notebook_title: 'Biology',
+    origin: 'document' as const, set_key: '', set_title: '', source_id: 52, source_title: 'Evolution',
+  })
+  const list = [own(1, 'a'), own(2, 'a'), own(3, 'a'), own(4, 'b'), own(5, 'b'), doc(6), doc(7), doc(8)]
+  assert.equal(rowCount(list), 3)                                  // two sets, one document
+  assert.deepEqual(filtersFor(list).map((f) => [f.key, f.count]), [[32, 1], ['own', 2]])
 })

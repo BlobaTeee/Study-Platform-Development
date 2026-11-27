@@ -14,6 +14,7 @@ import re
 
 from flashcards.services.card_format import ANSWER_RULES
 from notebooks.services.writing_style import WRITING_STYLE, tidy_prose, tidy_question
+from notebooks.services.units import unit_symbols
 
 BLANK = "______"
 _WORD = re.compile(r"\w+")
@@ -59,7 +60,7 @@ def _clean(payload: dict) -> dict | None:
     if not isinstance(payload, dict):
         return None
     question = tidy_question(str(payload.get("question") or ""))
-    answer = str(payload.get("answer") or "").strip()
+    answer = unit_symbols(str(payload.get("answer") or "").strip())
     if not question or not answer:
         return None
     difficulty = str(payload.get("difficulty") or "medium").strip().lower()

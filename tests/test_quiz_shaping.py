@@ -10,8 +10,18 @@ _MODULE_PATH = (Path(__file__).resolve().parents[1]
 
 
 def _load():
-    spec = importlib.util.spec_from_file_location("quiz_shaping_under_test", _MODULE_PATH)
+    # Loaded inside a stand-in package so its relative import of `.units`
+    # (a sibling with no Django dependency) resolves without Django.
+    import sys
+    import types
+    package = "services_under_test"
+    if package not in sys.modules:
+        stand_in = types.ModuleType(package)
+        stand_in.__path__ = [str(_MODULE_PATH.parent)]
+        sys.modules[package] = stand_in
+    spec = importlib.util.spec_from_file_location(f"{package}.quiz_shaping", _MODULE_PATH)
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
     spec.loader.exec_module(mod)
     return mod
 
