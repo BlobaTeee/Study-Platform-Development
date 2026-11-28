@@ -17,7 +17,9 @@ The model's box is rough: on 2026-11-23 one took in the question's line and
 two of its options and cut off the formula's right end. In a PDF a figure
 is usually a picture placed on the page, and where it sits is written in the
 page itself, so the box is moved onto the pictures it covers (`_snap`). A
-figure drawn with lines, or a scanned page, keeps the model's box.
+figure drawn with lines, a scanned page or a photo has no such pictures; there
+the box is fitted to the ink it lands on, between the blank lines that part a
+figure from the question's text (`_fit`).
 """
 from __future__ import annotations
 
@@ -51,6 +53,20 @@ SNAP_INSIDE = 0.5
 SNAP_FILLS = 0.25
 #: A picture this large is a scanned page, not a figure.
 SNAP_MAX_AREA = 0.6
+#: How far past the model's box a figure's ink is looked for, as a share of
+#: the page. On a scanned exam on 2026-11-27 the boxes were off by up to 0.035
+#: of the page's height and 0.06 of its width.
+FIT_REACH_X, FIT_REACH_Y = 0.08, 0.05
+#: Grey darker than this is ink.
+FIT_INK = 160
+#: A row or column with fewer ink pixels than this is blank (a scan's specks).
+FIT_SPECK = 2
+#: Blank columns narrower than this share of the page are inside a figure (a
+#: label beside its drawing); blank rows this short too. Between a figure and
+#: the question's lines there were 7 blank rows of 2404 on that exam.
+FIT_GAP_X, FIT_GAP_Y = 0.015, 0.0015
+#: Margin around a fitted box.
+FIT_PAD_X, FIT_PAD_Y = 0.004, 0.002
 #: A box smaller than this share of the page is a mistake, not a figure.
 MIN_AREA = 0.0015
 MAX_SIDE = 1200
@@ -87,9 +103,35 @@ def tag_untagged(text: str, cut: int) -> str:
     return _DESCRIBED.sub(tag, text)
 
 
+#: Words by which a question points to a figure printed with it.
+_POINTS = re.compile(r'hình\s+vẽ|hình\s+(?:bên|dưới|sau)|như\s+hình|đồ\s+thị\s+(?:dưới|bên|sau|như|ở)'
+                     r'|the\s+(?:figure|graph|diagram)\s+(?:below|above|shown)|shown\s+(?:below|in\s+the\s+figure)',
+                     re.I)
+#: A table the reader copied as text (a Markdown row, or described).
+_TABLE = re.compile(r'^\s*\||\[(?:Table|Bảng)\b', re.M)
+
+
+def points_to_figure(text: str) -> bool:
+    """Whether a question says it has a figure ("như hình vẽ", "đồ thị dưới
+    đây") and is not a table, whose box would be the table's lines."""
+    return bool(_POINTS.search(text or '')) and not _TABLE.search(text or '')
+
+
 def tags_in(text: str) -> set[int]:
     """The figure numbers a text has a [Figure n: ...] tag for."""
     return {int(n) for n in _TAG.findall(text or '')}
+
+
+def renumber(texts: list[str]) -> list[str]:
+    """One question's texts (stem, options, statements) with its figures
+    numbered 1, 2, ... in the order of their numbers, as its boxes are. On
+    2026-11-27 the reader numbered a question's only figure 2, counting the
+    paper's figures, and the figure was dropped for want of a second box."""
+    numbers = sorted(set().union(*(tags_in(t) for t in texts)))
+    if numbers == list(range(1, len(numbers) + 1)):
+        return texts
+    new = {old: n for n, old in enumerate(numbers, 1)}
+    return [_TAG.sub(lambda m: f'[Figure {new[int(m.group(1))]}:', t or '') for t in texts]
 
 
 def boxes_of(item: dict) -> list[tuple[int, tuple[float, float, float, float]]]:
@@ -139,11 +181,77 @@ def cut(data: bytes, mime: str, wanted: list[list]) -> list[list[str | None]]:
             if not b:
                 row.append(None)
                 continue
+            image = drawn.get(b[0])
             snapped = _snap(b[1], placed.get(b[0], []))
-            row.append(_crop(drawn.get(b[0]), snapped, SNAP_PAD_X, SNAP_PAD_Y) if snapped
-                       else _crop(drawn.get(b[0]), b[1]))
+            fitted = None if snapped or image is None else _fit(image, b[1])
+            if snapped:
+                row.append(_crop(image, snapped, SNAP_PAD_X, SNAP_PAD_Y))
+            elif fitted:
+                row.append(_crop(image, fitted, FIT_PAD_X, FIT_PAD_Y))
+            else:
+                row.append(_crop(image, b[1]))
         out.append(row)
     return out
+
+
+def _runs(counts, gap: int) -> list[tuple[int, int]]:
+    """The [start, end) runs where counts show ink, joined across blanks
+    shorter than `gap`."""
+    runs = []
+    for i, inked in enumerate(counts >= FIT_SPECK):
+        if not inked:
+            continue
+        if runs and i - runs[-1][1] < gap:
+            runs[-1][1] = i + 1
+        else:
+            runs.append([i, i + 1])
+    return [tuple(r) for r in runs]
+
+
+def _most_of(runs, lo: int, hi: int):
+    """The run that overlaps [lo, hi) the most, or None."""
+    best = max(runs, key=lambda r: min(hi, r[1]) - max(lo, r[0]), default=None)
+    return best if best and min(hi, best[1]) > max(lo, best[0]) else None
+
+
+def _fit(image, box):
+    """The model's box fitted to the ink it lands on, or None to keep it.
+
+    Within the box's columns, the rows of ink parted by blank rows are the
+    question's lines and the figure; the one the box covers most is the
+    figure. Within those rows, its columns are found the same way, then its
+    rows again within its columns, so a figure the box cut off is found
+    whole. A fit that runs to the edge of where it looked, or comes out far
+    smaller or larger than the box, is not a figure standing on its own (a
+    dark photo, a drawing inside a table), and the box is kept."""
+    import numpy as np
+
+    w, h = image.size
+    ymin, xmin, ymax, xmax = box
+    top, left = max(0, int((ymin - FIT_REACH_Y) * h)), max(0, int((xmin - FIT_REACH_X) * w))
+    bottom, right = min(h, int((ymax + FIT_REACH_Y) * h)), min(w, int((xmax + FIT_REACH_X) * w))
+    ink = np.asarray(image.crop((left, top, right, bottom)).convert('L')) < FIT_INK
+    if not ink.size:
+        return None
+    gap_x, gap_y = max(1, round(FIT_GAP_X * w)), max(1, round(FIT_GAP_Y * h))
+    by0, by1 = int(ymin * h) - top, int(ymax * h) - top
+    bx0, bx1 = int(xmin * w) - left, int(xmax * w) - left
+
+    rows = _most_of(_runs(ink[:, bx0:bx1].sum(axis=1), gap_y), by0, by1)
+    if not rows:
+        return None
+    cols = _most_of(_runs(ink[rows[0]:rows[1]].sum(axis=0), gap_x), bx0, bx1)
+    if not cols:
+        return None
+    rows = _most_of(_runs(ink[:, cols[0]:cols[1]].sum(axis=1), gap_y), rows[0], rows[1])
+    if not rows:
+        return None
+    if rows[0] == 0 and top > 0 or cols[0] == 0 and left > 0 \
+            or rows[1] == ink.shape[0] and bottom < h or cols[1] == ink.shape[1] and right < w:
+        return None
+    fitted = ((top + rows[0]) / h, (left + cols[0]) / w, (top + rows[1]) / h, (left + cols[1]) / w)
+    ratio = (fitted[2] - fitted[0]) * (fitted[3] - fitted[1]) / ((ymax - ymin) * (xmax - xmin))
+    return fitted if SNAP_FILLS <= ratio <= 1 / SNAP_FILLS else None
 
 
 def _snap(box, pictures):
