@@ -33,6 +33,8 @@ MAX_LABEL_CHARS = 40
 MAX_INSTRUCTION_CHARS = 400
 MAX_DOCX_FIGURES = 20
 DOCX_CONVERT_SECONDS = 90
+#: The tag a figure boxed without one gets; its words show only if the picture is missing.
+LOOSE_FIGURE = 'Figure 1: hình trong đề'
 #: Smaller pictures are bullets and logos, not figures.
 MIN_FIGURE_BYTES = 300
 
@@ -197,14 +199,19 @@ def read_problems(data: bytes) -> tuple[list[dict], str]:
         raise NoProblemInPhoto(_('No problem could be found in this photo. Try a closer, sharper photo of it.'))
     # A Word file read as text has no pages to cut from; its figures stay described.
     cuts = figures.cut(data, mime, boxes) if mime != DOCX else [[None] * len(b) for b in boxes]
+    loose = []
     for question, cut in zip(questions, cuts):
         # [Figure n] is figures[n - 1]; None: not cut. A box the text has no
         # tag for is dropped: on 2026-11-23 a table, copied as text, also got
         # a box, which landed on the next question's lines; sent along to the
         # answer key it pulled that question's statements in.
         question['text'] = figures.tag_untagged(question['text'], sum(1 for url in cut if url))
+        _renumber_figures(question)
         tagged = figures.tags_in(_all_text(question))
         question['figures'] = [url if n in tagged else None for n, url in enumerate(cut, 1)]
+        loose.append([url for n, url in enumerate(cut, 1) if url and n not in tagged])
+    _place_loose_figures(questions, loose)
+    for question in questions:
         while question['figures'] and question['figures'][-1] is None:
             question['figures'].pop()
     title = _title(reply.get('title'))
@@ -243,6 +250,33 @@ def _shape(item: dict) -> dict:
     # Not the shape it claimed: everything it gave goes back into the text.
     extra = [f"{o['label']}. {o['text']}" for o in options] + [f"{s['label']}) {s['text']}" for s in statements]
     return {'kind': 'written', '_extra': extra}
+
+
+def _place_loose_figures(questions: list[dict], loose: list[list[str]]) -> None:
+    """Figures the reader boxed but wrote no tag for. Each goes to a question
+    that points to a figure ("như hình vẽ") and shows none: its own, or the
+    one before when it does not point to one, as a figure at the top of the
+    next page was given to that page's first question (2026-11-27). It is
+    tagged at the end of the stem. Any other is dropped, as a table's box is."""
+    for i, urls in enumerate(loose):
+        if not urls:
+            continue
+        target = questions[i] if figures.points_to_figure(_all_text(questions[i])) else \
+            questions[i - 1] if i else None
+        if target is None or not figures.points_to_figure(_all_text(target)) or any(target['figures']):
+            continue
+        target['figures'] = [urls[0]]
+        target['text'] = f"{target['text']}\n[{LOOSE_FIGURE}]".strip()
+
+
+def _renumber_figures(question: dict) -> None:
+    """The question's [Figure n] tags counted within it (figures.renumber),
+    in its stem, options and statements alike."""
+    entries = (question.get('options') or []) + (question.get('statements') or [])
+    stem, *rest = figures.renumber([question['text'], *(e['text'] for e in entries)])
+    question['text'] = stem
+    for entry, text in zip(entries, rest):
+        entry['text'] = text
 
 
 def _all_text(question: dict) -> str:

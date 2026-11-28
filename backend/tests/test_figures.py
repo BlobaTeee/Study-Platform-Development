@@ -33,11 +33,11 @@ def test_boxes_keep_order_and_drop_nonsense():
     assert boxes[3] == (2, (0.0, 0.0, 1.0, 1.0))        # clamped to the page
 
 
-def test_a_figure_is_cut_from_a_photo_with_a_margin():
+def test_a_figure_is_cut_from_a_photo_with_a_thin_margin():
     [[url]] = figures.cut(_page(), 'image/png', [[(1, (0.5, 0.2, 0.7, 0.4))]])
     image = _decode(url)
     assert url.startswith('data:image/png;base64,')
-    assert 230 <= image.width <= 250 and 240 <= image.height <= 260   # the box plus its margin
+    assert 200 < image.width <= 212 and 200 < image.height <= 208    # the square, fitted, plus a thin margin
     assert image.getpixel((image.width // 2, image.height // 2)) == (0, 0, 0)
 
 
@@ -193,3 +193,92 @@ def test_a_box_around_something_else_keeps_its_own_shape():
     pictures = figures.placed_pictures(_pdf_with_picture(), {1})[1]
     assert figures._snap((0.6, 0.1, 0.9, 0.9), pictures) is None     # a drawing; only the scan is there
     assert figures._snap((0.0, 0.0, 1.0, 1.0), [(0.3, 0.2, 0.31, 0.21)]) is None   # a speck in a big box
+
+
+def test_a_figure_numbered_across_the_paper_is_still_shown(client, monkeypatch):
+    """The reader numbered a question's only figure [Figure 2: ...], counting
+    the paper's figures, so figures[1] was looked for, not found, and the
+    test showed only the words (2026-11-27)."""
+    class Reader:
+        def generate_json_from_images(self, prompt, images):
+            return {'found': True, 'questions': [{'label': 'Câu 4', 'instruction': '', 'kind': 'choice',
+                    'text': 'Tính $S=a+b+c+d$ như hình vẽ. [Figure 2: Ellipse with a cubic curve]',
+                    'options': [{'label': 'A', 'text': '1'}, {'label': 'B', 'text': '[Figure 3: a graph]'}],
+                    'figures': [{'page': 1, 'box': [500, 200, 700, 400]},
+                                {'page': 1, 'box': [500, 200, 700, 400]}]}]}
+    monkeypatch.setattr('notebooks.services.ai_provider.get_ai_provider', lambda: Reader())
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    res = client.post('/api/exercises/read-photo/', {'image': SimpleUploadedFile('de.png', _page(), 'image/png')},
+                      format='multipart')
+    [question] = res.json()['questions']
+    assert '[Figure 1: Ellipse' in question['text']
+    assert question['options'][1]['text'] == '[Figure 2: a graph]'
+    assert len(question['figures']) == 2 and all(f.startswith('data:image/png') for f in question['figures'])
+
+
+# ---- a rough box fitted to the ink on a scanned page --------------------------------------
+
+def _scanned_page():
+    """A 1000 x 1000 'scan': a line of text at y 300-312, a figure at x 300-600,
+    y 320-560 with its label 5 px to the left, and a line of options at y 570-585."""
+    image = Image.new('RGB', (1000, 1000), 'white')
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((50, 300, 950, 312), fill='black')
+    draw.rectangle((300, 320, 600, 560), outline='black', width=3)
+    draw.line((300, 560, 600, 320), fill='black', width=3)
+    draw.rectangle((280, 400, 295, 410), fill='black')
+    draw.rectangle((50, 570, 950, 585), fill='black')
+    out = io.BytesIO()
+    image.save(out, 'PNG')
+    return out.getvalue()
+
+
+def test_a_rough_box_on_a_scan_is_fitted_to_the_figure():
+    """The model's box rode up into the line above and cut off the figure's
+    left end, as on a scanned exam on 2026-11-27."""
+    [[url]] = figures.cut(_scanned_page(), 'image/png', [[(1, (0.28, 0.34, 0.52, 0.66))]])
+    image = _decode(url)
+    assert 320 <= image.width <= 335 and 240 <= image.height <= 250   # the figure and its label
+    top = [image.getpixel((x, 0)) for x in range(image.width)]
+    assert all(p == (255, 255, 255) for p in top)                     # not the line above
+
+
+def test_a_box_on_no_clear_figure_keeps_its_own_shape():
+    image = Image.new('RGB', (1000, 1000), (90, 90, 90))           # a dark photo: ink everywhere
+    out = io.BytesIO()
+    image.save(out, 'PNG')
+    [[url]] = figures.cut(out.getvalue(), 'image/png', [[(1, (0.5, 0.2, 0.7, 0.4))]])
+    assert 230 <= _decode(url).width <= 250                         # the box plus its margin
+
+
+def _read(monkeypatch, client, questions):
+    class Reader:
+        def generate_json_from_images(self, prompt, images):
+            return {'found': True, 'questions': questions}
+    monkeypatch.setattr('notebooks.services.ai_provider.get_ai_provider', lambda: Reader())
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    res = client.post('/api/exercises/read-photo/', {'image': SimpleUploadedFile('de.png', _page(), 'image/png')},
+                      format='multipart')
+    return res.json()['questions']
+
+
+def test_a_boxed_figure_the_question_points_to_is_kept_without_its_tag(client, monkeypatch):
+    """The reader boxed the graph of "Đồ thị dưới đây ..." but wrote no tag, and
+    the test showed the question with no graph (2026-11-27)."""
+    [question] = _read(monkeypatch, client, [{'label': 'Câu 11', 'instruction': '', 'kind': 'choice',
+                       'text': 'Đồ thị dưới đây là đồ thị của hàm số nào?',
+                       'options': [{'label': 'A', 'text': '$y=x$'}, {'label': 'B', 'text': '$y=x^2$'}],
+                       'figures': [{'page': 1, 'box': [500, 200, 700, 400]}]}])
+    assert question['text'].startswith('Đồ thị dưới đây') and '[Figure 1:' in question['text']
+    assert len(question['figures']) == 1 and question['figures'][0].startswith('data:image/png')
+
+
+def test_a_figure_over_a_page_break_goes_back_to_its_question(client, monkeypatch):
+    """The ellipse of Câu 5 sat at the top of the next page, and the reader
+    gave its box to Câu 6, which has no figure (2026-11-27)."""
+    first, second = _read(monkeypatch, client, [
+        {'label': 'Câu 5', 'instruction': '', 'text': 'Elip ... song song với trục bé như hình vẽ. Tính $S$.'},
+        {'label': 'Câu 6', 'instruction': '', 'text': 'Cho hình chóp $SABCD$ có đáy là hình vuông.',
+         'figures': [{'page': 1, 'box': [500, 200, 700, 400]}]}])
+    assert '[Figure 1:' in first['text'] and len(first['figures']) == 1
+    assert second['figures'] == [] and 'Figure' not in second['text']
